@@ -1,5 +1,7 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
+import { supabase } from '../lib/supabase';
 
 interface Ticket {
   id: string;
@@ -15,44 +17,146 @@ interface Ticket {
 
 export default function MyTicketsPage() {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<'upcoming' | 'history'>('upcoming');
 
-  const upcomingTickets: Ticket[] = [
-    {
-      id: 'SPK-88291',
-      month: 'Oct',
-      day: 24,
-      dayOfWeek: 'Today',
-      time: '14:00 - 16:00',
-      type: 'Entry Pass',
-      category: 'Premium Studio',
-      location: 'Downtown Arts District, Suite 400',
-      isToday: true
-    },
-    {
-      id: 'SPK-99382',
-      month: 'Nov',
-      day: 2,
-      dayOfWeek: 'Saturday',
-      time: '10:00 - 12:00',
-      type: 'Entry Pass',
-      category: 'Portrait Session',
-      location: 'Uptown Studio Loft, Room B'
-    },
-    {
-      id: 'SPK-22109',
-      month: 'Nov',
-      day: 15,
-      dayOfWeek: 'Friday',
-      time: '15:00 - 16:00',
-      type: 'Entry Pass',
-      category: 'Headshot Express',
-      location: 'Downtown Arts District, Suite 400'
+  type AppUserRow = { id: number; name: string; email: string };
+  type ReservationRow = {
+    id: string | number;
+    selected_date: string;
+    selected_time_slots: unknown;
+    status: string;
+    tickets?: { name: string } | Array<{ name: string }> | null;
+  };
+
+  const [upcomingTickets, setUpcomingTickets] = useState<Ticket[]>([]);
+  const [historyTickets, setHistoryTickets] = useState<Ticket[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  const todayIso = useMemo(() => {
+    const now = new Date();
+    const localMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    return localMidnight.toISOString().slice(0, 10);
+  }, []);
+
+  const formatTime = (value: unknown) => {
+    if (!value) return 'All Day';
+    if (typeof value === 'object' && value && 'time_slot' in value) {
+      const raw = (value as { time_slot?: unknown }).time_slot;
+      return typeof raw === 'string' ? raw.slice(0, 5) : 'All Day';
     }
-  ];
+    return 'All Day';
+  };
+
+  useEffect(() => {
+    const run = async () => {
+      if (!supabase) {
+        setUpcomingTickets([]);
+        setHistoryTickets([]);
+        setLoading(false);
+        setErrorMessage('Supabase belum terkonfigurasi.');
+        return;
+      }
+
+      if (!user?.email) {
+        setUpcomingTickets([]);
+        setHistoryTickets([]);
+        setLoading(false);
+        setErrorMessage(null);
+        return;
+      }
+
+      try {
+        setLoading(true);
+        setErrorMessage(null);
+
+        const { data: appUser, error: appUserError } = await supabase
+          .from('users')
+          .select('id,name,email')
+          .eq('email', user.email)
+          .maybeSingle();
+
+        if (appUserError) throw appUserError;
+        if (!appUser) {
+          setUpcomingTickets([]);
+          setHistoryTickets([]);
+          setErrorMessage('Akun kamu belum terdaftar di database aplikasi.');
+          return;
+        }
+
+        const { data: reservations, error: reservationsError } = await supabase
+          .from('reservations')
+          .select('id,selected_date,selected_time_slots,status,tickets(name)')
+          .eq('user_id', (appUser as AppUserRow).id)
+          .order('selected_date', { ascending: true });
+
+        if (reservationsError) throw reservationsError;
+
+        const rows = (reservations ?? []) as unknown as ReservationRow[];
+        const mapped: Ticket[] = rows.map((row) => {
+          const d = new Date(`${row.selected_date}T00:00:00`);
+          const month = d.toLocaleString('en-US', { month: 'short' });
+          const day = d.getDate();
+          const dayOfWeek = d.toLocaleString('en-US', { weekday: 'long' });
+
+          const ticketInfo = row.tickets ? (Array.isArray(row.tickets) ? row.tickets[0] ?? null : row.tickets) : null;
+
+          return {
+            id: String(row.id),
+            month,
+            day,
+            dayOfWeek: row.selected_date === todayIso ? 'Today' : dayOfWeek,
+            time: formatTime(row.selected_time_slots),
+            type: row.status === 'pending' ? 'Reservation' : 'Entry Pass',
+            category: ticketInfo?.name ?? 'Entrance Ticket',
+            location: 'Spark Studio',
+            isToday: row.selected_date === todayIso,
+          };
+        });
+
+        const rowById = new Map(rows.map((r) => [String(r.id), r] as const));
+
+        const upcomingSorted = mapped
+          .filter((t) => {
+            const row = rowById.get(t.id);
+            if (!row) return false;
+            return (row.status === 'pending' || row.status === 'confirmed') && row.selected_date >= todayIso;
+          })
+          .sort((a, b) => {
+            const ad = rowById.get(a.id)?.selected_date ?? '';
+            const bd = rowById.get(b.id)?.selected_date ?? '';
+            return ad.localeCompare(bd);
+          });
+
+        const historySorted = mapped
+          .filter((t) => {
+            const row = rowById.get(t.id);
+            if (!row) return false;
+            return row.selected_date < todayIso || ['cancelled', 'expired'].includes(row.status);
+          })
+          .sort((a, b) => {
+            const ad = rowById.get(a.id)?.selected_date ?? '';
+            const bd = rowById.get(b.id)?.selected_date ?? '';
+            return bd.localeCompare(ad);
+          });
+
+        setUpcomingTickets(upcomingSorted);
+        setHistoryTickets(historySorted);
+      } catch {
+        setUpcomingTickets([]);
+        setHistoryTickets([]);
+        setErrorMessage('Gagal memuat tiket.');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    void run();
+  }, [todayIso, user?.email]);
 
   const handleViewQR = (ticketId: string) => {
-    navigate('/booking-success', { state: { ticketId } });
+    navigate('/booking-success', { state: { reservationId: ticketId } });
   };
 
   return (
@@ -112,7 +216,31 @@ export default function MyTicketsPage() {
         {/* Tickets List */}
         <div className="space-y-4">
           {activeTab === 'upcoming' ? (
-            upcomingTickets.map((ticket) => (
+            loading ? (
+              <div className="text-center py-16">
+                <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-primary border-r-transparent"></div>
+                <p className="mt-4 text-gray-500 dark:text-gray-400 text-lg">Loading...</p>
+              </div>
+            ) : errorMessage ? (
+              <div className="text-center py-16">
+                <span className="material-symbols-outlined text-6xl text-gray-300 dark:text-gray-700 mb-4">error</span>
+                <p className="text-gray-500 dark:text-gray-400 text-lg">{errorMessage}</p>
+              </div>
+            ) : upcomingTickets.length === 0 ? (
+              <div className="text-center py-16">
+                <span className="material-symbols-outlined text-6xl text-gray-300 dark:text-gray-700 mb-4">
+                  confirmation_number
+                </span>
+                <p className="text-gray-500 dark:text-gray-400 text-lg">No upcoming tickets</p>
+                <button
+                  onClick={() => navigate('/calendar')}
+                  className="mt-6 inline-flex items-center rounded-lg bg-primary px-6 py-3 text-sm font-bold text-white hover:bg-red-700 transition-colors"
+                >
+                  Book a session
+                </button>
+              </div>
+            ) : (
+              upcomingTickets.map((ticket) => (
               <div
                 key={ticket.id}
                 className={`group bg-white dark:bg-[#1c0d0d] rounded-xl p-6 border border-[#f4e7e7] dark:border-[#331a1a] shadow-sm hover:shadow-lg hover:border-primary/20 transition-all flex flex-col md:flex-row items-start md:items-center justify-between gap-6 relative overflow-hidden ${
@@ -187,13 +315,41 @@ export default function MyTicketsPage() {
                   </button>
                 </div>
               </div>
-            ))
+              ))
+            )
           ) : (
             <div className="text-center py-16">
               <span className="material-symbols-outlined text-6xl text-gray-300 dark:text-gray-700 mb-4">
                 history
               </span>
-              <p className="text-gray-500 dark:text-gray-400 text-lg">No ticket history yet</p>
+              <p className="text-gray-500 dark:text-gray-400 text-lg">
+                {loading ? 'Loading...' : historyTickets.length === 0 ? 'No ticket history yet' : ''}
+              </p>
+              {!loading && historyTickets.length > 0 ? (
+                <div className="mt-8 space-y-4 text-left">
+                  {historyTickets.map((ticket) => (
+                    <div
+                      key={ticket.id}
+                      className="bg-white dark:bg-[#1c0d0d] rounded-xl p-6 border border-[#f4e7e7] dark:border-[#331a1a] shadow-sm"
+                    >
+                      <div className="flex items-center justify-between gap-4">
+                        <div>
+                          <p className="text-sm font-bold text-primary">{ticket.category}</p>
+                          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                            {ticket.month} {ticket.day} • {ticket.time}
+                          </p>
+                        </div>
+                        <button
+                          onClick={() => handleViewQR(ticket.id)}
+                          className="rounded-lg border border-primary/20 px-4 py-2 text-sm font-bold text-primary hover:bg-primary/5 transition-colors"
+                        >
+                          Details
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
             </div>
           )}
         </div>

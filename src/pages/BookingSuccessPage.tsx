@@ -1,11 +1,9 @@
+import { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { supabase } from '../lib/supabase';
 
 interface LocationState {
-  ticketType?: string;
-  total?: number;
-  date?: string;
-  time?: string;
-  customerName?: string;
+  reservationId?: string | number;
 }
 
 export default function BookingSuccessPage() {
@@ -13,12 +11,88 @@ export default function BookingSuccessPage() {
   const navigate = useNavigate();
   const state = location.state as LocationState;
 
-  // Mock data
-  const ticketType = state?.ticketType || 'Editorial Loft Session';
-  const customerName = state?.customerName || 'Alex Rivera';
-  const bookingDate = state?.date || 'Oct 24, 2023';
-  const timeSlot = state?.time || '2:00 PM (2 hrs)';
-  const bookingId = 'SPK-' + Math.floor(Math.random() * 90000 + 10000) + '-NYC';
+  type ReservationRow = {
+    id: string | number;
+    selected_date: string;
+    selected_time_slots: unknown;
+    status: string;
+    users?: { name: string; email: string } | Array<{ name: string; email: string }> | null;
+    tickets?: { name: string } | Array<{ name: string }> | null;
+  };
+
+  const reservationId = state?.reservationId;
+  const [reservation, setReservation] = useState<ReservationRow | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    const run = async () => {
+      if (!reservationId) {
+        setLoading(false);
+        return;
+      }
+      if (!supabase) {
+        setErrorMessage('Supabase belum terkonfigurasi.');
+        setLoading(false);
+        return;
+      }
+
+      try {
+        setLoading(true);
+        setErrorMessage(null);
+        const { data, error } = await supabase
+          .from('reservations')
+          .select('id,selected_date,selected_time_slots,status,users(name,email),tickets(name)')
+          .eq('id', reservationId)
+          .maybeSingle();
+        if (error) throw error;
+        setReservation((data as unknown as ReservationRow) ?? null);
+      } catch {
+        setReservation(null);
+        setErrorMessage('Gagal memuat data booking.');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    void run();
+  }, [reservationId]);
+
+  const bookingId = useMemo(() => {
+    if (!reservation) return '';
+    return `RES-${reservation.id}`;
+  }, [reservation]);
+
+  const ticketInfo = reservation?.tickets
+    ? Array.isArray(reservation.tickets)
+      ? reservation.tickets[0] ?? null
+      : reservation.tickets
+    : null;
+
+  const userInfo = reservation?.users
+    ? Array.isArray(reservation.users)
+      ? reservation.users[0] ?? null
+      : reservation.users
+    : null;
+
+  const ticketType = ticketInfo?.name ?? 'Entrance Ticket';
+  const customerName = userInfo?.name ?? '';
+  const bookingDate = reservation?.selected_date
+    ? new Date(`${reservation.selected_date}T00:00:00`).toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+      })
+    : '';
+  const timeSlot = (() => {
+    const value = reservation?.selected_time_slots;
+    if (!value) return 'All Day';
+    if (typeof value === 'object' && value && 'time_slot' in value) {
+      const raw = (value as { time_slot?: unknown }).time_slot;
+      return typeof raw === 'string' ? raw.slice(0, 5) : 'All Day';
+    }
+    return 'All Day';
+  })();
 
   const handlePrint = () => {
     window.print();
@@ -40,6 +114,34 @@ export default function BookingSuccessPage() {
     <div className="min-h-screen bg-background-light dark:bg-background-dark">
       <main className="flex-1 flex justify-center py-12 px-4">
         <div className="layout-content-container flex flex-col max-w-[800px] flex-1">
+          {!reservationId ? (
+            <div className="rounded-xl border border-amber-200 bg-amber-50 px-6 py-5 text-amber-900 dark:border-amber-900/40 dark:bg-amber-900/20 dark:text-amber-100">
+              <p className="text-sm font-bold">Data booking tidak ditemukan.</p>
+              <button
+                onClick={() => navigate('/calendar')}
+                className="mt-4 inline-flex items-center rounded-lg bg-primary px-4 py-2 text-sm font-bold text-white hover:bg-red-700 transition-colors"
+              >
+                Kembali ke kalender
+              </button>
+            </div>
+          ) : loading ? (
+            <div className="rounded-xl border border-gray-200 dark:border-white/10 bg-white dark:bg-[#1a0f0f] p-8 animate-pulse">
+              <div className="h-8 w-40 bg-gray-200 dark:bg-white/10 rounded mb-4" />
+              <div className="h-4 w-2/3 bg-gray-200 dark:bg-white/10 rounded mb-2" />
+              <div className="h-4 w-1/2 bg-gray-200 dark:bg-white/10 rounded" />
+            </div>
+          ) : errorMessage ? (
+            <div className="rounded-xl border border-amber-200 bg-amber-50 px-6 py-5 text-amber-900 dark:border-amber-900/40 dark:bg-amber-900/20 dark:text-amber-100">
+              <p className="text-sm font-bold">{errorMessage}</p>
+              <button
+                onClick={() => navigate('/calendar')}
+                className="mt-4 inline-flex items-center rounded-lg bg-primary px-4 py-2 text-sm font-bold text-white hover:bg-red-700 transition-colors"
+              >
+                Kembali ke kalender
+              </button>
+            </div>
+          ) : (
+            <>
           {/* Celebration Section */}
           <div className="text-center mb-8">
             <div className="inline-flex items-center justify-center p-3 mb-4 rounded-full bg-primary/10 text-primary">
@@ -138,7 +240,7 @@ export default function BookingSuccessPage() {
               </div>
               <div className="flex items-center gap-2">
                 <span className="size-2 bg-green-500 rounded-full"></span>
-                <span className="text-sm font-bold text-green-600 uppercase">Confirmed &amp; Paid</span>
+                <span className="text-sm font-bold text-green-600 uppercase">{reservation?.status ?? 'confirmed'}</span>
               </div>
             </div>
           </div>
@@ -169,6 +271,8 @@ export default function BookingSuccessPage() {
               Back to Studio Dashboard
             </button>
           </div>
+            </>
+          )}
         </div>
       </main>
 
