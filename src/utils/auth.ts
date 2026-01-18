@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase';
 // Check if user has admin role from database
 export const isAdmin = async (userId: string | undefined): Promise<boolean> => {
   if (!userId) return false;
+  if (!supabase) return false;
   
   try {
     // Query role assignments table to check if user has admin role
