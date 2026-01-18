@@ -83,10 +83,19 @@ spark-photo-studio/
 
 - Node.js 20.19+ installed
 - npm, yarn, pnpm, or bun package manager
+- Supabase account (for backend services)
+- Midtrans account (for payment gateway)
 
 ### Installation
 
-1. Install dependencies:
+1. Clone the repository:
+
+```bash
+git clone https://github.com/pradastikomyos/Spark-studio.git
+cd Spark-studio
+```
+
+2. Install dependencies:
 
 ```bash
 npm install
@@ -100,6 +109,24 @@ yarn install
 pnpm install
 # or
 bun install
+```
+
+3. Set up environment variables:
+
+Copy `.env.example` to `.env` and fill in your credentials:
+
+```bash
+cp .env.example .env
+```
+
+Then edit `.env` with your actual values:
+
+```env
+VITE_SUPABASE_URL=your_supabase_project_url
+VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
+VITE_MIDTRANS_SERVER_KEY=your_midtrans_server_key
+VITE_MIDTRANS_CLIENT_KEY=your_midtrans_client_key
+VITE_MIDTRANS_IS_PRODUCTION=false
 ```
 
 ### Development
@@ -127,6 +154,54 @@ Preview the production build locally:
 ```bash
 npm run preview
 ```
+
+## Deployment to Vercel
+
+### Quick Deploy
+
+1. Push your code to GitHub (already done!)
+
+2. Go to [Vercel](https://vercel.com) and sign in with your GitHub account
+
+3. Click "Add New Project" and import your repository: `pradastikomyos/Spark-studio`
+
+4. Configure your project:
+   - Framework Preset: Vite (auto-detected)
+   - Build Command: `npm run build` (auto-detected)
+   - Output Directory: `dist` (auto-detected)
+
+5. Add Environment Variables in Vercel dashboard:
+   - `VITE_SUPABASE_URL`
+   - `VITE_SUPABASE_ANON_KEY`
+   - `VITE_MIDTRANS_SERVER_KEY`
+   - `VITE_MIDTRANS_CLIENT_KEY`
+   - `VITE_MIDTRANS_IS_PRODUCTION`
+
+6. Click "Deploy"
+
+### Environment Variables Setup
+
+In your Vercel project settings:
+
+1. Go to Settings → Environment Variables
+2. Add each variable from your `.env` file
+3. Select which environments (Production, Preview, Development)
+4. Save changes
+
+**Important**: Never commit your `.env` file to git. Use `.env.example` as a template.
+
+### Automatic Deployments
+
+Once connected, Vercel will automatically deploy:
+- **Production**: Every push to `main` branch
+- **Preview**: Every pull request
+
+### Custom Domain
+
+To add a custom domain:
+1. Go to Settings → Domains in your Vercel project
+2. Add your domain
+3. Update your DNS records as instructed
 
 ## Pages
 
