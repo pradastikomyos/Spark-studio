@@ -1,8 +1,13 @@
 export interface TicketData {
-  month: string;
-  day: number;
-  dayOfWeek: string;
-  isToday?: boolean;
+  id: number;
+  slug: string;
+  name: string;
+  type: string;
+  price: string;
+  description: string | null;
+  available_from: string;
+  available_until: string;
+  is_active: boolean;
 }
 
 export interface AboutItem {
