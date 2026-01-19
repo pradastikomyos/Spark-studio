@@ -36,8 +36,6 @@ const AdminLayout = ({
   menuSections = [],
   defaultActiveMenuId,
   title,
-  subtitle,
-  headerActions,
   children,
   onLogout,
   logoutRedirectPath = '/login',
