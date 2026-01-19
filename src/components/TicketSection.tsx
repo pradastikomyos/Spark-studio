@@ -129,6 +129,7 @@ const TicketSection = () => {
               ticket={item.ticket} 
               displayDate={item.date}
               isToday={item.isToday}
+              isBookable={item.isToday}
             />
           ))}
         </div>

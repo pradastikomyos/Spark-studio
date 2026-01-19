@@ -5,12 +5,14 @@ interface TicketCardProps {
   ticket: TicketData;
   displayDate: Date;
   isToday?: boolean;
+  isBookable?: boolean;
 }
 
-const TicketCard = ({ ticket, displayDate, isToday }: TicketCardProps) => {
+const TicketCard = ({ ticket, displayDate, isToday, isBookable = true }: TicketCardProps) => {
   const navigate = useNavigate();
 
   const handleBookNow = () => {
+    if (!isBookable) return;
     navigate(`/booking/${ticket.slug}`);
   };
 
@@ -43,7 +45,12 @@ const TicketCard = ({ ticket, displayDate, isToday }: TicketCardProps) => {
       </p>
       <button 
         onClick={handleBookNow}
-        className="w-full py-3 border border-gray-200 dark:border-white/10 text-xs font-bold uppercase tracking-widest hover:bg-primary hover:border-primary hover:text-white transition-all duration-300 flex justify-center items-center gap-2"
+        disabled={!isBookable}
+        className={`w-full py-3 border text-xs font-bold uppercase tracking-widest flex justify-center items-center gap-2 transition-all duration-300 ${
+          isBookable 
+            ? 'border-gray-200 dark:border-white/10 hover:bg-primary hover:border-primary hover:text-white cursor-pointer' 
+            : 'border-gray-300 dark:border-white/5 text-gray-400 dark:text-gray-600 cursor-not-allowed hover:bg-gray-100 dark:hover:bg-gray-900'
+        }`}
       >
         Book Now
       </button>
