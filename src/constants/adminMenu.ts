@@ -7,6 +7,15 @@ export const ADMIN_MENU_ITEMS: AdminMenuItem[] = [
 
 export const ADMIN_MENU_SECTIONS: AdminMenuSection[] = [
   {
+    id: 'management',
+    label: 'Management',
+    items: [
+      { id: 'stages', label: 'Stage Manager', icon: 'grid_view', path: '/admin/stages' },
+      { id: 'qr-bulk', label: 'QR Bulk Manager', icon: 'qr_code_2', path: '/admin/qr-bulk' },
+      { id: 'stage-analytics', label: 'Stage Analytics', icon: 'analytics', path: '/admin/stage-analytics' },
+    ],
+  },
+  {
     id: 'tickets',
     label: 'Tickets',
     items: [

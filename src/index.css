@@ -18,3 +18,23 @@
 .text-stroke-dark {
   -webkit-text-stroke: 1px rgba(0,0,0,0.1);
 }
+
+/* Custom Scrollbar for Admin */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #131316;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #27272a;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #3f3f46;
+}
+

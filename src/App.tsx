@@ -12,6 +12,9 @@ import SignUp from './pages/SignUp';
 import Dashboard from './pages/admin/Dashboard';
 import TicketsManagement from './pages/admin/TicketsManagement';
 import StoreInventory from './pages/admin/StoreInventory';
+import StageManager from './pages/admin/StageManager';
+import StageAnalytics from './pages/admin/StageAnalytics';
+import StageBulkQR from './pages/admin/StageBulkQR';
 import BookingPage from './pages/BookingPage';
 import PaymentPage from './pages/PaymentPage';
 import BookingSuccessPage from './pages/BookingSuccessPage';
@@ -64,44 +67,68 @@ function App() {
                 </ProtectedRoute>
               }
             />
+            <Route
+              path="/admin/stages"
+              element={
+                <ProtectedRoute adminOnly>
+                  <StageManager />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/stage-analytics"
+              element={
+                <ProtectedRoute adminOnly>
+                  <StageAnalytics />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/qr-bulk"
+              element={
+                <ProtectedRoute adminOnly>
+                  <StageBulkQR />
+                </ProtectedRoute>
+              }
+            />
             <Route element={<PublicLayout isDark={isDark} onToggleDarkMode={toggleDarkMode} />}>
               <Route index element={<Home />} />
               <Route path="on-stage" element={<OnStage />} />
               <Route path="shop" element={<Shop />} />
               <Route path="events" element={<Events />} />
-              <Route 
-                path="booking/:slug" 
+              <Route
+                path="booking/:slug"
                 element={
                   <ProtectedRoute>
                     <BookingPage />
                   </ProtectedRoute>
-                } 
+                }
               />
-              <Route 
-                path="payment" 
+              <Route
+                path="payment"
                 element={
                   <ProtectedRoute>
                     <PaymentPage />
                   </ProtectedRoute>
-                } 
+                }
               />
-              <Route 
-                path="booking-success" 
+              <Route
+                path="booking-success"
                 element={
                   <ProtectedRoute>
                     <BookingSuccessPage />
                   </ProtectedRoute>
-                } 
+                }
               />
               <Route path="calendar" element={<FullCalendarPage />} />
               <Route path="cart" element={<CartPage />} />
-              <Route 
-                path="my-tickets" 
+              <Route
+                path="my-tickets"
                 element={
                   <ProtectedRoute>
                     <MyTicketsPage />
                   </ProtectedRoute>
-                } 
+                }
               />
               <Route path="*" element={<NotFound />} />
             </Route>
