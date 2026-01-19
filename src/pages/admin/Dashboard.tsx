@@ -3,35 +3,20 @@ import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
 import AdminLayout from '../../components/AdminLayout';
 import { ADMIN_MENU_ITEMS } from '../../constants/adminMenu';
-import { getOrderStatusColor } from '../../utils/statusHelpers.tsx';
-import { formatDate, getInitials, formatCurrency } from '../../utils/formatters';
-
-type RecentOrder = {
-  id: string;
-  order_number: string;
-  created_at: string;
-  total_amount: string;
-  status: string;
-  users: {
-    name: string;
-    email: string;
-  };
-  order_items?: Array<{
-    tickets?: {
-      name?: string | null;
-    } | null;
-  }> | null;
-};
 
 const Dashboard = () => {
-  const { signOut } = useAuth();
+  const { user, signOut } = useAuth();
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({
-    totalBookings: 0,
-    shopRevenue: 0,
-    activeEvents: 0,
+    totalPurchasedTickets: 0,
+    totalEntered: 0,
+    totalNoShow: 0,
+    totalGiftsExchanged: 0,
+    totalOrders: 0,
+    pendingOrders: 0,
+    paidOrders: 0,
+    processingOrders: 0,
   });
-  const [orders, setOrders] = useState<RecentOrder[]>([]);
 
   useEffect(() => {
     fetchDashboardData();
@@ -41,49 +26,51 @@ const Dashboard = () => {
     try {
       setLoading(true);
 
-      // Fetch total bookings (purchased tickets)
-      const { count: bookingsCount } = await supabase
+      // Fetch purchased tickets stats
+      const { count: totalPurchased } = await supabase
         .from('purchased_tickets')
         .select('*', { count: 'exact', head: true });
 
-      // Fetch shop revenue (from orders)
-      const { data: ordersData } = await supabase
+      const { count: totalUsed } = await supabase
+        .from('purchased_tickets')
+        .select('*', { count: 'exact', head: true })
+        .eq('status', 'used');
+
+      const { count: totalRedeemed } = await supabase
+        .from('purchased_tickets')
+        .select('*', { count: 'exact', head: true })
+        .not('redeemed_merchandise_at', 'is', null);
+
+      // Fetch orders stats
+      const { count: totalOrders } = await supabase
         .from('orders')
-        .select('total_amount')
+        .select('*', { count: 'exact', head: true });
+
+      const { count: pendingOrders } = await supabase
+        .from('orders')
+        .select('*', { count: 'exact', head: true })
+        .eq('status', 'pending');
+
+      const { count: paidOrders } = await supabase
+        .from('orders')
+        .select('*', { count: 'exact', head: true })
         .eq('status', 'paid');
 
-      const totalRevenue = ordersData?.reduce((sum, order) => sum + parseFloat(order.total_amount), 0) || 0;
-
-      // Fetch active events (tickets)
-      const { count: eventsCount } = await supabase
-        .from('tickets')
+      const { count: processingOrders } = await supabase
+        .from('order_products')
         .select('*', { count: 'exact', head: true })
-        .eq('is_active', true);
+        .eq('status', 'processing');
 
       setStats({
-        totalBookings: bookingsCount || 0,
-        shopRevenue: totalRevenue,
-        activeEvents: eventsCount || 0,
+        totalPurchasedTickets: totalPurchased || 0,
+        totalEntered: totalUsed || 0,
+        totalNoShow: (totalPurchased || 0) - (totalUsed || 0),
+        totalGiftsExchanged: totalRedeemed || 0,
+        totalOrders: totalOrders || 0,
+        pendingOrders: pendingOrders || 0,
+        paidOrders: paidOrders || 0,
+        processingOrders: processingOrders || 0,
       });
-
-      // Fetch recent orders with user details
-      const { data: recentOrders } = await supabase
-        .from('orders')
-        .select(`
-          id,
-          order_number,
-          created_at,
-          total_amount,
-          status,
-          users!inner(name, email),
-          order_items!inner(
-            tickets(name)
-          )
-        `)
-        .order('created_at', { ascending: false })
-        .limit(5);
-
-      setOrders(((recentOrders ?? []) as unknown) as RecentOrder[]);
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
     } finally {
@@ -91,26 +78,10 @@ const Dashboard = () => {
     }
   };
 
-  const statsDisplay = [
-    { 
-      label: 'Total Bookings', 
-      value: loading ? '...' : stats.totalBookings.toLocaleString(), 
-      change: '+12%', 
-      description: 'Tickets sold' 
-    },
-    { 
-      label: 'Shop Revenue', 
-      value: loading ? '...' : formatCurrency(stats.shopRevenue), 
-      change: '+5%', 
-      description: 'Gross volume' 
-    },
-    { 
-      label: 'Active Events', 
-      value: loading ? '...' : stats.activeEvents.toString(), 
-      change: '+2%', 
-      description: 'Currently live' 
-    },
-  ];
+  const getUserInitials = () => {
+    if (!user?.email) return 'A';
+    return user.email.charAt(0).toUpperCase();
+  };
 
   return (
     <AdminLayout
@@ -119,121 +90,232 @@ const Dashboard = () => {
       )}
       defaultActiveMenuId="dashboard"
       title="Dashboard Overview"
-      subtitle="Welcome back, Admin. Here's what's happening today."
-      headerActions={
-        <>
-          <button className="flex items-center justify-center gap-2 rounded-lg bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 px-4 py-2.5 text-sm font-bold text-neutral-900 dark:text-white hover:bg-gray-50 dark:hover:bg-white/10 transition-colors shadow-sm">
-            <span className="material-symbols-outlined text-[20px]">add</span>
-            <span>Add New Stage</span>
-          </button>
-          <button className="flex items-center justify-center gap-2 rounded-lg bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 px-4 py-2.5 text-sm font-bold text-neutral-900 dark:text-white hover:bg-gray-50 dark:hover:bg-white/10 transition-colors shadow-sm">
-            <span className="material-symbols-outlined text-[20px]">download</span>
-            <span>Export Data</span>
-          </button>
-        </>
-      }
+      subtitle="Welcome to Spark Admin Panel"
       onLogout={signOut}
     >
-      <section className="grid grid-cols-1 gap-6 md:grid-cols-3">
-        {statsDisplay.map((stat, index) => (
-          <div
-            key={index}
-            className="flex flex-col gap-1 rounded-xl border border-gray-200 dark:border-white/10 bg-white dark:bg-[#1a0f0f] p-6 shadow-sm hover:shadow-md transition-shadow"
-          >
-            <div className="flex items-center justify-between">
-              <p className="text-sm font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">{stat.label}</p>
-              <span className="rounded-full bg-green-100 dark:bg-green-900/30 px-2 py-0.5 text-xs font-bold text-green-700 dark:text-green-400 font-sans">
-                {stat.change}
-              </span>
-            </div>
-            <p className="text-4xl font-black text-primary tracking-tight mt-2">{stat.value}</p>
-            <p className="text-sm text-gray-400 mt-1 font-sans">{stat.description}</p>
+      {/* Welcome Card */}
+      <div className="rounded-xl border border-white/5 bg-surface-dark p-6 flex justify-between items-center">
+        <div className="flex items-center gap-4">
+          <div className="h-12 w-12 rounded-full bg-surface-darker border border-white/10 flex items-center justify-center text-lg font-bold">
+            {getUserInitials()}
           </div>
-        ))}
-      </section>
+          <div>
+            <h3 className="text-lg font-bold text-white">Welcome Back</h3>
+            <p className="text-sm text-gray-400">Spark Admin Panel</p>
+          </div>
+        </div>
+        <button 
+          onClick={signOut}
+          className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium hover:bg-white/10 transition-colors"
+        >
+          <span className="material-symbols-outlined text-sm">logout</span>
+          Sign out
+        </button>
+      </div>
 
-      <section className="flex flex-col gap-4">
-        <div className="flex items-center justify-between px-1">
-          <h3 className="text-lg font-bold text-neutral-900 dark:text-white">Recent Orders</h3>
-          <a className="text-sm font-bold text-primary hover:underline" href="#">
-            View All
-          </a>
+      {/* Ticket Stats */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="rounded-xl border border-white/5 bg-surface-dark p-5">
+          <p className="text-sm text-gray-400 mb-1">Total purchased tickets</p>
+          <p className="text-3xl font-bold text-white">
+            {loading ? '...' : stats.totalPurchasedTickets}
+          </p>
         </div>
-        <div className="overflow-hidden rounded-xl border border-gray-200 dark:border-white/10 bg-white dark:bg-[#1a0f0f] shadow-sm">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="border-b border-gray-100 dark:border-white/5 bg-gray-50/50 dark:bg-white/5">
-                  <th className="whitespace-nowrap px-6 py-4 text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">Order ID</th>
-                  <th className="whitespace-nowrap px-6 py-4 text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">Customer</th>
-                  <th className="whitespace-nowrap px-6 py-4 text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">Date</th>
-                  <th className="whitespace-nowrap px-6 py-4 text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">Service</th>
-                  <th className="whitespace-nowrap px-6 py-4 text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 text-right">Amount</th>
-                  <th className="whitespace-nowrap px-6 py-4 text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 text-center">Status</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100 dark:divide-white/5 font-sans">
-                {loading ? (
-                  <tr>
-                    <td colSpan={6} className="px-6 py-8 text-center text-gray-500 dark:text-gray-400">
-                      Loading orders...
-                    </td>
-                  </tr>
-                ) : orders.length === 0 ? (
-                  <tr>
-                    <td colSpan={6} className="px-6 py-8 text-center text-gray-500 dark:text-gray-400">
-                      No orders found
-                    </td>
-                  </tr>
-                ) : (
-                  orders.map((order) => (
-                    <tr key={order.id} className="hover:bg-gray-50 dark:hover:bg-white/5 transition-colors group">
-                      <td className="whitespace-nowrap px-6 py-4 text-sm font-medium text-primary">{order.order_number}</td>
-                      <td className="whitespace-nowrap px-6 py-4">
-                        <div className="flex items-center gap-3">
-                          <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-xs font-bold text-primary">
-                            {getInitials(order.users.name)}
-                          </div>
-                          <span className="text-sm font-semibold text-neutral-900 dark:text-white">{order.users.name}</span>
-                        </div>
-                      </td>
-                      <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-500 dark:text-gray-400">
-                        {formatDate(order.created_at)}
-                      </td>
-                      <td className="whitespace-nowrap px-6 py-4 text-sm text-neutral-900 dark:text-white">
-                        {order.order_items?.[0]?.tickets?.name || 'N/A'}
-                      </td>
-                      <td className="whitespace-nowrap px-6 py-4 text-sm font-bold text-neutral-900 dark:text-white text-right">
-                        {formatCurrency(order.total_amount)}
-                      </td>
-                      <td className="whitespace-nowrap px-6 py-4 text-center">
-                        <span
-                          className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-bold capitalize ${getOrderStatusColor(order.status)}`}
-                        >
-                          {order.status}
-                        </span>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-          <div className="flex items-center justify-between border-t border-gray-100 dark:border-white/5 bg-gray-50/50 dark:bg-white/5 px-6 py-4">
-            <span className="text-sm text-gray-500 dark:text-gray-400 font-sans">
-              Showing {orders.length} of {orders.length} items
+        <div className="rounded-xl border border-white/5 bg-surface-dark p-5">
+          <p className="text-sm text-gray-400 mb-1">Total already entered</p>
+          <p className="text-3xl font-bold text-white">
+            {loading ? '...' : stats.totalEntered}
+          </p>
+        </div>
+        <div className="rounded-xl border border-white/5 bg-surface-dark p-5">
+          <p className="text-sm text-gray-400 mb-1">Total didn't end up coming</p>
+          <p className="text-3xl font-bold text-white">
+            {loading ? '...' : stats.totalNoShow}
+          </p>
+        </div>
+        <div className="rounded-xl border border-white/5 bg-surface-dark p-5">
+          <p className="text-sm text-gray-400 mb-1">Total already exchanged gifts</p>
+          <p className="text-3xl font-bold text-white">
+            {loading ? '...' : stats.totalGiftsExchanged}
+          </p>
+        </div>
+      </div>
+
+      {/* Order Stats */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="rounded-xl border border-white/5 bg-surface-dark p-5">
+          <p className="text-sm text-gray-400 mb-1">Total Orders</p>
+          <p className="text-3xl font-bold text-white">
+            {loading ? '...' : stats.totalOrders}
+          </p>
+        </div>
+        <div className="rounded-xl border border-white/5 bg-surface-dark p-5">
+          <p className="text-sm text-gray-400 mb-1">Pending Orders</p>
+          <p className="text-3xl font-bold text-white">
+            {loading ? '...' : stats.pendingOrders}
+          </p>
+        </div>
+        <div className="rounded-xl border border-white/5 bg-surface-dark p-5">
+          <p className="text-sm text-gray-400 mb-1">Paid Orders</p>
+          <p className="text-3xl font-bold text-white">
+            {loading ? '...' : stats.paidOrders}
+          </p>
+        </div>
+        <div className="rounded-xl border border-white/5 bg-surface-dark p-5">
+          <p className="text-sm text-gray-400 mb-1">Processing Orders</p>
+          <p className="text-3xl font-bold text-white">
+            {loading ? '...' : stats.processingOrders}
+          </p>
+        </div>
+      </div>
+
+      {/* QR Scanner Section */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-3 rounded-xl border border-white/5 bg-surface-dark p-6">
+          <div className="flex justify-between items-center mb-6">
+            <h3 className="text-lg font-bold text-white font-display">Pickup Store Scanner</h3>
+            <span className="px-2 py-1 rounded bg-green-500/10 text-green-400 text-xs font-bold border border-green-500/20">
+              Ready to Scan
             </span>
-            <div className="flex gap-2">
-              <button className="flex h-8 w-8 items-center justify-center rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-transparent text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-white/5 disabled:opacity-50">
-                <span className="material-symbols-outlined text-sm">chevron_left</span>
-              </button>
-              <button className="flex h-8 w-8 items-center justify-center rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-transparent text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-white/5">
-                <span className="material-symbols-outlined text-sm">chevron_right</span>
-              </button>
+          </div>
+          <div className="border-2 border-dashed border-white/10 rounded-xl bg-surface-darker p-12 flex flex-col items-center justify-center text-center hover:border-primary/50 transition-colors cursor-pointer group">
+            <div className="h-16 w-16 rounded-full bg-white/5 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+              <span className="material-symbols-outlined text-3xl text-primary">qr_code_scanner</span>
             </div>
+            <h4 className="text-lg font-medium text-white mb-2">Scan QR Code</h4>
+            <p className="text-sm text-gray-400 max-w-sm">
+              Place the ticket QR code in front of the camera or click here to manually enter the ticket ID.
+            </p>
+            <button className="mt-6 px-4 py-2 bg-primary text-white text-sm font-bold rounded shadow-lg shadow-red-900/20 hover:bg-red-600 transition-colors">
+              Activate Camera
+            </button>
           </div>
         </div>
-      </section>
+      </div>
+
+      {/* Charts Section */}
+      <div className="rounded-xl border border-white/5 bg-surface-dark p-6">
+        <div className="flex justify-between items-center mb-6">
+          <h3 className="text-lg font-bold text-white font-display">Chart Purchased Ticket</h3>
+          <div className="relative">
+            <select className="appearance-none bg-surface-darker border border-white/10 rounded px-3 py-1.5 pr-8 text-sm text-gray-300 focus:outline-none focus:border-primary">
+              <option>This year</option>
+              <option>Last year</option>
+            </select>
+            <span className="material-symbols-outlined absolute right-2 top-1.5 text-gray-500 text-sm pointer-events-none">
+              expand_more
+            </span>
+          </div>
+        </div>
+        <div className="relative h-64 w-full rounded border border-white/5 p-4 flex items-end justify-between bg-[linear-gradient(to_right,#27272a_1px,transparent_1px),linear-gradient(to_bottom,#27272a_1px,transparent_1px)] bg-[size:40px_40px]">
+          <div className="absolute left-0 top-0 bottom-8 w-8 flex flex-col justify-between text-[10px] text-gray-500 font-mono text-right pr-2">
+            <span>7</span>
+            <span>6</span>
+            <span>5</span>
+            <span>4</span>
+            <span>3</span>
+            <span>2</span>
+            <span>1</span>
+            <span>0</span>
+          </div>
+          <svg className="absolute left-8 right-0 top-0 bottom-8 h-full w-[calc(100%-2rem)] overflow-visible" preserveAspectRatio="none">
+            <path d="M0,0 L50,180 L100,180 L150,180 L200,180 L250,180 L300,180 L350,180 L400,180 L450,180 L500,180 L550,180 L600,180 L650,180 L700,180 L750,180" fill="none" stroke="#8b5cf6" strokeWidth="2" />
+            <circle cx="0" cy="0" fill="#8b5cf6" r="3" />
+            <circle cx="50" cy="180" fill="#8b5cf6" r="3" />
+            <circle cx="100" cy="180" fill="#8b5cf6" r="3" />
+            <circle cx="150" cy="180" fill="#8b5cf6" r="3" />
+            <circle cx="200" cy="180" fill="#8b5cf6" r="3" />
+            <circle cx="250" cy="180" fill="#8b5cf6" r="3" />
+            <circle cx="300" cy="180" fill="#8b5cf6" r="3" />
+            <circle cx="350" cy="180" fill="#8b5cf6" r="3" />
+            <circle cx="400" cy="180" fill="#8b5cf6" r="3" />
+            <circle cx="450" cy="180" fill="#8b5cf6" r="3" />
+            <circle cx="500" cy="180" fill="#8b5cf6" r="3" />
+            <circle cx="550" cy="180" fill="#8b5cf6" r="3" />
+            <circle cx="600" cy="180" fill="#8b5cf6" r="3" />
+            <circle cx="650" cy="180" fill="#8b5cf6" r="3" />
+            <circle cx="700" cy="180" fill="#8b5cf6" r="3" />
+            <circle cx="750" cy="180" fill="#8b5cf6" r="3" />
+          </svg>
+          <div className="absolute left-8 right-0 bottom-0 h-6 flex justify-between text-[10px] text-gray-500 font-mono pt-2">
+            <span>2026-01</span>
+            <span>2026-02</span>
+            <span>2026-03</span>
+            <span>2026-04</span>
+            <span>2026-05</span>
+            <span>2026-06</span>
+            <span>2026-07</span>
+            <span>2026-08</span>
+            <span>2026-09</span>
+            <span>2026-10</span>
+            <span>2026-11</span>
+            <span>2026-12</span>
+          </div>
+        </div>
+        <div className="flex items-center justify-center gap-2 mt-4">
+          <div className="h-3 w-3 rounded-sm bg-accent-purple" />
+          <span className="text-xs text-gray-400">Purchased tickets</span>
+        </div>
+      </div>
+
+      <div className="rounded-xl border border-white/5 bg-surface-dark p-6">
+        <div className="flex justify-between items-center mb-6">
+          <h3 className="text-lg font-bold text-white font-display">Chart Order Product</h3>
+          <div className="relative">
+            <select className="appearance-none bg-surface-darker border border-white/10 rounded px-3 py-1.5 pr-8 text-sm text-gray-300 focus:outline-none focus:border-primary">
+              <option>This year</option>
+              <option>Last year</option>
+            </select>
+            <span className="material-symbols-outlined absolute right-2 top-1.5 text-gray-500 text-sm pointer-events-none">
+              expand_more
+            </span>
+          </div>
+        </div>
+        <div className="relative h-64 w-full rounded border border-white/5 p-4 flex items-end justify-between bg-[linear-gradient(to_right,#27272a_1px,transparent_1px),linear-gradient(to_bottom,#27272a_1px,transparent_1px)] bg-[size:40px_40px]">
+          <div className="absolute left-0 top-0 bottom-8 w-8 flex flex-col justify-between text-[10px] text-gray-500 font-mono text-right pr-2">
+            <span>1.0</span>
+            <span>0.8</span>
+            <span>0.6</span>
+            <span>0.4</span>
+            <span>0.2</span>
+            <span>0.0</span>
+            <span>-0.2</span>
+            <span>-0.4</span>
+          </div>
+          <svg className="absolute left-8 right-0 top-0 bottom-8 h-full w-[calc(100%-2rem)] overflow-visible" preserveAspectRatio="none">
+            <line stroke="#8b5cf6" strokeWidth="2" x1="0" x2="100%" y1="125" y2="125" />
+            <circle cx="0%" cy="125" fill="#8b5cf6" r="3" />
+            <circle cx="10%" cy="125" fill="#8b5cf6" r="3" />
+            <circle cx="20%" cy="125" fill="#8b5cf6" r="3" />
+            <circle cx="30%" cy="125" fill="#8b5cf6" r="3" />
+            <circle cx="40%" cy="125" fill="#8b5cf6" r="3" />
+            <circle cx="50%" cy="125" fill="#8b5cf6" r="3" />
+            <circle cx="60%" cy="125" fill="#8b5cf6" r="3" />
+            <circle cx="70%" cy="125" fill="#8b5cf6" r="3" />
+            <circle cx="80%" cy="125" fill="#8b5cf6" r="3" />
+            <circle cx="90%" cy="125" fill="#8b5cf6" r="3" />
+            <circle cx="100%" cy="125" fill="#8b5cf6" r="3" />
+          </svg>
+          <div className="absolute left-8 right-0 bottom-0 h-6 flex justify-between text-[10px] text-gray-500 font-mono pt-2">
+            <span>2026-01</span>
+            <span>2026-02</span>
+            <span>2026-03</span>
+            <span>2026-04</span>
+            <span>2026-05</span>
+            <span>2026-06</span>
+            <span>2026-07</span>
+            <span>2026-08</span>
+            <span>2026-09</span>
+            <span>2026-10</span>
+            <span>2026-11</span>
+            <span>2026-12</span>
+          </div>
+        </div>
+        <div className="flex items-center justify-center gap-2 mt-4">
+          <div className="h-3 w-3 rounded-sm bg-accent-purple" />
+          <span className="text-xs text-gray-400">Order Products</span>
+        </div>
+      </div>
     </AdminLayout>
   );
 };
