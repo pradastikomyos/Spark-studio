@@ -22,6 +22,7 @@ import FullCalendarPage from './pages/FullCalendarPage';
 import CartPage from './pages/CartPage';
 import CheckoutPage from './pages/CheckoutPage';
 import MyTicketsPage from './pages/MyTicketsPage';
+import StageScanPage from './pages/StageScanPage';
 import NotFound from './pages/NotFound';
 
 function App() {
@@ -35,6 +36,7 @@ function App() {
             <Route path="/login" element={<Login isDark={isDark} />} />
             <Route path="/signup" element={<SignUp isDark={isDark} />} />
             <Route path="/checkout" element={<CheckoutPage />} />
+            <Route path="/scan/:stageCode" element={<StageScanPage />} />
             <Route
               path="/admin"
               element={
