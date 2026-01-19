@@ -365,7 +365,7 @@ export default function BookingPage() {
 
           {/* Right Column: Summary & Payment */}
           <div className="flex flex-col gap-6">
-            <div className="bg-white dark:bg-[#1a0c0c] rounded-xl shadow-xl border border-[#f4e7e7] dark:border-[#3d2424] p-8 sticky top-28 overflow-hidden">
+            <div className="bg-white dark:bg-[#1a0c0c] rounded-xl shadow-xl border border-[#f4e7e7] dark:border-[#3d2424] p-8 sticky top-28 overflow-hidden z-10">
               <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-bl-full pointer-events-none"></div>
 
               <h3 className="text-2xl font-black mb-8 border-b border-background-light dark:border-background-dark pb-4 italic">
@@ -431,7 +431,7 @@ export default function BookingPage() {
             </div>
 
             {/* Additional Info Card */}
-            <div className="bg-primary/5 rounded-xl p-6 border border-primary/10">
+            <div className="bg-background-light dark:bg-background-dark rounded-xl p-6 border border-primary/10 relative z-0">
               <div className="flex gap-4 items-center mb-3">
                 <span className="material-symbols-outlined text-primary">info</span>
                 <h4 className="font-bold text-sm uppercase tracking-widest">Important Info</h4>
