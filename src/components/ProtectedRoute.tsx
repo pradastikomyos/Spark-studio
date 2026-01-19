@@ -21,6 +21,10 @@ const ProtectedRoute = ({ children, adminOnly = false }: ProtectedRouteProps) =>
   }
 
   if (!user) {
+    // Show alert message before redirecting
+    setTimeout(() => {
+      alert('Silakan login terlebih dahulu');
+    }, 100);
     return <Navigate to="/login" replace />;
   }
 

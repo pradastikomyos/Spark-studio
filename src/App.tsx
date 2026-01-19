@@ -69,12 +69,40 @@ function App() {
               <Route path="on-stage" element={<OnStage />} />
               <Route path="shop" element={<Shop />} />
               <Route path="events" element={<Events />} />
-              <Route path="booking" element={<BookingPage />} />
-              <Route path="payment" element={<PaymentPage />} />
-              <Route path="booking-success" element={<BookingSuccessPage />} />
+              <Route 
+                path="booking/:slug" 
+                element={
+                  <ProtectedRoute>
+                    <BookingPage />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="payment" 
+                element={
+                  <ProtectedRoute>
+                    <PaymentPage />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="booking-success" 
+                element={
+                  <ProtectedRoute>
+                    <BookingSuccessPage />
+                  </ProtectedRoute>
+                } 
+              />
               <Route path="calendar" element={<FullCalendarPage />} />
               <Route path="cart" element={<CartPage />} />
-              <Route path="my-tickets" element={<MyTicketsPage />} />
+              <Route 
+                path="my-tickets" 
+                element={
+                  <ProtectedRoute>
+                    <MyTicketsPage />
+                  </ProtectedRoute>
+                } 
+              />
               <Route path="*" element={<NotFound />} />
             </Route>
           </Routes>
