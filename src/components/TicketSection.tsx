@@ -4,9 +4,15 @@ import { supabase } from '../lib/supabase';
 import TicketCard from './TicketCard';
 import { TicketData } from '../types';
 
+interface TicketWithDate {
+  ticket: TicketData;
+  date: Date;
+  isToday: boolean;
+}
+
 const TicketSection = () => {
   const navigate = useNavigate();
-  const [tickets, setTickets] = useState<TicketData[]>([]);
+  const [ticketsWithDates, setTicketsWithDates] = useState<TicketWithDate[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -17,12 +23,41 @@ const TicketSection = () => {
           .select('*')
           .eq('is_active', true)
           .order('type', { ascending: true })
-          .order('name', { ascending: true });
+          .limit(1); // Get first active ticket
 
         if (error) {
           console.error('Error fetching tickets:', error);
-        } else {
-          setTickets(data || []);
+          setLoading(false);
+          return;
+        }
+
+        if (data && data.length > 0) {
+          const ticket = data[0];
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+
+          // Generate next 4 available dates starting from today
+          const availableFrom = new Date(ticket.available_from);
+          const availableUntil = new Date(ticket.available_until);
+          
+          const startDate = today >= availableFrom ? today : availableFrom;
+          const ticketDates: TicketWithDate[] = [];
+
+          let currentDate = new Date(startDate);
+          let count = 0;
+
+          while (count < 4 && currentDate <= availableUntil) {
+            const isToday = currentDate.toDateString() === today.toDateString();
+            ticketDates.push({
+              ticket,
+              date: new Date(currentDate),
+              isToday,
+            });
+            currentDate.setDate(currentDate.getDate() + 1);
+            count++;
+          }
+
+          setTicketsWithDates(ticketDates);
         }
       } catch (err) {
         console.error('Error in fetchTickets:', err);
@@ -67,7 +102,7 @@ const TicketSection = () => {
       <div className="flex flex-col md:flex-row justify-between items-end mb-16">
         <div className="max-w-2xl">
           <h2 className="font-display text-5xl md:text-6xl font-medium text-text-light dark:text-white mb-4">
-            Available <span className="italic text-primary">Tickets</span>
+            Entrance <span className="italic text-primary">Access</span>
           </h2>
           <p className="text-subtext-light dark:text-subtext-dark text-lg font-light leading-relaxed">
             Exclusive access to our professional stages. Limited availability for daily sessions.
@@ -86,10 +121,15 @@ const TicketSection = () => {
         </div>
       </div>
       
-      {tickets.length > 0 ? (
+      {ticketsWithDates.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          {tickets.map((ticket) => (
-            <TicketCard key={ticket.id} ticket={ticket} />
+          {ticketsWithDates.map((item, index) => (
+            <TicketCard 
+              key={index} 
+              ticket={item.ticket} 
+              displayDate={item.date}
+              isToday={item.isToday}
+            />
           ))}
         </div>
       ) : (
