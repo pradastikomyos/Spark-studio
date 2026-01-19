@@ -1,5 +1,12 @@
 import { useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
+
+export type AdminMenuSection = {
+  id: string;
+  label: string;
+  items: AdminMenuItem[];
+};
 
 export type AdminMenuItem = {
   id: string;
@@ -7,13 +14,16 @@ export type AdminMenuItem = {
   icon: string;
   path?: string;
   filled?: boolean;
+  badge?: number;
+  highlight?: boolean;
 };
 
 type AdminLayoutProps = {
   menuItems: AdminMenuItem[];
+  menuSections?: AdminMenuSection[];
   defaultActiveMenuId: string;
   title: string;
-  subtitle: string;
+  subtitle?: string;
   headerActions?: ReactNode;
   children: ReactNode;
   onLogout: () => Promise<void> | void;
@@ -23,6 +33,7 @@ type AdminLayoutProps = {
 
 const AdminLayout = ({
   menuItems,
+  menuSections = [],
   defaultActiveMenuId,
   title,
   subtitle,
@@ -33,28 +44,42 @@ const AdminLayout = ({
   mainClassName,
 }: AdminLayoutProps) => {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [activeMenu, setActiveMenu] = useState(defaultActiveMenuId);
+  const [expandedSections, setExpandedSections] = useState<string[]>(['tickets', 'store']);
 
   const handleLogout = async () => {
     await onLogout();
     navigate(logoutRedirectPath);
   };
 
+  const toggleSection = (sectionId: string) => {
+    setExpandedSections(prev =>
+      prev.includes(sectionId)
+        ? prev.filter(id => id !== sectionId)
+        : [...prev, sectionId]
+    );
+  };
+
+  const getUserInitials = () => {
+    if (!user?.email) return 'A';
+    return user.email.charAt(0).toUpperCase();
+  };
+
   return (
-    <div className="flex h-screen w-full bg-background-light dark:bg-background-dark">
-      <aside className="flex w-72 flex-col justify-between border-r border-gray-200 dark:border-gray-800 bg-white dark:bg-[#1a0f0f] p-6 shrink-0 transition-all duration-300 overflow-y-auto">
-        <div className="flex flex-col gap-8">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary text-white">
-              <span className="material-symbols-outlined text-2xl">shutter_speed</span>
+    <div className="flex h-screen w-full">
+      <aside className="flex w-72 flex-col justify-between border-r border-white/5 bg-surface-darker p-4 shrink-0 overflow-y-auto">
+        <div className="flex flex-col gap-6">
+          <div className="flex items-center gap-3 px-2 py-2">
+            <div className="flex h-9 w-9 items-center justify-center rounded bg-primary text-white shadow-lg shadow-red-900/20">
+              <span className="material-symbols-outlined text-xl">shutter_speed</span>
             </div>
             <div className="flex flex-col">
-              <h1 className="text-xl font-black tracking-tight text-neutral-900 dark:text-white">SPARK</h1>
-              <p className="text-xs font-medium text-gray-500 dark:text-gray-400 tracking-wide uppercase">Photo Studio</p>
+              <h1 className="text-lg font-bold tracking-tight text-white font-display">SPARK</h1>
             </div>
           </div>
 
-          <nav className="flex flex-col gap-2">
+          <nav className="flex flex-col gap-1">
             {menuItems.map((item) => (
               <button
                 key={item.id}
@@ -62,46 +87,103 @@ const AdminLayout = ({
                   setActiveMenu(item.id);
                   if (item.path) navigate(item.path);
                 }}
-                className={`flex items-center gap-3 rounded-lg px-4 py-3 transition-colors ${
+                className={`flex items-center gap-3 rounded-lg px-3 py-2.5 transition-colors ${
                   activeMenu === item.id
-                    ? 'bg-primary/10 text-primary'
-                    : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-white/5'
+                    ? 'bg-white/5 text-white border border-white/5'
+                    : 'text-gray-400 hover:bg-white/5 hover:text-white'
                 }`}
               >
                 <span
-                  className="material-symbols-outlined"
+                  className={`material-symbols-outlined text-xl ${activeMenu === item.id ? 'text-primary' : ''}`}
                   style={item.filled && activeMenu === item.id ? { fontVariationSettings: "'FILL' 1" } : {}}
                 >
                   {item.icon}
                 </span>
-                <span className={`text-sm ${activeMenu === item.id ? 'font-bold' : 'font-medium'}`}>{item.label}</span>
+                <span className="text-sm font-medium">{item.label}</span>
               </button>
+            ))}
+
+            {menuSections.map((section) => (
+              <div key={section.id}>
+                <div className="mt-4 px-3 mb-1 flex items-center justify-between">
+                  <span className="text-xs font-semibold uppercase tracking-wider text-gray-500">
+                    {section.label}
+                  </span>
+                  <button onClick={() => toggleSection(section.id)}>
+                    <span className="material-symbols-outlined text-base text-gray-600">
+                      {expandedSections.includes(section.id) ? 'expand_less' : 'expand_more'}
+                    </span>
+                  </button>
+                </div>
+                {expandedSections.includes(section.id) && (
+                  <div className="flex flex-col gap-0.5">
+                    {section.items.map((item) => (
+                      <button
+                        key={item.id}
+                        onClick={() => {
+                          setActiveMenu(item.id);
+                          if (item.path) navigate(item.path);
+                        }}
+                        className={`flex items-center gap-3 rounded-lg px-3 py-2 transition-colors ${
+                          activeMenu === item.id
+                            ? 'text-white'
+                            : 'text-gray-400 hover:bg-white/5 hover:text-white'
+                        } ${item.highlight ? 'text-white' : ''}`}
+                      >
+                        <span className={`material-symbols-outlined text-xl ${item.highlight ? 'text-white' : ''}`}>
+                          {item.icon}
+                        </span>
+                        <div className="flex flex-1 items-center justify-between">
+                          <span className="text-sm font-medium">{item.label}</span>
+                          {item.badge !== undefined && (
+                            <span className="flex h-5 w-5 items-center justify-center rounded bg-white/10 text-[10px] font-bold text-gray-300">
+                              {item.badge}
+                            </span>
+                          )}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
             ))}
           </nav>
         </div>
 
-        <button
-          onClick={handleLogout}
-          className="flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-4 py-3 text-sm font-bold text-white shadow-md hover:bg-red-700 transition-colors"
-        >
-          <span className="material-symbols-outlined text-[20px]">logout</span>
-          <span>Log Out</span>
-        </button>
+        <div className="mt-auto pt-6 border-t border-white/5">
+          <button
+            onClick={handleLogout}
+            className="flex w-full items-center gap-3 rounded-lg p-2 hover:bg-white/5 transition-colors text-left group"
+          >
+            <div className="h-8 w-8 rounded bg-gray-700 flex items-center justify-center text-xs font-bold text-white">
+              {getUserInitials()}
+            </div>
+            <div className="flex-1 overflow-hidden">
+              <p className="truncate text-sm font-medium text-white">Admin User</p>
+              <p className="truncate text-xs text-gray-500">{user?.email || 'admin@spark.com'}</p>
+            </div>
+            <span className="material-symbols-outlined text-gray-500 group-hover:text-white">logout</span>
+          </button>
+        </div>
       </aside>
 
-      <main className={`flex-1 flex flex-col h-full overflow-hidden ${mainClassName ?? ''}`.trim()}>
-        <header className="flex-none px-8 py-6 bg-background-light dark:bg-background-dark border-b border-transparent">
-          <div className="flex flex-wrap items-end justify-between gap-4">
-            <div className="flex flex-col gap-1">
-              <h2 className="text-3xl font-black text-neutral-900 dark:text-white tracking-tight">{title}</h2>
-              <p className="text-gray-500 dark:text-gray-400 font-sans text-sm">{subtitle}</p>
-            </div>
-            {headerActions ? <div className="flex gap-3">{headerActions}</div> : null}
+      <main className={`flex-1 flex flex-col h-full overflow-hidden bg-background-dark relative ${mainClassName ?? ''}`.trim()}>
+        <header className="flex-none px-8 py-4 flex justify-between items-center border-b border-white/5 bg-surface-darker/50 backdrop-blur-sm sticky top-0 z-10">
+          <h2 className="text-xl font-bold text-white font-display">{title}</h2>
+          <div className="relative w-64">
+            <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">
+              search
+            </span>
+            <input
+              className="w-full bg-surface-dark border border-white/10 rounded-lg py-1.5 pl-9 pr-4 text-sm text-gray-300 focus:ring-1 focus:ring-primary focus:border-primary placeholder-gray-600"
+              placeholder="Search..."
+              type="text"
+            />
           </div>
         </header>
 
-        <div className="flex-1 overflow-y-auto px-8 pb-8 pt-2">
-          <div className="mx-auto flex w-full max-w-7xl flex-col gap-8">{children}</div>
+        <div className="flex-1 overflow-y-auto p-8">
+          <div className="mx-auto flex w-full max-w-7xl flex-col gap-6">{children}</div>
         </div>
       </main>
     </div>
@@ -109,4 +191,3 @@ const AdminLayout = ({
 };
 
 export default AdminLayout;
-

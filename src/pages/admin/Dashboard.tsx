@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
 import AdminLayout from '../../components/AdminLayout';
-import { ADMIN_MENU_ITEMS } from '../../constants/adminMenu';
+import { ADMIN_MENU_ITEMS, ADMIN_MENU_SECTIONS } from '../../constants/adminMenu';
 
 const Dashboard = () => {
   const { user, signOut } = useAuth();
@@ -85,12 +85,10 @@ const Dashboard = () => {
 
   return (
     <AdminLayout
-      menuItems={ADMIN_MENU_ITEMS.map(item => 
-        item.id === 'dashboard' ? { ...item, filled: true } : item
-      )}
+      menuItems={ADMIN_MENU_ITEMS}
+      menuSections={ADMIN_MENU_SECTIONS}
       defaultActiveMenuId="dashboard"
       title="Dashboard Overview"
-      subtitle="Welcome to Spark Admin Panel"
       onLogout={signOut}
     >
       {/* Welcome Card */}
