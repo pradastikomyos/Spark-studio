@@ -41,12 +41,6 @@ const Dashboard = () => {
     try {
       setLoading(true);
 
-      if (!supabase) {
-        setStats({ totalBookings: 0, shopRevenue: 0, activeEvents: 0 });
-        setOrders([]);
-        return;
-      }
-
       // Fetch total bookings (purchased tickets)
       const { count: bookingsCount } = await supabase
         .from('purchased_tickets')
@@ -140,14 +134,6 @@ const Dashboard = () => {
       }
       onLogout={signOut}
     >
-      {!supabase ? (
-        <div className="rounded-xl border border-amber-200 bg-amber-50 px-5 py-4 text-amber-900 dark:border-amber-900/40 dark:bg-amber-900/20 dark:text-amber-100">
-          <p className="text-sm font-bold">Supabase belum terkonfigurasi.</p>
-          <p className="mt-1 text-sm opacity-90">
-            Set <span className="font-mono">VITE_SUPABASE_URL</span> dan <span className="font-mono">VITE_SUPABASE_ANON_KEY</span> di Environment Variables Vercel, lalu redeploy.
-          </p>
-        </div>
-      ) : null}
       <section className="grid grid-cols-1 gap-6 md:grid-cols-3">
         {statsDisplay.map((stat, index) => (
           <div

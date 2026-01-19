@@ -1,6 +1,8 @@
 import { Link } from 'react-router-dom';
 import Logo from './Logo';
 import { useAuth } from '../contexts/AuthContext';
+import { useTicketCount } from '../hooks/useTicketCount';
+import { useCartCount } from '../hooks/useCartCount';
 
 interface NavbarProps {
   isDark: boolean;
@@ -9,6 +11,8 @@ interface NavbarProps {
 
 const Navbar = ({ isDark, onToggleDarkMode }: NavbarProps) => {
   const { user, signOut, isAdmin } = useAuth();
+  const { count: ticketCount } = useTicketCount();
+  const { count: cartCount } = useCartCount();
 
   const handleSignOut = async () => {
     await signOut();
@@ -76,15 +80,19 @@ const Navbar = ({ isDark, onToggleDarkMode }: NavbarProps) => {
             )}
             <Link to="/my-tickets" className="hover:text-primary transition-colors relative" title="My Tickets">
               <span className="material-symbols-outlined text-[20px]">confirmation_number</span>
-              <span className="absolute -top-1 -right-1 bg-primary text-white text-[10px] w-4 h-4 flex items-center justify-center rounded-full">
-                3
-              </span>
+              {ticketCount > 0 && (
+                <span className="absolute -top-1 -right-1 bg-primary text-white text-[10px] w-4 h-4 flex items-center justify-center rounded-full">
+                  {ticketCount}
+                </span>
+              )}
             </Link>
             <Link to="/cart" className="hover:text-primary transition-colors relative" title="Shopping Cart">
               <span className="material-symbols-outlined text-[20px]">shopping_bag</span>
-              <span className="absolute -top-1 -right-1 bg-primary text-white text-[10px] w-4 h-4 flex items-center justify-center rounded-full">
-                2
-              </span>
+              {cartCount > 0 && (
+                <span className="absolute -top-1 -right-1 bg-primary text-white text-[10px] w-4 h-4 flex items-center justify-center rounded-full">
+                  {cartCount}
+                </span>
+              )}
             </Link>
             <button className="hover:text-primary transition-colors" title="Search">
               <span className="material-symbols-outlined text-[20px]">search</span>

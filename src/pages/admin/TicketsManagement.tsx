@@ -60,12 +60,6 @@ const TicketsManagement = () => {
     try {
       setLoading(true);
 
-      if (!supabase) {
-        setTickets([]);
-        setStats({ totalValid: 0, entered: 0 });
-        return;
-      }
-
       // Fetch purchased tickets with user and ticket info
       const { data: ticketsData, error } = await supabase
         .from('purchased_tickets')
@@ -144,10 +138,6 @@ const TicketsManagement = () => {
       setValidationBanner(null);
 
       try {
-        if (!supabase) {
-          setValidationBanner({ type: 'error', message: 'Supabase belum terkonfigurasi.' });
-          return;
-        }
         const { data, error } = await supabase
           .from('purchased_tickets')
           .select('id, ticket_code, status, valid_date, used_at')
@@ -255,14 +245,6 @@ const TicketsManagement = () => {
       }
       onLogout={signOut}
     >
-      {!supabase ? (
-        <div className="rounded-xl border border-amber-200 bg-amber-50 px-5 py-4 text-amber-900 dark:border-amber-900/40 dark:bg-amber-900/20 dark:text-amber-100">
-          <p className="text-sm font-bold">Supabase belum terkonfigurasi.</p>
-          <p className="mt-1 text-sm opacity-90">
-            Set <span className="font-mono">VITE_SUPABASE_URL</span> dan <span className="font-mono">VITE_SUPABASE_ANON_KEY</span> di Environment Variables Vercel, lalu redeploy.
-          </p>
-        </div>
-      ) : null}
       <section className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div className="md:col-span-2 relative">
           <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">

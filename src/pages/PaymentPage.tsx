@@ -1,14 +1,12 @@
 import { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useDarkMode } from '../hooks/useDarkMode';
-import { supabase } from '../lib/supabase';
 
 interface LocationState {
-  reservationId?: string | number;
-  ticketName?: string;
-  totalAmount?: number;
-  dateIso?: string;
-  timeSlotValue?: string | null;
+  ticketType?: string;
+  sessionFee?: number;
+  date?: string;
+  time?: string;
 }
 
 export default function PaymentPage() {
@@ -23,64 +21,36 @@ export default function PaymentPage() {
   const [expiryDate, setExpiryDate] = useState('');
   const [cvv, setCvv] = useState('');
   const [saveCard, setSaveCard] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  const reservationId = state?.reservationId;
-  const ticketName = state?.ticketName;
-  const total = typeof state?.totalAmount === 'number' ? state.totalAmount : 0;
-  const bookingDate = state?.dateIso
-    ? new Date(`${state.dateIso}T00:00:00`).toLocaleDateString('en-US', {
-        weekday: 'short',
-        month: 'short',
-        day: 'numeric',
-        year: 'numeric',
-      })
-    : '';
-  const timeSlot = state?.timeSlotValue ? state.timeSlotValue.slice(0, 5) : 'All Day';
+  // Mock data dari booking page
+  const ticketType = state?.ticketType || 'Premium Portrait Session';
+  const sessionFee = state?.sessionFee || 1200000;
+  const additionalTime = 200000;
+  const digitalFiles = 100000;
+  const total = sessionFee + additionalTime + digitalFiles;
+  const bookingDate = state?.date || 'Sat, Dec 24, 2023';
+  const timeSlot = state?.time || '14:00 - 16:00';
 
-  const handlePayment = async (e: React.FormEvent) => {
+  const handlePayment = (e: React.FormEvent) => {
     e.preventDefault();
-
-    if (!reservationId || !ticketName || !state?.dateIso) {
-      setErrorMessage('Data pembayaran tidak ditemukan.');
-      return;
-    }
     
     if (paymentMethod === 'card') {
       if (!cardName || !cardNumber || !expiryDate || !cvv) {
-        setErrorMessage('Please fill in all card details');
+        alert('Please fill in all card details');
         return;
       }
     }
 
-    if (!supabase) {
-      setErrorMessage('Supabase belum terkonfigurasi.');
-      return;
-    }
-
-    try {
-      setSubmitting(true);
-      setErrorMessage(null);
-
-      const { error } = await supabase
-        .from('reservations')
-        .update({ status: 'confirmed' })
-        .eq('id', reservationId)
-        .eq('status', 'pending');
-
-      if (error) throw error;
-
-      navigate('/booking-success', {
-        state: {
-          reservationId,
-        },
-      });
-    } catch {
-      setErrorMessage('Payment failed.');
-    } finally {
-      setSubmitting(false);
-    }
+    // Simulate payment processing and navigate to success page
+    navigate('/booking-success', {
+      state: {
+        ticketType,
+        total,
+        date: bookingDate,
+        time: timeSlot,
+        customerName: cardName || 'Guest'
+      }
+    });
   };
 
   const formatCardNumber = (value: string) => {
@@ -137,35 +107,23 @@ export default function PaymentPage() {
       </header>
 
       <main className="max-w-6xl mx-auto px-6 py-10">
-        {!reservationId || !ticketName || !state?.dateIso ? (
-          <div className="rounded-xl border border-amber-200 bg-amber-50 px-6 py-5 text-amber-900 dark:border-amber-900/40 dark:bg-amber-900/20 dark:text-amber-100">
-            <p className="text-sm font-bold">Data pembayaran tidak ditemukan.</p>
-            <button
-              onClick={() => navigate('/calendar')}
-              className="mt-4 inline-flex items-center rounded-lg bg-primary px-4 py-2 text-sm font-bold text-white hover:bg-red-700 transition-colors"
-            >
-              Kembali ke kalender
-            </button>
-          </div>
-        ) : (
-          <>
-            {/* Progress Bar */}
-            <div className="max-w-[800px] mx-auto mb-8">
-              <div className="flex flex-col gap-3">
-                <div className="flex gap-6 justify-between items-end">
-                  <p className="text-base font-medium">Step 2 of 3</p>
-                  <p className="text-sm font-normal opacity-70">66% Complete</p>
-                </div>
-                <div className="rounded-full bg-[#e8cece] dark:bg-[#422020] overflow-hidden">
-                  <div className="h-2.5 rounded-full bg-primary" style={{ width: '66%' }}></div>
-                </div>
-                <p className="text-primary text-sm font-medium">Payment Confirmation</p>
-              </div>
+        {/* Progress Bar */}
+        <div className="max-w-[800px] mx-auto mb-8">
+          <div className="flex flex-col gap-3">
+            <div className="flex gap-6 justify-between items-end">
+              <p className="text-base font-medium">Step 2 of 3</p>
+              <p className="text-sm font-normal opacity-70">66% Complete</p>
             </div>
+            <div className="rounded-full bg-[#e8cece] dark:bg-[#422020] overflow-hidden">
+              <div className="h-2.5 rounded-full bg-primary" style={{ width: '66%' }}></div>
+            </div>
+            <p className="text-primary text-sm font-medium">Payment Confirmation</p>
+          </div>
+        </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
-              {/* Left Side: Order Summary */}
-              <div className="lg:col-span-5 space-y-6">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
+          {/* Left Side: Order Summary */}
+          <div className="lg:col-span-5 space-y-6">
             <div className="bg-white dark:bg-background-dark/50 p-6 rounded-xl border border-[#e8cece] dark:border-[#422020] shadow-sm">
               <h3 className="text-xl font-bold mb-6 flex items-center gap-2">
                 <span className="material-symbols-outlined text-primary">shopping_bag</span>
@@ -175,10 +133,21 @@ export default function PaymentPage() {
               <div className="space-y-4">
                 <div className="flex justify-between items-start border-b border-dashed border-[#e8cece] dark:border-[#422020] pb-4">
                   <div>
-                    <p className="font-bold text-[#1c0d0d] dark:text-white">{ticketName}</p>
+                    <p className="font-bold text-[#1c0d0d] dark:text-white">{ticketType}</p>
                     <p className="text-sm text-[#9c4949] dark:text-[#cc7a7a]">Studio Room A • 90 mins</p>
                   </div>
-                  <p className="font-semibold">IDR {total.toLocaleString('id-ID')}</p>
+                  <p className="font-semibold">IDR {sessionFee.toLocaleString('id-ID')}</p>
+                </div>
+
+                <div className="space-y-3">
+                  <div className="flex justify-between text-sm">
+                    <p className="text-[#9c4949] dark:text-[#cc7a7a]">Additional 30 mins</p>
+                    <p className="text-[#1c0d0d] dark:text-white">IDR {additionalTime.toLocaleString('id-ID')}</p>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <p className="text-[#9c4949] dark:text-[#cc7a7a]">All Digital Files (High-Res)</p>
+                    <p className="text-[#1c0d0d] dark:text-white">IDR {digitalFiles.toLocaleString('id-ID')}</p>
+                  </div>
                 </div>
 
                 <div className="pt-4 border-t border-[#e8cece] dark:border-[#422020] mt-4">
@@ -218,12 +187,6 @@ export default function PaymentPage() {
           <div className="lg:col-span-7">
             <div className="bg-white dark:bg-background-dark/50 p-6 rounded-xl border border-[#e8cece] dark:border-[#422020] shadow-sm">
               <h1 className="text-2xl font-bold mb-8">Payment Method</h1>
-
-              {errorMessage ? (
-                <div className="mb-6 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-amber-900 dark:border-amber-900/40 dark:bg-amber-900/20 dark:text-amber-100">
-                  <p className="text-sm font-bold">{errorMessage}</p>
-                </div>
-              ) : null}
 
               {/* Payment Method Tabs */}
               <div className="grid grid-cols-3 gap-3 mb-8">
@@ -461,11 +424,10 @@ export default function PaymentPage() {
 
                 <button
                   type="submit"
-                  disabled={submitting}
-                  className="w-full bg-primary hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold py-4 rounded-xl shadow-lg shadow-primary/20 transition-all flex items-center justify-center gap-2 group mt-4"
+                  className="w-full bg-primary hover:bg-red-700 text-white font-bold py-4 rounded-xl shadow-lg shadow-primary/20 transition-all flex items-center justify-center gap-2 group mt-4"
                 >
                   <span className="material-symbols-outlined text-[20px]">lock</span>
-                  {submitting ? 'Processing...' : `Pay IDR ${total.toLocaleString('id-ID')} Now`}
+                  Pay IDR {total.toLocaleString('id-ID')} Now
                 </button>
               </form>
 
@@ -495,10 +457,8 @@ export default function PaymentPage() {
               <a className="underline" href="#">Terms of Service</a> and{' '}
               <a className="underline" href="#">Cancellation Policy</a>.
             </p>
-              </div>
-            </div>
-          </>
-        )}
+          </div>
+        </div>
       </main>
 
       {/* Footer */}

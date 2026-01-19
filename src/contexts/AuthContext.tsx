@@ -24,15 +24,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
-    if (!supabase) {
-      setSession(null);
-      setUser(null);
-      setIsAdmin(false);
-      setAdminLoading(false);
-      setLoading(false);
-      return;
-    }
-
     // Get initial session
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       setSession(session);
@@ -81,11 +72,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   }, []);
 
   const signIn = async (email: string, password: string) => {
-    if (!supabase) {
-      return {
-        error: ({ message: 'Supabase belum terkonfigurasi. Silakan set VITE_SUPABASE_URL dan VITE_SUPABASE_ANON_KEY.' } as unknown) as AuthError,
-      };
-    }
     const { error } = await supabase.auth.signInWithPassword({
       email,
       password,
@@ -94,11 +80,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   const signUp = async (email: string, password: string, name: string) => {
-    if (!supabase) {
-      return {
-        error: ({ message: 'Supabase belum terkonfigurasi. Silakan set VITE_SUPABASE_URL dan VITE_SUPABASE_ANON_KEY.' } as unknown) as AuthError,
-      };
-    }
     const { error } = await supabase.auth.signUp({
       email,
       password,
@@ -112,7 +93,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   const signOut = async () => {
-    if (!supabase) return;
     await supabase.auth.signOut();
   };
 
