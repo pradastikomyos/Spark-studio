@@ -112,6 +112,30 @@ const TicketsManagement = () => {
     fetchTickets();
   }, [fetchTickets]);
 
+  // Realtime subscription for ticket updates
+  useEffect(() => {
+    const channel = supabase
+      .channel('purchased_tickets_admin_changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'purchased_tickets',
+        },
+        (payload) => {
+          console.log('Ticket change detected:', payload);
+          // Refetch tickets when any change occurs
+          fetchTickets();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [fetchTickets]);
+
   const normalizedSearch = searchQuery.trim().toLowerCase();
   const filteredTickets = tickets.filter((ticket) => {
     const matchesSearch =
@@ -140,7 +164,7 @@ const TicketsManagement = () => {
       title="Log Tiket Masuk"
       onLogout={signOut}
     >
-      {/* Info Banner */}
+      {/* Info Banner with Refresh Button */}
       <div className="rounded-xl border border-blue-200 bg-blue-50 dark:border-blue-900/30 dark:bg-blue-900/20 p-4 mb-6">
         <div className="flex items-start gap-3">
           <span className="material-symbols-outlined text-blue-600 dark:text-blue-400 flex-shrink-0">info</span>
@@ -149,9 +173,19 @@ const TicketsManagement = () => {
               Halaman ini menampilkan tiket yang sudah dipindai di pintu masuk
             </p>
             <p className="text-xs text-blue-700 dark:text-blue-300">
-              Filter default menampilkan hanya tiket yang sudah dipindai. Ubah filter ke "Semua Tiket" untuk melihat tiket yang belum dipindai.
+              Filter default menampilkan hanya tiket yang sudah dipindai. Data diperbarui secara otomatis saat ada perubahan.
             </p>
           </div>
+          <button
+            onClick={fetchTickets}
+            disabled={loading}
+            className="flex items-center gap-2 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg transition-colors disabled:opacity-50 flex-shrink-0"
+          >
+            <span className={`material-symbols-outlined text-sm ${loading ? 'animate-spin' : ''}`}>
+              {loading ? 'progress_activity' : 'refresh'}
+            </span>
+            Refresh
+          </button>
         </div>
       </div>
 

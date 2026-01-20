@@ -48,7 +48,7 @@ const OrderTicket = () => {
         if (!data) {
           setLastScanResult({ 
             type: 'error', 
-            message: 'Ticket code not found in system.' 
+            message: 'Kode tiket tidak ditemukan di sistem.' 
           });
           return;
         }
@@ -57,8 +57,8 @@ const OrderTicket = () => {
           setLastScanResult({
             type: 'error',
             message: data.status === 'used' 
-              ? `Ticket already used on ${new Date(data.used_at || '').toLocaleString('id-ID')}`
-              : `Ticket is ${data.status}.`,
+              ? `Tiket sudah digunakan pada ${new Date(data.used_at || '').toLocaleString('id-ID')}`
+              : `Status tiket: ${data.status}.`,
           });
           return;
         }
@@ -71,7 +71,7 @@ const OrderTicket = () => {
         if (data.valid_date < todayIso) {
           setLastScanResult({ 
             type: 'error', 
-            message: `Ticket expired. Valid date was ${new Date(data.valid_date).toLocaleDateString('id-ID')}.` 
+            message: `Tiket kadaluarsa. Tanggal valid adalah ${new Date(data.valid_date).toLocaleDateString('id-ID')}.` 
           });
           return;
         }
@@ -79,26 +79,42 @@ const OrderTicket = () => {
         if (data.valid_date > todayIso) {
           setLastScanResult({ 
             type: 'error', 
-            message: `Ticket not yet valid. Valid from ${new Date(data.valid_date).toLocaleDateString('id-ID')}.` 
+            message: `Tiket belum valid. Berlaku mulai ${new Date(data.valid_date).toLocaleDateString('id-ID')}.` 
           });
           return;
         }
 
-        const { error: updateError } = await supabase
+        // Update ticket status to 'used' with verification
+        const { data: updatedTicket, error: updateError } = await supabase
           .from('purchased_tickets')
           .update({
             status: 'used',
             used_at: new Date().toISOString(),
-            scanned_by: user?.email ?? null,
+            updated_at: new Date().toISOString(),
           })
           .eq('id', data.id)
-          .eq('status', 'active');
+          .eq('status', 'active')
+          .select('id, status')
+          .maybeSingle();
 
-        if (updateError) throw updateError;
+        if (updateError) {
+          console.error('Update error:', updateError);
+          throw new Error(`Gagal update tiket: ${updateError.message}`);
+        }
+
+        // Verify the update actually happened
+        if (!updatedTicket) {
+          throw new Error('Gagal memperbarui status tiket. Tiket mungkin sudah digunakan oleh admin lain.');
+        }
+
+        // Double-check the status was updated correctly
+        if (updatedTicket.status !== 'used') {
+          throw new Error('Status tiket tidak berhasil diperbarui. Silakan coba lagi.');
+        }
 
         setLastScanResult({ 
           type: 'success', 
-          message: 'Ticket validated successfully! Entry allowed.',
+          message: 'Tiket berhasil divalidasi! Masuk diizinkan.',
           ticketInfo: {
             code: data.ticket_code,
             userName: (data.users as any).name,
@@ -108,9 +124,10 @@ const OrderTicket = () => {
         });
       } catch (err) {
         console.error('Validation error:', err);
+        const errorMessage = err instanceof Error ? err.message : 'Validasi gagal. Silakan coba lagi.';
         setLastScanResult({ 
           type: 'error', 
-          message: 'Validation failed. Please try again.' 
+          message: errorMessage
         });
       } finally {
         setValidating(false);
@@ -212,7 +229,7 @@ const OrderTicket = () => {
               </li>
               <li className="flex items-start gap-2">
                 <span className="text-primary">•</span>
-                <span>Pemindai akan otomatis melanjutkan setelah 3 detik untuk tiket berikutnya</span>
+                <span>Setelah scan berhasil, klik "Scan Tiket Berikutnya" untuk melanjutkan</span>
               </li>
             </ul>
           </div>
@@ -224,6 +241,7 @@ const OrderTicket = () => {
         onClose={() => setShowScanner(false)}
         title="Pindai Tiket Masuk"
         autoResumeAfterMs={3000}
+        autoResumeOnSuccess={false}
         onScan={async (decodedText) => {
           await validateTicket(decodedText);
         }}
