@@ -1,35 +1,35 @@
 import { type AdminMenuItem, type AdminMenuSection } from '../components/AdminLayout';
 
 export const ADMIN_MENU_ITEMS: AdminMenuItem[] = [
-  { id: 'dashboard', label: 'Dashboard', icon: 'dashboard', path: '/admin/dashboard', filled: true },
-  { id: 'fashion', label: 'Fashion Showcases', icon: 'styler', path: '/admin/fashion' },
+  { id: 'dashboard', label: 'Dasbor', icon: 'dashboard', path: '/admin/dashboard', filled: true },
+  { id: 'fashion', label: 'Galeri Fashion', icon: 'styler', path: '/admin/fashion' },
 ];
 
 export const ADMIN_MENU_SECTIONS: AdminMenuSection[] = [
   {
     id: 'management',
-    label: 'Management',
+    label: 'Manajemen',
     items: [
-      { id: 'stages', label: 'Stage Manager', icon: 'grid_view', path: '/admin/stages' },
-      { id: 'qr-bulk', label: 'QR Bulk Manager', icon: 'qr_code_2', path: '/admin/qr-bulk' },
-      { id: 'stage-analytics', label: 'Stage Analytics', icon: 'analytics', path: '/admin/stage-analytics' },
+      { id: 'stages', label: 'Kelola Stage', icon: 'grid_view', path: '/admin/stages' },
+      { id: 'qr-bulk', label: 'Kelola QR Massal', icon: 'qr_code_2', path: '/admin/qr-bulk' },
+      { id: 'stage-analytics', label: 'Analitik Stage', icon: 'analytics', path: '/admin/stage-analytics' },
     ],
   },
   {
     id: 'tickets',
-    label: 'Tickets',
+    label: 'Tiket',
     items: [
-      { id: 'order-ticket', label: 'Order Ticket', icon: 'add_shopping_cart', path: '/admin/order-ticket' },
-      { id: 'entrance-log', label: 'Entrance Log', icon: 'fact_check', path: '/admin/tickets' },
+      { id: 'order-ticket', label: 'Scan Tiket Masuk', icon: 'qr_code_scanner', path: '/admin/order-ticket', highlight: true },
+      { id: 'entrance-log', label: 'Log Tiket Masuk', icon: 'fact_check', path: '/admin/tickets' },
     ],
   },
   {
     id: 'store',
-    label: 'Store',
+    label: 'Toko',
     items: [
-      { id: 'pickup-scanner', label: 'Pickup Store Scanner', icon: 'qr_code_scanner', path: '/admin/pickup-scanner', highlight: true },
-      { id: 'discounts', label: 'Discounts', icon: 'local_offer', path: '/admin/discounts' },
-      { id: 'order-products', label: 'Order Products', icon: 'shopping_bag', path: '/admin/store', badge: 0 },
+      { id: 'pickup-scanner', label: 'Scan Ambil Barang', icon: 'shopping_bag', path: '/admin/pickup-scanner' },
+      { id: 'discounts', label: 'Diskon', icon: 'local_offer', path: '/admin/discounts' },
+      { id: 'order-products', label: 'Pesanan Produk', icon: 'inventory_2', path: '/admin/store', badge: 0 },
     ],
   },
 ];

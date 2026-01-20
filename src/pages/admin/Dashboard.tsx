@@ -88,7 +88,7 @@ const Dashboard = () => {
       menuItems={ADMIN_MENU_ITEMS}
       menuSections={ADMIN_MENU_SECTIONS}
       defaultActiveMenuId="dashboard"
-      title="Dashboard Overview"
+      title="Ringkasan Dasbor"
       onLogout={signOut}
     >
       {/* Welcome Card */}
@@ -98,8 +98,8 @@ const Dashboard = () => {
             {getUserInitials()}
           </div>
           <div className="min-w-0">
-            <h3 className="text-lg font-bold text-white truncate">Welcome Back</h3>
-            <p className="text-sm text-gray-400 truncate">Spark Admin Panel</p>
+            <h3 className="text-lg font-bold text-white truncate">Selamat Datang Kembali</h3>
+            <p className="text-sm text-gray-400 truncate">Panel Admin Spark</p>
           </div>
         </div>
         <button 
@@ -107,32 +107,32 @@ const Dashboard = () => {
           className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium hover:bg-white/10 transition-colors w-full sm:w-auto justify-center"
         >
           <span className="material-symbols-outlined text-sm">logout</span>
-          Sign out
+          Keluar
         </button>
       </div>
 
       {/* Ticket Stats */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="rounded-xl border border-white/5 bg-surface-dark p-5">
-          <p className="text-sm text-gray-400 mb-1">Total purchased tickets</p>
+          <p className="text-sm text-gray-400 mb-1">Total tiket terjual</p>
           <p className="text-3xl font-bold text-white">
             {loading ? '...' : stats.totalPurchasedTickets}
           </p>
         </div>
         <div className="rounded-xl border border-white/5 bg-surface-dark p-5">
-          <p className="text-sm text-gray-400 mb-1">Total already entered</p>
+          <p className="text-sm text-gray-400 mb-1">Total sudah masuk</p>
           <p className="text-3xl font-bold text-white">
             {loading ? '...' : stats.totalEntered}
           </p>
         </div>
         <div className="rounded-xl border border-white/5 bg-surface-dark p-5">
-          <p className="text-sm text-gray-400 mb-1">Total didn't end up coming</p>
+          <p className="text-sm text-gray-400 mb-1">Total tidak datang</p>
           <p className="text-3xl font-bold text-white">
             {loading ? '...' : stats.totalNoShow}
           </p>
         </div>
         <div className="rounded-xl border border-white/5 bg-surface-dark p-5">
-          <p className="text-sm text-gray-400 mb-1">Total already exchanged gifts</p>
+          <p className="text-sm text-gray-400 mb-1">Total sudah tukar hadiah</p>
           <p className="text-3xl font-bold text-white">
             {loading ? '...' : stats.totalGiftsExchanged}
           </p>
@@ -142,25 +142,25 @@ const Dashboard = () => {
       {/* Order Stats */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="rounded-xl border border-white/5 bg-surface-dark p-5">
-          <p className="text-sm text-gray-400 mb-1">Total Orders</p>
+          <p className="text-sm text-gray-400 mb-1">Total Pesanan</p>
           <p className="text-3xl font-bold text-white">
             {loading ? '...' : stats.totalOrders}
           </p>
         </div>
         <div className="rounded-xl border border-white/5 bg-surface-dark p-5">
-          <p className="text-sm text-gray-400 mb-1">Pending Orders</p>
+          <p className="text-sm text-gray-400 mb-1">Pesanan Pending</p>
           <p className="text-3xl font-bold text-white">
             {loading ? '...' : stats.pendingOrders}
           </p>
         </div>
         <div className="rounded-xl border border-white/5 bg-surface-dark p-5">
-          <p className="text-sm text-gray-400 mb-1">Paid Orders</p>
+          <p className="text-sm text-gray-400 mb-1">Pesanan Lunas</p>
           <p className="text-3xl font-bold text-white">
             {loading ? '...' : stats.paidOrders}
           </p>
         </div>
         <div className="rounded-xl border border-white/5 bg-surface-dark p-5">
-          <p className="text-sm text-gray-400 mb-1">Processing Orders</p>
+          <p className="text-sm text-gray-400 mb-1">Pesanan Diproses</p>
           <p className="text-3xl font-bold text-white">
             {loading ? '...' : stats.processingOrders}
           </p>
@@ -171,21 +171,21 @@ const Dashboard = () => {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-3 rounded-xl border border-white/5 bg-surface-dark p-6">
           <div className="flex justify-between items-center mb-6">
-            <h3 className="text-lg font-bold text-white font-display">Pickup Store Scanner</h3>
+            <h3 className="text-lg font-bold text-white font-display">Pemindai Toko</h3>
             <span className="px-2 py-1 rounded bg-green-500/10 text-green-400 text-xs font-bold border border-green-500/20">
-              Ready to Scan
+              Siap Memindai
             </span>
           </div>
           <div className="border-2 border-dashed border-white/10 rounded-xl bg-surface-darker p-12 flex flex-col items-center justify-center text-center hover:border-primary/50 transition-colors cursor-pointer group">
             <div className="h-16 w-16 rounded-full bg-white/5 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
               <span className="material-symbols-outlined text-3xl text-primary">qr_code_scanner</span>
             </div>
-            <h4 className="text-lg font-medium text-white mb-2">Scan QR Code</h4>
+            <h4 className="text-lg font-medium text-white mb-2">Pindai Kode QR</h4>
             <p className="text-sm text-gray-400 max-w-sm">
-              Place the ticket QR code in front of the camera or click here to manually enter the ticket ID.
+              Letakkan kode QR tiket di depan kamera atau klik di sini untuk memasukkan ID tiket secara manual.
             </p>
             <button className="mt-6 px-4 py-2 bg-primary text-white text-sm font-bold rounded shadow-lg shadow-red-900/20 hover:bg-red-600 transition-colors">
-              Activate Camera
+              Aktifkan Kamera
             </button>
           </div>
         </div>
@@ -194,11 +194,11 @@ const Dashboard = () => {
       {/* Charts Section */}
       <div className="rounded-xl border border-white/5 bg-surface-dark p-4 md:p-6">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-          <h3 className="text-lg font-bold text-white font-display">Chart Purchased Ticket</h3>
+          <h3 className="text-lg font-bold text-white font-display">Grafik Tiket Terjual</h3>
           <div className="relative w-full sm:w-auto">
             <select className="appearance-none bg-surface-darker border border-white/10 rounded px-3 py-1.5 pr-8 text-sm text-gray-300 focus:outline-none focus:border-primary w-full sm:w-auto">
-              <option>This year</option>
-              <option>Last year</option>
+              <option>Tahun ini</option>
+              <option>Tahun lalu</option>
             </select>
             <span className="material-symbols-outlined absolute right-2 top-1.5 text-gray-500 text-sm pointer-events-none">
               expand_more
@@ -254,17 +254,17 @@ const Dashboard = () => {
         </div>
         <div className="flex items-center justify-center gap-2 mt-4">
           <div className="h-3 w-3 rounded-sm bg-accent-purple" />
-          <span className="text-xs text-gray-400">Purchased tickets</span>
+          <span className="text-xs text-gray-400">Tiket terjual</span>
         </div>
       </div>
 
       <div className="rounded-xl border border-white/5 bg-surface-dark p-4 md:p-6">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-          <h3 className="text-lg font-bold text-white font-display">Chart Order Product</h3>
+          <h3 className="text-lg font-bold text-white font-display">Grafik Pesanan Produk</h3>
           <div className="relative w-full sm:w-auto">
             <select className="appearance-none bg-surface-darker border border-white/10 rounded px-3 py-1.5 pr-8 text-sm text-gray-300 focus:outline-none focus:border-primary w-full sm:w-auto">
-              <option>This year</option>
-              <option>Last year</option>
+              <option>Tahun ini</option>
+              <option>Tahun lalu</option>
             </select>
             <span className="material-symbols-outlined absolute right-2 top-1.5 text-gray-500 text-sm pointer-events-none">
               expand_more
@@ -315,7 +315,7 @@ const Dashboard = () => {
         </div>
         <div className="flex items-center justify-center gap-2 mt-4">
           <div className="h-3 w-3 rounded-sm bg-accent-purple" />
-          <span className="text-xs text-gray-400">Order Products</span>
+          <span className="text-xs text-gray-400">Pesanan Produk</span>
         </div>
       </div>
     </AdminLayout>

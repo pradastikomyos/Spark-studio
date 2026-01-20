@@ -124,18 +124,18 @@ const OrderTicket = () => {
       menuItems={ADMIN_MENU_ITEMS}
       menuSections={ADMIN_MENU_SECTIONS}
       defaultActiveMenuId="order-ticket"
-      title="Entrance Scanner"
+      title="Pemindai Tiket Masuk"
       onLogout={signOut}
     >
       {/* Scanner Card */}
       <div className="rounded-xl border border-white/5 bg-surface-dark p-6 md:p-8">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
           <div>
-            <h3 className="text-xl font-bold text-white font-display mb-2">Entrance Ticket Scanner</h3>
-            <p className="text-sm text-gray-400">Scan QR codes to validate entrance tickets</p>
+            <h3 className="text-xl font-bold text-white font-display mb-2">Pemindai Tiket Masuk</h3>
+            <p className="text-sm text-gray-400">Pindai kode QR untuk memvalidasi tiket masuk</p>
           </div>
           <span className="px-3 py-1.5 rounded-full bg-green-500/10 text-green-400 text-xs font-bold border border-green-500/20">
-            Ready to Scan
+            Siap Memindai
           </span>
         </div>
 
@@ -156,10 +156,10 @@ const OrderTicket = () => {
                 <p className="font-bold text-base mb-1">{lastScanResult.message}</p>
                 {lastScanResult.ticketInfo && (
                   <div className="text-sm space-y-1 mt-3">
-                    <p><span className="font-semibold">Ticket:</span> {lastScanResult.ticketInfo.ticketName}</p>
-                    <p><span className="font-semibold">Guest:</span> {lastScanResult.ticketInfo.userName}</p>
-                    <p><span className="font-semibold">Code:</span> {lastScanResult.ticketInfo.code}</p>
-                    <p><span className="font-semibold">Valid Date:</span> {lastScanResult.ticketInfo.validDate}</p>
+                    <p><span className="font-semibold">Tiket:</span> {lastScanResult.ticketInfo.ticketName}</p>
+                    <p><span className="font-semibold">Tamu:</span> {lastScanResult.ticketInfo.userName}</p>
+                    <p><span className="font-semibold">Kode:</span> {lastScanResult.ticketInfo.code}</p>
+                    <p><span className="font-semibold">Tanggal Valid:</span> {lastScanResult.ticketInfo.validDate}</p>
                   </div>
                 )}
               </div>
@@ -172,9 +172,9 @@ const OrderTicket = () => {
           <div className="h-20 w-20 rounded-full bg-white/5 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
             <span className="material-symbols-outlined text-4xl text-primary">qr_code_scanner</span>
           </div>
-          <h4 className="text-lg font-medium text-white mb-2">Scan Entrance Ticket</h4>
+          <h4 className="text-lg font-medium text-white mb-2">Pindai Tiket Masuk</h4>
           <p className="text-sm text-gray-400 max-w-md mb-6">
-            Click the button below to activate the camera and scan the QR code on the entrance ticket.
+            Klik tombol di bawah untuk mengaktifkan kamera dan pindai kode QR pada tiket masuk.
           </p>
           <button
             onClick={() => setShowScanner(true)}
@@ -182,7 +182,7 @@ const OrderTicket = () => {
             className="flex items-center gap-2 px-6 py-3 bg-primary text-white text-sm font-bold rounded-lg shadow-lg shadow-red-900/20 hover:bg-red-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <span className="material-symbols-outlined">qr_code_scanner</span>
-            {validating ? 'Validating...' : 'Activate Scanner'}
+            {validating ? 'Memvalidasi...' : 'Aktifkan Pemindai'}
           </button>
         </div>
       </div>
@@ -192,27 +192,27 @@ const OrderTicket = () => {
         <div className="flex gap-4 items-start mb-4">
           <span className="material-symbols-outlined text-primary text-2xl flex-shrink-0">info</span>
           <div>
-            <h4 className="font-bold text-white mb-2">How to Use</h4>
+            <h4 className="font-bold text-white mb-2">Cara Menggunakan</h4>
             <ul className="text-sm text-gray-400 space-y-2">
               <li className="flex items-start gap-2">
                 <span className="text-primary">•</span>
-                <span>Click "Activate Scanner" to open the camera</span>
+                <span>Klik "Aktifkan Pemindai" untuk membuka kamera</span>
               </li>
               <li className="flex items-start gap-2">
                 <span className="text-primary">•</span>
-                <span>Point the camera at the QR code on the ticket</span>
+                <span>Arahkan kamera ke kode QR pada tiket</span>
               </li>
               <li className="flex items-start gap-2">
                 <span className="text-primary">•</span>
-                <span>Wait for automatic validation</span>
+                <span>Tunggu validasi otomatis</span>
               </li>
               <li className="flex items-start gap-2">
                 <span className="text-primary">•</span>
-                <span>Green message = Entry allowed, Red message = Entry denied</span>
+                <span>Pesan hijau = Masuk diizinkan, Pesan merah = Masuk ditolak</span>
               </li>
               <li className="flex items-start gap-2">
                 <span className="text-primary">•</span>
-                <span>Scanner will automatically resume after 3 seconds for next ticket</span>
+                <span>Pemindai akan otomatis melanjutkan setelah 3 detik untuk tiket berikutnya</span>
               </li>
             </ul>
           </div>
@@ -222,7 +222,7 @@ const OrderTicket = () => {
       <QRScannerModal
         isOpen={showScanner}
         onClose={() => setShowScanner(false)}
-        title="Scan Entrance Ticket"
+        title="Pindai Tiket Masuk"
         autoResumeAfterMs={3000}
         onScan={async (decodedText) => {
           await validateTicket(decodedText);

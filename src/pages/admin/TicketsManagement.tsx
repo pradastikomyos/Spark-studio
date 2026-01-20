@@ -137,7 +137,7 @@ const TicketsManagement = () => {
       menuItems={ADMIN_MENU_ITEMS}
       menuSections={ADMIN_MENU_SECTIONS}
       defaultActiveMenuId="entrance-log"
-      title="Entrance Log"
+      title="Log Tiket Masuk"
       onLogout={signOut}
     >
       {/* Info Banner */}
@@ -146,10 +146,10 @@ const TicketsManagement = () => {
           <span className="material-symbols-outlined text-blue-600 dark:text-blue-400 flex-shrink-0">info</span>
           <div className="flex-1 min-w-0">
             <p className="text-sm text-blue-800 dark:text-blue-200 font-medium mb-1">
-              This page shows tickets that have been scanned at entrance
+              Halaman ini menampilkan tiket yang sudah dipindai di pintu masuk
             </p>
             <p className="text-xs text-blue-700 dark:text-blue-300">
-              Default filter shows only scanned tickets. Change filter to "All Tickets" to see unscanned tickets.
+              Filter default menampilkan hanya tiket yang sudah dipindai. Ubah filter ke "Semua Tiket" untuk melihat tiket yang belum dipindai.
             </p>
           </div>
         </div>
@@ -168,7 +168,7 @@ const TicketsManagement = () => {
           </div>
           <input
             className="block w-full rounded-lg border-gray-200 dark:border-gray-700 bg-white dark:bg-[#1a0f0f] py-3 pl-10 pr-3 text-sm text-gray-900 dark:text-white placeholder-gray-500 focus:border-primary focus:ring-primary shadow-sm"
-            placeholder="Search by Order ID, Customer Name..."
+            placeholder="Cari berdasarkan ID Pesanan, Nama Pelanggan..."
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
@@ -180,10 +180,10 @@ const TicketsManagement = () => {
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
           >
-            <option value="used">Scanned Only (Default)</option>
-            <option value="all">All Tickets</option>
-            <option value="active">Not Yet Scanned</option>
-            <option value="cancelled">Cancelled</option>
+            <option value="used">Hanya yang Sudah Discan (Default)</option>
+            <option value="all">Semua Tiket</option>
+            <option value="active">Belum Discan</option>
+            <option value="cancelled">Dibatalkan</option>
           </select>
         </div>
         <div className="relative">
@@ -192,8 +192,8 @@ const TicketsManagement = () => {
             value={eventFilter}
             onChange={(e) => setEventFilter(e.target.value)}
           >
-            <option value="">Filter by Event</option>
-            <option value="all">All Events</option>
+            <option value="">Filter berdasarkan Event</option>
+            <option value="all">Semua Event</option>
             <option value="gala">Annual Gala</option>
             <option value="workshop">Photo Workshop</option>
           </select>
@@ -204,12 +204,12 @@ const TicketsManagement = () => {
       <section>
         <div className="mb-4 flex items-center justify-between">
           <h3 className="text-lg font-bold text-white">
-            {statusFilter === 'used' ? 'Scanned Tickets' : 
-             statusFilter === 'active' ? 'Unscanned Tickets' : 
-             'All Tickets'}
+            {statusFilter === 'used' ? 'Tiket yang Sudah Discan' : 
+             statusFilter === 'active' ? 'Tiket Belum Discan' : 
+             'Semua Tiket'}
           </h3>
           <div className="text-sm text-gray-400">
-            Showing {filteredTickets.length} of {tickets.length} tickets
+            Menampilkan {filteredTickets.length} dari {tickets.length} tiket
           </div>
         </div>
         <PurchasedTicketsTable
