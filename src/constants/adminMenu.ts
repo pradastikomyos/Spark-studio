@@ -20,7 +20,7 @@ export const ADMIN_MENU_SECTIONS: AdminMenuSection[] = [
     label: 'Tickets',
     items: [
       { id: 'order-ticket', label: 'Order Ticket', icon: 'add_shopping_cart', path: '/admin/order-ticket' },
-      { id: 'purchased-tickets', label: 'Purchased Tickets', icon: 'confirmation_number', path: '/admin/tickets' },
+      { id: 'entrance-log', label: 'Entrance Log', icon: 'fact_check', path: '/admin/tickets' },
     ],
   },
   {

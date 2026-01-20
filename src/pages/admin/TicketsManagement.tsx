@@ -41,7 +41,7 @@ type PurchasedTicketRow = {
 const TicketsManagement = () => {
   const { signOut } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState('used'); // Default to 'used' (scanned tickets)
   const [eventFilter, setEventFilter] = useState('');
   const [tickets, setTickets] = useState<PurchasedTicket[]>([]);
   const [loading, setLoading] = useState(true);
@@ -123,8 +123,8 @@ const TicketsManagement = () => {
     const matchesStatus =
       statusFilter === '' ||
       statusFilter === 'all' ||
-      (statusFilter === 'entered' && ticket.entry_status === 'entered') ||
-      (statusFilter === 'not_yet' && ticket.entry_status === 'not_yet') ||
+      (statusFilter === 'used' && ticket.status === 'used') ||
+      (statusFilter === 'active' && ticket.status === 'active') ||
       (statusFilter === 'cancelled' && ticket.status === 'cancelled');
 
     const matchesEvent = eventFilter === '' || eventFilter === 'all' || ticket.tickets.name.toLowerCase().includes(eventFilter);
@@ -136,10 +136,25 @@ const TicketsManagement = () => {
     <AdminLayout
       menuItems={ADMIN_MENU_ITEMS}
       menuSections={ADMIN_MENU_SECTIONS}
-      defaultActiveMenuId="purchased-tickets"
-      title="Tickets Management"
+      defaultActiveMenuId="entrance-log"
+      title="Entrance Log"
       onLogout={signOut}
     >
+      {/* Info Banner */}
+      <div className="rounded-xl border border-blue-200 bg-blue-50 dark:border-blue-900/30 dark:bg-blue-900/20 p-4 mb-6">
+        <div className="flex items-start gap-3">
+          <span className="material-symbols-outlined text-blue-600 dark:text-blue-400 flex-shrink-0">info</span>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm text-blue-800 dark:text-blue-200 font-medium mb-1">
+              This page shows tickets that have been scanned at entrance
+            </p>
+            <p className="text-xs text-blue-700 dark:text-blue-300">
+              Default filter shows only scanned tickets. Change filter to "All Tickets" to see unscanned tickets.
+            </p>
+          </div>
+        </div>
+      </div>
+
       {/* Availability Generator Section */}
       <section className="mb-8">
         <AvailabilityGenerator onSuccess={fetchTickets} />
@@ -165,10 +180,9 @@ const TicketsManagement = () => {
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
           >
-            <option value="">Filter by Status</option>
-            <option value="all">All Statuses</option>
-            <option value="entered">Already Entered</option>
-            <option value="not_yet">Not Yet Entered</option>
+            <option value="used">Scanned Only (Default)</option>
+            <option value="all">All Tickets</option>
+            <option value="active">Not Yet Scanned</option>
             <option value="cancelled">Cancelled</option>
           </select>
         </div>
@@ -188,6 +202,16 @@ const TicketsManagement = () => {
 
       {/* Purchased Tickets Table */}
       <section>
+        <div className="mb-4 flex items-center justify-between">
+          <h3 className="text-lg font-bold text-white">
+            {statusFilter === 'used' ? 'Scanned Tickets' : 
+             statusFilter === 'active' ? 'Unscanned Tickets' : 
+             'All Tickets'}
+          </h3>
+          <div className="text-sm text-gray-400">
+            Showing {filteredTickets.length} of {tickets.length} tickets
+          </div>
+        </div>
         <PurchasedTicketsTable
           tickets={filteredTickets}
           loading={loading}
