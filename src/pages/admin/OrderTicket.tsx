@@ -81,11 +81,14 @@ const OrderTicket = () => {
           throw new Error(errMsg);
         }
 
-        // Update ticket status to 'used' - only update status, not other columns that might not exist
+        // Update ticket status to 'used' with timestamp
         console.log('Attempting to update ticket ID:', data.id);
         const { data: updatedTicket, error: updateError } = await supabase
           .from('purchased_tickets')
-          .update({ status: 'used' })
+          .update({ 
+            status: 'used',
+            used_at: new Date().toISOString()
+          })
           .eq('id', data.id)
           .eq('status', 'active')
           .select('id, status')
