@@ -15,6 +15,7 @@ import StoreInventory from './pages/admin/StoreInventory';
 import StageManager from './pages/admin/StageManager';
 import StageAnalytics from './pages/admin/StageAnalytics';
 import StageBulkQR from './pages/admin/StageBulkQR';
+import OrderTicket from './pages/admin/OrderTicket';
 import BookingPage from './pages/BookingPage';
 import PaymentPage from './pages/PaymentPage';
 import BookingSuccessPage from './pages/BookingSuccessPage';
@@ -90,6 +91,14 @@ function App() {
               element={
                 <ProtectedRoute adminOnly>
                   <StageBulkQR />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/order-ticket"
+              element={
+                <ProtectedRoute adminOnly>
+                  <OrderTicket />
                 </ProtectedRoute>
               }
             />
