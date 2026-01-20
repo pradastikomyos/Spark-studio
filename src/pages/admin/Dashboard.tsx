@@ -92,19 +92,19 @@ const Dashboard = () => {
       onLogout={signOut}
     >
       {/* Welcome Card */}
-      <div className="rounded-xl border border-white/5 bg-surface-dark p-6 flex justify-between items-center">
-        <div className="flex items-center gap-4">
-          <div className="h-12 w-12 rounded-full bg-surface-darker border border-white/10 flex items-center justify-center text-lg font-bold">
+      <div className="rounded-xl border border-white/5 bg-surface-dark p-4 md:p-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div className="flex items-center gap-4 min-w-0">
+          <div className="h-12 w-12 rounded-full bg-surface-darker border border-white/10 flex items-center justify-center text-lg font-bold flex-shrink-0">
             {getUserInitials()}
           </div>
-          <div>
-            <h3 className="text-lg font-bold text-white">Welcome Back</h3>
-            <p className="text-sm text-gray-400">Spark Admin Panel</p>
+          <div className="min-w-0">
+            <h3 className="text-lg font-bold text-white truncate">Welcome Back</h3>
+            <p className="text-sm text-gray-400 truncate">Spark Admin Panel</p>
           </div>
         </div>
         <button 
           onClick={signOut}
-          className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium hover:bg-white/10 transition-colors"
+          className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium hover:bg-white/10 transition-colors w-full sm:w-auto justify-center"
         >
           <span className="material-symbols-outlined text-sm">logout</span>
           Sign out
@@ -192,11 +192,11 @@ const Dashboard = () => {
       </div>
 
       {/* Charts Section */}
-      <div className="rounded-xl border border-white/5 bg-surface-dark p-6">
-        <div className="flex justify-between items-center mb-6">
+      <div className="rounded-xl border border-white/5 bg-surface-dark p-4 md:p-6">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
           <h3 className="text-lg font-bold text-white font-display">Chart Purchased Ticket</h3>
-          <div className="relative">
-            <select className="appearance-none bg-surface-darker border border-white/10 rounded px-3 py-1.5 pr-8 text-sm text-gray-300 focus:outline-none focus:border-primary">
+          <div className="relative w-full sm:w-auto">
+            <select className="appearance-none bg-surface-darker border border-white/10 rounded px-3 py-1.5 pr-8 text-sm text-gray-300 focus:outline-none focus:border-primary w-full sm:w-auto">
               <option>This year</option>
               <option>Last year</option>
             </select>
@@ -205,49 +205,51 @@ const Dashboard = () => {
             </span>
           </div>
         </div>
-        <div className="relative h-64 w-full rounded border border-white/5 p-4 flex items-end justify-between bg-[linear-gradient(to_right,#27272a_1px,transparent_1px),linear-gradient(to_bottom,#27272a_1px,transparent_1px)] bg-[size:40px_40px]">
-          <div className="absolute left-0 top-0 bottom-8 w-8 flex flex-col justify-between text-[10px] text-gray-500 font-mono text-right pr-2">
-            <span>7</span>
-            <span>6</span>
-            <span>5</span>
-            <span>4</span>
-            <span>3</span>
-            <span>2</span>
-            <span>1</span>
-            <span>0</span>
-          </div>
-          <svg className="absolute left-8 right-0 top-0 bottom-8 h-full w-[calc(100%-2rem)] overflow-visible" preserveAspectRatio="none">
-            <path d="M0,0 L50,180 L100,180 L150,180 L200,180 L250,180 L300,180 L350,180 L400,180 L450,180 L500,180 L550,180 L600,180 L650,180 L700,180 L750,180" fill="none" stroke="#8b5cf6" strokeWidth="2" />
-            <circle cx="0" cy="0" fill="#8b5cf6" r="3" />
-            <circle cx="50" cy="180" fill="#8b5cf6" r="3" />
-            <circle cx="100" cy="180" fill="#8b5cf6" r="3" />
-            <circle cx="150" cy="180" fill="#8b5cf6" r="3" />
-            <circle cx="200" cy="180" fill="#8b5cf6" r="3" />
-            <circle cx="250" cy="180" fill="#8b5cf6" r="3" />
-            <circle cx="300" cy="180" fill="#8b5cf6" r="3" />
-            <circle cx="350" cy="180" fill="#8b5cf6" r="3" />
-            <circle cx="400" cy="180" fill="#8b5cf6" r="3" />
-            <circle cx="450" cy="180" fill="#8b5cf6" r="3" />
-            <circle cx="500" cy="180" fill="#8b5cf6" r="3" />
-            <circle cx="550" cy="180" fill="#8b5cf6" r="3" />
-            <circle cx="600" cy="180" fill="#8b5cf6" r="3" />
-            <circle cx="650" cy="180" fill="#8b5cf6" r="3" />
-            <circle cx="700" cy="180" fill="#8b5cf6" r="3" />
-            <circle cx="750" cy="180" fill="#8b5cf6" r="3" />
-          </svg>
-          <div className="absolute left-8 right-0 bottom-0 h-6 flex justify-between text-[10px] text-gray-500 font-mono pt-2">
-            <span>2026-01</span>
-            <span>2026-02</span>
-            <span>2026-03</span>
-            <span>2026-04</span>
-            <span>2026-05</span>
-            <span>2026-06</span>
-            <span>2026-07</span>
-            <span>2026-08</span>
-            <span>2026-09</span>
-            <span>2026-10</span>
-            <span>2026-11</span>
-            <span>2026-12</span>
+        <div className="overflow-x-auto -mx-4 md:mx-0 px-4 md:px-0">
+          <div className="relative h-64 min-w-[600px] md:min-w-0 md:w-full rounded border border-white/5 p-4 flex items-end justify-between bg-[linear-gradient(to_right,#27272a_1px,transparent_1px),linear-gradient(to_bottom,#27272a_1px,transparent_1px)] bg-[size:40px_40px]">
+            <div className="absolute left-0 top-0 bottom-8 w-8 flex flex-col justify-between text-[10px] text-gray-500 font-mono text-right pr-2">
+              <span>7</span>
+              <span>6</span>
+              <span>5</span>
+              <span>4</span>
+              <span>3</span>
+              <span>2</span>
+              <span>1</span>
+              <span>0</span>
+            </div>
+            <svg className="absolute left-8 right-0 top-0 bottom-8 h-full w-[calc(100%-2rem)] overflow-visible" preserveAspectRatio="none">
+              <path d="M0,0 L50,180 L100,180 L150,180 L200,180 L250,180 L300,180 L350,180 L400,180 L450,180 L500,180 L550,180 L600,180 L650,180 L700,180 L750,180" fill="none" stroke="#8b5cf6" strokeWidth="2" />
+              <circle cx="0" cy="0" fill="#8b5cf6" r="3" />
+              <circle cx="50" cy="180" fill="#8b5cf6" r="3" />
+              <circle cx="100" cy="180" fill="#8b5cf6" r="3" />
+              <circle cx="150" cy="180" fill="#8b5cf6" r="3" />
+              <circle cx="200" cy="180" fill="#8b5cf6" r="3" />
+              <circle cx="250" cy="180" fill="#8b5cf6" r="3" />
+              <circle cx="300" cy="180" fill="#8b5cf6" r="3" />
+              <circle cx="350" cy="180" fill="#8b5cf6" r="3" />
+              <circle cx="400" cy="180" fill="#8b5cf6" r="3" />
+              <circle cx="450" cy="180" fill="#8b5cf6" r="3" />
+              <circle cx="500" cy="180" fill="#8b5cf6" r="3" />
+              <circle cx="550" cy="180" fill="#8b5cf6" r="3" />
+              <circle cx="600" cy="180" fill="#8b5cf6" r="3" />
+              <circle cx="650" cy="180" fill="#8b5cf6" r="3" />
+              <circle cx="700" cy="180" fill="#8b5cf6" r="3" />
+              <circle cx="750" cy="180" fill="#8b5cf6" r="3" />
+            </svg>
+            <div className="absolute left-8 right-0 bottom-0 h-6 flex justify-between text-[10px] text-gray-500 font-mono pt-2">
+              <span>2026-01</span>
+              <span>2026-02</span>
+              <span>2026-03</span>
+              <span>2026-04</span>
+              <span>2026-05</span>
+              <span>2026-06</span>
+              <span>2026-07</span>
+              <span>2026-08</span>
+              <span>2026-09</span>
+              <span>2026-10</span>
+              <span>2026-11</span>
+              <span>2026-12</span>
+            </div>
           </div>
         </div>
         <div className="flex items-center justify-center gap-2 mt-4">
@@ -256,11 +258,11 @@ const Dashboard = () => {
         </div>
       </div>
 
-      <div className="rounded-xl border border-white/5 bg-surface-dark p-6">
-        <div className="flex justify-between items-center mb-6">
+      <div className="rounded-xl border border-white/5 bg-surface-dark p-4 md:p-6">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
           <h3 className="text-lg font-bold text-white font-display">Chart Order Product</h3>
-          <div className="relative">
-            <select className="appearance-none bg-surface-darker border border-white/10 rounded px-3 py-1.5 pr-8 text-sm text-gray-300 focus:outline-none focus:border-primary">
+          <div className="relative w-full sm:w-auto">
+            <select className="appearance-none bg-surface-darker border border-white/10 rounded px-3 py-1.5 pr-8 text-sm text-gray-300 focus:outline-none focus:border-primary w-full sm:w-auto">
               <option>This year</option>
               <option>Last year</option>
             </select>
@@ -269,44 +271,46 @@ const Dashboard = () => {
             </span>
           </div>
         </div>
-        <div className="relative h-64 w-full rounded border border-white/5 p-4 flex items-end justify-between bg-[linear-gradient(to_right,#27272a_1px,transparent_1px),linear-gradient(to_bottom,#27272a_1px,transparent_1px)] bg-[size:40px_40px]">
-          <div className="absolute left-0 top-0 bottom-8 w-8 flex flex-col justify-between text-[10px] text-gray-500 font-mono text-right pr-2">
-            <span>1.0</span>
-            <span>0.8</span>
-            <span>0.6</span>
-            <span>0.4</span>
-            <span>0.2</span>
-            <span>0.0</span>
-            <span>-0.2</span>
-            <span>-0.4</span>
-          </div>
-          <svg className="absolute left-8 right-0 top-0 bottom-8 h-full w-[calc(100%-2rem)] overflow-visible" preserveAspectRatio="none">
-            <line stroke="#8b5cf6" strokeWidth="2" x1="0" x2="100%" y1="125" y2="125" />
-            <circle cx="0%" cy="125" fill="#8b5cf6" r="3" />
-            <circle cx="10%" cy="125" fill="#8b5cf6" r="3" />
-            <circle cx="20%" cy="125" fill="#8b5cf6" r="3" />
-            <circle cx="30%" cy="125" fill="#8b5cf6" r="3" />
-            <circle cx="40%" cy="125" fill="#8b5cf6" r="3" />
-            <circle cx="50%" cy="125" fill="#8b5cf6" r="3" />
-            <circle cx="60%" cy="125" fill="#8b5cf6" r="3" />
-            <circle cx="70%" cy="125" fill="#8b5cf6" r="3" />
-            <circle cx="80%" cy="125" fill="#8b5cf6" r="3" />
-            <circle cx="90%" cy="125" fill="#8b5cf6" r="3" />
-            <circle cx="100%" cy="125" fill="#8b5cf6" r="3" />
-          </svg>
-          <div className="absolute left-8 right-0 bottom-0 h-6 flex justify-between text-[10px] text-gray-500 font-mono pt-2">
-            <span>2026-01</span>
-            <span>2026-02</span>
-            <span>2026-03</span>
-            <span>2026-04</span>
-            <span>2026-05</span>
-            <span>2026-06</span>
-            <span>2026-07</span>
-            <span>2026-08</span>
-            <span>2026-09</span>
-            <span>2026-10</span>
-            <span>2026-11</span>
-            <span>2026-12</span>
+        <div className="overflow-x-auto -mx-4 md:mx-0 px-4 md:px-0">
+          <div className="relative h-64 min-w-[600px] md:min-w-0 md:w-full rounded border border-white/5 p-4 flex items-end justify-between bg-[linear-gradient(to_right,#27272a_1px,transparent_1px),linear-gradient(to_bottom,#27272a_1px,transparent_1px)] bg-[size:40px_40px]">
+            <div className="absolute left-0 top-0 bottom-8 w-8 flex flex-col justify-between text-[10px] text-gray-500 font-mono text-right pr-2">
+              <span>1.0</span>
+              <span>0.8</span>
+              <span>0.6</span>
+              <span>0.4</span>
+              <span>0.2</span>
+              <span>0.0</span>
+              <span>-0.2</span>
+              <span>-0.4</span>
+            </div>
+            <svg className="absolute left-8 right-0 top-0 bottom-8 h-full w-[calc(100%-2rem)] overflow-visible" preserveAspectRatio="none">
+              <line stroke="#8b5cf6" strokeWidth="2" x1="0" x2="100%" y1="125" y2="125" />
+              <circle cx="0%" cy="125" fill="#8b5cf6" r="3" />
+              <circle cx="10%" cy="125" fill="#8b5cf6" r="3" />
+              <circle cx="20%" cy="125" fill="#8b5cf6" r="3" />
+              <circle cx="30%" cy="125" fill="#8b5cf6" r="3" />
+              <circle cx="40%" cy="125" fill="#8b5cf6" r="3" />
+              <circle cx="50%" cy="125" fill="#8b5cf6" r="3" />
+              <circle cx="60%" cy="125" fill="#8b5cf6" r="3" />
+              <circle cx="70%" cy="125" fill="#8b5cf6" r="3" />
+              <circle cx="80%" cy="125" fill="#8b5cf6" r="3" />
+              <circle cx="90%" cy="125" fill="#8b5cf6" r="3" />
+              <circle cx="100%" cy="125" fill="#8b5cf6" r="3" />
+            </svg>
+            <div className="absolute left-8 right-0 bottom-0 h-6 flex justify-between text-[10px] text-gray-500 font-mono pt-2">
+              <span>2026-01</span>
+              <span>2026-02</span>
+              <span>2026-03</span>
+              <span>2026-04</span>
+              <span>2026-05</span>
+              <span>2026-06</span>
+              <span>2026-07</span>
+              <span>2026-08</span>
+              <span>2026-09</span>
+              <span>2026-10</span>
+              <span>2026-11</span>
+              <span>2026-12</span>
+            </div>
           </div>
         </div>
         <div className="flex items-center justify-center gap-2 mt-4">
