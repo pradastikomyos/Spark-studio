@@ -6,13 +6,12 @@ type QRScannerModalProps = {
   onClose: () => void;
   title?: string;
   onScan?: (decodedText: string) => void | Promise<void>;
+  /** Delay before auto-resume in ms. Default: 2000 */
   autoResumeAfterMs?: number;
-  /** If true, auto restart scanner after success. If false, stay on success screen. Default: true */
-  autoResumeOnSuccess?: boolean;
-  /** Callback when scan is successful (after onScan completes without error) */
-  onScanSuccess?: () => void;
-  /** Callback when scan fails (after onScan throws error) */
-  onScanError?: (error: Error) => void;
+  /** If true, close modal automatically after successful scan. Default: false */
+  closeOnSuccess?: boolean;
+  /** Delay before closing modal on success (ms). Default: 1500 */
+  closeDelayMs?: number;
 };
 
 const QRScannerModal = ({
@@ -20,10 +19,9 @@ const QRScannerModal = ({
   onClose,
   title = 'Scan QR Code',
   onScan,
-  autoResumeAfterMs = 3000,
-  autoResumeOnSuccess = true,
-  onScanSuccess,
-  onScanError,
+  autoResumeAfterMs = 2000,
+  closeOnSuccess = false,
+  closeDelayMs = 1500,
 }: QRScannerModalProps) => {
   const readerId = useMemo(
     () => `qr-reader-${Date.now()}-${Math.random().toString(16).slice(2)}`,
@@ -105,25 +103,29 @@ const QRScannerModal = ({
       let scanSucceeded = false;
       try {
         await onScan?.(decodedText);
+        // Only reach here if onScan didn't throw
         setStatus('success');
         setErrorMessage('');
         setErrorDetails('');
         scanSucceeded = true;
-        // Call success callback
-        onScanSuccess?.();
       } catch (err) {
         console.error('Scan processing error:', err);
         setStatus('error');
         const error = err instanceof Error ? err : new Error('Gagal memproses tiket');
         setErrorMessage(error.message);
         setErrorDetails('');
-        // Call error callback
-        onScanError?.(error);
+        scanSucceeded = false;
       }
 
-      // Auto-restart scanner after delay (only if autoResumeOnSuccess is true for success, always restart on error)
-      const shouldAutoResume = autoResumeAfterMs > 0 && (autoResumeOnSuccess || !scanSucceeded);
-      if (shouldAutoResume) {
+      // Handle post-scan behavior
+      if (scanSucceeded && closeOnSuccess) {
+        // Close modal after delay on success
+        setTimeout(() => {
+          processingRef.current = false;
+          onClose();
+        }, closeDelayMs);
+      } else {
+        // Auto-restart scanner after delay for next scan
         setTimeout(() => {
           if (!isOpenRef.current) return;
           processingRef.current = false;
@@ -196,7 +198,7 @@ const QRScannerModal = ({
         }
       }
     }
-  }, [autoResumeAfterMs, autoResumeOnSuccess, onScan, onScanSuccess, onScanError, readerId, stopScanner]);
+  }, [autoResumeAfterMs, closeOnSuccess, closeDelayMs, onScan, onClose, readerId, stopScanner]);
 
   useEffect(() => {
     isOpenRef.current = isOpen;
@@ -274,23 +276,10 @@ const QRScannerModal = ({
                 <span className="material-symbols-outlined text-6xl text-green-600 dark:text-green-400">check_circle</span>
               </div>
               <p className="text-base font-bold text-green-800 dark:text-green-200">Tiket Valid!</p>
-              {autoResumeOnSuccess ? (
-                <p className="text-sm text-green-700 dark:text-green-300">Memulai ulang pemindai...</p>
+              {closeOnSuccess ? (
+                <p className="text-sm text-green-700 dark:text-green-300">Menutup scanner...</p>
               ) : (
-                <button
-                  onClick={() => {
-                    processingRef.current = false;
-                    startScanner().catch((err) => {
-                      console.error('Failed to restart scanner:', err);
-                      setStatus('error');
-                      setErrorMessage('Gagal memulai ulang pemindai');
-                    });
-                  }}
-                  className="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-lg font-bold transition-colors mt-2 flex items-center gap-2"
-                >
-                  <span className="material-symbols-outlined">qr_code_scanner</span>
-                  Scan Tiket Berikutnya
-                </button>
+                <p className="text-sm text-green-700 dark:text-green-300">Memulai ulang pemindai...</p>
               )}
             </div>
           )}

@@ -6,7 +6,7 @@ import QRScannerModal from '../../components/admin/QRScannerModal';
 import { ADMIN_MENU_ITEMS, ADMIN_MENU_SECTIONS } from '../../constants/adminMenu';
 
 const OrderTicket = () => {
-  const { signOut, user } = useAuth();
+  const { signOut } = useAuth();
   const [showScanner, setShowScanner] = useState(false);
   const [validating, setValidating] = useState(false);
   const [lastScanResult, setLastScanResult] = useState<{
@@ -21,9 +21,10 @@ const OrderTicket = () => {
   } | null>(null);
 
   const validateTicket = useCallback(
-    async (rawCode: string) => {
+    async (rawCode: string): Promise<void> => {
       const code = rawCode.trim();
-      if (!code || validating) return;
+      if (!code) throw new Error('Kode QR kosong');
+      if (validating) throw new Error('Sedang memproses tiket lain');
 
       setValidating(true);
       setLastScanResult(null);
@@ -43,24 +44,24 @@ const OrderTicket = () => {
           .eq('ticket_code', code)
           .maybeSingle();
 
-        if (error) throw error;
+        if (error) {
+          const errMsg = 'Gagal mengambil data tiket: ' + error.message;
+          setLastScanResult({ type: 'error', message: errMsg });
+          throw new Error(errMsg);
+        }
         
         if (!data) {
-          setLastScanResult({ 
-            type: 'error', 
-            message: 'Kode tiket tidak ditemukan di sistem.' 
-          });
-          return;
+          const errMsg = 'Kode tiket tidak ditemukan di sistem.';
+          setLastScanResult({ type: 'error', message: errMsg });
+          throw new Error(errMsg);
         }
 
         if (data.status !== 'active') {
-          setLastScanResult({
-            type: 'error',
-            message: data.status === 'used' 
-              ? `Tiket sudah digunakan pada ${new Date(data.used_at || '').toLocaleString('id-ID')}`
-              : `Status tiket: ${data.status}.`,
-          });
-          return;
+          const errMsg = data.status === 'used' 
+            ? `Tiket sudah digunakan pada ${new Date(data.used_at || '').toLocaleString('id-ID')}`
+            : `Status tiket: ${data.status}.`;
+          setLastScanResult({ type: 'error', message: errMsg });
+          throw new Error(errMsg);
         }
 
         const today = new Date();
@@ -69,49 +70,52 @@ const OrderTicket = () => {
           .slice(0, 10);
 
         if (data.valid_date < todayIso) {
-          setLastScanResult({ 
-            type: 'error', 
-            message: `Tiket kadaluarsa. Tanggal valid adalah ${new Date(data.valid_date).toLocaleDateString('id-ID')}.` 
-          });
-          return;
+          const errMsg = `Tiket kadaluarsa. Tanggal valid adalah ${new Date(data.valid_date).toLocaleDateString('id-ID')}.`;
+          setLastScanResult({ type: 'error', message: errMsg });
+          throw new Error(errMsg);
         }
 
         if (data.valid_date > todayIso) {
-          setLastScanResult({ 
-            type: 'error', 
-            message: `Tiket belum valid. Berlaku mulai ${new Date(data.valid_date).toLocaleDateString('id-ID')}.` 
-          });
-          return;
+          const errMsg = `Tiket belum valid. Berlaku mulai ${new Date(data.valid_date).toLocaleDateString('id-ID')}.`;
+          setLastScanResult({ type: 'error', message: errMsg });
+          throw new Error(errMsg);
         }
 
-        // Update ticket status to 'used' with verification
+        // Update ticket status to 'used' - only update status, not other columns that might not exist
+        console.log('Attempting to update ticket ID:', data.id);
         const { data: updatedTicket, error: updateError } = await supabase
           .from('purchased_tickets')
-          .update({
-            status: 'used',
-            used_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-          })
+          .update({ status: 'used' })
           .eq('id', data.id)
           .eq('status', 'active')
           .select('id, status')
           .maybeSingle();
 
+        console.log('Update result:', { updatedTicket, updateError });
+
         if (updateError) {
           console.error('Update error:', updateError);
-          throw new Error(`Gagal update tiket: ${updateError.message}`);
+          const errMsg = `Gagal update tiket: ${updateError.message}`;
+          setLastScanResult({ type: 'error', message: errMsg });
+          throw new Error(errMsg);
         }
 
         // Verify the update actually happened
         if (!updatedTicket) {
-          throw new Error('Gagal memperbarui status tiket. Tiket mungkin sudah digunakan oleh admin lain.');
+          const errMsg = 'Gagal memperbarui status tiket. Kemungkinan ada masalah permission database.';
+          console.error('No updated ticket returned - possible RLS issue');
+          setLastScanResult({ type: 'error', message: errMsg });
+          throw new Error(errMsg);
         }
 
         // Double-check the status was updated correctly
         if (updatedTicket.status !== 'used') {
-          throw new Error('Status tiket tidak berhasil diperbarui. Silakan coba lagi.');
+          const errMsg = 'Status tiket tidak berhasil diperbarui. Silakan coba lagi.';
+          setLastScanResult({ type: 'error', message: errMsg });
+          throw new Error(errMsg);
         }
 
+        // SUCCESS - only reach here if everything worked
         setLastScanResult({ 
           type: 'success', 
           message: 'Tiket berhasil divalidasi! Masuk diizinkan.',
@@ -122,18 +126,16 @@ const OrderTicket = () => {
             validDate: new Date(data.valid_date).toLocaleDateString('id-ID'),
           }
         });
+        // Don't throw - success!
       } catch (err) {
         console.error('Validation error:', err);
-        const errorMessage = err instanceof Error ? err.message : 'Validasi gagal. Silakan coba lagi.';
-        setLastScanResult({ 
-          type: 'error', 
-          message: errorMessage
-        });
+        // Re-throw to let QRScannerModal know this failed
+        throw err;
       } finally {
         setValidating(false);
       }
     },
-    [user?.email, validating]
+    [validating]
   );
 
   return (
@@ -229,7 +231,7 @@ const OrderTicket = () => {
               </li>
               <li className="flex items-start gap-2">
                 <span className="text-primary">•</span>
-                <span>Setelah scan berhasil, klik "Scan Tiket Berikutnya" untuk melanjutkan</span>
+                <span>Setelah scan berhasil, scanner akan otomatis menutup</span>
               </li>
             </ul>
           </div>
@@ -240,8 +242,9 @@ const OrderTicket = () => {
         isOpen={showScanner}
         onClose={() => setShowScanner(false)}
         title="Pindai Tiket Masuk"
-        autoResumeAfterMs={3000}
-        autoResumeOnSuccess={false}
+        closeOnSuccess={true}
+        closeDelayMs={1500}
+        autoResumeAfterMs={2500}
         onScan={async (decodedText) => {
           await validateTicket(decodedText);
         }}
