@@ -20,16 +20,24 @@ interface PurchasedTicket {
 
 export default function MyTicketsPage() {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const [activeTab, setActiveTab] = useState<'upcoming' | 'history'>('upcoming');
   const [tickets, setTickets] = useState<PurchasedTicket[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // Wait for auth to finish loading
+    if (authLoading) {
+      return;
+    }
+
     if (!user?.email) {
       setLoading(false);
       return;
     }
+
+    // Reset loading state when user changes
+    setLoading(true);
 
     const fetchTickets = async () => {
       try {
@@ -109,7 +117,7 @@ export default function MyTicketsPage() {
     return () => {
       subscription.unsubscribe();
     };
-  }, [user]);
+  }, [user, authLoading]);
 
   // Filter tickets based on active tab
   const today = new Date();

@@ -15,6 +15,7 @@ A premium photography studio website built with React, TypeScript, Vite, and Tai
 - 🔤 Custom Google Fonts (Playfair Display & Inter)
 - ✨ Premium animations and transitions
 - 🎯 Sophisticated color palette for luxury aesthetic
+- 💳 Midtrans Snap payment + Supabase Edge Functions
 
 ## Dark Mode
 
@@ -124,10 +125,15 @@ Then edit `.env` with your actual values:
 ```env
 VITE_SUPABASE_URL=your_supabase_project_url
 VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
-VITE_MIDTRANS_SERVER_KEY=your_midtrans_server_key
 VITE_MIDTRANS_CLIENT_KEY=your_midtrans_client_key
 VITE_MIDTRANS_IS_PRODUCTION=false
 ```
+
+**Important**: Midtrans Server Key must never be exposed to the browser. Set `MIDTRANS_SERVER_KEY` and `MIDTRANS_IS_PRODUCTION` as Supabase Edge Functions secrets.
+
+## Midtrans Integration
+
+See [MIDTRANS_INTEGRATION.md](file:///c:/Users/prada/Documents/Spark%20studio/MIDTRANS_INTEGRATION.md).
 
 ### Development
 

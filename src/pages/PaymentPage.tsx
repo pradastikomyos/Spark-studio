@@ -1,70 +1,226 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useDarkMode } from '../hooks/useDarkMode';
+import { useAuth } from '../contexts/AuthContext';
+import { supabase } from '../lib/supabase';
+
+// Declare Snap type for TypeScript
+declare global {
+  interface Window {
+    snap: {
+      pay: (
+        token: string,
+        options: {
+          onSuccess?: (result: any) => void;
+          onPending?: (result: any) => void;
+          onError?: (result: any) => void;
+          onClose?: () => void;
+        }
+      ) => void;
+    };
+  }
+}
 
 interface LocationState {
+  ticketId?: number;
+  ticketName?: string;
   ticketType?: string;
-  sessionFee?: number;
+  price?: number;
   date?: string;
   time?: string;
 }
+
+// Load Midtrans Snap.js dynamically
+const loadSnapScript = (): Promise<void> => {
+  return new Promise((resolve, reject) => {
+    if (window.snap) {
+      resolve();
+      return;
+    }
+
+    const script = document.createElement('script');
+    const isProduction = import.meta.env.VITE_MIDTRANS_IS_PRODUCTION === 'true';
+    const clientKey = import.meta.env.VITE_MIDTRANS_CLIENT_KEY;
+    
+    script.src = isProduction 
+      ? 'https://app.midtrans.com/snap/snap.js'
+      : 'https://app.sandbox.midtrans.com/snap/snap.js';
+    script.setAttribute('data-client-key', clientKey || '');
+    script.async = true;
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error('Failed to load Midtrans Snap'));
+    document.head.appendChild(script);
+  });
+};
 
 export default function PaymentPage() {
   const location = useLocation();
   const navigate = useNavigate();
   const state = location.state as LocationState;
   const { isDark, toggleDarkMode } = useDarkMode();
+  const { user } = useAuth();
 
-  const [paymentMethod, setPaymentMethod] = useState<'card' | 'ewallet' | 'transfer'>('card');
-  const [cardName, setCardName] = useState('');
-  const [cardNumber, setCardNumber] = useState('');
-  const [expiryDate, setExpiryDate] = useState('');
-  const [cvv, setCvv] = useState('');
-  const [saveCard, setSaveCard] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [customerName, setCustomerName] = useState('');
+  const [customerPhone, setCustomerPhone] = useState('');
+  const [snapLoaded, setSnapLoaded] = useState(false);
 
-  // Mock data dari booking page
-  const ticketType = state?.ticketType || 'Premium Portrait Session';
-  const sessionFee = state?.sessionFee || 1200000;
-  const additionalTime = 200000;
-  const digitalFiles = 100000;
-  const total = sessionFee + additionalTime + digitalFiles;
-  const bookingDate = state?.date || 'Sat, Dec 24, 2023';
-  const timeSlot = state?.time || '14:00 - 16:00';
+  // Ticket data from booking page
+  const ticketId = state?.ticketId || 0;
+  const ticketName = state?.ticketName || 'Photo Session';
+  const ticketType = state?.ticketType || 'entrance';
+  const price = state?.price || 0;
+  const bookingDate = state?.date || '';
+  const timeSlot = state?.time || '';
+  const quantity = 1;
+  const total = price * quantity;
 
-  const handlePayment = (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (paymentMethod === 'card') {
-      if (!cardName || !cardNumber || !expiryDate || !cvv) {
-        alert('Please fill in all card details');
-        return;
-      }
+  // Load Midtrans Snap.js on component mount
+  useEffect(() => {
+    loadSnapScript()
+      .then(() => setSnapLoaded(true))
+      .catch((err) => {
+        console.error('Failed to load Snap:', err);
+        setError('Failed to load payment system. Please refresh the page.');
+      });
+  }, []);
+
+  useEffect(() => {
+    // Pre-fill customer name from auth if available
+    if (user?.email) {
+      setCustomerName(user.email.split('@')[0] || '');
+    }
+  }, [user]);
+
+  useEffect(() => {
+    // Check if we have required booking data
+    if (!ticketId || !price || !bookingDate || !timeSlot) {
+      setError('Missing booking information. Please go back and select your session.');
+    }
+  }, [ticketId, price, bookingDate, timeSlot]);
+
+  const handlePayWithMidtrans = async () => {
+    if (!user) {
+      alert('Please login to continue with payment');
+      navigate('/login');
+      return;
     }
 
-    // Simulate payment processing and navigate to success page
-    navigate('/booking-success', {
-      state: {
-        ticketType,
-        total,
-        date: bookingDate,
-        time: timeSlot,
-        customerName: cardName || 'Guest'
+    if (!customerName.trim()) {
+      setError('Please enter your name');
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      // Get auth session token
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData.session?.access_token;
+
+      if (!token) {
+        throw new Error('Not authenticated');
       }
+
+      // Call edge function to create Midtrans token
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-midtrans-token`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            items: [
+              {
+                ticketId,
+                ticketName,
+                price,
+                quantity,
+                date: bookingDate,
+                timeSlot,
+              },
+            ],
+            customerName: customerName.trim(),
+            customerEmail: user.email,
+            customerPhone: customerPhone.trim() || undefined,
+          }),
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to create payment');
+      }
+
+      // Open Midtrans Snap popup
+      if (window.snap && snapLoaded) {
+        window.snap.pay(data.token, {
+          onSuccess: (result: any) => {
+            console.log('Payment success:', result);
+            navigate('/booking-success', {
+              state: {
+                orderNumber: data.order_number,
+                orderId: data.order_id,
+                ticketName,
+                total,
+                date: bookingDate,
+                time: timeSlot,
+                customerName: customerName.trim(),
+                paymentResult: result,
+              },
+            });
+          },
+          onPending: (result: any) => {
+            console.log('Payment pending:', result);
+            // Navigate to success page with pending status
+            navigate('/booking-success', {
+              state: {
+                orderNumber: data.order_number,
+                orderId: data.order_id,
+                ticketName,
+                total,
+                date: bookingDate,
+                time: timeSlot,
+                customerName: customerName.trim(),
+                paymentResult: result,
+                isPending: true,
+              },
+            });
+          },
+          onError: (result: any) => {
+            console.error('Payment error:', result);
+            setError('Payment failed. Please try again.');
+          },
+          onClose: () => {
+            console.log('Payment popup closed');
+            setLoading(false);
+          },
+        });
+      } else {
+        throw new Error('Midtrans Snap not loaded. Please refresh the page.');
+      }
+    } catch (err: any) {
+      console.error('Payment error:', err);
+      setError(err.message || 'Failed to process payment');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const formatDate = (dateString: string) => {
+    if (!dateString) return '-';
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
     });
-  };
-
-  const formatCardNumber = (value: string) => {
-    const cleaned = value.replace(/\s/g, '');
-    const formatted = cleaned.match(/.{1,4}/g)?.join(' ') || cleaned;
-    return formatted;
-  };
-
-  const formatExpiryDate = (value: string) => {
-    const cleaned = value.replace(/\D/g, '');
-    if (cleaned.length >= 2) {
-      return cleaned.slice(0, 2) + ' / ' + cleaned.slice(2, 4);
-    }
-    return cleaned;
   };
 
   return (
@@ -106,7 +262,7 @@ export default function PaymentPage() {
         </div>
       </header>
 
-      <main className="max-w-6xl mx-auto px-6 py-10">
+      <main className="max-w-4xl mx-auto px-6 py-10 flex-1">
         {/* Progress Bar */}
         <div className="max-w-[800px] mx-auto mb-8">
           <div className="flex flex-col gap-3">
@@ -121,9 +277,18 @@ export default function PaymentPage() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
+        {error && (
+          <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-red-700 dark:text-red-300">
+            <div className="flex items-center gap-2">
+              <span className="material-symbols-outlined">error</span>
+              <span>{error}</span>
+            </div>
+          </div>
+        )}
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           {/* Left Side: Order Summary */}
-          <div className="lg:col-span-5 space-y-6">
+          <div className="space-y-6">
             <div className="bg-white dark:bg-background-dark/50 p-6 rounded-xl border border-[#e8cece] dark:border-[#422020] shadow-sm">
               <h3 className="text-xl font-bold mb-6 flex items-center gap-2">
                 <span className="material-symbols-outlined text-primary">shopping_bag</span>
@@ -133,27 +298,23 @@ export default function PaymentPage() {
               <div className="space-y-4">
                 <div className="flex justify-between items-start border-b border-dashed border-[#e8cece] dark:border-[#422020] pb-4">
                   <div>
-                    <p className="font-bold text-[#1c0d0d] dark:text-white">{ticketType}</p>
-                    <p className="text-sm text-[#9c4949] dark:text-[#cc7a7a]">Studio Room A • 90 mins</p>
+                    <p className="font-bold text-[#1c0d0d] dark:text-white">{ticketName}</p>
+                    <p className="text-sm text-[#9c4949] dark:text-[#cc7a7a] capitalize">{ticketType}</p>
                   </div>
-                  <p className="font-semibold">IDR {sessionFee.toLocaleString('id-ID')}</p>
+                  <p className="font-semibold">IDR {price.toLocaleString('id-ID')}</p>
                 </div>
 
                 <div className="space-y-3">
                   <div className="flex justify-between text-sm">
-                    <p className="text-[#9c4949] dark:text-[#cc7a7a]">Additional 30 mins</p>
-                    <p className="text-[#1c0d0d] dark:text-white">IDR {additionalTime.toLocaleString('id-ID')}</p>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <p className="text-[#9c4949] dark:text-[#cc7a7a]">All Digital Files (High-Res)</p>
-                    <p className="text-[#1c0d0d] dark:text-white">IDR {digitalFiles.toLocaleString('id-ID')}</p>
+                    <p className="text-[#9c4949] dark:text-[#cc7a7a]">Quantity</p>
+                    <p className="text-[#1c0d0d] dark:text-white">{quantity}</p>
                   </div>
                 </div>
 
                 <div className="pt-4 border-t border-[#e8cece] dark:border-[#422020] mt-4">
                   <div className="flex justify-between items-center mb-1">
                     <p className="text-sm text-[#9c4949] dark:text-[#cc7a7a]">Booking Date</p>
-                    <p className="text-sm font-medium">{bookingDate}</p>
+                    <p className="text-sm font-medium">{formatDate(bookingDate)}</p>
                   </div>
                   <div className="flex justify-between items-center">
                     <p className="text-sm text-[#9c4949] dark:text-[#cc7a7a]">Time Slot</p>
@@ -178,277 +339,111 @@ export default function PaymentPage() {
             <div className="flex items-center gap-4 p-4 bg-primary/5 rounded-lg border border-primary/10">
               <span className="material-symbols-outlined text-primary">verified_user</span>
               <p className="text-xs leading-relaxed text-[#9c4949] dark:text-[#cc7a7a]">
-                Your payment is secured with 256-bit SSL encryption. We do not store your full card details.
+                Your payment is secured by Midtrans with 256-bit SSL encryption.
               </p>
             </div>
           </div>
 
-          {/* Right Side: Payment Methods */}
-          <div className="lg:col-span-7">
+          {/* Right Side: Customer Details & Pay */}
+          <div>
             <div className="bg-white dark:bg-background-dark/50 p-6 rounded-xl border border-[#e8cece] dark:border-[#422020] shadow-sm">
-              <h1 className="text-2xl font-bold mb-8">Payment Method</h1>
+              <h1 className="text-2xl font-bold mb-6">Complete Payment</h1>
 
-              {/* Payment Method Tabs */}
-              <div className="grid grid-cols-3 gap-3 mb-8">
-                <button
-                  onClick={() => setPaymentMethod('card')}
-                  className={`flex flex-col items-center justify-center p-4 rounded-lg transition-colors ${
-                    paymentMethod === 'card'
-                      ? 'border-2 border-primary bg-primary/5 text-primary'
-                      : 'border border-[#e8cece] dark:border-[#422020] hover:border-primary/50'
-                  }`}
-                >
-                  <span className="material-symbols-outlined mb-2">credit_card</span>
-                  <span className="text-xs font-bold uppercase">Credit Card</span>
-                </button>
+              <div className="space-y-5 mb-8">
+                <div className="space-y-1.5">
+                  <label className="text-sm font-semibold text-[#1c0d0d] dark:text-white">
+                    Your Name <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={customerName}
+                    onChange={(e) => setCustomerName(e.target.value)}
+                    className="w-full rounded-lg border border-[#e8cece] dark:border-[#422020] dark:bg-[#1a0c0c] focus:ring-primary focus:border-primary text-sm py-3 px-4"
+                    placeholder="Enter your full name"
+                    disabled={loading}
+                  />
+                </div>
 
-                <button
-                  onClick={() => setPaymentMethod('ewallet')}
-                  className={`flex flex-col items-center justify-center p-4 rounded-lg transition-colors ${
-                    paymentMethod === 'ewallet'
-                      ? 'border-2 border-primary bg-primary/5 text-primary'
-                      : 'border border-[#e8cece] dark:border-[#422020] hover:border-primary/50'
-                  }`}
-                >
-                  <span className="material-symbols-outlined mb-2">account_balance_wallet</span>
-                  <span className="text-xs font-bold uppercase">E Wallet</span>
-                </button>
+                <div className="space-y-1.5">
+                  <label className="text-sm font-semibold text-[#1c0d0d] dark:text-white">
+                    Phone Number (Optional)
+                  </label>
+                  <input
+                    type="tel"
+                    value={customerPhone}
+                    onChange={(e) => setCustomerPhone(e.target.value)}
+                    className="w-full rounded-lg border border-[#e8cece] dark:border-[#422020] dark:bg-[#1a0c0c] focus:ring-primary focus:border-primary text-sm py-3 px-4"
+                    placeholder="08xxxxxxxxxx"
+                    disabled={loading}
+                  />
+                </div>
 
-                <button
-                  onClick={() => setPaymentMethod('transfer')}
-                  className={`flex flex-col items-center justify-center p-4 rounded-lg transition-colors ${
-                    paymentMethod === 'transfer'
-                      ? 'border-2 border-primary bg-primary/5 text-primary'
-                      : 'border border-[#e8cece] dark:border-[#422020] hover:border-primary/50'
-                  }`}
-                >
-                  <span className="material-symbols-outlined mb-2">account_balance</span>
-                  <span className="text-xs font-bold uppercase">Transfer</span>
-                </button>
+                <div className="space-y-1.5">
+                  <label className="text-sm font-semibold text-[#1c0d0d] dark:text-white">
+                    Email
+                  </label>
+                  <input
+                    type="email"
+                    value={user?.email || ''}
+                    className="w-full rounded-lg border border-[#e8cece] dark:border-[#422020] dark:bg-[#1a0c0c] text-sm py-3 px-4 bg-gray-50 dark:bg-gray-900"
+                    disabled
+                  />
+                  <p className="text-xs text-[#9c4949]">Ticket will be sent to this email</p>
+                </div>
               </div>
 
-              {/* Payment Forms */}
-              <form onSubmit={handlePayment} className="space-y-6">
-                {paymentMethod === 'card' && (
+              {/* Midtrans Payment Info */}
+              <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-100 dark:border-blue-800">
+                <div className="flex items-start gap-3">
+                  <span className="material-symbols-outlined text-blue-500">info</span>
+                  <div>
+                    <p className="text-sm font-medium text-blue-800 dark:text-blue-200">
+                      Secure Payment via Midtrans
+                    </p>
+                    <p className="text-xs text-blue-600 dark:text-blue-300 mt-1">
+                      You can pay using Credit Card, Bank Transfer, E-Wallet (GoPay, OVO, ShopeePay), QRIS, and more.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <button
+                onClick={handlePayWithMidtrans}
+                disabled={loading || !ticketId || !price || !snapLoaded}
+                className="w-full bg-primary hover:bg-red-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white font-bold py-4 rounded-xl shadow-lg shadow-primary/20 transition-all flex items-center justify-center gap-2"
+              >
+                {loading ? (
                   <>
-                    <div className="space-y-1.5">
-                      <label className="text-sm font-semibold text-[#1c0d0d] dark:text-white">
-                        Cardholder Name
-                      </label>
-                      <input
-                        type="text"
-                        value={cardName}
-                        onChange={(e) => setCardName(e.target.value)}
-                        className="w-full rounded-lg border-[#e8cece] dark:border-[#422020] dark:bg-[#1a0c0c] focus:ring-primary focus:border-primary text-sm py-3 px-4"
-                        placeholder="John Doe"
-                      />
-                    </div>
-
-                    <div className="space-y-1.5">
-                      <label className="text-sm font-semibold text-[#1c0d0d] dark:text-white">
-                        Card Number
-                      </label>
-                      <div className="relative">
-                        <input
-                          type="text"
-                          value={cardNumber}
-                          onChange={(e) => {
-                            const formatted = formatCardNumber(e.target.value);
-                            if (formatted.replace(/\s/g, '').length <= 16) {
-                              setCardNumber(formatted);
-                            }
-                          }}
-                          className="w-full rounded-lg border-[#e8cece] dark:border-[#422020] dark:bg-[#1a0c0c] focus:ring-primary focus:border-primary text-sm py-3 px-4 pr-12"
-                          placeholder="0000 0000 0000 0000"
-                        />
-                        <div className="absolute right-4 top-1/2 -translate-y-1/2">
-                          <span className="material-symbols-outlined text-gray-400 text-lg">credit_card</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-1.5">
-                        <label className="text-sm font-semibold text-[#1c0d0d] dark:text-white">
-                          Expiry Date
-                        </label>
-                        <input
-                          type="text"
-                          value={expiryDate}
-                          onChange={(e) => {
-                            const formatted = formatExpiryDate(e.target.value);
-                            if (formatted.replace(/\D/g, '').length <= 4) {
-                              setExpiryDate(formatted);
-                            }
-                          }}
-                          className="w-full rounded-lg border-[#e8cece] dark:border-[#422020] dark:bg-[#1a0c0c] focus:ring-primary focus:border-primary text-sm py-3 px-4 text-center"
-                          placeholder="MM / YY"
-                        />
-                      </div>
-
-                      <div className="space-y-1.5">
-                        <label className="text-sm font-semibold text-[#1c0d0d] dark:text-white">
-                          CVV
-                        </label>
-                        <div className="relative">
-                          <input
-                            type="password"
-                            value={cvv}
-                            onChange={(e) => {
-                              if (e.target.value.length <= 3) {
-                                setCvv(e.target.value);
-                              }
-                            }}
-                            className="w-full rounded-lg border-[#e8cece] dark:border-[#422020] dark:bg-[#1a0c0c] focus:ring-primary focus:border-primary text-sm py-3 px-4 text-center"
-                            placeholder="***"
-                            maxLength={3}
-                          />
-                          <span
-                            className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm cursor-help"
-                            title="3-digit code on the back of your card"
-                          >
-                            help
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="flex items-start gap-3 pt-2">
-                      <input
-                        type="checkbox"
-                        id="save-card"
-                        checked={saveCard}
-                        onChange={(e) => setSaveCard(e.target.checked)}
-                        className="mt-1 rounded border-[#e8cece] text-primary focus:ring-primary"
-                      />
-                      <label htmlFor="save-card" className="text-sm text-[#9c4949] dark:text-[#cc7a7a]">
-                        Save this card for future bookings
-                      </label>
-                    </div>
+                    <span className="material-symbols-outlined animate-spin">progress_activity</span>
+                    Processing...
+                  </>
+                ) : (
+                  <>
+                    <span className="material-symbols-outlined text-[20px]">lock</span>
+                    Pay IDR {total.toLocaleString('id-ID')} Now
                   </>
                 )}
+              </button>
 
-                {paymentMethod === 'ewallet' && (
-                  <div className="space-y-3">
-                    <label className="relative block cursor-pointer group">
-                      <input
-                        type="radio"
-                        name="ewallet_method"
-                        value="gopay"
-                        className="peer sr-only"
-                      />
-                      <div className="p-4 flex items-center justify-between bg-white dark:bg-[#1a0c0c] rounded-lg border border-[#e8cece] dark:border-[#422020] peer-checked:border-primary peer-checked:bg-primary/5 hover:border-primary/50 transition-colors">
-                        <div className="flex items-center gap-4">
-                          <div className="w-10 h-10 flex items-center justify-center">
-                            <svg viewBox="0 0 24 24" className="w-8 h-8" fill="none" xmlns="http://www.w3.org/2000/svg">
-                              <rect width="24" height="24" rx="4" fill="#00AED6"/>
-                              <path d="M8 7h8v2H8V7zm0 4h8v2H8v-2zm0 4h5v2H8v-2z" fill="white"/>
-                            </svg>
-                          </div>
-                          <span className="text-base font-semibold text-[#1c0d0d] dark:text-white">GoPay</span>
-                        </div>
-                        <div className="w-5 h-5 rounded-full border-2 border-gray-300 peer-checked:border-primary peer-checked:bg-white flex items-center justify-center">
-                          <div className="w-2.5 h-2.5 rounded-full bg-primary opacity-0 peer-checked:opacity-100"></div>
-                        </div>
-                      </div>
-                    </label>
-
-                    <label className="relative block cursor-pointer group">
-                      <input
-                        type="radio"
-                        name="ewallet_method"
-                        value="ovo"
-                        className="peer sr-only"
-                      />
-                      <div className="p-4 flex items-center justify-between bg-white dark:bg-[#1a0c0c] rounded-lg border border-[#e8cece] dark:border-[#422020] peer-checked:border-primary peer-checked:bg-primary/5 hover:border-primary/50 transition-colors">
-                        <div className="flex items-center gap-4">
-                          <div className="w-10 h-10 flex items-center justify-center">
-                            <svg viewBox="0 0 24 24" className="w-8 h-8" fill="none" xmlns="http://www.w3.org/2000/svg">
-                              <rect width="24" height="24" rx="4" fill="#4C3494"/>
-                              <circle cx="9" cy="12" r="3" fill="white"/>
-                              <circle cx="15" cy="12" r="3" fill="white"/>
-                            </svg>
-                          </div>
-                          <span className="text-base font-semibold text-[#1c0d0d] dark:text-white">OVO</span>
-                        </div>
-                        <div className="w-5 h-5 rounded-full border-2 border-gray-300 peer-checked:border-primary peer-checked:bg-white flex items-center justify-center">
-                          <div className="w-2.5 h-2.5 rounded-full bg-primary opacity-0 peer-checked:opacity-100"></div>
-                        </div>
-                      </div>
-                    </label>
-
-                    <label className="relative block cursor-pointer group">
-                      <input
-                        type="radio"
-                        name="ewallet_method"
-                        value="shopeepay"
-                        className="peer sr-only"
-                      />
-                      <div className="p-4 flex items-center justify-between bg-white dark:bg-[#1a0c0c] rounded-lg border border-[#e8cece] dark:border-[#422020] peer-checked:border-primary peer-checked:bg-primary/5 hover:border-primary/50 transition-colors">
-                        <div className="flex items-center gap-4">
-                          <div className="w-10 h-10 flex items-center justify-center">
-                            <svg viewBox="0 0 24 24" className="w-8 h-8" fill="none" xmlns="http://www.w3.org/2000/svg">
-                              <rect width="24" height="24" rx="4" fill="#EE4D2D"/>
-                              <path d="M7 8h10v2H7V8zm0 4h10v2H7v-2zm0 4h7v2H7v-2z" fill="white"/>
-                            </svg>
-                          </div>
-                          <span className="text-base font-semibold text-[#1c0d0d] dark:text-white">ShopeePay</span>
-                        </div>
-                        <div className="w-5 h-5 rounded-full border-2 border-gray-300 peer-checked:border-primary peer-checked:bg-white flex items-center justify-center">
-                          <div className="w-2.5 h-2.5 rounded-full bg-primary opacity-0 peer-checked:opacity-100"></div>
-                        </div>
-                      </div>
-                    </label>
-
-                    <p className="text-xs text-[#9c4949] dark:text-[#cc7a7a] mt-4">
-                      You will be redirected to complete payment in your e-wallet app.
-                    </p>
-                  </div>
-                )}
-
-                {paymentMethod === 'transfer' && (
-                  <div className="space-y-4">
-                    <div className="bg-primary/5 p-4 rounded-lg border border-primary/10">
-                      <p className="text-sm font-semibold mb-2">Bank Transfer Details:</p>
-                      <div className="space-y-1 text-sm">
-                        <p className="text-[#9c4949] dark:text-[#cc7a7a]">Bank: BCA</p>
-                        <p className="text-[#9c4949] dark:text-[#cc7a7a]">Account Number: 1234567890</p>
-                        <p className="text-[#9c4949] dark:text-[#cc7a7a]">Account Name: Spark Photo Studio</p>
-                      </div>
-                    </div>
-                    <p className="text-xs text-[#9c4949] dark:text-[#cc7a7a]">
-                      Please transfer the exact amount and upload your payment proof after completing the transfer.
-                    </p>
-                  </div>
-                )}
-
-                <button
-                  type="submit"
-                  className="w-full bg-primary hover:bg-red-700 text-white font-bold py-4 rounded-xl shadow-lg shadow-primary/20 transition-all flex items-center justify-center gap-2 group mt-4"
-                >
-                  <span className="material-symbols-outlined text-[20px]">lock</span>
-                  Pay IDR {total.toLocaleString('id-ID')} Now
-                </button>
-              </form>
-
-              {/* Payment Logos */}
-              <div className="mt-8 flex justify-center items-center gap-6 opacity-40 grayscale hover:grayscale-0 transition-all">
-                <img 
-                  alt="Visa Logo" 
-                  className="h-6"
-                  src="https://upload.wikimedia.org/wikipedia/commons/thumb/5/5e/Visa_Inc._logo.svg/200px-Visa_Inc._logo.svg.png"
-                />
-                <img 
-                  alt="Mastercard Logo" 
-                  className="h-6"
-                  src="https://upload.wikimedia.org/wikipedia/commons/thumb/2/2a/Mastercard-logo.svg/200px-Mastercard-logo.svg.png"
-                />
-                <img 
-                  alt="Amex Logo" 
-                  className="h-6"
-                  src="https://upload.wikimedia.org/wikipedia/commons/thumb/f/fa/American_Express_logo_%282018%29.svg/200px-American_Express_logo_%282018%29.svg.png"
-                />
-                <div className="text-xs font-bold text-gray-600">PCI DSS</div>
+              {/* Payment Method Logos */}
+              <div className="mt-6 pt-6 border-t border-[#e8cece] dark:border-[#422020]">
+                <p className="text-xs text-center text-[#9c4949] mb-3">Supported Payment Methods</p>
+                <div className="flex justify-center items-center gap-4 flex-wrap opacity-60">
+                  <img 
+                    alt="Visa" 
+                    className="h-5"
+                    src="https://upload.wikimedia.org/wikipedia/commons/thumb/5/5e/Visa_Inc._logo.svg/200px-Visa_Inc._logo.svg.png"
+                  />
+                  <img 
+                    alt="Mastercard" 
+                    className="h-5"
+                    src="https://upload.wikimedia.org/wikipedia/commons/thumb/2/2a/Mastercard-logo.svg/200px-Mastercard-logo.svg.png"
+                  />
+                  <div className="px-2 py-1 bg-[#00AED6] rounded text-white text-[10px] font-bold">GoPay</div>
+                  <div className="px-2 py-1 bg-[#4C3494] rounded text-white text-[10px] font-bold">OVO</div>
+                  <div className="px-2 py-1 bg-[#EE4D2D] rounded text-white text-[10px] font-bold">ShopeePay</div>
+                  <div className="px-2 py-1 bg-gray-800 rounded text-white text-[10px] font-bold">QRIS</div>
+                </div>
               </div>
             </div>
 

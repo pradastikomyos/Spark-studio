@@ -81,6 +81,17 @@ export default function BookingPage() {
             available_capacity: avail.total_capacity - avail.reserved_capacity - avail.sold_capacity,
           }));
           setAvailabilities(processedAvail);
+          
+          // Auto-select today's date (entrance tickets are for today only)
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+          const todayStr = today.toISOString().split('T')[0];
+          const hasTodayAvailability = processedAvail.some(
+            (avail: any) => avail.date === todayStr && avail.available_capacity > 0
+          );
+          if (hasTodayAvailability) {
+            setSelectedDate(today);
+          }
         }
       } catch (err) {
         console.error('Error fetching ticket data:', err);
@@ -121,16 +132,23 @@ export default function BookingPage() {
       const date = new Date(year, month, day);
       date.setHours(0, 0, 0, 0);
 
+      // Check if date is today (for entrance tickets, only today is bookable)
+      const isToday = date.getTime() === today.getTime();
+      
       const isAvailable = date >= today && date >= availableFrom && date <= availableUntil;
       const hasAvailability = availabilities.some(
         (avail) => avail.date === date.toISOString().split('T')[0] && avail.available_capacity > 0
       );
 
+      // Lock to TODAY only - entrance tickets can only be purchased for today
+      const canBook = isToday && isAvailable && hasAvailability;
+
       days.push({
         day,
         date,
-        isAvailable: isAvailable && hasAvailability,
-        isDisabled: !isAvailable || !hasAvailability,
+        isAvailable: canBook,
+        isDisabled: !canBook,
+        isToday,
       });
     }
 
@@ -143,11 +161,20 @@ export default function BookingPage() {
 
     const dateString = selectedDate.toISOString().split('T')[0];
     return availabilities
-      .filter((avail) => avail.date === dateString && avail.available_capacity > 0)
+      .filter((avail) => avail.date === dateString && avail.available_capacity > 0 && avail.time_slot)
       .map((avail) => ({
-        time: avail.time_slot,
+        time: avail.time_slot as string,
         available: avail.available_capacity,
       }));
+  };
+
+  // Check if this ticket has all-day access (no time slots)
+  const hasAllDayAccess = () => {
+    if (!selectedDate) return false;
+    const dateString = selectedDate.toISOString().split('T')[0];
+    return availabilities.some(
+      (avail) => avail.date === dateString && avail.available_capacity > 0 && !avail.time_slot
+    );
   };
 
   // Group time slots by period
@@ -157,6 +184,7 @@ export default function BookingPage() {
     const evening: typeof slots = [];
 
     slots.forEach((slot) => {
+      if (!slot.time) return; // Skip null/undefined time slots
       const hour = parseInt(slot.time.split(':')[0]);
       if (hour < 12) morning.push(slot);
       else if (hour < 17) afternoon.push(slot);
@@ -167,8 +195,15 @@ export default function BookingPage() {
   };
 
   const handleProceedToPayment = () => {
-    if (!ticket || !selectedDate || !selectedTime) {
-      alert('Please select a date and time');
+    if (!ticket || !selectedDate) {
+      alert('Please select a date');
+      return;
+    }
+
+    // For all-day access tickets, time slot is optional
+    const isAllDay = hasAllDayAccess() && !selectedTime;
+    if (!isAllDay && !selectedTime) {
+      alert('Please select a time slot');
       return;
     }
 
@@ -179,7 +214,7 @@ export default function BookingPage() {
         ticketType: ticket.type,
         price: parseFloat(ticket.price),
         date: selectedDate.toISOString().split('T')[0],
-        time: selectedTime,
+        time: selectedTime || 'all-day',
       },
     });
   };
@@ -227,6 +262,7 @@ export default function BookingPage() {
   const calendarDays = generateCalendarDays();
   const availableTimeSlots = getAvailableTimeSlots();
   const groupedSlots = groupTimeSlotsByPeriod(availableTimeSlots);
+  const isAllDayTicket = hasAllDayAccess();
   const price = parseFloat(ticket.price);
   const vat = price * 0.1;
   const total = price + vat;
@@ -322,9 +358,37 @@ export default function BookingPage() {
             {/* Time Slots Selection */}
             {selectedDate && (
               <div className="bg-white dark:bg-[#1a0c0c] rounded-xl shadow-sm border border-[#f4e7e7] dark:border-[#3d2424] p-8">
-                <h3 className="text-xl font-bold mb-6">Available Time Slots</h3>
+                <h3 className="text-xl font-bold mb-6">
+                  {isAllDayTicket ? 'Access Type' : 'Available Time Slots'}
+                </h3>
+                
+                {/* All Day Access Option */}
+                {isAllDayTicket && (
+                  <div className="mb-6">
+                    <button
+                      onClick={() => setSelectedTime(null)}
+                      className={`w-full px-6 py-4 rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-3
+                        ${!selectedTime
+                          ? 'border-2 border-primary bg-primary/5 text-primary font-bold'
+                          : 'border border-[#e8cece] dark:border-[#3d2424] hover:border-primary'
+                        }
+                      `}
+                    >
+                      <span className="material-symbols-outlined">calendar_today</span>
+                      All Day Access
+                      <span className="text-xs opacity-60">(Valid entire day)</span>
+                    </button>
+                  </div>
+                )}
+
+                {/* Time Slot Options */}
                 {availableTimeSlots.length > 0 ? (
                   <div className="space-y-6">
+                    {isAllDayTicket && (
+                      <p className="text-xs font-black uppercase tracking-widest text-primary/60 mb-2">
+                        Or choose specific time
+                      </p>
+                    )}
                     {Object.entries(groupedSlots).map(([period, slots]) => {
                       if (slots.length === 0) return null;
                       return (
@@ -356,9 +420,9 @@ export default function BookingPage() {
                       );
                     })}
                   </div>
-                ) : (
+                ) : !isAllDayTicket ? (
                   <p className="text-gray-500 text-center py-8">No available time slots for this date</p>
-                )}
+                ) : null}
               </div>
             )}
           </div>
@@ -397,7 +461,13 @@ export default function BookingPage() {
                   <span className="material-symbols-outlined text-primary">schedule</span>
                   <div>
                     <p className="text-sm font-bold uppercase tracking-tighter opacity-60">Time</p>
-                    <p className="font-display font-medium">{selectedTime ? selectedTime.substring(0, 5) : 'Not selected'}</p>
+                    <p className="font-display font-medium">
+                      {selectedTime 
+                        ? selectedTime.substring(0, 5) 
+                        : isAllDayTicket 
+                          ? 'All Day Access' 
+                          : 'Not selected'}
+                    </p>
                   </div>
                 </div>
               </div>
@@ -419,7 +489,7 @@ export default function BookingPage() {
 
               <button
                 onClick={handleProceedToPayment}
-                disabled={!selectedDate || !selectedTime}
+                disabled={!selectedDate || (!selectedTime && !isAllDayTicket)}
                 className="w-full mt-8 bg-primary hover:bg-primary/90 text-white py-5 rounded-lg font-black uppercase tracking-widest text-sm shadow-xl shadow-primary/30 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Proceed to Payment
