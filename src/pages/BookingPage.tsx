@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { toLocalDateString } from '../utils/formatters';
@@ -106,8 +106,8 @@ export default function BookingPage() {
     fetchTicketData();
   }, [slug]);
 
-  // Generate calendar days for current month
-  const generateCalendarDays = () => {
+  // Generate calendar days for current month - memoized to prevent recalculation on every render
+  const calendarDays = useMemo(() => {
     if (!ticket) return [];
 
     const year = currentDate.getFullYear();
@@ -155,58 +155,44 @@ export default function BookingPage() {
     }
 
     return days;
-  };
+  }, [ticket, currentDate, availabilities]);
 
-  // Get available time slots for selected date
-  const getAvailableTimeSlots = () => {
+  // Get available time slots for selected date - memoized to prevent recalculation on every render
+  const availableTimeSlots = useMemo(() => {
     if (!selectedDate) return [];
 
     const dateString = toLocalDateString(selectedDate);
-    console.log('[BookingPage] Selected date string:', dateString);
-    console.log('[BookingPage] All availabilities:', availabilities);
 
     const filtered = availabilities.filter((avail) => {
       const matchesDate = avail.date === dateString;
       const hasCapacity = avail.available_capacity > 0;
       const hasTimeSlot = !!avail.time_slot;
 
-      console.log('[BookingPage] Checking avail:', {
-        date: avail.date,
-        time_slot: avail.time_slot,
-        available_capacity: avail.available_capacity,
-        matchesDate,
-        hasCapacity,
-        hasTimeSlot,
-        passes: matchesDate && hasCapacity && hasTimeSlot
-      });
-
       return matchesDate && hasCapacity && hasTimeSlot;
     });
-
-    console.log('[BookingPage] Filtered slots:', filtered);
 
     return filtered.map((avail) => ({
       time: avail.time_slot as string,
       available: avail.available_capacity,
     }));
-  };
+  }, [selectedDate, availabilities]);
 
-  // Check if this ticket has all-day access (no time slots)
-  const hasAllDayAccess = () => {
+  // Check if this ticket has all-day access (no time slots) - memoized
+  const isAllDayTicket = useMemo(() => {
     if (!selectedDate) return false;
     const dateString = toLocalDateString(selectedDate);
     return availabilities.some(
       (avail) => avail.date === dateString && avail.available_capacity > 0 && !avail.time_slot
     );
-  };
+  }, [selectedDate, availabilities]);
 
-  // Group time slots by period
-  const groupTimeSlotsByPeriod = (slots: { time: string; available: number }[]) => {
-    const morning: typeof slots = [];
-    const afternoon: typeof slots = [];
-    const evening: typeof slots = [];
+  // Group time slots by period - memoized
+  const groupedSlots = useMemo(() => {
+    const morning: typeof availableTimeSlots = [];
+    const afternoon: typeof availableTimeSlots = [];
+    const evening: typeof availableTimeSlots = [];
 
-    slots.forEach((slot) => {
+    availableTimeSlots.forEach((slot) => {
       if (!slot.time) return; // Skip null/undefined time slots
       const hour = parseInt(slot.time.split(':')[0]);
       if (hour < 12) morning.push(slot);
@@ -215,7 +201,7 @@ export default function BookingPage() {
     });
 
     return { morning, afternoon, evening };
-  };
+  }, [availableTimeSlots]);
 
   const handleProceedToPayment = () => {
     if (!ticket || !selectedDate) {
@@ -224,7 +210,7 @@ export default function BookingPage() {
     }
 
     // For all-day access tickets, time slot is optional
-    const isAllDay = hasAllDayAccess() && !selectedTime;
+    const isAllDay = isAllDayTicket && !selectedTime;
     if (!isAllDay && !selectedTime) {
       alert('Please select a time slot');
       return;
@@ -272,10 +258,6 @@ export default function BookingPage() {
     );
   }
 
-  const calendarDays = generateCalendarDays();
-  const availableTimeSlots = getAvailableTimeSlots();
-  const groupedSlots = groupTimeSlotsByPeriod(availableTimeSlots);
-  const isAllDayTicket = hasAllDayAccess();
   const price = parseFloat(ticket.price);
   const vat = price * 0.1;
   const total = price + vat;
