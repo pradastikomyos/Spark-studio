@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
+import { toLocalDateString } from '../utils/formatters';
 
 interface Ticket {
   id: number;
@@ -62,15 +63,19 @@ export default function BookingPage() {
         }
 
         setTicket(ticketData);
+        console.log('[BookingPage] Fetched ticket:', ticketData);
 
         // Fetch availabilities for this ticket
         const { data: availData, error: availError } = await supabase
           .from('ticket_availabilities')
           .select('*')
           .eq('ticket_id', ticketData.id)
-          .gte('date', new Date().toISOString().split('T')[0])
+          .gte('date', toLocalDateString(new Date()))
           .order('date', { ascending: true })
           .order('time_slot', { ascending: true });
+
+        console.log('[BookingPage] Fetched raw availabilities:', availData);
+        console.log('[BookingPage] Availability error:', availError);
 
         if (availError) {
           console.error('Error fetching availabilities:', availError);
@@ -80,18 +85,15 @@ export default function BookingPage() {
             ...avail,
             available_capacity: avail.total_capacity - avail.reserved_capacity - avail.sold_capacity,
           }));
+          console.log('[BookingPage] Processed availabilities:', processedAvail);
           setAvailabilities(processedAvail);
-          
-          // Auto-select today's date (entrance tickets are for today only)
+
+          // Auto-select today's date (entrance tickets are same-day only)
           const today = new Date();
           today.setHours(0, 0, 0, 0);
-          const todayStr = today.toISOString().split('T')[0];
-          const hasTodayAvailability = processedAvail.some(
-            (avail: any) => avail.date === todayStr && avail.available_capacity > 0
-          );
-          if (hasTodayAvailability) {
-            setSelectedDate(today);
-          }
+          console.log('[BookingPage] Auto-selecting today:', today.toISOString());
+          setSelectedDate(today);
+          setCurrentDate(today);
         }
       } catch (err) {
         console.error('Error fetching ticket data:', err);
@@ -134,13 +136,13 @@ export default function BookingPage() {
 
       // Check if date is today (for entrance tickets, only today is bookable)
       const isToday = date.getTime() === today.getTime();
-      
+
       const isAvailable = date >= today && date >= availableFrom && date <= availableUntil;
       const hasAvailability = availabilities.some(
-        (avail) => avail.date === date.toISOString().split('T')[0] && avail.available_capacity > 0
+        (avail) => avail.date === toLocalDateString(date) && avail.available_capacity > 0
       );
 
-      // Lock to TODAY only - entrance tickets can only be purchased for today
+      // MVP: Same-day booking only - only today can be booked
       const canBook = isToday && isAvailable && hasAvailability;
 
       days.push({
@@ -159,19 +161,40 @@ export default function BookingPage() {
   const getAvailableTimeSlots = () => {
     if (!selectedDate) return [];
 
-    const dateString = selectedDate.toISOString().split('T')[0];
-    return availabilities
-      .filter((avail) => avail.date === dateString && avail.available_capacity > 0 && avail.time_slot)
-      .map((avail) => ({
-        time: avail.time_slot as string,
-        available: avail.available_capacity,
-      }));
+    const dateString = toLocalDateString(selectedDate);
+    console.log('[BookingPage] Selected date string:', dateString);
+    console.log('[BookingPage] All availabilities:', availabilities);
+
+    const filtered = availabilities.filter((avail) => {
+      const matchesDate = avail.date === dateString;
+      const hasCapacity = avail.available_capacity > 0;
+      const hasTimeSlot = !!avail.time_slot;
+
+      console.log('[BookingPage] Checking avail:', {
+        date: avail.date,
+        time_slot: avail.time_slot,
+        available_capacity: avail.available_capacity,
+        matchesDate,
+        hasCapacity,
+        hasTimeSlot,
+        passes: matchesDate && hasCapacity && hasTimeSlot
+      });
+
+      return matchesDate && hasCapacity && hasTimeSlot;
+    });
+
+    console.log('[BookingPage] Filtered slots:', filtered);
+
+    return filtered.map((avail) => ({
+      time: avail.time_slot as string,
+      available: avail.available_capacity,
+    }));
   };
 
   // Check if this ticket has all-day access (no time slots)
   const hasAllDayAccess = () => {
     if (!selectedDate) return false;
-    const dateString = selectedDate.toISOString().split('T')[0];
+    const dateString = toLocalDateString(selectedDate);
     return availabilities.some(
       (avail) => avail.date === dateString && avail.available_capacity > 0 && !avail.time_slot
     );
@@ -213,23 +236,13 @@ export default function BookingPage() {
         ticketName: ticket.name,
         ticketType: ticket.type,
         price: parseFloat(ticket.price),
-        date: selectedDate.toISOString().split('T')[0],
+        date: toLocalDateString(selectedDate),
         time: selectedTime || 'all-day',
       },
     });
   };
 
-  const handlePreviousMonth = () => {
-    setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1));
-    setSelectedDate(null);
-    setSelectedTime(null);
-  };
 
-  const handleNextMonth = () => {
-    setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1));
-    setSelectedDate(null);
-    setSelectedTime(null);
-  };
 
   if (loading) {
     return (
@@ -300,21 +313,7 @@ export default function BookingPage() {
             <div className="bg-white dark:bg-[#1a0c0c] rounded-xl shadow-sm border border-[#f4e7e7] dark:border-[#3d2424] p-8">
               <div className="flex items-center justify-between mb-8">
                 <h3 className="text-xl font-bold">Select Date</h3>
-                <div className="flex items-center gap-4">
-                  <button
-                    onClick={handlePreviousMonth}
-                    className="size-10 flex items-center justify-center rounded-full hover:bg-background-light dark:hover:bg-background-dark text-primary border border-primary/10"
-                  >
-                    <span className="material-symbols-outlined">chevron_left</span>
-                  </button>
-                  <p className="text-lg font-bold min-w-32 text-center uppercase tracking-tighter">{monthName}</p>
-                  <button
-                    onClick={handleNextMonth}
-                    className="size-10 flex items-center justify-center rounded-full hover:bg-background-light dark:hover:bg-background-dark text-primary border border-primary/10"
-                  >
-                    <span className="material-symbols-outlined">chevron_right</span>
-                  </button>
-                </div>
+                <p className="text-lg font-bold uppercase tracking-tighter text-primary">{monthName}</p>
               </div>
 
               <div className="grid grid-cols-7 gap-2">
@@ -361,7 +360,7 @@ export default function BookingPage() {
                 <h3 className="text-xl font-bold mb-6">
                   {isAllDayTicket ? 'Access Type' : 'Available Time Slots'}
                 </h3>
-                
+
                 {/* All Day Access Option */}
                 {isAllDayTicket && (
                   <div className="mb-6">
@@ -462,10 +461,10 @@ export default function BookingPage() {
                   <div>
                     <p className="text-sm font-bold uppercase tracking-tighter opacity-60">Time</p>
                     <p className="font-display font-medium">
-                      {selectedTime 
-                        ? selectedTime.substring(0, 5) 
-                        : isAllDayTicket 
-                          ? 'All Day Access' 
+                      {selectedTime
+                        ? selectedTime.substring(0, 5)
+                        : isAllDayTicket
+                          ? 'All Day Access'
                           : 'Not selected'}
                     </p>
                   </div>

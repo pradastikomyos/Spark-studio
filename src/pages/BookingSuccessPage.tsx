@@ -14,6 +14,7 @@ interface LocationState {
   customerName?: string;
   paymentResult?: any;
   isPending?: boolean;
+  ticketCode?: string; // For direct ticket view from MyTicketsPage
 }
 
 interface PurchasedTicket {
@@ -48,27 +49,97 @@ export default function BookingSuccessPage() {
 
   useEffect(() => {
     const fetchOrderAndTickets = async () => {
+      // Handle direct ticket view (from MyTicketsPage)
+      if (state?.ticketCode && !orderNumber) {
+        try {
+          setLoading(true);
+          const { data: purchasedTicket, error: ticketError } = await supabase
+            .from('purchased_tickets')
+            .select(`
+              id,
+              ticket_code,
+              valid_date,
+              time_slot,
+              status,
+              order_item_id,
+              tickets:ticket_id (
+                name,
+                type
+              )
+            `)
+            .eq('ticket_code', state.ticketCode)
+            .single();
+
+          if (ticketError || !purchasedTicket) {
+            console.error('Error fetching ticket:', ticketError);
+            setLoading(false);
+            return;
+          }
+
+          // Transform to match PurchasedTicket interface
+          const transformedTicket: PurchasedTicket = {
+            id: purchasedTicket.id,
+            ticket_code: purchasedTicket.ticket_code,
+            valid_date: purchasedTicket.valid_date,
+            time_slot: purchasedTicket.time_slot,
+            status: purchasedTicket.status,
+            ticket: {
+              name: (purchasedTicket as any).tickets?.name || 'Ticket',
+              type: (purchasedTicket as any).tickets?.type || 'entrance',
+            },
+          };
+
+          setTickets([transformedTicket]);
+          setOrderData({ status: 'paid' }); // Set minimal order data for UI
+          setLoading(false);
+          return;
+        } catch (error) {
+          console.error('Error:', error);
+          setLoading(false);
+          return;
+        }
+      }
+
+      // Handle order-based view (from payment flow)
       if (!orderNumber) {
         setLoading(false);
         return;
       }
 
       try {
-        // Fetch order data
+        // Fetch order data (without nested select to avoid stuck query)
         const { data: order, error: orderError } = await supabase
           .from('orders')
-          .select('*, order_items(*)')
+          .select('*')
           .eq('order_number', orderNumber)
           .single();
 
         if (orderError) {
           console.error('Error fetching order:', orderError);
-        } else {
-          setOrderData(order);
+          setLoading(false);
+          return;
         }
+        
+        // Fetch order items separately
+        const { data: orderItems, error: itemsError } = await supabase
+          .from('order_items')
+          .select('*')
+          .eq('order_id', order.id);
+        
+        if (itemsError) {
+          console.error('Error fetching order items:', itemsError);
+        }
+        
+        // Combine data
+        const orderWithItems = {
+          ...order,
+          order_items: orderItems || []
+        };
+        
+        setOrderData(orderWithItems);
 
         // Fetch purchased tickets for this order
-        if (order?.status === 'paid' && Array.isArray(order?.order_items) && order.order_items.length > 0) {
+        if (order?.status === 'paid' && orderItems && orderItems.length > 0) {
           const { data: purchasedTickets, error: ticketsError } = await supabase
             .from('purchased_tickets')
             .select(`
@@ -82,7 +153,7 @@ export default function BookingSuccessPage() {
                 type
               )
             `)
-            .in('order_item_id', order.order_items.map((item: any) => item.id));
+            .in('order_item_id', orderItems.map((item: any) => item.id));
 
           if (ticketsError) {
             console.error('Error fetching tickets:', ticketsError);

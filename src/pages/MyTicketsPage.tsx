@@ -117,7 +117,7 @@ export default function MyTicketsPage() {
     return () => {
       subscription.unsubscribe();
     };
-  }, [user, authLoading]);
+  }, [user?.id, authLoading]);
 
   // Filter tickets based on active tab
   const today = new Date();
@@ -142,7 +142,7 @@ export default function MyTicketsPage() {
     const month = date.toLocaleDateString('en-US', { month: 'short' });
     const day = date.getDate();
     const dayOfWeek = date.toLocaleDateString('en-US', { weekday: 'long' });
-    
+
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const ticketDate = new Date(dateString);
@@ -199,21 +199,19 @@ export default function MyTicketsPage() {
             <div className="flex gap-1 bg-white dark:bg-[#1c0d0d] p-1 rounded-lg border border-[#f4e7e7] dark:border-[#331a1a]">
               <button
                 onClick={() => setActiveTab('upcoming')}
-                className={`px-4 py-1.5 text-sm font-bold rounded shadow-sm transition-colors ${
-                  activeTab === 'upcoming'
+                className={`px-4 py-1.5 text-sm font-bold rounded shadow-sm transition-colors ${activeTab === 'upcoming'
                     ? 'bg-primary text-white'
                     : 'text-[#9c4949] hover:bg-background-light dark:hover:bg-[#2a1616]'
-                }`}
+                  }`}
               >
                 Upcoming
               </button>
               <button
                 onClick={() => setActiveTab('history')}
-                className={`px-4 py-1.5 text-sm font-bold rounded shadow-sm transition-colors ${
-                  activeTab === 'history'
+                className={`px-4 py-1.5 text-sm font-bold rounded shadow-sm transition-colors ${activeTab === 'history'
                     ? 'bg-primary text-white'
                     : 'text-[#9c4949] hover:bg-background-light dark:hover:bg-[#2a1616]'
-                }`}
+                  }`}
               >
                 History
               </button>
@@ -231,9 +229,8 @@ export default function MyTicketsPage() {
               return (
                 <div
                   key={ticket.id}
-                  className={`group bg-white dark:bg-[#1c0d0d] rounded-xl p-6 border border-[#f4e7e7] dark:border-[#331a1a] shadow-sm hover:shadow-lg hover:border-primary/20 transition-all flex flex-col md:flex-row items-start md:items-center justify-between gap-6 relative overflow-hidden ${
-                    isToday ? 'pl-6 md:pl-6' : 'pl-6 md:pl-6'
-                  }`}
+                  className={`group bg-white dark:bg-[#1c0d0d] rounded-xl p-6 border border-[#f4e7e7] dark:border-[#331a1a] shadow-sm hover:shadow-lg hover:border-primary/20 transition-all flex flex-col md:flex-row items-start md:items-center justify-between gap-6 relative overflow-hidden ${isToday ? 'pl-6 md:pl-6' : 'pl-6 md:pl-6'
+                    }`}
                 >
                   {/* Today Indicator */}
                   {isToday && (
@@ -243,9 +240,8 @@ export default function MyTicketsPage() {
                   <div className="flex items-start gap-6 w-full md:w-auto">
                     {/* Date Box - Desktop */}
                     <div className="hidden md:flex flex-col items-center justify-center w-20 h-20 bg-background-light dark:bg-[#2a1616] rounded-lg border border-[#f4e7e7] dark:border-[#331a1a] text-center shrink-0">
-                      <span className={`text-xs font-bold uppercase tracking-wide ${
-                        isToday ? 'text-primary' : 'text-gray-500'
-                      }`}>
+                      <span className={`text-xs font-bold uppercase tracking-wide ${isToday ? 'text-primary' : 'text-gray-500'
+                        }`}>
                         {month}
                       </span>
                       <span className="text-2xl font-serif font-bold text-[#1c0d0d] dark:text-white leading-none mt-1">
@@ -295,11 +291,10 @@ export default function MyTicketsPage() {
                       {/* Status Badge */}
                       {ticket.status !== 'active' && (
                         <div className="mt-2">
-                          <span className={`inline-block px-2 py-1 text-xs font-bold rounded ${
-                            ticket.status === 'used' ? 'bg-green-100 text-green-700' :
-                            ticket.status === 'cancelled' ? 'bg-red-100 text-red-700' :
-                            'bg-gray-100 text-gray-700'
-                          }`}>
+                          <span className={`inline-block px-2 py-1 text-xs font-bold rounded ${ticket.status === 'used' ? 'bg-green-100 text-green-700' :
+                              ticket.status === 'cancelled' ? 'bg-red-100 text-red-700' :
+                                'bg-gray-100 text-gray-700'
+                            }`}>
                             {ticket.status.toUpperCase()}
                           </span>
                         </div>
@@ -330,8 +325,8 @@ export default function MyTicketsPage() {
                 {activeTab === 'upcoming' ? 'No upcoming tickets' : 'No ticket history yet'}
               </p>
               <p className="text-gray-400 dark:text-gray-500 text-sm">
-                {activeTab === 'upcoming' 
-                  ? 'Book a ticket to see it here' 
+                {activeTab === 'upcoming'
+                  ? 'Book a ticket to see it here'
                   : 'Your past tickets will appear here'}
               </p>
             </div>

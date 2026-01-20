@@ -34,12 +34,15 @@ export const useTicketCount = () => {
           return;
         }
 
-        // Then count purchased tickets with status 'active'
+        // Then count purchased tickets with status 'active' and valid_date >= today
+        const todayStr = new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD in local time
+
         const { count: ticketCount, error: ticketError } = await supabase
           .from('purchased_tickets')
           .select('*', { count: 'exact', head: true })
           .eq('user_id', userData.id)
-          .eq('status', 'active');
+          .eq('status', 'active')
+          .gte('valid_date', todayStr);
 
         if (ticketError) {
           console.error('Error fetching ticket count:', ticketError);
@@ -68,7 +71,7 @@ export const useTicketCount = () => {
     return () => {
       subscription.unsubscribe();
     };
-  }, [user, authLoading]);
+  }, [user?.id, authLoading]);
 
   return { count, loading };
 };

@@ -30,11 +30,10 @@ serve(async (req) => {
 
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!
+    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     const midtransServerKey = Deno.env.get('MIDTRANS_SERVER_KEY')!
     const midtransIsProduction = Deno.env.get('MIDTRANS_IS_PRODUCTION') === 'true'
-
-    const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
     // Get the authorization header to verify user
     const authHeader = req.headers.get('Authorization')
@@ -45,16 +44,23 @@ serve(async (req) => {
       })
     }
 
-    // Get user from auth token
+    // Create Supabase client with service role key for database operations
+    const supabase = createClient(supabaseUrl, supabaseServiceKey)
+    
+    // Verify JWT token manually using service role client
+    // This is the correct way when verify_jwt is disabled
     const token = authHeader.replace('Bearer ', '')
     const { data: { user }, error: authError } = await supabase.auth.getUser(token)
     
     if (authError || !user) {
-      return new Response(JSON.stringify({ error: 'Invalid token' }), {
+      console.error('Auth error:', authError)
+      return new Response(JSON.stringify({ error: 'Invalid token', details: authError?.message }), {
         status: 401,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
     }
+
+    // supabase client already created above for auth verification
 
     // Parse request body
     const { items, customerName, customerEmail, customerPhone }: CreateTokenRequest = await req.json()
