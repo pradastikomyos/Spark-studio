@@ -4,6 +4,7 @@ import { supabase } from '../../lib/supabase';
 import AdminLayout from '../../components/AdminLayout';
 import QRScannerModal from '../../components/admin/QRScannerModal';
 import { ADMIN_MENU_ITEMS, ADMIN_MENU_SECTIONS } from '../../constants/adminMenu';
+import { toLocalDateString } from '../../utils/formatters';
 
 const OrderTicket = () => {
   const { signOut } = useAuth();
@@ -64,19 +65,18 @@ const OrderTicket = () => {
           throw new Error(errMsg);
         }
 
-        const today = new Date();
-        const todayIso = new Date(today.getFullYear(), today.getMonth(), today.getDate())
-          .toISOString()
-          .slice(0, 10);
+        // Use local timezone for date comparison (not UTC!)
+        const todayLocal = toLocalDateString(new Date());
 
-        if (data.valid_date < todayIso) {
-          const errMsg = `Tiket kadaluarsa. Tanggal valid adalah ${new Date(data.valid_date).toLocaleDateString('id-ID')}.`;
+        if (data.valid_date < todayLocal) {
+          // Add T00:00:00 to parse as local time, not UTC
+          const errMsg = `Tiket kadaluarsa. Tanggal valid adalah ${new Date(data.valid_date + 'T00:00:00').toLocaleDateString('id-ID')}.`;
           setLastScanResult({ type: 'error', message: errMsg });
           throw new Error(errMsg);
         }
 
-        if (data.valid_date > todayIso) {
-          const errMsg = `Tiket belum valid. Berlaku mulai ${new Date(data.valid_date).toLocaleDateString('id-ID')}.`;
+        if (data.valid_date > todayLocal) {
+          const errMsg = `Tiket belum valid. Berlaku mulai ${new Date(data.valid_date + 'T00:00:00').toLocaleDateString('id-ID')}.`;
           setLastScanResult({ type: 'error', message: errMsg });
           throw new Error(errMsg);
         }
@@ -247,6 +247,8 @@ const OrderTicket = () => {
         title="Pindai Tiket Masuk"
         closeOnSuccess={true}
         closeDelayMs={1500}
+        closeOnError={true}
+        closeOnErrorDelayMs={2000}
         autoResumeAfterMs={2500}
         onScan={async (decodedText) => {
           await validateTicket(decodedText);

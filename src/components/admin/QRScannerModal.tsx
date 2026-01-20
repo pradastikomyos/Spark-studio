@@ -12,6 +12,10 @@ type QRScannerModalProps = {
   closeOnSuccess?: boolean;
   /** Delay before closing modal on success (ms). Default: 1500 */
   closeDelayMs?: number;
+  /** If true, close modal automatically after error/failed scan. Default: false */
+  closeOnError?: boolean;
+  /** Delay before closing modal on error (ms). Default: 2000 */
+  closeOnErrorDelayMs?: number;
 };
 
 const QRScannerModal = ({
@@ -22,6 +26,8 @@ const QRScannerModal = ({
   autoResumeAfterMs = 2000,
   closeOnSuccess = false,
   closeDelayMs = 1500,
+  closeOnError = false,
+  closeOnErrorDelayMs = 2000,
 }: QRScannerModalProps) => {
   const readerId = useMemo(
     () => `qr-reader-${Date.now()}-${Math.random().toString(16).slice(2)}`,
@@ -124,6 +130,12 @@ const QRScannerModal = ({
           processingRef.current = false;
           onClose();
         }, closeDelayMs);
+      } else if (!scanSucceeded && closeOnError) {
+        // Close modal after delay on error
+        setTimeout(() => {
+          processingRef.current = false;
+          onClose();
+        }, closeOnErrorDelayMs);
       } else {
         // Auto-restart scanner after delay for next scan
         setTimeout(() => {
@@ -198,7 +210,7 @@ const QRScannerModal = ({
         }
       }
     }
-  }, [autoResumeAfterMs, closeOnSuccess, closeDelayMs, onScan, onClose, readerId, stopScanner]);
+    }, [autoResumeAfterMs, closeOnSuccess, closeDelayMs, closeOnError, closeOnErrorDelayMs, onScan, onClose, readerId, stopScanner]);
 
   useEffect(() => {
     isOpenRef.current = isOpen;
@@ -294,13 +306,17 @@ const QRScannerModal = ({
               {errorDetails && (
                 <p className="text-sm text-neutral-700 dark:text-gray-300 text-center max-w-xs">{errorDetails}</p>
               )}
-              <button
-                onClick={() => startScanner()}
-                className="bg-primary hover:bg-red-700 text-white px-6 py-3 rounded-lg font-bold transition-colors mt-2 flex items-center gap-2"
-              >
-                <span className="material-symbols-outlined">refresh</span>
-                Coba Lagi
-              </button>
+              {closeOnError ? (
+                <p className="text-sm text-red-700 dark:text-red-300">Menutup scanner...</p>
+              ) : (
+                <button
+                  onClick={() => startScanner()}
+                  className="bg-primary hover:bg-red-700 text-white px-6 py-3 rounded-lg font-bold transition-colors mt-2 flex items-center gap-2"
+                >
+                  <span className="material-symbols-outlined">refresh</span>
+                  Coba Lagi
+                </button>
+              )}
             </div>
           )}
         </div>

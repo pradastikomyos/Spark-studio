@@ -3,6 +3,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
 import AdminLayout from '../../components/AdminLayout';
 import { ADMIN_MENU_ITEMS, ADMIN_MENU_SECTIONS } from '../../constants/adminMenu';
+import { toLocalDateString } from '../../utils/formatters';
 
 type Stage = {
     id: number;
@@ -53,14 +54,13 @@ const StageManager = () => {
                         .select('*', { count: 'exact', head: true })
                         .eq('stage_id', stage.id);
 
-                    // Today's scans
-                    const today = new Date();
-                    today.setHours(0, 0, 0, 0);
+                    // Today's scans - use local date to avoid timezone issues
+                    const todayStart = toLocalDateString(new Date()) + 'T00:00:00';
                     const { count: todayScans } = await supabase
                         .from('stage_scans')
                         .select('*', { count: 'exact', head: true })
                         .eq('stage_id', stage.id)
-                        .gte('scanned_at', today.toISOString());
+                        .gte('scanned_at', todayStart);
 
                     return {
                         ...stage,

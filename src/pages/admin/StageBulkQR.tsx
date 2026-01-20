@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { toLocalDateString } from '../../utils/formatters';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
 import AdminLayout from '../../components/AdminLayout';
@@ -34,9 +35,8 @@ const StageBulkQR = () => {
 
             if (error) throw error;
 
-            // Fetch today's scans for each stage
-            const today = new Date();
-            today.setHours(0, 0, 0, 0);
+            // Fetch today's scans for each stage - use local date to avoid timezone issues
+            const todayStart = toLocalDateString(new Date()) + 'T00:00:00';
 
             const stagesWithScans = await Promise.all(
                 (stagesData || []).map(async (stage) => {
@@ -44,7 +44,7 @@ const StageBulkQR = () => {
                         .from('stage_scans')
                         .select('*', { count: 'exact', head: true })
                         .eq('stage_id', stage.id)
-                        .gte('scanned_at', today.toISOString());
+                        .gte('scanned_at', todayStart);
 
                     return {
                         ...stage,
