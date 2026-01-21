@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import Logo from './Logo';
 import { useAuth } from '../contexts/AuthContext';
 import { useTicketCount } from '../hooks/useTicketCount';
@@ -10,12 +10,17 @@ interface NavbarProps {
 }
 
 const Navbar = ({ isDark, onToggleDarkMode }: NavbarProps) => {
-  const { user, signOut, isAdmin } = useAuth();
+  const { user, signOut, isAdmin, loggingOut } = useAuth();
   const { count: ticketCount } = useTicketCount();
   const { count: cartCount } = useCartCount();
+  const navigate = useNavigate();
 
   const handleSignOut = async () => {
-    await signOut();
+    if (loggingOut) return; // Prevent double-click
+    const { error } = await signOut();
+    if (!error) {
+      navigate('/login');
+    }
   };
 
   return (
@@ -69,8 +74,15 @@ const Navbar = ({ isDark, onToggleDarkMode }: NavbarProps) => {
                     <span className="text-xs font-bold uppercase tracking-wider hidden lg:block">Dashboard</span>
                   </Link>
                 )}
-                <button onClick={handleSignOut} className="hover:text-primary transition-colors" title="Sign Out">
-                  <span className="material-symbols-outlined text-[20px]">logout</span>
+                <button 
+                  onClick={handleSignOut} 
+                  disabled={loggingOut}
+                  className={`hover:text-primary transition-colors ${loggingOut ? 'opacity-50 cursor-not-allowed' : ''}`} 
+                  title="Sign Out"
+                >
+                  <span className={`material-symbols-outlined text-[20px] ${loggingOut ? 'animate-spin' : ''}`}>
+                    {loggingOut ? 'progress_activity' : 'logout'}
+                  </span>
                 </button>
               </>
             ) : (

@@ -46,6 +46,7 @@ const AdminLayout = ({
   const [activeMenu, setActiveMenu] = useState(defaultActiveMenuId);
   const [expandedSections, setExpandedSections] = useState<string[]>(['tickets', 'store']);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   // Close sidebar on ESC key
   useEffect(() => {
@@ -64,8 +65,17 @@ const AdminLayout = ({
   }, [activeMenu]);
 
   const handleLogout = async () => {
-    await onLogout();
-    navigate(logoutRedirectPath);
+    if (isLoggingOut) return; // Prevent double-click
+    
+    try {
+      setIsLoggingOut(true);
+      await onLogout();
+      navigate(logoutRedirectPath);
+    } catch (error) {
+      console.error('Logout failed:', error);
+    } finally {
+      setIsLoggingOut(false);
+    }
   };
 
   const toggleSection = (sectionId: string) => {
@@ -195,16 +205,19 @@ const AdminLayout = ({
         <div className="mt-auto pt-6 border-t border-white/5">
           <button
             onClick={handleLogout}
-            className="flex w-full items-center gap-3 rounded-lg p-2 hover:bg-white/5 transition-colors text-left group min-w-0"
+            disabled={isLoggingOut}
+            className={`flex w-full items-center gap-3 rounded-lg p-2 hover:bg-white/5 transition-colors text-left group min-w-0 ${isLoggingOut ? 'opacity-50 cursor-not-allowed' : ''}`}
           >
             <div className="h-8 w-8 rounded bg-gray-700 flex items-center justify-center text-xs font-bold text-white flex-shrink-0">
               {getUserInitials()}
             </div>
             <div className="flex-1 overflow-hidden min-w-0">
-              <p className="truncate text-sm font-medium text-white">Admin User</p>
+              <p className="truncate text-sm font-medium text-white">{isLoggingOut ? 'Logging out...' : 'Admin User'}</p>
               <p className="truncate text-xs text-gray-500">{user?.email || 'admin@spark.com'}</p>
             </div>
-            <span className="material-symbols-outlined text-gray-500 group-hover:text-white flex-shrink-0">logout</span>
+            <span className={`material-symbols-outlined text-gray-500 group-hover:text-white flex-shrink-0 ${isLoggingOut ? 'animate-spin' : ''}`}>
+              {isLoggingOut ? 'progress_activity' : 'logout'}
+            </span>
           </button>
         </div>
       </aside>

@@ -8,10 +8,11 @@ interface AuthContextType {
   session: Session | null;
   loading: boolean;
   adminLoading: boolean;
+  loggingOut: boolean;
   isAdmin: boolean;
   signIn: (email: string, password: string) => Promise<{ error: AuthError | null }>;
   signUp: (email: string, password: string, name: string) => Promise<{ error: AuthError | null }>;
-  signOut: () => Promise<void>;
+  signOut: () => Promise<{ error: Error | null }>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -21,6 +22,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const [adminLoading, setAdminLoading] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
@@ -114,12 +116,31 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     return { error };
   };
 
-  const signOut = async () => {
-    await supabase.auth.signOut();
+  const signOut = async (): Promise<{ error: Error | null }> => {
+    if (loggingOut) return { error: null }; // Prevent double-click
+    
+    try {
+      setLoggingOut(true);
+      const { error } = await supabase.auth.signOut();
+      if (error) {
+        console.error('Logout error:', error);
+        return { error };
+      }
+      // Clear state immediately for faster UI response
+      setUser(null);
+      setSession(null);
+      setIsAdmin(false);
+      return { error: null };
+    } catch (err) {
+      console.error('Unexpected logout error:', err);
+      return { error: err instanceof Error ? err : new Error('Logout failed') };
+    } finally {
+      setLoggingOut(false);
+    }
   };
 
   return (
-    <AuthContext.Provider value={{ user, session, loading, adminLoading, isAdmin, signIn, signUp, signOut }}>
+    <AuthContext.Provider value={{ user, session, loading, adminLoading, loggingOut, isAdmin, signIn, signUp, signOut }}>
       {children}
     </AuthContext.Provider>
   );
