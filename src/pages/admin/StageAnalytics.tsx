@@ -15,17 +15,26 @@ type StageAnalyticsData = {
 };
 
 const StageAnalytics = () => {
-    const { signOut } = useAuth();
+    const { signOut, isAdmin } = useAuth();
     const [stages, setStages] = useState<StageAnalyticsData[]>([]);
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
     const [timeFilter, setTimeFilter] = useState<'weekly' | 'monthly' | 'all'>('weekly');
     const isFetchingRef = useRef(false);
+    const timeFilterRef = useRef(timeFilter);
+
+    // Keep timeFilterRef in sync with timeFilter state
+    useEffect(() => {
+        timeFilterRef.current = timeFilter;
+    }, [timeFilter]);
 
     const fetchAnalyticsData = useCallback(async (force = false) => {
         if (isFetchingRef.current && !force) return;
         isFetchingRef.current = true;
+        
         try {
             setLoading(true);
+            setError(null);
 
             // Fetch stages
             const { data: stagesData, error: stagesError } = await supabase
@@ -41,18 +50,31 @@ const StageAnalytics = () => {
             const twoWeeksAgo = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000);
             const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
 
+            // Use ref to get current timeFilter value
+            const currentTimeFilter = timeFilterRef.current;
+
             // Fetch scan counts for each stage
             const stagesWithAnalytics: StageAnalyticsData[] = await Promise.all(
                 (stagesData || []).map(async (stage) => {
                     // Total scans (all time)
-                    const { count: totalScans } = await supabase
+                    const { count: totalScans, error: totalError } = await supabase
                         .from('stage_scans')
                         .select('*', { count: 'exact', head: true })
                         .eq('stage_id', stage.id);
 
+                    if (totalError) {
+                        console.error('Error fetching total scans:', totalError);
+                        return {
+                            ...stage,
+                            total_scans: 0,
+                            weekly_scans: 0,
+                            weekly_change: 0,
+                        };
+                    }
+
                     // This period scans
                     let periodStart: Date;
-                    switch (timeFilter) {
+                    switch (currentTimeFilter) {
                         case 'weekly':
                             periodStart = weekAgo;
                             break;
@@ -63,19 +85,27 @@ const StageAnalytics = () => {
                             periodStart = new Date(0); // All time
                     }
 
-                    const { count: periodScans } = await supabase
+                    const { count: periodScans, error: periodError } = await supabase
                         .from('stage_scans')
                         .select('*', { count: 'exact', head: true })
                         .eq('stage_id', stage.id)
                         .gte('scanned_at', periodStart.toISOString());
 
+                    if (periodError) {
+                        console.error('Error fetching period scans:', periodError);
+                    }
+
                     // Previous period scans (for comparison)
-                    const { count: prevPeriodScans } = await supabase
+                    const { count: prevPeriodScans, error: prevError } = await supabase
                         .from('stage_scans')
                         .select('*', { count: 'exact', head: true })
                         .eq('stage_id', stage.id)
                         .gte('scanned_at', twoWeeksAgo.toISOString())
                         .lt('scanned_at', weekAgo.toISOString());
+
+                    if (prevError) {
+                        console.error('Error fetching previous period scans:', prevError);
+                    }
 
                     // Calculate change percentage
                     const prev = prevPeriodScans || 0;
@@ -97,24 +127,43 @@ const StageAnalytics = () => {
             setStages(stagesWithAnalytics);
         } catch (error) {
             console.error('Error fetching analytics:', error);
+            setError(error instanceof Error ? error.message : 'Failed to load analytics data');
         } finally {
             setLoading(false);
             isFetchingRef.current = false;
         }
-    }, [timeFilter]);
+    }, []); // Remove timeFilter from dependencies
 
+    // Initial fetch
     useEffect(() => {
-        fetchAnalyticsData();
-    }, [fetchAnalyticsData]);
+        if (isAdmin) {
+            fetchAnalyticsData();
+        }
+    }, [isAdmin, fetchAnalyticsData]);
 
+    // Refetch when timeFilter changes
     useEffect(() => {
+        if (isAdmin) {
+            fetchAnalyticsData(true);
+        }
+    }, [timeFilter, isAdmin, fetchAnalyticsData]);
+
+    // Realtime subscription - separate from fetchAnalyticsData dependency
+    useEffect(() => {
+        if (!isAdmin) return;
+
         const channel = supabase
             .channel('stage_scans_changes')
             .on(
                 'postgres_changes',
                 { event: '*', schema: 'public', table: 'stage_scans' },
                 () => {
-                    fetchAnalyticsData();
+                    // Use a small delay to debounce rapid changes
+                    setTimeout(() => {
+                        if (!isFetchingRef.current) {
+                            fetchAnalyticsData(true);
+                        }
+                    }, 500);
                 }
             )
             .subscribe();
@@ -122,7 +171,7 @@ const StageAnalytics = () => {
         return () => {
             supabase.removeChannel(channel);
         };
-    }, [fetchAnalyticsData]);
+    }, [isAdmin, fetchAnalyticsData]);
 
     const totalFootTraffic = stages.reduce((sum, s) => sum + s.weekly_scans, 0);
     const mostPopular = stages[0];
@@ -138,6 +187,27 @@ const StageAnalytics = () => {
 
     const maxScans = mostPopular?.weekly_scans || 1;
 
+    // Show error if not admin
+    if (!isAdmin && !loading) {
+        return (
+            <AdminLayout
+                menuItems={ADMIN_MENU_ITEMS}
+                menuSections={ADMIN_MENU_SECTIONS}
+                defaultActiveMenuId="stage-analytics"
+                title="Stage Analytics"
+                onLogout={signOut}
+            >
+                <div className="mx-auto flex w-full max-w-7xl flex-col items-center justify-center min-h-[400px]">
+                    <div className="text-center">
+                        <span className="material-symbols-outlined text-6xl text-red-500 mb-4">block</span>
+                        <h2 className="text-2xl font-bold text-white mb-2">Access Denied</h2>
+                        <p className="text-gray-400">You need admin privileges to view this page.</p>
+                    </div>
+                </div>
+            </AdminLayout>
+        );
+    }
+
     return (
         <AdminLayout
             menuItems={ADMIN_MENU_ITEMS}
@@ -147,6 +217,16 @@ const StageAnalytics = () => {
             onLogout={signOut}
         >
             <div className="mx-auto flex w-full max-w-7xl flex-col gap-6">
+                {/* Error Message */}
+                {error && (
+                    <div className="rounded-xl border border-red-500/20 bg-red-500/10 p-4 flex items-center gap-3">
+                        <span className="material-symbols-outlined text-red-500">error</span>
+                        <div>
+                            <p className="text-sm font-medium text-red-500">Error loading analytics</p>
+                            <p className="text-xs text-red-400 mt-1">{error}</p>
+                        </div>
+                    </div>
+                )}
                 {/* Stats Grid */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     <div className="rounded-xl border border-white/5 bg-surface-dark p-6 flex flex-col justify-between relative overflow-hidden group">
