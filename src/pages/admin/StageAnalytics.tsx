@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
 import AdminLayout from '../../components/AdminLayout';
@@ -19,8 +19,11 @@ const StageAnalytics = () => {
     const [stages, setStages] = useState<StageAnalyticsData[]>([]);
     const [loading, setLoading] = useState(true);
     const [timeFilter, setTimeFilter] = useState<'weekly' | 'monthly' | 'all'>('weekly');
+    const isFetchingRef = useRef(false);
 
-    const fetchAnalyticsData = useCallback(async () => {
+    const fetchAnalyticsData = useCallback(async (force = false) => {
+        if (isFetchingRef.current && !force) return;
+        isFetchingRef.current = true;
         try {
             setLoading(true);
 
@@ -96,6 +99,7 @@ const StageAnalytics = () => {
             console.error('Error fetching analytics:', error);
         } finally {
             setLoading(false);
+            isFetchingRef.current = false;
         }
     }, [timeFilter]);
 
@@ -300,8 +304,9 @@ const StageAnalytics = () => {
                     <div className="px-6 py-4 border-t border-white/5 bg-surface-darker flex items-center justify-between">
                         <p className="text-sm text-gray-500">Showing {stages.length} stages</p>
                         <button
-                            onClick={fetchAnalyticsData}
-                            className="flex items-center gap-2 text-sm text-gray-400 hover:text-white transition-colors"
+                            onClick={() => fetchAnalyticsData(true)}
+                            disabled={loading}
+                            className="flex items-center gap-2 text-sm text-gray-400 hover:text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                             <span className="material-symbols-outlined text-lg">refresh</span>
                             Refresh Data

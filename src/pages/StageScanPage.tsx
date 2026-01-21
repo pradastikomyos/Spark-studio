@@ -73,6 +73,14 @@ const StageScanPage = () => {
         }
     }, [stageCode, fetchStageAndRecordScan]);
 
+    useEffect(() => {
+        if (scanStatus !== 'success') return;
+        const timer = window.setTimeout(() => {
+            window.location.assign('/on-stage');
+        }, 1200);
+        return () => window.clearTimeout(timer);
+    }, [scanStatus]);
+
     if (loading) {
         return (
             <div className="min-h-screen bg-background-dark flex items-center justify-center">
@@ -140,7 +148,7 @@ const StageScanPage = () => {
                 {/* Action Buttons */}
                 <div className="space-y-3">
                     <button
-                        onClick={() => navigate('/on-stage')}
+                        onClick={() => window.location.assign('/on-stage')}
                         className="w-full py-3 px-4 bg-primary text-white font-bold rounded-lg hover:bg-red-600 transition-colors shadow-lg shadow-red-900/20"
                     >
                         View All Stages

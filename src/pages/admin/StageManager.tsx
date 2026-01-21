@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
 import AdminLayout from '../../components/AdminLayout';
@@ -28,8 +28,11 @@ const StageManager = () => {
     const [stages, setStages] = useState<StageWithStats[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
+    const isFetchingRef = useRef(false);
 
-    const fetchStagesWithStats = useCallback(async () => {
+    const fetchStagesWithStats = useCallback(async (force = false) => {
+        if (isFetchingRef.current && !force) return;
+        isFetchingRef.current = true;
         try {
             setLoading(true);
 
@@ -71,6 +74,7 @@ const StageManager = () => {
             console.error('Error fetching stages:', error);
         } finally {
             setLoading(false);
+            isFetchingRef.current = false;
         }
     }, []);
 

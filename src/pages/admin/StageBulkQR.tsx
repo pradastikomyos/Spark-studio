@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { toLocalDateString } from '../../utils/formatters';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
@@ -19,8 +19,11 @@ const StageBulkQR = () => {
     const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
     const [downloading, setDownloading] = useState(false);
+    const isFetchingRef = useRef(false);
 
-    const fetchStages = useCallback(async () => {
+    const fetchStages = useCallback(async (force = false) => {
+        if (isFetchingRef.current && !force) return;
+        isFetchingRef.current = true;
         try {
             setLoading(true);
 
@@ -54,6 +57,7 @@ const StageBulkQR = () => {
             console.error('Error fetching stages:', error);
         } finally {
             setLoading(false);
+            isFetchingRef.current = false;
         }
     }, []);
 
