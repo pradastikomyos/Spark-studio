@@ -3,7 +3,6 @@ import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
 import AdminLayout from '../../components/AdminLayout';
 import { ADMIN_MENU_ITEMS, ADMIN_MENU_SECTIONS } from '../../constants/adminMenu';
-import { toLocalDateString } from '../../utils/formatters';
 
 type Stage = {
     id: number;
@@ -24,10 +23,11 @@ type StageWithStats = Stage & {
 };
 
 const StageManager = () => {
-    const { signOut } = useAuth();
+    const { signOut, isAdmin } = useAuth();
     const [stages, setStages] = useState<StageWithStats[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
+    const [error, setError] = useState<string | null>(null);
     const isFetchingRef = useRef(false);
 
     const fetchStagesWithStats = useCallback(async (force = false) => {
@@ -35,6 +35,7 @@ const StageManager = () => {
         isFetchingRef.current = true;
         try {
             setLoading(true);
+            setError(null);
 
             // Fetch stages
             const { data: stagesData, error: stagesError } = await supabase
@@ -48,18 +49,25 @@ const StageManager = () => {
             const stagesWithStats: StageWithStats[] = await Promise.all(
                 (stagesData || []).map(async (stage) => {
                     // Total scans
-                    const { count: totalScans } = await supabase
+                    const { count: totalScans, error: totalError } = await supabase
                         .from('stage_scans')
                         .select('*', { count: 'exact', head: true })
                         .eq('stage_id', stage.id);
 
-                    // Today's scans - use local date to avoid timezone issues
-                    const todayStart = toLocalDateString(new Date()) + 'T00:00:00';
-                    const { count: todayScans } = await supabase
+                    if (totalError) {
+                        console.error('Error fetching total scans:', totalError);
+                    }
+
+                    // Today's scans - use CURRENT_DATE for timezone-aware comparison
+                    const { count: todayScans, error: todayError } = await supabase
                         .from('stage_scans')
                         .select('*', { count: 'exact', head: true })
                         .eq('stage_id', stage.id)
-                        .gte('scanned_at', todayStart);
+                        .gte('scanned_at', new Date().toISOString().split('T')[0]);
+
+                    if (todayError) {
+                        console.error('Error fetching today scans:', todayError);
+                    }
 
                     return {
                         ...stage,
@@ -72,6 +80,7 @@ const StageManager = () => {
             setStages(stagesWithStats);
         } catch (error) {
             console.error('Error fetching stages:', error);
+            setError(error instanceof Error ? error.message : 'Failed to load stages');
         } finally {
             setLoading(false);
             isFetchingRef.current = false;
@@ -79,17 +88,25 @@ const StageManager = () => {
     }, []);
 
     useEffect(() => {
-        fetchStagesWithStats();
-    }, [fetchStagesWithStats]);
+        if (isAdmin) {
+            fetchStagesWithStats();
+        }
+    }, [isAdmin, fetchStagesWithStats]);
 
     useEffect(() => {
+        if (!isAdmin) return;
+
         const channel = supabase
-            .channel('stage_scans_changes')
+            .channel('stage_scans_changes_manager')
             .on(
                 'postgres_changes',
                 { event: '*', schema: 'public', table: 'stage_scans' },
                 () => {
-                    fetchStagesWithStats();
+                    setTimeout(() => {
+                        if (!isFetchingRef.current) {
+                            fetchStagesWithStats(true);
+                        }
+                    }, 500);
                 }
             )
             .subscribe();
@@ -97,7 +114,7 @@ const StageManager = () => {
         return () => {
             supabase.removeChannel(channel);
         };
-    }, [fetchStagesWithStats]);
+    }, [isAdmin, fetchStagesWithStats]);
 
     const generateQRCodeUrl = (stageCode: string) => {
         // Generate QR code using a public API (the QR will contain the stage scan URL)
@@ -134,6 +151,27 @@ const StageManager = () => {
 
     const activeStagesCount = stages.filter((s) => s.status === 'active').length;
 
+    // Show error if not admin
+    if (!isAdmin && !loading) {
+        return (
+            <AdminLayout
+                menuItems={ADMIN_MENU_ITEMS}
+                menuSections={ADMIN_MENU_SECTIONS}
+                defaultActiveMenuId="stages"
+                title="Stage Manager"
+                onLogout={signOut}
+            >
+                <div className="flex flex-col items-center justify-center min-h-[400px]">
+                    <div className="text-center">
+                        <span className="material-symbols-outlined text-6xl text-red-500 mb-4">block</span>
+                        <h2 className="text-2xl font-bold text-white mb-2">Access Denied</h2>
+                        <p className="text-gray-400">You need admin privileges to view this page.</p>
+                    </div>
+                </div>
+            </AdminLayout>
+        );
+    }
+
     return (
         <AdminLayout
             menuItems={ADMIN_MENU_ITEMS}
@@ -142,6 +180,17 @@ const StageManager = () => {
             title="Stage Manager"
             onLogout={signOut}
         >
+            {/* Error Message */}
+            {error && (
+                <div className="mb-6 rounded-xl border border-red-500/20 bg-red-500/10 p-4 flex items-center gap-3">
+                    <span className="material-symbols-outlined text-red-500">error</span>
+                    <div>
+                        <p className="text-sm font-medium text-red-500">Error loading stages</p>
+                        <p className="text-xs text-red-400 mt-1">{error}</p>
+                    </div>
+                </div>
+            )}
+
             {/* Header Actions */}
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
                 <div className="flex items-center gap-3">
