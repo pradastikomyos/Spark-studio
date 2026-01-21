@@ -3,6 +3,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
 import AdminLayout from '../../components/AdminLayout';
 import { ADMIN_MENU_ITEMS, ADMIN_MENU_SECTIONS } from '../../constants/adminMenu';
+import { safeCountQuery } from '../../utils/queryHelpers';
 
 type StageAnalyticsData = {
     id: number;
@@ -30,17 +31,20 @@ const StageAnalytics = () => {
 
     const fetchAnalyticsData = useCallback(async (force = false) => {
         if (isFetchingRef.current && !force) return;
+        
+        // Set fetching flag
         isFetchingRef.current = true;
         
         try {
             setLoading(true);
             setError(null);
 
-            // Fetch stages
+            // Fetch stages with timeout
             const { data: stagesData, error: stagesError } = await supabase
                 .from('stages')
                 .select('id, code, name, zone')
-                .order('id', { ascending: true });
+                .order('id', { ascending: true })
+                .abortSignal(AbortSignal.timeout(10000));
 
             if (stagesError) throw stagesError;
 
@@ -53,17 +57,75 @@ const StageAnalytics = () => {
             // Use ref to get current timeFilter value
             const currentTimeFilter = timeFilterRef.current;
 
-            // Fetch scan counts for each stage
+            // Fetch scan counts for each stage with proper error handling
             const stagesWithAnalytics: StageAnalyticsData[] = await Promise.all(
                 (stagesData || []).map(async (stage) => {
-                    // Total scans (all time)
-                    const { count: totalScans, error: totalError } = await supabase
-                        .from('stage_scans')
-                        .select('*', { count: 'exact', head: true })
-                        .eq('stage_id', stage.id);
+                    try {
+                        // Total scans (all time) - with timeout
+                        const totalScans = await safeCountQuery(
+                            async () => {
+                                const result = await supabase
+                                    .from('stage_scans')
+                                    .select('*', { count: 'exact', head: true })
+                                    .eq('stage_id', stage.id);
+                                return result;
+                            },
+                            8000 // 8 second timeout
+                        );
 
-                    if (totalError) {
-                        console.error('Error fetching total scans:', totalError);
+                        // This period scans
+                        let periodStart: Date;
+                        switch (currentTimeFilter) {
+                            case 'weekly':
+                                periodStart = weekAgo;
+                                break;
+                            case 'monthly':
+                                periodStart = monthAgo;
+                                break;
+                            default:
+                                periodStart = new Date(0); // All time
+                        }
+
+                        const periodScans = await safeCountQuery(
+                            async () => {
+                                const result = await supabase
+                                    .from('stage_scans')
+                                    .select('*', { count: 'exact', head: true })
+                                    .eq('stage_id', stage.id)
+                                    .gte('scanned_at', periodStart.toISOString());
+                                return result;
+                            },
+                            8000
+                        );
+
+                        // Previous period scans (for comparison)
+                        const prevPeriodScans = await safeCountQuery(
+                            async () => {
+                                const result = await supabase
+                                    .from('stage_scans')
+                                    .select('*', { count: 'exact', head: true })
+                                    .eq('stage_id', stage.id)
+                                    .gte('scanned_at', twoWeeksAgo.toISOString())
+                                    .lt('scanned_at', weekAgo.toISOString());
+                                return result;
+                            },
+                            8000
+                        );
+
+                        // Calculate change percentage
+                        const prev = prevPeriodScans || 0;
+                        const current = periodScans || 0;
+                        const change = prev > 0 ? Math.round(((current - prev) / prev) * 100) : current > 0 ? 100 : 0;
+
+                        return {
+                            ...stage,
+                            total_scans: totalScans,
+                            weekly_scans: periodScans,
+                            weekly_change: change,
+                        };
+                    } catch (stageError) {
+                        // If individual stage query fails, return default values
+                        console.error(`Error fetching data for stage ${stage.id}:`, stageError);
                         return {
                             ...stage,
                             total_scans: 0,
@@ -71,53 +133,6 @@ const StageAnalytics = () => {
                             weekly_change: 0,
                         };
                     }
-
-                    // This period scans
-                    let periodStart: Date;
-                    switch (currentTimeFilter) {
-                        case 'weekly':
-                            periodStart = weekAgo;
-                            break;
-                        case 'monthly':
-                            periodStart = monthAgo;
-                            break;
-                        default:
-                            periodStart = new Date(0); // All time
-                    }
-
-                    const { count: periodScans, error: periodError } = await supabase
-                        .from('stage_scans')
-                        .select('*', { count: 'exact', head: true })
-                        .eq('stage_id', stage.id)
-                        .gte('scanned_at', periodStart.toISOString());
-
-                    if (periodError) {
-                        console.error('Error fetching period scans:', periodError);
-                    }
-
-                    // Previous period scans (for comparison)
-                    const { count: prevPeriodScans, error: prevError } = await supabase
-                        .from('stage_scans')
-                        .select('*', { count: 'exact', head: true })
-                        .eq('stage_id', stage.id)
-                        .gte('scanned_at', twoWeeksAgo.toISOString())
-                        .lt('scanned_at', weekAgo.toISOString());
-
-                    if (prevError) {
-                        console.error('Error fetching previous period scans:', prevError);
-                    }
-
-                    // Calculate change percentage
-                    const prev = prevPeriodScans || 0;
-                    const current = periodScans || 0;
-                    const change = prev > 0 ? Math.round(((current - prev) / prev) * 100) : current > 0 ? 100 : 0;
-
-                    return {
-                        ...stage,
-                        total_scans: totalScans || 0,
-                        weekly_scans: periodScans || 0,
-                        weekly_change: change,
-                    };
                 })
             );
 
@@ -127,8 +142,13 @@ const StageAnalytics = () => {
             setStages(stagesWithAnalytics);
         } catch (error) {
             console.error('Error fetching analytics:', error);
-            setError(error instanceof Error ? error.message : 'Failed to load analytics data');
+            const errorMessage = error instanceof Error ? error.message : 'Failed to load analytics data';
+            setError(errorMessage);
+            
+            // Set empty data on error to prevent stuck state
+            setStages([]);
         } finally {
+            // Always reset loading and fetching states
             setLoading(false);
             isFetchingRef.current = false;
         }

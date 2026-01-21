@@ -3,6 +3,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
 import AdminLayout from '../../components/AdminLayout';
 import { ADMIN_MENU_ITEMS, ADMIN_MENU_SECTIONS } from '../../constants/adminMenu';
+import { safeCountQuery } from '../../utils/queryHelpers';
 
 type Stage = {
     id: number;
@@ -32,56 +33,79 @@ const StageManager = () => {
 
     const fetchStagesWithStats = useCallback(async (force = false) => {
         if (isFetchingRef.current && !force) return;
+        
+        // Set fetching flag
         isFetchingRef.current = true;
+        
         try {
             setLoading(true);
             setError(null);
 
-            // Fetch stages
+            // Fetch stages with timeout
             const { data: stagesData, error: stagesError } = await supabase
                 .from('stages')
                 .select('*')
-                .order('id', { ascending: true });
+                .order('id', { ascending: true })
+                .abortSignal(AbortSignal.timeout(10000));
 
             if (stagesError) throw stagesError;
 
-            // Fetch scan counts for each stage
+            // Fetch scan counts for each stage with proper error handling
             const stagesWithStats: StageWithStats[] = await Promise.all(
                 (stagesData || []).map(async (stage) => {
-                    // Total scans
-                    const { count: totalScans, error: totalError } = await supabase
-                        .from('stage_scans')
-                        .select('*', { count: 'exact', head: true })
-                        .eq('stage_id', stage.id);
+                    try {
+                        // Total scans - with timeout
+                        const totalScans = await safeCountQuery(
+                            async () => {
+                                const result = await supabase
+                                    .from('stage_scans')
+                                    .select('*', { count: 'exact', head: true })
+                                    .eq('stage_id', stage.id);
+                                return result;
+                            },
+                            8000 // 8 second timeout
+                        );
 
-                    if (totalError) {
-                        console.error('Error fetching total scans:', totalError);
+                        // Today's scans - use CURRENT_DATE for timezone-aware comparison
+                        const todayScans = await safeCountQuery(
+                            async () => {
+                                const result = await supabase
+                                    .from('stage_scans')
+                                    .select('*', { count: 'exact', head: true })
+                                    .eq('stage_id', stage.id)
+                                    .gte('scanned_at', new Date().toISOString().split('T')[0]);
+                                return result;
+                            },
+                            8000
+                        );
+
+                        return {
+                            ...stage,
+                            total_scans: totalScans,
+                            today_scans: todayScans,
+                        };
+                    } catch (stageError) {
+                        // If individual stage query fails, return default values
+                        console.error(`Error fetching stats for stage ${stage.id}:`, stageError);
+                        return {
+                            ...stage,
+                            total_scans: 0,
+                            today_scans: 0,
+                        };
                     }
-
-                    // Today's scans - use CURRENT_DATE for timezone-aware comparison
-                    const { count: todayScans, error: todayError } = await supabase
-                        .from('stage_scans')
-                        .select('*', { count: 'exact', head: true })
-                        .eq('stage_id', stage.id)
-                        .gte('scanned_at', new Date().toISOString().split('T')[0]);
-
-                    if (todayError) {
-                        console.error('Error fetching today scans:', todayError);
-                    }
-
-                    return {
-                        ...stage,
-                        total_scans: totalScans || 0,
-                        today_scans: todayScans || 0,
-                    };
                 })
             );
 
             setStages(stagesWithStats);
         } catch (error) {
             console.error('Error fetching stages:', error);
-            setError(error instanceof Error ? error.message : 'Failed to load stages');
+            const errorMessage = error instanceof Error ? error.message : 'Failed to load stages';
+            setError(errorMessage);
+            
+            // Set empty data on error to prevent stuck state
+            setStages([]);
         } finally {
+            // Always reset loading and fetching states
             setLoading(false);
             isFetchingRef.current = false;
         }
