@@ -181,6 +181,13 @@ export default function MyTicketsPage() {
     return { month, day, dayOfWeek: isToday ? 'Today' : dayOfWeek, isToday };
   };
 
+  const getStatusLabel = (status: string) => {
+    if (status === 'used') return 'Tiket sudah terpakai/terscan';
+    if (status === 'cancelled') return 'Tiket dibatalkan';
+    if (status === 'expired') return 'Tiket kadaluarsa';
+    return `Status: ${status}`;
+  };
+
   const handleViewQR = (ticketCode: string) => {
     navigate('/booking-success', { state: { ticketCode } });
   };
@@ -324,7 +331,7 @@ export default function MyTicketsPage() {
                               ticket.status === 'cancelled' ? 'bg-red-100 text-red-700' :
                                 'bg-gray-100 text-gray-700'
                             }`}>
-                            {ticket.status.toUpperCase()}
+                            {getStatusLabel(ticket.status)}
                           </span>
                         </div>
                       )}
@@ -339,7 +346,7 @@ export default function MyTicketsPage() {
                       disabled={ticket.status !== 'active'}
                     >
                       <span className="material-symbols-outlined text-lg">qr_code_scanner</span>
-                      View QR
+                      {ticket.status === 'active' ? 'View QR' : 'Tiket Tidak Aktif'}
                     </button>
                   </div>
                 </div>
