@@ -40,37 +40,55 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   useEffect(() => {
     let isMounted = true;
+    let hasInitialized = false; // Prevent race condition with double init
 
-    // STEP 1: Get initial session (this reads from localStorage first - FAST!)
+    // Safe helper to mark initialized only once
+    const safeSetInitialized = () => {
+      if (!hasInitialized && isMounted) {
+        hasInitialized = true;
+        setInitialized(true);
+        console.log('[Auth] Initialization complete');
+      }
+    };
+
+    // STEP 1: Get initial session with timeout protection
     const initializeAuth = async () => {
+      console.log('[Auth] Starting initialization...');
       try {
-        const { data: { session }, error } = await supabase.auth.getSession();
+        // Add 5 second timeout to prevent infinite hang
+        const getSessionWithTimeout = Promise.race([
+          supabase.auth.getSession(),
+          new Promise<never>((_, reject) => 
+            setTimeout(() => reject(new Error('Auth session timeout after 5s')), 5000)
+          )
+        ]);
+
+        const { data: { session }, error } = await getSessionWithTimeout;
         
         if (error) {
-          console.error('Error getting session:', error);
+          console.error('[Auth] Error getting session:', error);
         }
 
         if (!isMounted) return;
 
+        console.log('[Auth] Session retrieved:', session ? 'logged in' : 'no session');
         setSession(session);
         setUser(session?.user ?? null);
 
-        // Check admin status if user exists
+        // Check admin status in background (DON'T await - don't block init)
         if (session?.user?.id) {
-          await checkAdminStatus(session.user.id);
+          checkAdminStatus(session.user.id); // fire and forget
         }
       } catch (error) {
-        console.error('Error initializing auth:', error);
+        console.error('[Auth] Error initializing auth:', error);
         if (!isMounted) return;
         setSession(null);
         setUser(null);
         setIsAdmin(false);
-      } finally {
-        // CRITICAL: Mark as initialized regardless of success/failure
-        if (isMounted) {
-          setInitialized(true);
-        }
       }
+      
+      // CRITICAL: Always mark initialized after try/catch completes
+      safeSetInitialized();
     };
 
     initializeAuth();
@@ -80,16 +98,21 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       async (event, session) => {
         if (!isMounted) return;
 
+        console.log('[Auth] Auth state changed:', event);
+        
         // Update session and user immediately
         setSession(session);
         setUser(session?.user ?? null);
+
+        // Also mark as initialized (handles case where listener fires before getSession returns)
+        safeSetInitialized();
 
         // Handle different auth events
         if (event === 'SIGNED_OUT') {
           setIsAdmin(false);
         } else if (session?.user?.id) {
-          // Check admin status on sign in or token refresh
-          await checkAdminStatus(session.user.id);
+          // Check admin status on sign in or token refresh (don't await)
+          checkAdminStatus(session.user.id);
         }
       }
     );
