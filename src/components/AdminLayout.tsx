@@ -26,7 +26,7 @@ type AdminLayoutProps = {
   subtitle?: string;
   headerActions?: ReactNode;
   children: ReactNode;
-  onLogout: () => Promise<void> | void;
+  onLogout: () => Promise<void | { error: Error | null }> | void;
   logoutRedirectPath?: string;
   mainClassName?: string;
 };
