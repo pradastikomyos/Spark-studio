@@ -40,16 +40,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   useEffect(() => {
     let isMounted = true;
-    let hasInitialized = false; // Prevent race condition with double init
-
-    // Safe helper to mark initialized only once
-    const safeSetInitialized = () => {
-      if (!hasInitialized && isMounted) {
-        hasInitialized = true;
-        setInitialized(true);
-        console.log('[Auth] Initialization complete');
-      }
-    };
+    let isInitializing = true; // Track if initial auth check is in progress
 
     // STEP 1: Get initial session with timeout protection
     const initializeAuth = async () => {
@@ -75,7 +66,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         setSession(session);
         setUser(session?.user ?? null);
 
-        // CRITICAL: Wait for admin status check to complete before marking initialized
+        // Check admin status if user exists
         if (session?.user?.id) {
           await checkAdminStatus(session.user.id);
         }
@@ -88,11 +79,13 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         setSession(null);
         setUser(null);
         setIsAdmin(false);
-      }
-      
-      // CRITICAL: Mark initialized only after admin check completes and if still mounted
-      if (isMounted) {
-        safeSetInitialized();
+      } finally {
+        // Mark initialization complete
+        isInitializing = false;
+        if (isMounted) {
+          setInitialized(true);
+          console.log('[Auth] Initialization complete');
+        }
       }
     };
 
@@ -101,6 +94,12 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     // STEP 2: Listen for auth state changes (sign in, sign out, token refresh)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
+        // Ignore events during initial mount - let initializeAuth handle it
+        if (isInitializing) {
+          console.log('[Auth] Ignoring event during initialization:', event);
+          return;
+        }
+
         if (!isMounted) return;
 
         console.log('[Auth] Auth state changed:', event);
@@ -112,14 +111,13 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         // Handle different auth events
         if (event === 'SIGNED_OUT') {
           setIsAdmin(false);
-          if (isMounted) safeSetInitialized();
-        } else if (session?.user?.id) {
-          // Wait for admin status check before marking initialized
-          await checkAdminStatus(session.user.id);
-          if (isMounted) safeSetInitialized();
-        } else {
-          if (isMounted) safeSetInitialized();
+        } else if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+          // Only check admin status for actual sign-in or token refresh events
+          if (session?.user?.id) {
+            await checkAdminStatus(session.user.id);
+          }
         }
+        // For other events (USER_UPDATED, etc.), keep existing admin status
       }
     );
 
