@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState } from 'react';
+import { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { User, Session, AuthError } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 import { isAdmin as checkIsAdmin } from '../utils/auth';
@@ -6,10 +6,9 @@ import { isAdmin as checkIsAdmin } from '../utils/auth';
 interface AuthContextType {
   user: User | null;
   session: Session | null;
-  loading: boolean;
-  adminLoading: boolean;
-  loggingOut: boolean;
+  initialized: boolean; // NEW: true when auth check is complete
   isAdmin: boolean;
+  loggingOut: boolean;
   signIn: (email: string, password: string) => Promise<{ error: AuthError | null }>;
   signUp: (email: string, password: string, name: string) => Promise<{ error: AuthError | null }>;
   signOut: () => Promise<{ error: Error | null }>;
@@ -20,80 +19,86 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [adminLoading, setAdminLoading] = useState(false);
-  const [loggingOut, setLoggingOut] = useState(false);
+  const [initialized, setInitialized] = useState(false); // KEY: blocks render until ready
   const [isAdmin, setIsAdmin] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
+
+  // Memoized admin check to avoid re-creating function
+  const checkAdminStatus = useCallback(async (userId: string | undefined) => {
+    if (!userId) {
+      setIsAdmin(false);
+      return;
+    }
+    try {
+      const adminStatus = await checkIsAdmin(userId);
+      setIsAdmin(adminStatus);
+    } catch (error) {
+      console.error('Error checking admin status:', error);
+      setIsAdmin(false);
+    }
+  }, []);
 
   useEffect(() => {
     let isMounted = true;
 
-    const loadSession = async () => {
+    // STEP 1: Get initial session (this reads from localStorage first - FAST!)
+    const initializeAuth = async () => {
       try {
-        const { data: { session } } = await supabase.auth.getSession();
+        const { data: { session }, error } = await supabase.auth.getSession();
+        
+        if (error) {
+          console.error('Error getting session:', error);
+        }
+
         if (!isMounted) return;
 
         setSession(session);
         setUser(session?.user ?? null);
-        setLoading(false);
 
+        // Check admin status if user exists
         if (session?.user?.id) {
-          setAdminLoading(true);
-          try {
-            const adminStatus = await checkIsAdmin(session.user.id);
-            if (!isMounted) return;
-            setIsAdmin(adminStatus);
-          } finally {
-            if (isMounted) {
-              setAdminLoading(false);
-            }
-          }
-        } else {
-          setIsAdmin(false);
-          setAdminLoading(false);
+          await checkAdminStatus(session.user.id);
         }
-      } catch {
+      } catch (error) {
+        console.error('Error initializing auth:', error);
         if (!isMounted) return;
         setSession(null);
         setUser(null);
         setIsAdmin(false);
-        setAdminLoading(false);
-        setLoading(false);
+      } finally {
+        // CRITICAL: Mark as initialized regardless of success/failure
+        if (isMounted) {
+          setInitialized(true);
+        }
       }
     };
 
-    loadSession();
+    initializeAuth();
 
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      if (!isMounted) return;
-      setSession(session);
-      setUser(session?.user ?? null);
-      setLoading(false);
+    // STEP 2: Listen for auth state changes (sign in, sign out, token refresh)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        if (!isMounted) return;
 
-      if (session?.user?.id) {
-        setAdminLoading(true);
-        try {
-          const adminStatus = await checkIsAdmin(session.user.id);
-          if (!isMounted) return;
-          setIsAdmin(adminStatus);
-        } finally {
-          if (isMounted) {
-            setAdminLoading(false);
-          }
+        // Update session and user immediately
+        setSession(session);
+        setUser(session?.user ?? null);
+
+        // Handle different auth events
+        if (event === 'SIGNED_OUT') {
+          setIsAdmin(false);
+        } else if (session?.user?.id) {
+          // Check admin status on sign in or token refresh
+          await checkAdminStatus(session.user.id);
         }
-      } else {
-        setIsAdmin(false);
-        setAdminLoading(false);
       }
-    });
+    );
 
     return () => {
       isMounted = false;
       subscription.unsubscribe();
     };
-  }, []);
+  }, [checkAdminStatus]);
 
   const signIn = async (email: string, password: string) => {
     const { error } = await supabase.auth.signInWithPassword({
@@ -126,10 +131,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         console.error('Logout error:', error);
         return { error };
       }
-      // Clear state immediately for faster UI response
-      setUser(null);
-      setSession(null);
-      setIsAdmin(false);
+      // State will be cleared by onAuthStateChange listener
       return { error: null };
     } catch (err) {
       console.error('Unexpected logout error:', err);
@@ -140,7 +142,18 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, session, loading, adminLoading, loggingOut, isAdmin, signIn, signUp, signOut }}>
+    <AuthContext.Provider 
+      value={{ 
+        user, 
+        session, 
+        initialized, 
+        isAdmin, 
+        loggingOut, 
+        signIn, 
+        signUp, 
+        signOut 
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );

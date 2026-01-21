@@ -35,7 +35,7 @@ interface PurchasedTicketRow {
 
 export default function MyTicketsPage() {
   const navigate = useNavigate();
-  const { user, loading: authLoading } = useAuth();
+  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<'upcoming' | 'history'>('upcoming');
   const [tickets, setTickets] = useState<PurchasedTicket[]>([]);
   const [loading, setLoading] = useState(true);
@@ -122,12 +122,10 @@ export default function MyTicketsPage() {
   );
 
   useEffect(() => {
-    if (authLoading) {
-      return;
-    }
-
+    // Auth is guaranteed to be initialized by AuthGate in App.tsx
+    // So we can fetch immediately
     fetchTickets(true);
-  }, [authLoading, fetchTickets]);
+  }, [fetchTickets]);
 
   useEffect(() => {
     if (!userId) return;

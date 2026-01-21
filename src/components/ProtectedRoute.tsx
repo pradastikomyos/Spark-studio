@@ -7,39 +7,19 @@ interface ProtectedRouteProps {
 }
 
 const ProtectedRoute = ({ children, adminOnly = false }: ProtectedRouteProps) => {
-  const { user, loading, isAdmin, adminLoading } = useAuth();
+  const { user, isAdmin } = useAuth();
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-background-light dark:bg-background-dark">
-        <div className="text-center">
-          <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-primary border-r-transparent"></div>
-          <p className="mt-4 text-text-light dark:text-text-dark">Loading...</p>
-        </div>
-      </div>
-    );
-  }
+  // NOTE: We don't need to check "initialized" here because App.tsx AuthGate
+  // already ensures we only render routes AFTER auth is fully initialized.
+  // This simplifies the component and eliminates redundant loading states.
 
   if (!user) {
-    // Show alert message before redirecting
-    setTimeout(() => {
-      alert('Silakan login terlebih dahulu');
-    }, 100);
+    // User not logged in - redirect to login
     return <Navigate to="/login" replace />;
   }
 
-  if (adminOnly && !isAdmin && adminLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-background-light dark:bg-background-dark">
-        <div className="text-center">
-          <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-primary border-r-transparent"></div>
-          <p className="mt-4 text-text-light dark:text-text-dark">Loading...</p>
-        </div>
-      </div>
-    );
-  }
-
   if (adminOnly && !isAdmin) {
+    // User is not admin - redirect to home
     return <Navigate to="/" replace />;
   }
 

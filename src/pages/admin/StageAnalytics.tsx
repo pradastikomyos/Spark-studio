@@ -16,7 +16,7 @@ type StageAnalyticsData = {
 };
 
 const StageAnalytics = () => {
-    const { signOut, isAdmin, adminLoading, loading: authLoading } = useAuth();
+    const { signOut, isAdmin } = useAuth();
     const [stages, setStages] = useState<StageAnalyticsData[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -169,17 +169,17 @@ const StageAnalytics = () => {
     }, [timeFilter]);
 
     useEffect(() => {
-        if (authLoading || adminLoading) return;
+        // Auth is guaranteed to be initialized by AuthGate in App.tsx
         if (isAdmin) {
             fetchAnalyticsData();
         } else {
             setLoadingSafe(false);
         }
-    }, [isAdmin, adminLoading, authLoading, fetchAnalyticsData]);
+    }, [isAdmin, fetchAnalyticsData]);
 
     // Realtime subscription - separate from fetchAnalyticsData dependency
     useEffect(() => {
-        if (!isAdmin || adminLoading || authLoading) return;
+        if (!isAdmin) return;
 
         const channel = supabase
             .channel('stage_scans_changes')
@@ -200,7 +200,7 @@ const StageAnalytics = () => {
         return () => {
             supabase.removeChannel(channel);
         };
-    }, [isAdmin, adminLoading, authLoading, fetchAnalyticsData]);
+    }, [isAdmin, fetchAnalyticsData]);
 
     const totalFootTraffic = stages.reduce((sum, s) => sum + s.weekly_scans, 0);
     const mostPopular = stages[0];
@@ -216,25 +216,7 @@ const StageAnalytics = () => {
 
     const maxScans = mostPopular?.weekly_scans || 1;
 
-    // Show loading while auth is resolving
-    if (authLoading || adminLoading) {
-        return (
-            <AdminLayout
-                menuItems={ADMIN_MENU_ITEMS}
-                menuSections={ADMIN_MENU_SECTIONS}
-                defaultActiveMenuId="stage-analytics"
-                title="Stage Analytics"
-                onLogout={signOut}
-            >
-                <div className="mx-auto flex w-full max-w-7xl flex-col items-center justify-center min-h-[400px]">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-                    <p className="text-gray-400 mt-4">Checking permissions...</p>
-                </div>
-            </AdminLayout>
-        );
-    }
-
-    // Show error if not admin
+    // Show error if not admin (this shouldn't happen due to ProtectedRoute, but just in case)
     if (!isAdmin) {
         return (
             <AdminLayout

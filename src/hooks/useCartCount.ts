@@ -5,11 +5,11 @@ import { useAuth } from '../contexts/AuthContext';
 export const useCartCount = () => {
   const [count, setCount] = useState(0);
   const [loading, setLoading] = useState(true);
-  const { user, loading: authLoading } = useAuth();
+  const { user, initialized } = useAuth();
 
   useEffect(() => {
-    // Wait for auth to finish loading
-    if (authLoading) {
+    // Wait for auth to be initialized
+    if (!initialized) {
       return;
     }
 
@@ -68,7 +68,7 @@ export const useCartCount = () => {
     return () => {
       subscription.unsubscribe();
     };
-  }, [user, authLoading]);
+  }, [user, initialized]);
 
   return { count, loading };
 };
