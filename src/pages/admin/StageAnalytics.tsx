@@ -16,7 +16,7 @@ type StageAnalyticsData = {
 };
 
 const StageAnalytics = () => {
-    const { signOut, isAdmin } = useAuth();
+    const { signOut, isAdmin, adminLoading } = useAuth();
     const [stages, setStages] = useState<StageAnalyticsData[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -156,21 +156,23 @@ const StageAnalytics = () => {
 
     // Initial fetch
     useEffect(() => {
-        if (isAdmin) {
+        if (isAdmin && !adminLoading) {
             fetchAnalyticsData();
+        } else if (!adminLoading && !isAdmin) {
+            setLoading(false);
         }
-    }, [isAdmin, fetchAnalyticsData]);
+    }, [isAdmin, adminLoading, fetchAnalyticsData]);
 
     // Refetch when timeFilter changes
     useEffect(() => {
-        if (isAdmin) {
+        if (isAdmin && !adminLoading) {
             fetchAnalyticsData(true);
         }
-    }, [timeFilter, isAdmin, fetchAnalyticsData]);
+    }, [timeFilter, isAdmin, adminLoading, fetchAnalyticsData]);
 
     // Realtime subscription - separate from fetchAnalyticsData dependency
     useEffect(() => {
-        if (!isAdmin) return;
+        if (!isAdmin || adminLoading) return;
 
         const channel = supabase
             .channel('stage_scans_changes')
@@ -191,7 +193,7 @@ const StageAnalytics = () => {
         return () => {
             supabase.removeChannel(channel);
         };
-    }, [isAdmin, fetchAnalyticsData]);
+    }, [isAdmin, adminLoading, fetchAnalyticsData]);
 
     const totalFootTraffic = stages.reduce((sum, s) => sum + s.weekly_scans, 0);
     const mostPopular = stages[0];
