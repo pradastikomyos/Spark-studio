@@ -16,18 +16,35 @@ type StageAnalyticsData = {
 };
 
 const StageAnalytics = () => {
-    const { signOut, isAdmin, adminLoading } = useAuth();
+    const { signOut, isAdmin, adminLoading, loading: authLoading } = useAuth();
     const [stages, setStages] = useState<StageAnalyticsData[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [timeFilter, setTimeFilter] = useState<'weekly' | 'monthly' | 'all'>('weekly');
     const isFetchingRef = useRef(false);
-    const timeFilterRef = useRef(timeFilter);
+    const isMountedRef = useRef(true);
 
-    // Keep timeFilterRef in sync with timeFilter state
     useEffect(() => {
-        timeFilterRef.current = timeFilter;
-    }, [timeFilter]);
+        isMountedRef.current = true;
+        return () => {
+            isMountedRef.current = false;
+        };
+    }, []);
+
+    const setLoadingSafe = (value: boolean) => {
+        if (!isMountedRef.current) return;
+        setLoading(value);
+    };
+
+    const setErrorSafe = (value: string | null) => {
+        if (!isMountedRef.current) return;
+        setError(value);
+    };
+
+    const setStagesSafe = (value: StageAnalyticsData[]) => {
+        if (!isMountedRef.current) return;
+        setStages(value);
+    };
 
     const fetchAnalyticsData = useCallback(async (force = false) => {
         if (isFetchingRef.current && !force) return;
@@ -36,8 +53,8 @@ const StageAnalytics = () => {
         isFetchingRef.current = true;
         
         try {
-            setLoading(true);
-            setError(null);
+            setLoadingSafe(true);
+            setErrorSafe(null);
 
             // Fetch stages with timeout
             const { data: stagesData, error: stagesError } = await supabase
@@ -53,9 +70,6 @@ const StageAnalytics = () => {
             const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
             const twoWeeksAgo = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000);
             const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-
-            // Use ref to get current timeFilter value
-            const currentTimeFilter = timeFilterRef.current;
 
             // Fetch scan counts for each stage with proper error handling
             const stagesWithAnalytics: StageAnalyticsData[] = await Promise.all(
@@ -75,7 +89,7 @@ const StageAnalytics = () => {
 
                         // This period scans
                         let periodStart: Date;
-                        switch (currentTimeFilter) {
+                        switch (timeFilter) {
                             case 'weekly':
                                 periodStart = weekAgo;
                                 break;
@@ -139,40 +153,33 @@ const StageAnalytics = () => {
             // Sort by weekly scans (descending)
             stagesWithAnalytics.sort((a, b) => b.weekly_scans - a.weekly_scans);
 
-            setStages(stagesWithAnalytics);
+            setStagesSafe(stagesWithAnalytics);
         } catch (error) {
             console.error('Error fetching analytics:', error);
             const errorMessage = error instanceof Error ? error.message : 'Failed to load analytics data';
-            setError(errorMessage);
+            setErrorSafe(errorMessage);
             
             // Set empty data on error to prevent stuck state
-            setStages([]);
+            setStagesSafe([]);
         } finally {
             // Always reset loading and fetching states
-            setLoading(false);
+            setLoadingSafe(false);
             isFetchingRef.current = false;
         }
-    }, []); // Remove timeFilter from dependencies
+    }, [timeFilter]);
 
-    // Initial fetch
     useEffect(() => {
-        if (isAdmin && !adminLoading) {
+        if (authLoading || adminLoading) return;
+        if (isAdmin) {
             fetchAnalyticsData();
-        } else if (!adminLoading && !isAdmin) {
-            setLoading(false);
+        } else {
+            setLoadingSafe(false);
         }
-    }, [isAdmin, adminLoading, fetchAnalyticsData]);
-
-    // Refetch when timeFilter changes
-    useEffect(() => {
-        if (isAdmin && !adminLoading) {
-            fetchAnalyticsData(true);
-        }
-    }, [timeFilter, isAdmin, adminLoading, fetchAnalyticsData]);
+    }, [isAdmin, adminLoading, authLoading, fetchAnalyticsData]);
 
     // Realtime subscription - separate from fetchAnalyticsData dependency
     useEffect(() => {
-        if (!isAdmin || adminLoading) return;
+        if (!isAdmin || adminLoading || authLoading) return;
 
         const channel = supabase
             .channel('stage_scans_changes')
@@ -193,7 +200,7 @@ const StageAnalytics = () => {
         return () => {
             supabase.removeChannel(channel);
         };
-    }, [isAdmin, adminLoading, fetchAnalyticsData]);
+    }, [isAdmin, adminLoading, authLoading, fetchAnalyticsData]);
 
     const totalFootTraffic = stages.reduce((sum, s) => sum + s.weekly_scans, 0);
     const mostPopular = stages[0];
@@ -209,8 +216,26 @@ const StageAnalytics = () => {
 
     const maxScans = mostPopular?.weekly_scans || 1;
 
+    // Show loading while auth is resolving
+    if (authLoading || adminLoading) {
+        return (
+            <AdminLayout
+                menuItems={ADMIN_MENU_ITEMS}
+                menuSections={ADMIN_MENU_SECTIONS}
+                defaultActiveMenuId="stage-analytics"
+                title="Stage Analytics"
+                onLogout={signOut}
+            >
+                <div className="mx-auto flex w-full max-w-7xl flex-col items-center justify-center min-h-[400px]">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                    <p className="text-gray-400 mt-4">Checking permissions...</p>
+                </div>
+            </AdminLayout>
+        );
+    }
+
     // Show error if not admin
-    if (!isAdmin && !loading) {
+    if (!isAdmin) {
         return (
             <AdminLayout
                 menuItems={ADMIN_MENU_ITEMS}

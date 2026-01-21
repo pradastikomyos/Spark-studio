@@ -30,10 +30,10 @@ export function withTimeout<T>(
  * @returns Query result or default value
  */
 export async function safeQuery<T>(
-  queryFn: () => Promise<{ data: T | null; error: any; count?: number | null }>,
+  queryFn: () => Promise<{ data: T | null; error: unknown; count?: number | null }>,
   defaultValue: T,
   timeoutMs: number = 10000
-): Promise<{ data: T; error: any | null }> {
+): Promise<{ data: T; error: unknown | null }> {
   try {
     const result = await withTimeout(queryFn(), timeoutMs, 'Query timeout exceeded');
     
@@ -59,7 +59,7 @@ export async function safeQuery<T>(
  * @returns Count or 0 on error
  */
 export async function safeCountQuery(
-  queryFn: () => Promise<{ count: number | null; error: any }>,
+  queryFn: () => Promise<{ count: number | null; error: unknown }>,
   timeoutMs: number = 10000
 ): Promise<number> {
   try {
