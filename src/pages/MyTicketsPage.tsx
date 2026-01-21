@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
@@ -39,24 +39,20 @@ export default function MyTicketsPage() {
   const [activeTab, setActiveTab] = useState<'upcoming' | 'history'>('upcoming');
   const [tickets, setTickets] = useState<PurchasedTicket[]>([]);
   const [loading, setLoading] = useState(true);
+  const [userId, setUserId] = useState<number | null>(null);
 
-  useEffect(() => {
-    // Wait for auth to finish loading
-    if (authLoading) {
-      return;
-    }
+  const fetchTickets = useCallback(
+    async (showLoader = false) => {
+      if (showLoader) setLoading(true);
 
-    if (!user?.email) {
-      setLoading(false);
-      return;
-    }
+      if (!user?.email) {
+        setTickets([]);
+        setUserId(null);
+        setLoading(false);
+        return;
+      }
 
-    // Reset loading state when user changes
-    setLoading(true);
-
-    const fetchTickets = async () => {
       try {
-        // First get the user_id from public.users table based on email
         const { data: userData, error: userError } = await supabase
           .from('users')
           .select('id')
@@ -66,11 +62,12 @@ export default function MyTicketsPage() {
         if (userError || !userData) {
           console.error('Error fetching user:', userError);
           setTickets([]);
-          setLoading(false);
+          setUserId(null);
           return;
         }
 
-        // Fetch purchased tickets with ticket details
+        setUserId(userData.id);
+
         const { data: ticketsData, error: ticketsError } = await supabase
           .from('purchased_tickets')
           .select(`
@@ -93,49 +90,63 @@ export default function MyTicketsPage() {
         if (ticketsError) {
           console.error('Error fetching tickets:', ticketsError);
           setTickets([]);
-        } else {
-          // Transform the data to match our interface
-          const transformedTickets = ((ticketsData as PurchasedTicketRow[] | null) || []).map((ticket) => {
-            const ticketMeta = Array.isArray(ticket.tickets) ? ticket.tickets[0] : ticket.tickets;
-            return {
-              id: ticket.id,
-              ticket_code: ticket.ticket_code,
-              ticket_id: ticket.ticket_id,
-              valid_date: ticket.valid_date,
-              time_slot: ticket.time_slot,
-              status: ticket.status,
-              created_at: ticket.created_at,
-              ticket: {
-                name: ticketMeta?.name || 'Unknown Ticket',
-                type: ticketMeta?.type || 'entrance',
-                description: ticketMeta?.description || null,
-              },
-            };
-          });
-          setTickets(transformedTickets);
+          return;
         }
+
+        const transformedTickets = ((ticketsData as PurchasedTicketRow[] | null) || []).map((ticket) => {
+          const ticketMeta = Array.isArray(ticket.tickets) ? ticket.tickets[0] : ticket.tickets;
+          return {
+            id: ticket.id,
+            ticket_code: ticket.ticket_code,
+            ticket_id: ticket.ticket_id,
+            valid_date: ticket.valid_date,
+            time_slot: ticket.time_slot,
+            status: ticket.status,
+            created_at: ticket.created_at,
+            ticket: {
+              name: ticketMeta?.name || 'Unknown Ticket',
+              type: ticketMeta?.type || 'entrance',
+              description: ticketMeta?.description || null,
+            },
+          };
+        });
+        setTickets(transformedTickets);
       } catch (error) {
         console.error('Error in fetchTickets:', error);
         setTickets([]);
       } finally {
-        setLoading(false);
+        if (showLoader) setLoading(false);
       }
-    };
+    },
+    [user?.email]
+  );
 
-    fetchTickets();
+  useEffect(() => {
+    if (authLoading) {
+      return;
+    }
 
-    // Subscribe to changes in purchased_tickets
-    const subscription = supabase
+    fetchTickets(true);
+  }, [authLoading, fetchTickets]);
+
+  useEffect(() => {
+    if (!userId) return;
+
+    const channel = supabase
       .channel('my_tickets_changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'purchased_tickets' }, () => {
-        fetchTickets();
-      })
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'purchased_tickets', filter: `user_id=eq.${userId}` },
+        () => {
+          fetchTickets(false);
+        }
+      )
       .subscribe();
 
     return () => {
-      subscription.unsubscribe();
+      supabase.removeChannel(channel);
     };
-  }, [user?.id, user?.email, authLoading]);
+  }, [userId, fetchTickets]);
 
   // Filter tickets based on active tab
   const today = new Date();
