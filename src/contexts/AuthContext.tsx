@@ -75,10 +75,13 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         setSession(session);
         setUser(session?.user ?? null);
 
-        // Check admin status in background (DON'T await - don't block init)
+        // CRITICAL: Wait for admin status check to complete before marking initialized
         if (session?.user?.id) {
-          checkAdminStatus(session.user.id); // fire and forget
+          await checkAdminStatus(session.user.id);
         }
+        
+        // Check again if still mounted after async operation
+        if (!isMounted) return;
       } catch (error) {
         console.error('[Auth] Error initializing auth:', error);
         if (!isMounted) return;
@@ -87,8 +90,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         setIsAdmin(false);
       }
       
-      // CRITICAL: Always mark initialized after try/catch completes
-      safeSetInitialized();
+      // CRITICAL: Mark initialized only after admin check completes and if still mounted
+      if (isMounted) {
+        safeSetInitialized();
+      }
     };
 
     initializeAuth();
@@ -104,15 +109,16 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         setSession(session);
         setUser(session?.user ?? null);
 
-        // Also mark as initialized (handles case where listener fires before getSession returns)
-        safeSetInitialized();
-
         // Handle different auth events
         if (event === 'SIGNED_OUT') {
           setIsAdmin(false);
+          if (isMounted) safeSetInitialized();
         } else if (session?.user?.id) {
-          // Check admin status on sign in or token refresh (don't await)
-          checkAdminStatus(session.user.id);
+          // Wait for admin status check before marking initialized
+          await checkAdminStatus(session.user.id);
+          if (isMounted) safeSetInitialized();
+        } else {
+          if (isMounted) safeSetInitialized();
         }
       }
     );
