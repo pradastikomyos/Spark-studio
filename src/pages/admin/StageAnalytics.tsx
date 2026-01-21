@@ -103,6 +103,23 @@ const StageAnalytics = () => {
         fetchAnalyticsData();
     }, [fetchAnalyticsData]);
 
+    useEffect(() => {
+        const channel = supabase
+            .channel('stage_scans_changes')
+            .on(
+                'postgres_changes',
+                { event: '*', schema: 'public', table: 'stage_scans' },
+                () => {
+                    fetchAnalyticsData();
+                }
+            )
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(channel);
+        };
+    }, [fetchAnalyticsData]);
+
     const totalFootTraffic = stages.reduce((sum, s) => sum + s.weekly_scans, 0);
     const mostPopular = stages[0];
     const leastVisited = stages[stages.length - 1];

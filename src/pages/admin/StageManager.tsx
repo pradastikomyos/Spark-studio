@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
 import AdminLayout from '../../components/AdminLayout';
@@ -29,11 +29,7 @@ const StageManager = () => {
     const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
 
-    useEffect(() => {
-        fetchStagesWithStats();
-    }, []);
-
-    const fetchStagesWithStats = async () => {
+    const fetchStagesWithStats = useCallback(async () => {
         try {
             setLoading(true);
 
@@ -76,7 +72,28 @@ const StageManager = () => {
         } finally {
             setLoading(false);
         }
-    };
+    }, []);
+
+    useEffect(() => {
+        fetchStagesWithStats();
+    }, [fetchStagesWithStats]);
+
+    useEffect(() => {
+        const channel = supabase
+            .channel('stage_scans_changes')
+            .on(
+                'postgres_changes',
+                { event: '*', schema: 'public', table: 'stage_scans' },
+                () => {
+                    fetchStagesWithStats();
+                }
+            )
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(channel);
+        };
+    }, [fetchStagesWithStats]);
 
     const generateQRCodeUrl = (stageCode: string) => {
         // Generate QR code using a public API (the QR will contain the stage scan URL)

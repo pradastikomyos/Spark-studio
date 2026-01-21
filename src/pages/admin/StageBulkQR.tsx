@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { toLocalDateString } from '../../utils/formatters';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
@@ -20,11 +20,7 @@ const StageBulkQR = () => {
     const [searchQuery, setSearchQuery] = useState('');
     const [downloading, setDownloading] = useState(false);
 
-    useEffect(() => {
-        fetchStages();
-    }, []);
-
-    const fetchStages = async () => {
+    const fetchStages = useCallback(async () => {
         try {
             setLoading(true);
 
@@ -59,7 +55,28 @@ const StageBulkQR = () => {
         } finally {
             setLoading(false);
         }
-    };
+    }, []);
+
+    useEffect(() => {
+        fetchStages();
+    }, [fetchStages]);
+
+    useEffect(() => {
+        const channel = supabase
+            .channel('stage_scans_changes')
+            .on(
+                'postgres_changes',
+                { event: '*', schema: 'public', table: 'stage_scans' },
+                () => {
+                    fetchStages();
+                }
+            )
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(channel);
+        };
+    }, [fetchStages]);
 
     const generateQRCodeUrl = (stageCode: string) => {
         const scanUrl = `${window.location.origin}/scan/${stageCode}`;
