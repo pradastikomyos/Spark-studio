@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 
@@ -19,13 +19,7 @@ const StageScanPage = () => {
     const [scanStatus, setScanStatus] = useState<'idle' | 'scanning' | 'success' | 'error'>('idle');
     const [errorMessage, setErrorMessage] = useState('');
 
-    useEffect(() => {
-        if (stageCode) {
-            fetchStageAndRecordScan();
-        }
-    }, [stageCode]);
-
-    const fetchStageAndRecordScan = async () => {
+    const fetchStageAndRecordScan = useCallback(async () => {
         try {
             setLoading(true);
             setScanStatus('scanning');
@@ -71,7 +65,13 @@ const StageScanPage = () => {
         } finally {
             setLoading(false);
         }
-    };
+    }, [stageCode]);
+
+    useEffect(() => {
+        if (stageCode) {
+            fetchStageAndRecordScan();
+        }
+    }, [stageCode, fetchStageAndRecordScan]);
 
     if (loading) {
         return (

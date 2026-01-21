@@ -21,7 +21,7 @@ export const isAdmin = async (userId: string | undefined): Promise<boolean> => {
     // Check if any of the returned roles are admin roles
     const adminRoles = ['super_admin', 'super-admin', 'admin'];
     return data?.some(row => adminRoles.includes(row.role_name)) ?? false;
-  } catch (error) {
+  } catch {
     // Silently fail - user is not admin
     return false;
   }

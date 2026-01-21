@@ -12,7 +12,7 @@ interface LocationState {
   date?: string;
   time?: string;
   customerName?: string;
-  paymentResult?: any;
+  paymentResult?: unknown;
   isPending?: boolean;
   ticketCode?: string; // For direct ticket view from MyTicketsPage
 }
@@ -29,6 +29,35 @@ interface PurchasedTicket {
   };
 }
 
+interface PurchasedTicketRow {
+  id: number;
+  ticket_code: string;
+  valid_date: string;
+  time_slot: string | null;
+  status: string;
+  order_item_id?: number | null;
+  tickets?: {
+    name: string;
+    type: string;
+  } | { name: string; type: string }[] | null;
+}
+
+interface OrderItem {
+  id: number;
+  order_id: number;
+  quantity?: number | null;
+}
+
+interface OrderRow {
+  id: number;
+  order_number: string;
+  status: string;
+  expires_at?: string | null;
+}
+
+type OrderData = OrderRow & { order_items: OrderItem[] };
+type OrderState = OrderData | OrderRow | { status?: string | null; expires_at?: string | null };
+
 export default function BookingSuccessPage() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -37,7 +66,7 @@ export default function BookingSuccessPage() {
 
   const [loading, setLoading] = useState(true);
   const [tickets, setTickets] = useState<PurchasedTicket[]>([]);
-  const [orderData, setOrderData] = useState<any>(null);
+  const [orderData, setOrderData] = useState<OrderState | null>(null);
   const [syncing, setSyncing] = useState(false);
   const [syncError, setSyncError] = useState<string | null>(null);
 
@@ -77,6 +106,9 @@ export default function BookingSuccessPage() {
           }
 
           // Transform to match PurchasedTicket interface
+          const ticketMeta = Array.isArray(purchasedTicket.tickets)
+            ? purchasedTicket.tickets[0]
+            : purchasedTicket.tickets;
           const transformedTicket: PurchasedTicket = {
             id: purchasedTicket.id,
             ticket_code: purchasedTicket.ticket_code,
@@ -84,8 +116,8 @@ export default function BookingSuccessPage() {
             time_slot: purchasedTicket.time_slot,
             status: purchasedTicket.status,
             ticket: {
-              name: (purchasedTicket as any).tickets?.name || 'Ticket',
-              type: (purchasedTicket as any).tickets?.type || 'entrance',
+              name: ticketMeta?.name || 'Ticket',
+              type: ticketMeta?.type || 'entrance',
             },
           };
 
@@ -131,15 +163,16 @@ export default function BookingSuccessPage() {
         }
         
         // Combine data
-        const orderWithItems = {
-          ...order,
-          order_items: orderItems || []
+        const orderWithItems: OrderData = {
+          ...(order as OrderRow),
+          order_items: (orderItems as OrderItem[] | null) || [],
         };
         
         setOrderData(orderWithItems);
 
         // Fetch purchased tickets for this order
-        if (order?.status === 'paid' && orderItems && orderItems.length > 0) {
+        const typedOrderItems = (orderItems as OrderItem[] | null) || [];
+        if (order?.status === 'paid' && typedOrderItems.length > 0) {
           const { data: purchasedTickets, error: ticketsError } = await supabase
             .from('purchased_tickets')
             .select(`
@@ -153,22 +186,25 @@ export default function BookingSuccessPage() {
                 type
               )
             `)
-            .in('order_item_id', orderItems.map((item: any) => item.id));
+            .in('order_item_id', typedOrderItems.map((item) => item.id));
 
           if (ticketsError) {
             console.error('Error fetching tickets:', ticketsError);
           } else {
-            const transformedTickets = (purchasedTickets || []).map((t: any) => ({
-              id: t.id,
-              ticket_code: t.ticket_code,
-              valid_date: t.valid_date,
-              time_slot: t.time_slot,
-              status: t.status,
-              ticket: {
-                name: t.tickets?.name || 'Ticket',
-                type: t.tickets?.type || 'entrance',
-              },
-            }));
+            const transformedTickets = ((purchasedTickets as PurchasedTicketRow[] | null) || []).map((t) => {
+              const ticketMeta = Array.isArray(t.tickets) ? t.tickets[0] : t.tickets;
+              return {
+                id: t.id,
+                ticket_code: t.ticket_code,
+                valid_date: t.valid_date,
+                time_slot: t.time_slot,
+                status: t.status,
+                ticket: {
+                  name: ticketMeta?.name || 'Ticket',
+                  type: ticketMeta?.type || 'entrance',
+                },
+              };
+            });
             setTickets(transformedTickets);
           }
         } else {
@@ -195,7 +231,7 @@ export default function BookingSuccessPage() {
               filter: `order_number=eq.${orderNumber}`,
             },
             async (payload) => {
-              const next = (payload as any)?.new;
+              const next = (payload as unknown as { new?: OrderRow }).new;
               if (next) {
                 setOrderData(next);
                 if (next.status === 'paid') {
@@ -222,13 +258,13 @@ export default function BookingSuccessPage() {
         }
 
         if (order?.expires_at && new Date(order.expires_at) <= new Date() && order?.status === 'pending') {
-          setOrderData((prev: any) => ({ ...(prev || {}), status: 'expired' }));
+          setOrderData((prev) => ({ ...(prev || {}), status: 'expired' }));
           if (pollInterval) clearInterval(pollInterval);
           return;
         }
 
         if (order?.status && order?.status !== 'pending') {
-          setOrderData((prev: any) => ({ ...(prev || {}), status: order.status }));
+          setOrderData((prev) => ({ ...(prev || {}), status: order.status }));
           if (order.status === 'paid') {
             await fetchOrderAndTickets();
           }
@@ -241,7 +277,7 @@ export default function BookingSuccessPage() {
       if (channel) supabase.removeChannel(channel);
       if (pollInterval) clearInterval(pollInterval);
     };
-  }, [orderNumber]);
+  }, [orderNumber, state?.ticketCode]);
 
   const handleSyncStatus = async () => {
     if (!orderNumber) return;
@@ -274,8 +310,8 @@ export default function BookingSuccessPage() {
       }
 
       setOrderData(data?.order || orderData);
-    } catch (e: any) {
-      setSyncError(e?.message || 'Failed to sync status');
+    } catch (e: unknown) {
+      setSyncError(e instanceof Error ? e.message : 'Failed to sync status');
     } finally {
       setSyncing(false);
     }

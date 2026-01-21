@@ -21,6 +21,16 @@ const OrderTicket = () => {
     };
   } | null>(null);
 
+  type PurchasedTicketRow = {
+    id: number;
+    ticket_code: string;
+    status: string;
+    valid_date: string;
+    used_at: string | null;
+    users?: { name: string; email: string } | null;
+    tickets?: { name: string } | null;
+  };
+
   const validateTicket = useCallback(
     async (rawCode: string): Promise<void> => {
       const code = rawCode.trim();
@@ -51,16 +61,18 @@ const OrderTicket = () => {
           throw new Error(errMsg);
         }
         
-        if (!data) {
+        const ticketData = data as PurchasedTicketRow | null;
+
+        if (!ticketData) {
           const errMsg = 'Kode tiket tidak ditemukan di sistem.';
           setLastScanResult({ type: 'error', message: errMsg });
           throw new Error(errMsg);
         }
 
-        if (data.status !== 'active') {
-          const errMsg = data.status === 'used' 
-            ? `Tiket sudah digunakan pada ${new Date(data.used_at || '').toLocaleString('id-ID')}`
-            : `Status tiket: ${data.status}.`;
+        if (ticketData.status !== 'active') {
+          const errMsg = ticketData.status === 'used' 
+            ? `Tiket sudah digunakan pada ${new Date(ticketData.used_at || '').toLocaleString('id-ID')}`
+            : `Status tiket: ${ticketData.status}.`;
           setLastScanResult({ type: 'error', message: errMsg });
           throw new Error(errMsg);
         }
@@ -68,28 +80,28 @@ const OrderTicket = () => {
         // Use local timezone for date comparison (not UTC!)
         const todayLocal = toLocalDateString(new Date());
 
-        if (data.valid_date < todayLocal) {
+        if (ticketData.valid_date < todayLocal) {
           // Add T00:00:00 to parse as local time, not UTC
-          const errMsg = `Tiket kadaluarsa. Tanggal valid adalah ${new Date(data.valid_date + 'T00:00:00').toLocaleDateString('id-ID')}.`;
+          const errMsg = `Tiket kadaluarsa. Tanggal valid adalah ${new Date(ticketData.valid_date + 'T00:00:00').toLocaleDateString('id-ID')}.`;
           setLastScanResult({ type: 'error', message: errMsg });
           throw new Error(errMsg);
         }
 
-        if (data.valid_date > todayLocal) {
-          const errMsg = `Tiket belum valid. Berlaku mulai ${new Date(data.valid_date + 'T00:00:00').toLocaleDateString('id-ID')}.`;
+        if (ticketData.valid_date > todayLocal) {
+          const errMsg = `Tiket belum valid. Berlaku mulai ${new Date(ticketData.valid_date + 'T00:00:00').toLocaleDateString('id-ID')}.`;
           setLastScanResult({ type: 'error', message: errMsg });
           throw new Error(errMsg);
         }
 
         // Update ticket status to 'used' with timestamp
-        console.log('Attempting to update ticket ID:', data.id);
+        console.log('Attempting to update ticket ID:', ticketData.id);
         const { data: updatedTicket, error: updateError } = await supabase
           .from('purchased_tickets')
           .update({ 
             status: 'used',
             used_at: new Date().toISOString()
           })
-          .eq('id', data.id)
+          .eq('id', ticketData.id)
           .eq('status', 'active')
           .select('id, status')
           .maybeSingle();
@@ -123,10 +135,10 @@ const OrderTicket = () => {
           type: 'success', 
           message: 'Tiket berhasil divalidasi! Masuk diizinkan.',
           ticketInfo: {
-            code: data.ticket_code,
-            userName: (data.users as any).name,
-            ticketName: (data.tickets as any).name,
-            validDate: new Date(data.valid_date).toLocaleDateString('id-ID'),
+            code: ticketData.ticket_code,
+            userName: ticketData.users?.name || '-',
+            ticketName: ticketData.tickets?.name || '-',
+            validDate: new Date(ticketData.valid_date).toLocaleDateString('id-ID'),
           }
         });
         // Don't throw - success!

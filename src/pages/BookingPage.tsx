@@ -19,11 +19,20 @@ interface Ticket {
 interface Availability {
   id: number;
   date: string;
-  time_slot: string;
+  time_slot: string | null;
   total_capacity: number;
   reserved_capacity: number;
   sold_capacity: number;
   available_capacity: number;
+}
+
+interface RawAvailability {
+  id: number;
+  date: string;
+  time_slot: string | null;
+  total_capacity: number;
+  reserved_capacity: number;
+  sold_capacity: number;
 }
 
 export default function BookingPage() {
@@ -81,7 +90,7 @@ export default function BookingPage() {
           console.error('Error fetching availabilities:', availError);
         } else {
           // Calculate available capacity
-          const processedAvail = (availData || []).map((avail: any) => ({
+          const processedAvail = (availData as RawAvailability[] | null || []).map((avail) => ({
             ...avail,
             available_capacity: avail.total_capacity - avail.reserved_capacity - avail.sold_capacity,
           }));

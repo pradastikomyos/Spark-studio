@@ -18,6 +18,21 @@ interface PurchasedTicket {
   };
 }
 
+interface PurchasedTicketRow {
+  id: number;
+  ticket_code: string;
+  ticket_id: number;
+  valid_date: string;
+  time_slot: string | null;
+  status: string;
+  created_at: string;
+  tickets?: {
+    name: string;
+    type: string;
+    description?: string | null;
+  } | { name: string; type: string; description?: string | null }[] | null;
+}
+
 export default function MyTicketsPage() {
   const navigate = useNavigate();
   const { user, loading: authLoading } = useAuth();
@@ -80,20 +95,23 @@ export default function MyTicketsPage() {
           setTickets([]);
         } else {
           // Transform the data to match our interface
-          const transformedTickets = (ticketsData || []).map((ticket: any) => ({
-            id: ticket.id,
-            ticket_code: ticket.ticket_code,
-            ticket_id: ticket.ticket_id,
-            valid_date: ticket.valid_date,
-            time_slot: ticket.time_slot,
-            status: ticket.status,
-            created_at: ticket.created_at,
-            ticket: {
-              name: ticket.tickets?.name || 'Unknown Ticket',
-              type: ticket.tickets?.type || 'entrance',
-              description: ticket.tickets?.description || null,
-            },
-          }));
+          const transformedTickets = ((ticketsData as PurchasedTicketRow[] | null) || []).map((ticket) => {
+            const ticketMeta = Array.isArray(ticket.tickets) ? ticket.tickets[0] : ticket.tickets;
+            return {
+              id: ticket.id,
+              ticket_code: ticket.ticket_code,
+              ticket_id: ticket.ticket_id,
+              valid_date: ticket.valid_date,
+              time_slot: ticket.time_slot,
+              status: ticket.status,
+              created_at: ticket.created_at,
+              ticket: {
+                name: ticketMeta?.name || 'Unknown Ticket',
+                type: ticketMeta?.type || 'entrance',
+                description: ticketMeta?.description || null,
+              },
+            };
+          });
           setTickets(transformedTickets);
         }
       } catch (error) {
@@ -117,7 +135,7 @@ export default function MyTicketsPage() {
     return () => {
       subscription.unsubscribe();
     };
-  }, [user?.id, authLoading]);
+  }, [user?.id, user?.email, authLoading]);
 
   // Filter tickets based on active tab
   const today = new Date();

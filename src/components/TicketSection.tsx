@@ -43,7 +43,7 @@ const TicketSection = () => {
           const startDate = today >= availableFrom ? today : availableFrom;
           const ticketDates: TicketWithDate[] = [];
 
-          let currentDate = new Date(startDate);
+          const currentDate = new Date(startDate);
           let count = 0;
 
           while (count < 4 && currentDate <= availableUntil) {

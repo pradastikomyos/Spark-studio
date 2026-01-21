@@ -11,9 +11,9 @@ declare global {
       pay: (
         token: string,
         options: {
-          onSuccess?: (result: any) => void;
-          onPending?: (result: any) => void;
-          onError?: (result: any) => void;
+          onSuccess?: (result: SnapResult) => void;
+          onPending?: (result: SnapResult) => void;
+          onError?: (result: SnapResult) => void;
           onClose?: () => void;
         }
       ) => void;
@@ -29,6 +29,8 @@ interface LocationState {
   date?: string;
   time?: string;
 }
+
+type SnapResult = Record<string, unknown>;
 
 // Load Midtrans Snap.js dynamically
 const loadSnapScript = (): Promise<void> => {
@@ -160,7 +162,7 @@ export default function PaymentPage() {
       // Open Midtrans Snap popup
       if (window.snap && snapLoaded) {
         window.snap.pay(data.token, {
-          onSuccess: (result: any) => {
+          onSuccess: (result) => {
             console.log('Payment success:', result);
             navigate('/booking-success', {
               state: {
@@ -175,7 +177,7 @@ export default function PaymentPage() {
               },
             });
           },
-          onPending: (result: any) => {
+          onPending: (result) => {
             console.log('Payment pending:', result);
             // Navigate to success page with pending status
             navigate('/booking-success', {
@@ -192,7 +194,7 @@ export default function PaymentPage() {
               },
             });
           },
-          onError: (result: any) => {
+          onError: (result) => {
             console.error('Payment error:', result);
             setError('Payment failed. Please try again.');
           },
@@ -204,9 +206,9 @@ export default function PaymentPage() {
       } else {
         throw new Error('Midtrans Snap not loaded. Please refresh the page.');
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Payment error:', err);
-      setError(err.message || 'Failed to process payment');
+      setError(err instanceof Error ? err.message : 'Failed to process payment');
     } finally {
       setLoading(false);
     }

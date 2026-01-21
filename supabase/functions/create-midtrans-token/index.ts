@@ -30,7 +30,6 @@ serve(async (req) => {
 
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!
-    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     const midtransServerKey = Deno.env.get('MIDTRANS_SERVER_KEY')!
     const midtransIsProduction = Deno.env.get('MIDTRANS_IS_PRODUCTION') === 'true'
@@ -73,11 +72,12 @@ serve(async (req) => {
     }
 
     // Get user from public.users table, or create if doesn't exist
-    let { data: userData, error: userError } = await supabase
+    const { data: userDataResult, error: userError } = await supabase
       .from('users')
       .select('id')
       .eq('email', user.email)
       .single()
+    let userData = userDataResult
 
     // If user doesn't exist in public.users, create them
     if (userError || !userData) {

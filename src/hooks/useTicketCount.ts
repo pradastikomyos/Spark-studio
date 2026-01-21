@@ -71,7 +71,7 @@ export const useTicketCount = () => {
     return () => {
       subscription.unsubscribe();
     };
-  }, [user?.id, authLoading]);
+  }, [user?.id, user?.email, authLoading]);
 
   return { count, loading };
 };

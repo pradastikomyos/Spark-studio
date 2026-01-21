@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
 import AdminLayout from '../../components/AdminLayout';
@@ -20,11 +20,7 @@ const StageAnalytics = () => {
     const [loading, setLoading] = useState(true);
     const [timeFilter, setTimeFilter] = useState<'weekly' | 'monthly' | 'all'>('weekly');
 
-    useEffect(() => {
-        fetchAnalyticsData();
-    }, [timeFilter]);
-
-    const fetchAnalyticsData = async () => {
+    const fetchAnalyticsData = useCallback(async () => {
         try {
             setLoading(true);
 
@@ -101,7 +97,11 @@ const StageAnalytics = () => {
         } finally {
             setLoading(false);
         }
-    };
+    }, [timeFilter]);
+
+    useEffect(() => {
+        fetchAnalyticsData();
+    }, [fetchAnalyticsData]);
 
     const totalFootTraffic = stages.reduce((sum, s) => sum + s.weekly_scans, 0);
     const mostPopular = stages[0];
