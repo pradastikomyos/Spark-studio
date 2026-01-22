@@ -1,9 +1,10 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import * as QRCode from 'qrcode';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
 import AdminLayout from '../../components/AdminLayout';
 import { ADMIN_MENU_ITEMS, ADMIN_MENU_SECTIONS } from '../../constants/adminMenu';
-import { safeCountQuery } from '../../utils/queryHelpers';
+import { toLocalDateString } from '../../utils/formatters';
 
 type Stage = {
     id: number;
@@ -29,79 +30,60 @@ const StageManager = () => {
     const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
     const [error, setError] = useState<string | null>(null);
+    const [qrByStageId, setQrByStageId] = useState<Record<number, string>>({});
     const isFetchingRef = useRef(false);
 
     const fetchStagesWithStats = useCallback(async (force = false) => {
         if (isFetchingRef.current && !force) return;
-        
+
         // Set fetching flag
         isFetchingRef.current = true;
-        
+
         try {
             setLoading(true);
             setError(null);
 
-            // Fetch stages with timeout
-            const { data: stagesData, error: stagesError } = await supabase
-                .from('stages')
-                .select('*')
-                .order('id', { ascending: true })
-                .abortSignal(AbortSignal.timeout(10000));
+            // Fetch stages and stats in parallel (2 queries instead of 2N)
+            const [stagesResult, statsResult] = await Promise.all([
+                supabase
+                    .from('stages')
+                    .select('*')
+                    .order('id', { ascending: true })
+                    .abortSignal(AbortSignal.timeout(10000)),
+                supabase
+                    .rpc('get_stage_scan_stats')
+                    .abortSignal(AbortSignal.timeout(10000)),
+            ]);
 
-            if (stagesError) throw stagesError;
+            if (stagesResult.error) throw stagesResult.error;
+            if (statsResult.error) {
+                console.warn('RPC get_stage_scan_stats failed, falling back to zero stats:', statsResult.error);
+            }
 
-            // Fetch scan counts for each stage with proper error handling
-            const stagesWithStats: StageWithStats[] = await Promise.all(
-                (stagesData || []).map(async (stage) => {
-                    try {
-                        // Total scans - with timeout
-                        const totalScans = await safeCountQuery(
-                            async () => {
-                                const result = await supabase
-                                    .from('stage_scans')
-                                    .select('*', { count: 'exact', head: true })
-                                    .eq('stage_id', stage.id);
-                                return result;
-                            },
-                            8000 // 8 second timeout
-                        );
+            // Build a map of stage_id -> stats for O(1) lookup
+            const statsMap = new Map<number, { total_scans: number; today_scans: number }>();
+            if (statsResult.data) {
+                for (const stat of statsResult.data) {
+                    statsMap.set(stat.stage_id, {
+                        total_scans: Number(stat.total_scans) || 0,
+                        today_scans: Number(stat.today_scans) || 0,
+                    });
+                }
+            }
 
-                        // Today's scans - use CURRENT_DATE for timezone-aware comparison
-                        const todayScans = await safeCountQuery(
-                            async () => {
-                                const result = await supabase
-                                    .from('stage_scans')
-                                    .select('*', { count: 'exact', head: true })
-                                    .eq('stage_id', stage.id)
-                                    .gte('scanned_at', new Date().toISOString().split('T')[0]);
-                                return result;
-                            },
-                            8000
-                        );
-
-                        return {
-                            ...stage,
-                            total_scans: totalScans,
-                            today_scans: todayScans,
-                        };
-                    } catch (stageError) {
-                        // If individual stage query fails, return default values
-                        console.error(`Error fetching stats for stage ${stage.id}:`, stageError);
-                        return {
-                            ...stage,
-                            total_scans: 0,
-                            today_scans: 0,
-                        };
-                    }
-                })
-            );
+            // Merge stages with stats
+            const stagesWithStats: StageWithStats[] = (stagesResult.data || []).map((stage) => ({
+                ...stage,
+                total_scans: statsMap.get(stage.id)?.total_scans ?? 0,
+                today_scans: statsMap.get(stage.id)?.today_scans ?? 0,
+            }));
 
             setStages(stagesWithStats);
         } catch (error) {
             console.error('Error fetching stages:', error);
             const errorMessage = error instanceof Error ? error.message : 'Failed to load stages';
             setError(errorMessage);
-            
+
             // Set empty data on error to prevent stuck state
             setStages([]);
         } finally {
@@ -120,17 +102,28 @@ const StageManager = () => {
     useEffect(() => {
         if (!isAdmin) return;
 
+        const todayStart = toLocalDateString(new Date()) + 'T00:00:00';
+        const todayStartTime = new Date(todayStart).getTime();
+
         const channel = supabase
             .channel('stage_scans_changes_manager')
             .on(
                 'postgres_changes',
-                { event: '*', schema: 'public', table: 'stage_scans' },
-                () => {
-                    setTimeout(() => {
-                        if (!isFetchingRef.current) {
-                            fetchStagesWithStats(true);
-                        }
-                    }, 500);
+                { event: 'INSERT', schema: 'public', table: 'stage_scans' },
+                (payload) => {
+                    const record = (payload as { new?: { stage_id?: number; scanned_at?: string | null } }).new;
+                    const stageId = record?.stage_id;
+                    if (!stageId) return;
+
+                    const scannedAt = record?.scanned_at ? new Date(record.scanned_at).getTime() : null;
+
+                    setStages((prev) =>
+                        prev.map((stage) => {
+                            if (stage.id !== stageId) return stage;
+                            const nextToday = scannedAt != null && scannedAt >= todayStartTime ? stage.today_scans + 1 : stage.today_scans;
+                            return { ...stage, total_scans: stage.total_scans + 1, today_scans: nextToday };
+                        })
+                    );
                 }
             )
             .subscribe();
@@ -140,17 +133,49 @@ const StageManager = () => {
         };
     }, [isAdmin, fetchStagesWithStats]);
 
-    const generateQRCodeUrl = (stageCode: string) => {
-        // Generate QR code using a public API (the QR will contain the stage scan URL)
-        const scanUrl = `${window.location.origin}/scan/${stageCode}`;
-        return `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(scanUrl)}`;
-    };
+    useEffect(() => {
+        let cancelled = false;
+
+        const generateMissing = async () => {
+            const missing = stages.filter((s) => !qrByStageId[s.id]);
+            if (missing.length === 0) return;
+
+            const entries = await Promise.all(
+                missing.map(async (stage) => {
+                    const scanUrl = `${window.location.origin}/scan/${stage.code}`;
+                    const dataUrl = await QRCode.toDataURL(scanUrl, { width: 300, margin: 1 });
+                    return [stage.id, dataUrl] as const;
+                })
+            );
+
+            if (cancelled) return;
+
+            setQrByStageId((prev) => {
+                const next: Record<number, string> = { ...prev };
+                for (const [id, dataUrl] of entries) {
+                    next[id] = dataUrl;
+                }
+                return next;
+            });
+        };
+
+        generateMissing();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [stages, qrByStageId]);
 
     const handleDownloadQR = async (stage: StageWithStats) => {
-        const qrUrl = generateQRCodeUrl(stage.code);
+        const existing = qrByStageId[stage.id];
+        const dataUrl = existing ?? (await QRCode.toDataURL(`${window.location.origin}/scan/${stage.code}`, { width: 300, margin: 1 }));
+
+        if (!existing) {
+            setQrByStageId((prev) => ({ ...prev, [stage.id]: dataUrl }));
+        }
 
         try {
-            const response = await fetch(qrUrl);
+            const response = await fetch(dataUrl);
             const blob = await response.blob();
             const url = window.URL.createObjectURL(blob);
             const link = document.createElement('a');
@@ -162,18 +187,20 @@ const StageManager = () => {
             window.URL.revokeObjectURL(url);
         } catch (error) {
             console.error('Error downloading QR:', error);
-            // Fallback: open in new tab
-            window.open(qrUrl, '_blank');
         }
     };
 
-    const filteredStages = stages.filter(
-        (stage) =>
-            stage.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            stage.code.toLowerCase().includes(searchQuery.toLowerCase())
-    );
+    const filteredStages = useMemo(() => {
+        const query = searchQuery.trim().toLowerCase();
+        if (!query) return stages;
+        return stages.filter(
+            (stage) =>
+                stage.name.toLowerCase().includes(query) ||
+                stage.code.toLowerCase().includes(query)
+        );
+    }, [stages, searchQuery]);
 
-    const activeStagesCount = stages.filter((s) => s.status === 'active').length;
+    const activeStagesCount = useMemo(() => stages.filter((s) => s.status === 'active').length, [stages]);
 
     // Show error if not admin
     if (!isAdmin && !loading) {
@@ -261,10 +288,10 @@ const StageManager = () => {
                                 </h3>
                                 <span
                                     className={`flex h-6 w-6 items-center justify-center rounded text-xs font-bold ${stage.status === 'active'
-                                            ? 'bg-green-500/20 text-green-400'
-                                            : stage.status === 'maintenance'
-                                                ? 'bg-yellow-500/20 text-yellow-400'
-                                                : 'bg-gray-500/20 text-gray-400'
+                                        ? 'bg-green-500/20 text-green-400'
+                                        : stage.status === 'maintenance'
+                                            ? 'bg-yellow-500/20 text-yellow-400'
+                                            : 'bg-gray-500/20 text-gray-400'
                                         }`}
                                 >
                                     {String(stage.id).padStart(2, '0')}
@@ -273,11 +300,17 @@ const StageManager = () => {
 
                             {/* QR Code */}
                             <div className="mb-4 flex-1 flex flex-col items-center justify-center rounded-lg bg-white p-4">
-                                <img
-                                    alt={`QR Code for ${stage.name}`}
-                                    className="h-32 w-32 object-contain"
-                                    src={generateQRCodeUrl(stage.code)}
-                                />
+                                {qrByStageId[stage.id] ? (
+                                    <img
+                                        alt={`QR Code for ${stage.name}`}
+                                        className="h-32 w-32 object-contain"
+                                        src={qrByStageId[stage.id]}
+                                    />
+                                ) : (
+                                    <div className="flex h-32 w-32 items-center justify-center">
+                                        <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
+                                    </div>
+                                )}
                                 <p className="mt-2 text-[10px] font-mono text-gray-500">{stage.code}</p>
                             </div>
 
