@@ -36,6 +36,8 @@ const AdminLayout = ({
   menuSections = [],
   defaultActiveMenuId,
   title,
+  subtitle,
+  headerActions,
   children,
   onLogout,
   logoutRedirectPath = '/login',
@@ -233,17 +235,23 @@ const AdminLayout = ({
             >
               <span className="material-symbols-outlined text-2xl">menu</span>
             </button>
-            <h2 className="text-lg md:text-xl font-bold text-white font-display truncate">{title}</h2>
+            <div className="min-w-0">
+              <h2 className="text-lg md:text-xl font-bold text-white font-display truncate">{title}</h2>
+              {subtitle ? <p className="hidden md:block text-xs text-gray-500 truncate">{subtitle}</p> : null}
+            </div>
           </div>
-          <div className="relative w-full max-w-xs hidden sm:block">
-            <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">
-              search
-            </span>
-            <input
-              className="w-full bg-surface-dark border border-white/10 rounded-lg py-1.5 pl-9 pr-4 text-sm text-gray-300 focus:ring-1 focus:ring-primary focus:border-primary placeholder-gray-600"
-              placeholder="Search..."
-              type="text"
-            />
+          <div className="flex items-center gap-3 flex-shrink-0">
+            {headerActions ? <div className="hidden md:flex items-center gap-3">{headerActions}</div> : null}
+            <div className="relative w-full max-w-xs hidden sm:block">
+              <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">
+                search
+              </span>
+              <input
+                className="w-full bg-surface-dark border border-white/10 rounded-lg py-1.5 pl-9 pr-4 text-sm text-gray-300 focus:ring-1 focus:ring-primary focus:border-primary placeholder-gray-600"
+                placeholder="Search..."
+                type="text"
+              />
+            </div>
           </div>
         </header>
 
