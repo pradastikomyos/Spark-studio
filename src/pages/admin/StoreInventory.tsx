@@ -4,7 +4,7 @@ import { supabase } from '../../lib/supabase';
 import AdminLayout from '../../components/AdminLayout';
 import QRScannerModal from '../../components/admin/QRScannerModal';
 import ProductFormModal, { type CategoryOption, type ProductDraft } from '../../components/admin/ProductFormModal';
-import { ADMIN_MENU_ITEMS } from '../../constants/adminMenu';
+import { ADMIN_MENU_ITEMS, ADMIN_MENU_SECTIONS } from '../../constants/adminMenu';
 import { getStockBadge, getStockBarColor } from '../../utils/statusHelpers';
 import { uploadProductImage } from '../../utils/uploadProductImage';
 
@@ -424,10 +424,9 @@ const StoreInventory = () => {
 
   return (
     <AdminLayout
-      menuItems={ADMIN_MENU_ITEMS.map(item => 
-        item.id === 'orders' ? { ...item, filled: true } : item
-      )}
-      defaultActiveMenuId="orders"
+      menuItems={ADMIN_MENU_ITEMS}
+      menuSections={ADMIN_MENU_SECTIONS}
+      defaultActiveMenuId="order-products"
       title="Store & Inventory"
       subtitle="Manage products, stock levels, and pickup verification."
       headerActions={
