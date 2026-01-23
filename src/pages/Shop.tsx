@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { supabase } from '../lib/supabase';
 
 interface Product {
   id: number;
@@ -9,59 +10,109 @@ interface Product {
   image?: string;
   badge?: string;
   placeholder?: string;
+  categorySlug?: string | null;
 }
 
 const Shop = () => {
-  const [activeCategory, setActiveCategory] = useState('All Products');
+  const [activeCategory, setActiveCategory] = useState<string>('all');
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [categories, setCategories] = useState<{ name: string; slug: string }[]>([]);
 
-  const products: Product[] = [
-    {
-      id: 1,
-      name: 'Cute Keychain',
-      description: 'Adorable Design',
-      price: 12.00,
-      image: 'https://images.pexels.com/photos/5699456/pexels-photo-5699456.jpeg?auto=compress&cs=tinysrgb&w=800',
-      badge: 'New Arrival',
-    },
-    {
-      id: 2,
-      name: 'Everyday Canvas Tote',
-      description: 'Heavyweight Canvas',
-      price: 32.00,
-      image: 'https://images.unsplash.com/photo-1590874103328-eac38a683ce7?w=800&q=80',
-    },
-    {
-      id: 3,
-      name: 'Minimalist Hoodie',
-      description: 'French Terry, Classic White',
-      price: 85.00,
-      placeholder: 'checkroom',
-    },
-    {
-      id: 4,
-      name: 'Studio Cap',
-      description: 'Embroidered Logo',
-      price: 28.00,
-      image: 'https://lh3.googleusercontent.com/aida-public/AB6AXuBXsDj0az3zzKzPuGWFNVkv93Z05vEWEttTgUqh4SS7iW-kLSNN2_0jvc-v4pho8kz2OqrqnpiQWh4vBzn87isw1yCP1VE1HXsHHOHubRuhCY6LmQpM3KdjfATKhPb2413xZu1naHDWVkwgWTK9sWUI-jwpMrYUO-6Uad1Qcq7NStqNGjpzbzTLH7nXSLD8e_CIiD6qurTg-eVxRwpK34LWyWrNCYPlMJqhFEbs2rUPPUn2uOz-B8JOZCi3FsjDK7b_ExLsUFMJyrA',
-    },
-    {
-      id: 5,
-      name: 'Weekend Tote',
-      description: 'Large Capacity',
-      price: 42.00,
-      originalPrice: 55.00,
-      placeholder: 'shopping_bag',
-    },
-    {
-      id: 6,
-      name: 'Gallery Print Tee',
-      description: 'Limited Edition',
-      price: 50.00,
-      image: 'https://lh3.googleusercontent.com/aida-public/AB6AXuA588h4jJ4oHsovcFrCVzPKpp_UEjMxSSaafs_xzNqq498XDUCQpkVffgJCVjBFT85Msi-UXYkt5KQ8ZcHb6fzvA8mtRH7-hX0l8f1xMsXecfiYvU83maNSDjKeTD0W5bbAOX6LQyDRPar2Jpzg31Y5y9IwBfo7TkmpZbNGwcViuL7c7dOk0sa29H3Io-qLVN_XkNZwg_tVz3gP2wvtVBkmz-H-HRqYu8-JLTHlXNR3wZM_jcd8DttsIZO2CVe4K7GQadHKa6EfjYA',
-    },
-  ];
+  useEffect(() => {
+    const fetchShopData = async () => {
+      try {
+        setLoading(true);
+        setError(null);
 
-  const categories = ['All Products', 'Apparel', 'Tote Bags', 'Prints', 'Accessories'];
+        const [productsResult, categoriesResult] = await Promise.all([
+          supabase
+            .from('products')
+            .select(
+              `
+              id,
+              name,
+              description,
+              image_url,
+              is_active,
+              deleted_at,
+              categories(name, slug),
+              product_variants(online_price, offline_price, attributes, is_active)
+            `
+            )
+            .is('deleted_at', null)
+            .eq('is_active', true)
+            .order('name', { ascending: true }),
+          supabase
+            .from('categories')
+            .select('name, slug, is_active')
+            .eq('is_active', true)
+            .order('name', { ascending: true }),
+        ]);
+
+        if (productsResult.error) throw productsResult.error;
+        if (categoriesResult.error) throw categoriesResult.error;
+
+        const categoryRows = (categoriesResult.data || []) as unknown as { name: string; slug: string }[];
+        setCategories(categoryRows);
+
+        const mapped: Product[] = (productsResult.data || []).map((row) => {
+          const variants = ((row as unknown as { product_variants?: unknown[] }).product_variants || []) as {
+            online_price: string | number | null;
+            offline_price: string | number | null;
+            attributes: Record<string, unknown> | null;
+            is_active: boolean | null;
+          }[];
+
+          let priceMin = Number.POSITIVE_INFINITY;
+          let image: string | undefined;
+          const productImage = (row as unknown as { image_url?: string | null }).image_url ?? null;
+          if (productImage) image = productImage;
+
+          for (const v of variants) {
+            if (v.is_active === false) continue;
+            const price = typeof v.online_price === 'number' ? v.online_price : Number(v.online_price ?? v.offline_price ?? 0);
+            if (Number.isFinite(price)) priceMin = Math.min(priceMin, price);
+            if (!image) {
+              const maybeImage = typeof v.attributes?.image_url === 'string' ? v.attributes.image_url : null;
+              if (maybeImage) image = maybeImage;
+            }
+          }
+
+          if (!Number.isFinite(priceMin)) priceMin = 0;
+
+          const categorySlug = (row as unknown as { categories?: { slug: string } | null }).categories?.slug ?? null;
+
+          return {
+            id: Number((row as unknown as { id: number | string }).id),
+            name: String((row as unknown as { name: string }).name),
+            description: String((row as unknown as { description?: string | null }).description ?? ''),
+            price: priceMin,
+            image,
+            placeholder: image ? undefined : 'inventory_2',
+            categorySlug,
+          };
+        });
+
+        setProducts(mapped);
+      } catch (e) {
+        const message = e instanceof Error ? e.message : 'Failed to load products';
+        setError(message);
+        setProducts([]);
+        setCategories([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchShopData();
+  }, []);
+
+  const filteredProducts = useMemo(() => {
+    if (activeCategory === 'all') return products;
+    return products.filter((p) => p.categorySlug === activeCategory);
+  }, [products, activeCategory]);
 
   const features = [
     { icon: 'check', text: 'Premium Organic Materials' },
@@ -98,17 +149,28 @@ const Shop = () => {
         {/* Filter Bar */}
         <div className="flex flex-col md:flex-row justify-between items-center mb-12 border-b border-gray-100 dark:border-gray-800 pb-6 sticky top-24 bg-white dark:bg-background-dark z-40 transition-all">
           <div className="flex space-x-8 overflow-x-auto w-full md:w-auto pb-2 md:pb-0 hide-scrollbar">
+            <button
+              key="all"
+              onClick={() => setActiveCategory('all')}
+              className={`text-sm whitespace-nowrap transition-colors ${
+                activeCategory === 'all'
+                  ? 'font-medium text-primary border-b border-primary pb-0.5'
+                  : 'font-light text-subtext-light dark:text-subtext-dark hover:text-primary'
+              }`}
+            >
+              All Products
+            </button>
             {categories.map((category) => (
               <button
-                key={category}
-                onClick={() => setActiveCategory(category)}
+                key={category.slug}
+                onClick={() => setActiveCategory(category.slug)}
                 className={`text-sm whitespace-nowrap transition-colors ${
-                  activeCategory === category
+                  activeCategory === category.slug
                     ? 'font-medium text-primary border-b border-primary pb-0.5'
                     : 'font-light text-subtext-light dark:text-subtext-dark hover:text-primary'
                 }`}
               >
-                {category}
+                {category.name}
               </button>
             ))}
           </div>
@@ -125,50 +187,64 @@ const Shop = () => {
         </div>
 
         {/* Products Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-x-8 gap-y-16">
-          {products.map((product) => (
-            <div key={product.id} className="group cursor-pointer">
-              <div className="relative overflow-hidden aspect-[3/4] rounded-sm bg-gray-50 dark:bg-surface-dark mb-4">
-                {product.image ? (
-                  <img
-                    alt={product.name}
-                    className={`w-full h-full object-cover transition-transform duration-700 group-hover:scale-105 ${
-                      product.id === 6 ? 'grayscale hover:grayscale-0' : ''
-                    }`}
-                    src={product.image}
-                  />
-                ) : (
-                  <div className="w-full h-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center text-gray-300 dark:text-gray-600">
-                    <span className="material-symbols-outlined text-6xl">{product.placeholder}</span>
-                  </div>
-                )}
-                <div className="absolute inset-0 bg-black/5 group-hover:bg-black/0 transition-colors duration-300"></div>
-                <button className="absolute bottom-4 right-4 bg-primary text-white p-2 rounded-full opacity-0 translate-y-4 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-300 shadow-md hover:bg-black">
-                  <span className="material-symbols-outlined text-xl">add_shopping_cart</span>
-                </button>
-                {product.badge && (
-                  <span className="absolute top-4 left-4 bg-white text-primary px-2 py-1 text-[10px] uppercase tracking-widest font-bold shadow-sm">
-                    {product.badge}
-                  </span>
-                )}
-              </div>
-              <div>
-                <h3 className="font-display text-lg text-text-light dark:text-text-dark mb-1 group-hover:text-primary transition-colors">
-                  {product.name}
-                </h3>
-                <p className="text-xs text-subtext-light dark:text-subtext-dark mb-2">{product.description}</p>
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-bold text-primary">${product.price.toFixed(2)}</span>
-                  {product.originalPrice && (
-                    <span className="text-xs text-subtext-light dark:text-subtext-dark line-through">
-                      ${product.originalPrice.toFixed(2)}
+        {error && (
+          <div className="mb-8 rounded-xl border border-red-500/20 bg-red-500/10 p-4 text-sm text-red-700 dark:text-red-200">
+            {error}
+          </div>
+        )}
+
+        {loading ? (
+          <div className="flex items-center justify-center py-16">
+            <div className="text-center">
+              <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-primary border-r-transparent"></div>
+              <p className="mt-4 text-gray-500 dark:text-gray-400">Loading products...</p>
+            </div>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-x-8 gap-y-16">
+            {filteredProducts.map((product) => (
+              <div key={product.id} className="group cursor-pointer">
+                <div className="relative overflow-hidden aspect-[3/4] rounded-sm bg-gray-50 dark:bg-surface-dark mb-4">
+                  {product.image ? (
+                    <img
+                      alt={product.name}
+                      className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+                      src={product.image}
+                      loading="lazy"
+                    />
+                  ) : (
+                    <div className="w-full h-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center text-gray-300 dark:text-gray-600">
+                      <span className="material-symbols-outlined text-6xl">{product.placeholder}</span>
+                    </div>
+                  )}
+                  <div className="absolute inset-0 bg-black/5 group-hover:bg-black/0 transition-colors duration-300"></div>
+                  <button className="absolute bottom-4 right-4 bg-primary text-white p-2 rounded-full opacity-0 translate-y-4 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-300 shadow-md hover:bg-black">
+                    <span className="material-symbols-outlined text-xl">add_shopping_cart</span>
+                  </button>
+                  {product.badge && (
+                    <span className="absolute top-4 left-4 bg-white text-primary px-2 py-1 text-[10px] uppercase tracking-widest font-bold shadow-sm">
+                      {product.badge}
                     </span>
                   )}
                 </div>
+                <div>
+                  <h3 className="font-display text-lg text-text-light dark:text-text-dark mb-1 group-hover:text-primary transition-colors">
+                    {product.name}
+                  </h3>
+                  <p className="text-xs text-subtext-light dark:text-subtext-dark mb-2">{product.description}</p>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-bold text-primary">${product.price.toFixed(2)}</span>
+                    {product.originalPrice && (
+                      <span className="text-xs text-subtext-light dark:text-subtext-dark line-through">
+                        ${product.originalPrice.toFixed(2)}
+                      </span>
+                    )}
+                  </div>
+                </div>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
 
         {/* Load More Button */}
         <div className="flex justify-center mt-20">
