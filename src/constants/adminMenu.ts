@@ -29,7 +29,8 @@ export const ADMIN_MENU_SECTIONS: AdminMenuSection[] = [
     items: [
       { id: 'pickup-scanner', label: 'Scan Ambil Barang', icon: 'shopping_bag', path: '/admin/pickup-scanner' },
       { id: 'discounts', label: 'Diskon', icon: 'local_offer', path: '/admin/discounts' },
-      { id: 'order-products', label: 'Pesanan Produk', icon: 'inventory_2', path: '/admin/store', badge: 0 },
+      { id: 'store-inventory', label: 'Stok & Produk', icon: 'inventory_2', path: '/admin/store' },
+      { id: 'product-orders', label: 'Pesanan Produk', icon: 'shopping_bag', path: '/admin/product-orders', badge: 0 },
     ],
   },
 ];

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '../lib/supabase';
+import { useCart } from '../contexts/cartStore';
 
 interface Product {
   id: number;
@@ -11,9 +12,12 @@ interface Product {
   badge?: string;
   placeholder?: string;
   categorySlug?: string | null;
+  defaultVariantId?: number;
+  defaultVariantName?: string;
 }
 
 const Shop = () => {
+  const { addItem } = useCart();
   const [activeCategory, setActiveCategory] = useState<string>('all');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -38,7 +42,7 @@ const Shop = () => {
               is_active,
               deleted_at,
               categories(name, slug),
-              product_variants(online_price, offline_price, attributes, is_active)
+              product_variants(id, name, online_price, offline_price, attributes, is_active, stock, reserved_stock)
             `
             )
             .is('deleted_at', null)
@@ -59,14 +63,21 @@ const Shop = () => {
 
         const mapped: Product[] = (productsResult.data || []).map((row) => {
           const variants = ((row as unknown as { product_variants?: unknown[] }).product_variants || []) as {
+            id: number;
+            name: string;
             online_price: string | number | null;
             offline_price: string | number | null;
             attributes: Record<string, unknown> | null;
             is_active: boolean | null;
+            stock: number | null;
+            reserved_stock: number | null;
           }[];
 
           let priceMin = Number.POSITIVE_INFINITY;
           let image: string | undefined;
+          let defaultVariantId: number | undefined;
+          let defaultVariantName: string | undefined;
+          let defaultVariantPrice = Number.POSITIVE_INFINITY;
           const productImage = (row as unknown as { image_url?: string | null }).image_url ?? null;
           if (productImage) image = productImage;
 
@@ -77,6 +88,14 @@ const Shop = () => {
             if (!image) {
               const maybeImage = typeof v.attributes?.image_url === 'string' ? v.attributes.image_url : null;
               if (maybeImage) image = maybeImage;
+            }
+
+            const available = (v.stock ?? 0) - (v.reserved_stock ?? 0);
+            const isAvailable = available > 0;
+            if (isAvailable && Number.isFinite(price) && price >= 0 && price < defaultVariantPrice) {
+              defaultVariantPrice = price;
+              defaultVariantId = Number(v.id);
+              defaultVariantName = String(v.name);
             }
           }
 
@@ -92,6 +111,8 @@ const Shop = () => {
             image,
             placeholder: image ? undefined : 'inventory_2',
             categorySlug,
+            defaultVariantId,
+            defaultVariantName,
           };
         });
 
@@ -119,6 +140,21 @@ const Shop = () => {
     { icon: 'check', text: 'Ethically Manufactured' },
     { icon: 'check', text: 'Designed in-house by Spark Artists' },
   ];
+
+  const handleAddToCart = (product: Product) => {
+    if (!product.defaultVariantId || !product.defaultVariantName) return;
+    addItem(
+      {
+        productId: product.id,
+        productName: product.name,
+        productImageUrl: product.image,
+        variantId: product.defaultVariantId,
+        variantName: product.defaultVariantName,
+        unitPrice: product.price,
+      },
+      1
+    );
+  };
 
   return (
     <div className="bg-white dark:bg-background-dark min-h-screen">
@@ -218,7 +254,15 @@ const Shop = () => {
                     </div>
                   )}
                   <div className="absolute inset-0 bg-black/5 group-hover:bg-black/0 transition-colors duration-300"></div>
-                  <button className="absolute bottom-4 right-4 bg-primary text-white p-2 rounded-full opacity-0 translate-y-4 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-300 shadow-md hover:bg-black">
+                  <button
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      handleAddToCart(product);
+                    }}
+                    disabled={!product.defaultVariantId}
+                    className="absolute bottom-4 right-4 bg-primary text-white p-2 rounded-full opacity-0 translate-y-4 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-300 shadow-md hover:bg-black disabled:opacity-50 disabled:hover:bg-primary disabled:cursor-not-allowed"
+                  >
                     <span className="material-symbols-outlined text-xl">add_shopping_cart</span>
                   </button>
                   {product.badge && (

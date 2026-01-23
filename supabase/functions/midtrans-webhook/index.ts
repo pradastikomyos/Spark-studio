@@ -133,7 +133,107 @@ serve(async (req) => {
       })
     }
 
-    // Get order from database
+    const newStatus = mapMidtransStatus(transactionStatus, fraudStatus)
+    const nowIso = new Date().toISOString()
+
+    const { data: productOrder } = await supabase
+      .from('order_products')
+      .select('id, status, payment_status, pickup_code, pickup_status')
+      .eq('order_number', orderId)
+      .single()
+
+    if (productOrder) {
+      const currentPaymentStatus = String((productOrder as { payment_status?: string }).payment_status || '').toLowerCase()
+      const currentStatus = String((productOrder as { status?: string }).status || '').toLowerCase()
+      const currentPickupStatus = String((productOrder as { pickup_status?: string | null }).pickup_status || '').toLowerCase()
+
+      const paymentStatus =
+        newStatus === 'paid'
+          ? 'paid'
+          : newStatus === 'refunded'
+            ? 'refunded'
+            : newStatus === 'failed' || newStatus === 'expired'
+              ? 'failed'
+              : 'unpaid'
+
+      const status =
+        newStatus === 'paid'
+          ? 'processing'
+          : newStatus === 'expired'
+            ? 'expired'
+            : newStatus === 'failed'
+              ? 'cancelled'
+              : currentStatus || 'awaiting_payment'
+
+      if (newStatus === 'paid' && currentPaymentStatus !== 'paid') {
+        const { data: pickupCodeRow } = await supabase.rpc('generate_pickup_code')
+        const pickupCode = String(pickupCodeRow || '')
+        const pickupExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
+
+        await supabase
+          .from('order_products')
+          .update({
+            status,
+            payment_status: paymentStatus,
+            paid_at: nowIso,
+            pickup_code: pickupCode,
+            pickup_status: 'pending_pickup',
+            pickup_expires_at: pickupExpiresAt,
+            updated_at: nowIso,
+          })
+          .eq('id', (productOrder as { id: number }).id)
+      } else {
+        const updateFields: Record<string, unknown> = {
+          status,
+          payment_status: paymentStatus,
+          updated_at: nowIso,
+        }
+        if (newStatus === 'expired') updateFields.expired_at = nowIso
+
+        await supabase
+          .from('order_products')
+          .update(updateFields)
+          .eq('id', (productOrder as { id: number }).id)
+      }
+
+      const shouldReleaseReserve =
+        (newStatus === 'expired' || newStatus === 'failed' || newStatus === 'refunded') &&
+        currentPaymentStatus !== 'paid' &&
+        currentStatus !== 'cancelled' &&
+        currentStatus !== 'expired' &&
+        currentPickupStatus !== 'completed'
+
+      if (shouldReleaseReserve) {
+        const { data: orderItems } = await supabase
+          .from('order_product_items')
+          .select('product_variant_id, quantity')
+          .eq('order_product_id', (productOrder as { id: number }).id)
+
+        if (Array.isArray(orderItems)) {
+          for (const row of orderItems) {
+            const variantId = Number((row as { product_variant_id: number | string }).product_variant_id)
+            const qty = Math.max(1, Math.floor(Number((row as { quantity: number | string }).quantity)))
+
+            const { data: variant } = await supabase
+              .from('product_variants')
+              .select('reserved_stock')
+              .eq('id', variantId)
+              .single()
+
+            const currentReserved = (variant as { reserved_stock?: number } | null)?.reserved_stock ?? 0
+            await supabase
+              .from('product_variants')
+              .update({ reserved_stock: Math.max(0, currentReserved - qty), updated_at: nowIso })
+              .eq('id', variantId)
+          }
+        }
+      }
+
+      return new Response(JSON.stringify({ status: 'ok' }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
     const { data: order, error: orderError } = await supabase
       .from('orders')
       .select('*, order_items(*)')
@@ -148,16 +248,12 @@ serve(async (req) => {
       })
     }
 
-    // Determine order status based on transaction status
-    const newStatus = mapMidtransStatus(transactionStatus, fraudStatus)
-
-    // Update order status
     const { error: updateError } = await supabase
       .from('orders')
       .update({
         status: newStatus,
         payment_data: notification,
-        updated_at: new Date().toISOString(),
+        updated_at: nowIso,
       })
       .eq('id', order.id)
 
@@ -165,12 +261,8 @@ serve(async (req) => {
       console.error('Failed to update order:', updateError)
     }
 
-    // If payment is successful, create purchased tickets
     if (newStatus === 'paid') {
-      const { data: orderItems, error: itemsError } = await supabase
-        .from('order_items')
-        .select('*')
-        .eq('order_id', order.id)
+      const { data: orderItems, error: itemsError } = await supabase.from('order_items').select('*').eq('order_id', order.id)
 
       if (!itemsError && Array.isArray(orderItems)) {
         for (const item of orderItems) {
@@ -185,8 +277,7 @@ serve(async (req) => {
 
           const slots = normalizeSelectedTimeSlots(item.selected_time_slots)
           const firstSlot = slots[0]
-          const timeSlotForTicket =
-            firstSlot && firstSlot !== 'all-day' && /^\d{2}:\d{2}/.test(firstSlot) ? firstSlot : null
+          const timeSlotForTicket = firstSlot && firstSlot !== 'all-day' && /^\d{2}:\d{2}/.test(firstSlot) ? firstSlot : null
 
           for (let i = 0; i < needed; i++) {
             const ticketCode = generateTicketCode()
@@ -198,8 +289,8 @@ serve(async (req) => {
               valid_date: item.selected_date,
               time_slot: timeSlotForTicket,
               status: 'active',
-              created_at: new Date().toISOString(),
-              updated_at: new Date().toISOString(),
+              created_at: nowIso,
+              updated_at: nowIso,
             })
           }
 

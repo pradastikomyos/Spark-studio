@@ -2,6 +2,7 @@ import { lazy, Suspense } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { useDarkMode } from './hooks/useDarkMode';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { CartProvider } from './contexts/CartContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import PublicLayout from './components/PublicLayout';
 import Home from './pages/Home';
@@ -18,12 +19,16 @@ const StageManager = lazy(() => import('./pages/admin/StageManager'));
 const StageAnalytics = lazy(() => import('./pages/admin/StageAnalytics'));
 const StageBulkQR = lazy(() => import('./pages/admin/StageBulkQR'));
 const OrderTicket = lazy(() => import('./pages/admin/OrderTicket'));
+const ProductOrders = lazy(() => import('./pages/admin/ProductOrders'));
 const BookingPage = lazy(() => import('./pages/BookingPage'));
 const PaymentPage = lazy(() => import('./pages/PaymentPage'));
 const BookingSuccessPage = lazy(() => import('./pages/BookingSuccessPage'));
 const FullCalendarPage = lazy(() => import('./pages/FullCalendarPage'));
 const CartPage = lazy(() => import('./pages/CartPage'));
 const CheckoutPage = lazy(() => import('./pages/CheckoutPage'));
+const ProductCheckoutPage = lazy(() => import('./pages/ProductCheckoutPage'));
+const ProductOrderSuccessPage = lazy(() => import('./pages/ProductOrderSuccessPage'));
+const MyProductOrdersPage = lazy(() => import('./pages/MyProductOrdersPage'));
 const MyTicketsPage = lazy(() => import('./pages/MyTicketsPage'));
 const StageScanPage = lazy(() => import('./pages/StageScanPage'));
 const NotFound = lazy(() => import('./pages/NotFound'));
@@ -89,6 +94,16 @@ function AppContent() {
               <Suspense fallback={<RouteLoading />}>
                 <CheckoutPage />
               </Suspense>
+            }
+          />
+          <Route
+            path="/checkout/product"
+            element={
+              <ProtectedRoute>
+                <Suspense fallback={<RouteLoading />}>
+                  <ProductCheckoutPage />
+                </Suspense>
+              </ProtectedRoute>
             }
           />
           <Route
@@ -177,6 +192,16 @@ function AppContent() {
               </ProtectedRoute>
             }
           />
+          <Route
+            path="/admin/product-orders"
+            element={
+              <ProtectedRoute adminOnly>
+                <Suspense fallback={<RouteLoading />}>
+                  <ProductOrders />
+                </Suspense>
+              </ProtectedRoute>
+            }
+          />
           <Route element={<PublicLayout isDark={isDark} onToggleDarkMode={toggleDarkMode} />}>
             <Route index element={<Home />} />
             <Route
@@ -260,6 +285,26 @@ function AppContent() {
               }
             />
             <Route
+              path="my-orders"
+              element={
+                <ProtectedRoute>
+                  <Suspense fallback={<RouteLoading />}>
+                    <MyProductOrdersPage />
+                  </Suspense>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="order/product/success/:orderNumber"
+              element={
+                <ProtectedRoute>
+                  <Suspense fallback={<RouteLoading />}>
+                    <ProductOrderSuccessPage />
+                  </Suspense>
+                </ProtectedRoute>
+              }
+            />
+            <Route
               path="*"
               element={
                 <Suspense fallback={<RouteLoading />}>
@@ -290,7 +335,9 @@ function AuthGate() {
 function App() {
   return (
     <AuthProvider>
-      <AuthGate />
+      <CartProvider>
+        <AuthGate />
+      </CartProvider>
     </AuthProvider>
   );
 }

@@ -426,7 +426,7 @@ const StoreInventory = () => {
     <AdminLayout
       menuItems={ADMIN_MENU_ITEMS}
       menuSections={ADMIN_MENU_SECTIONS}
-      defaultActiveMenuId="order-products"
+      defaultActiveMenuId="store-inventory"
       title="Store & Inventory"
       subtitle="Manage products, stock levels, and pickup verification."
       headerActions={
