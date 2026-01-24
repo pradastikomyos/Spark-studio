@@ -97,12 +97,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     // STEP 2: Listen for auth state changes (sign in, sign out, token refresh)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
-        // Ignore events during initial mount - let initializeAuth handle it
-        if (isInitializing) {
-          console.log('[Auth] Ignoring event during initialization:', event);
-          return;
-        }
-
         if (!isMounted) return;
 
         console.log('[Auth] Auth state changed:', event);
@@ -110,6 +104,12 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         // Update session and user immediately
         setSession(session);
         setUser(session?.user ?? null);
+
+        // Skip admin check during initialization (let initializeAuth handle it)
+        if (isInitializing) {
+          console.log('[Auth] Skipping admin check during initialization');
+          return;
+        }
 
         // Handle different auth events
         if (event === 'SIGNED_OUT') {
