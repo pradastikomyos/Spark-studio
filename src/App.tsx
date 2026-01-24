@@ -29,6 +29,7 @@ const CartPage = lazy(() => import('./pages/CartPage'));
 const CheckoutPage = lazy(() => import('./pages/CheckoutPage'));
 const ProductCheckoutPage = lazy(() => import('./pages/ProductCheckoutPage'));
 const ProductOrderSuccessPage = lazy(() => import('./pages/ProductOrderSuccessPage'));
+const ProductDetailPage = lazy(() => import('./pages/ProductDetailPage'));
 const MyProductOrdersPage = lazy(() => import('./pages/MyProductOrdersPage'));
 const MyTicketsPage = lazy(() => import('./pages/MyTicketsPage'));
 const StageScanPage = lazy(() => import('./pages/StageScanPage'));
@@ -290,6 +291,14 @@ function AppContent() {
               element={
                 <Suspense fallback={<RouteLoading />}>
                   <Shop />
+                </Suspense>
+              }
+            />
+            <Route
+              path="shop/product/:productId"
+              element={
+                <Suspense fallback={<RouteLoading />}>
+                  <ProductDetailPage />
                 </Suspense>
               }
             />

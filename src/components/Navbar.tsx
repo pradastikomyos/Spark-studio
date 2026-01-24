@@ -2,7 +2,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import Logo from './Logo';
 import { useAuth } from '../contexts/AuthContext';
 import { useTicketCount } from '../hooks/useTicketCount';
-import { useCartCount } from '../hooks/useCartCount';
+import { useCart } from '../contexts/cartStore';
 
 interface NavbarProps {
   isDark: boolean;
@@ -12,7 +12,7 @@ interface NavbarProps {
 const Navbar = ({ isDark, onToggleDarkMode }: NavbarProps) => {
   const { user, signOut, isAdmin, loggingOut } = useAuth();
   const { count: ticketCount } = useTicketCount();
-  const { count: cartCount } = useCartCount();
+  const { totalQuantity } = useCart();
   const navigate = useNavigate();
 
   const handleSignOut = async () => {
@@ -100,9 +100,9 @@ const Navbar = ({ isDark, onToggleDarkMode }: NavbarProps) => {
             </Link>
             <Link to="/cart" className="hover:text-primary transition-colors relative" title="Shopping Cart">
               <span className="material-symbols-outlined text-[20px]">shopping_bag</span>
-              {cartCount > 0 && (
+              {totalQuantity > 0 && (
                 <span className="absolute -top-1 -right-1 bg-primary text-white text-[10px] w-4 h-4 flex items-center justify-center rounded-full">
-                  {cartCount}
+                  {totalQuantity}
                 </span>
               )}
             </Link>

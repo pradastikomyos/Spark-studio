@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useCart } from '../contexts/cartStore';
 
@@ -23,6 +24,7 @@ const Shop = () => {
   const [error, setError] = useState<string | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<{ name: string; slug: string }[]>([]);
+  const [toast, setToast] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchShopData = async () => {
@@ -130,6 +132,12 @@ const Shop = () => {
     fetchShopData();
   }, []);
 
+  useEffect(() => {
+    if (!toast) return;
+    const timer = window.setTimeout(() => setToast(null), 2000);
+    return () => window.clearTimeout(timer);
+  }, [toast]);
+
   const filteredProducts = useMemo(() => {
     if (activeCategory === 'all') return products;
     return products.filter((p) => p.categorySlug === activeCategory);
@@ -154,6 +162,7 @@ const Shop = () => {
       },
       1
     );
+    setToast('Berhasil memasukkan ke keranjang');
   };
 
   return (
@@ -239,7 +248,7 @@ const Shop = () => {
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-x-8 gap-y-16">
             {filteredProducts.map((product) => (
-              <div key={product.id} className="group cursor-pointer">
+              <Link key={product.id} to={`/shop/product/${product.id}`} className="group cursor-pointer">
                 <div className="relative overflow-hidden aspect-[3/4] rounded-sm bg-gray-50 dark:bg-surface-dark mb-4">
                   {product.image ? (
                     <img
@@ -285,7 +294,7 @@ const Shop = () => {
                     )}
                   </div>
                 </div>
-              </div>
+              </Link>
             ))}
           </div>
         )}
@@ -361,6 +370,12 @@ const Shop = () => {
           </button>
         </form>
       </section>
+
+      {toast && (
+        <div className="fixed bottom-6 right-6 z-50 rounded-full bg-black text-white px-5 py-3 text-sm shadow-lg">
+          {toast}
+        </div>
+      )}
     </div>
   );
 };
