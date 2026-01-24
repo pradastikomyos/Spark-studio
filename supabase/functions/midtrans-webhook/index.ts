@@ -89,24 +89,52 @@ function generateTicketCode(): string {
   return result + '-' + Date.now().toString(36).toUpperCase()
 }
 
+async function logWebhook(
+  supabase: ReturnType<typeof createClient>,
+  params: {
+    orderNumber: string
+    eventType: string
+    payload: unknown
+    success: boolean
+    errorMessage?: string | null
+    processedAt: string
+  }
+) {
+  try {
+    await supabase.from('webhook_logs').insert({
+      order_number: params.orderNumber || null,
+      event_type: params.eventType,
+      payload: params.payload ?? null,
+      processed_at: params.processedAt,
+      success: params.success,
+      error_message: params.errorMessage ?? null,
+    })
+  } catch {
+    return
+  }
+}
+
 serve(async (req) => {
-  // Handle CORS preflight
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
+
+  let supabase: ReturnType<typeof createClient> | null = null
+  let orderId = ''
+  let notification: unknown = null
 
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     const midtransServerKey = Deno.env.get('MIDTRANS_SERVER_KEY')!
 
-    const supabase = createClient(supabaseUrl, supabaseServiceKey)
+    supabase = createClient(supabaseUrl, supabaseServiceKey)
 
-    // Parse notification from Midtrans
-    const notification = await req.json()
-    const orderId = String(notification?.order_id || '')
+    notification = await req.json()
+    orderId = String((notification as { order_id?: string })?.order_id || '')
     const transactionStatus = String(notification?.transaction_status || '')
     const fraudStatus = notification?.fraud_status ?? null
+    const nowIso = new Date().toISOString()
 
     const signatureKey = String(notification?.signature_key || '')
     const statusCode =
@@ -127,6 +155,14 @@ serve(async (req) => {
     )
 
     if (!signatureKey || signatureKey !== expectedSignature) {
+      await logWebhook(supabase, {
+        orderNumber: orderId,
+        eventType: 'invalid_signature',
+        payload: notification,
+        success: false,
+        errorMessage: 'Invalid signature',
+        processedAt: nowIso,
+      })
       return new Response(JSON.stringify({ error: 'Invalid signature' }), {
         status: 403,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -134,7 +170,6 @@ serve(async (req) => {
     }
 
     const newStatus = mapMidtransStatus(transactionStatus, fraudStatus)
-    const nowIso = new Date().toISOString()
 
     const { data: productOrder } = await supabase
       .from('order_products')
@@ -229,6 +264,14 @@ serve(async (req) => {
         }
       }
 
+      await logWebhook(supabase, {
+        orderNumber: orderId,
+        eventType: 'product_order_processed',
+        payload: notification,
+        success: true,
+        processedAt: nowIso,
+      })
+
       return new Response(JSON.stringify({ status: 'ok' }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
@@ -242,6 +285,14 @@ serve(async (req) => {
 
     if (orderError || !order) {
       console.error('Order not found:', orderError)
+      await logWebhook(supabase, {
+        orderNumber: orderId,
+        eventType: 'order_not_found',
+        payload: notification,
+        success: false,
+        errorMessage: orderError?.message ?? 'Order not found',
+        processedAt: nowIso,
+      })
       return new Response(JSON.stringify({ error: 'Order not found' }), {
         status: 404,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -306,11 +357,31 @@ serve(async (req) => {
       }
     }
 
+    await logWebhook(supabase, {
+      orderNumber: orderId,
+      eventType: 'ticket_order_processed',
+      payload: notification,
+      success: !updateError,
+      errorMessage: updateError?.message ?? null,
+      processedAt: nowIso,
+    })
+
     return new Response(JSON.stringify({ status: 'ok' }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     })
   } catch (error) {
     console.error('Error processing notification:', error)
+    if (supabase) {
+      const message = error instanceof Error ? error.message : 'Internal server error'
+      await logWebhook(supabase, {
+        orderNumber: orderId,
+        eventType: 'exception',
+        payload: notification,
+        success: false,
+        errorMessage: message,
+        processedAt: new Date().toISOString(),
+      })
+    }
     return new Response(JSON.stringify({ error: 'Internal server error' }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
