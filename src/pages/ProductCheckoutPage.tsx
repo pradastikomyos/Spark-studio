@@ -107,22 +107,24 @@ export default function ProductCheckoutPage() {
 
       const payload = data as CreateProductTokenResponse;
       if (!payload.token || !payload.order_number) throw new Error('Invalid payment response');
+      const orderNumber = payload.order_number;
 
       if (!window.snap) throw new Error('Midtrans Snap not loaded');
 
       window.snap.pay(payload.token, {
         onSuccess: () => {
           clear();
-          navigate(`/order/product/success/${payload.order_number}`);
+          navigate(`/order/product/success/${orderNumber}`);
         },
         onPending: (result: SnapResult) => {
-          navigate(`/order/product/success/${payload.order_number}`, { state: { paymentResult: result, isPending: true } });
+          navigate(`/order/product/success/${orderNumber}`, { state: { paymentResult: result, isPending: true } });
         },
         onError: () => {
           setError('Payment failed. Please try again.');
         },
         onClose: () => {
           setLoading(false);
+          navigate(`/order/product/success/${orderNumber}`, { state: { isPending: true } });
         },
       });
     } catch (e) {

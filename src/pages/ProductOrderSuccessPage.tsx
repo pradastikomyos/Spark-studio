@@ -34,6 +34,7 @@ export default function ProductOrderSuccessPage() {
   const [items, setItems] = useState<ProductOrderItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
 
   const pickupCode = order?.pickup_code ?? null;
 
@@ -70,6 +71,19 @@ export default function ProductOrderSuccessPage() {
     });
     setItems(mapped);
   }, [orderNumber]);
+
+  const handleRefresh = useCallback(async () => {
+    if (!orderNumber || refreshing) return;
+    try {
+      setRefreshing(true);
+      setError(null);
+      await fetchOrder();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to refresh order');
+    } finally {
+      setRefreshing(false);
+    }
+  }, [orderNumber, refreshing, fetchOrder]);
 
   useEffect(() => {
     let cancelled = false;
@@ -159,6 +173,13 @@ export default function ProductOrderSuccessPage() {
                         <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
                           If this takes too long, refresh this page in a moment.
                         </p>
+                        <button
+                          onClick={handleRefresh}
+                          disabled={refreshing}
+                          className="mt-4 w-full border border-gray-200 dark:border-gray-800 py-3 uppercase tracking-widest text-xs font-bold text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-white/5 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {refreshing ? 'Refreshing...' : 'Refresh Status'}
+                        </button>
                       </div>
                     )}
                   </div>
