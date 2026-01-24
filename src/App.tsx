@@ -258,6 +258,14 @@ function AppContent() {
             }
           />
           <Route
+            path="/admin/pickup-scanner"
+            element={
+              <ProtectedRoute adminOnly>
+                <Navigate to="/admin/product-orders" replace />
+              </ProtectedRoute>
+            }
+          />
+          <Route
             path="/admin/product-orders"
             element={
               <ProtectedRoute adminOnly>

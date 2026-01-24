@@ -27,7 +27,7 @@ export const ADMIN_MENU_SECTIONS: AdminMenuSection[] = [
     id: 'store',
     label: 'Toko',
     items: [
-      { id: 'pickup-scanner', label: 'Scan Ambil Barang', icon: 'shopping_bag', path: '/admin/pickup-scanner' },
+      { id: 'pickup-scanner', label: 'Scan Ambil Barang', icon: 'shopping_bag', path: '/admin/product-orders' },
       { id: 'discounts', label: 'Diskon', icon: 'local_offer', path: '/admin/discounts' },
       { id: 'store-inventory', label: 'Stok & Produk', icon: 'inventory_2', path: '/admin/store' },
       { id: 'product-orders', label: 'Pesanan Produk', icon: 'shopping_bag', path: '/admin/product-orders', badge: 0 },
