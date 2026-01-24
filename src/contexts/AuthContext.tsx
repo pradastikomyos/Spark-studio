@@ -33,7 +33,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       const adminStatus = await checkIsAdmin(userId);
       setIsAdmin(adminStatus);
     } catch (error) {
-      console.error('Error checking admin status:', error);
+      // Suppress non-critical admin check errors (expected for non-admin users)
+      if (error instanceof Error && !error.message.includes('RLS')) {
+        console.error('Error checking admin status:', error);
+      }
       setIsAdmin(false);
     }
   }, []);

@@ -85,9 +85,13 @@ export default function ProductCheckoutPage() {
           customerEmail: user.email,
           customerPhone: customerPhone.trim() || undefined,
         },
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
       });
 
       if (invokeError) {
+        console.error('Edge Function error:', invokeError);
         const contextError =
           typeof (invokeError as { context?: { error?: unknown } }).context?.error === 'string'
             ? String((invokeError as { context?: { error?: unknown } }).context?.error)

@@ -14,7 +14,10 @@ export const isAdmin = async (userId: string | undefined): Promise<boolean> => {
     
     if (error) {
       // RLS might block this query for non-admin users, that's expected
-      console.log('Admin check: user is not admin or RLS blocked query');
+      // Only log in development mode
+      if (import.meta.env.DEV) {
+        console.debug('Admin check: user is not admin or RLS blocked query');
+      }
       return false;
     }
     
