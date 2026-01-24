@@ -1,4 +1,4 @@
-import { lazy, Suspense } from 'react';
+import { lazy, Suspense, useEffect, useRef } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { useDarkMode } from './hooks/useDarkMode';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
@@ -6,6 +6,7 @@ import { CartProvider } from './contexts/CartContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import PublicLayout from './components/PublicLayout';
 import Home from './pages/Home';
+import { supabase } from './lib/supabase';
 
 const OnStage = lazy(() => import('./pages/OnStage'));
 const Shop = lazy(() => import('./pages/Shop'));
@@ -65,8 +66,46 @@ function RouteLoading() {
 }
 
 // Main app content - only rendered after auth is initialized
+const TAB_RETURN_EVENT = 'tab-returned-from-idle';
+const TAB_IDLE_THRESHOLD_MS = 2 * 60 * 1000;
+
 function AppContent() {
   const { isDark, toggleDarkMode } = useDarkMode();
+  const hiddenAtRef = useRef<number | null>(null);
+  const refreshInFlightRef = useRef(false);
+
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+
+    const handleVisibilityChange = async () => {
+      if (document.hidden) {
+        hiddenAtRef.current = Date.now();
+        return;
+      }
+
+      const hiddenAt = hiddenAtRef.current;
+      hiddenAtRef.current = null;
+      if (!hiddenAt) return;
+
+      const idleDuration = Date.now() - hiddenAt;
+      if (idleDuration < TAB_IDLE_THRESHOLD_MS) return;
+      if (refreshInFlightRef.current) return;
+
+      refreshInFlightRef.current = true;
+      await supabase.auth.refreshSession();
+      window.dispatchEvent(
+        new CustomEvent(TAB_RETURN_EVENT, {
+          detail: { idleDuration },
+        })
+      );
+      refreshInFlightRef.current = false;
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, []);
 
   return (
     <Router>

@@ -1,8 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
 import AdminLayout from '../../components/AdminLayout';
 import { ADMIN_MENU_ITEMS, ADMIN_MENU_SECTIONS } from '../../constants/adminMenu';
+
+const TAB_RETURN_EVENT = 'tab-returned-from-idle';
 
 const Dashboard = () => {
   const { user, signOut } = useAuth();
@@ -18,11 +20,7 @@ const Dashboard = () => {
     processingOrders: 0,
   });
 
-  useEffect(() => {
-    fetchDashboardData();
-  }, []);
-
-  const fetchDashboardData = async () => {
+  const fetchDashboardData = useCallback(async () => {
     try {
       setLoading(true);
 
@@ -76,7 +74,22 @@ const Dashboard = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    fetchDashboardData();
+  }, [fetchDashboardData]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const handleTabReturn = () => {
+      fetchDashboardData();
+    };
+    window.addEventListener(TAB_RETURN_EVENT, handleTabReturn);
+    return () => {
+      window.removeEventListener(TAB_RETURN_EVENT, handleTabReturn);
+    };
+  }, [fetchDashboardData]);
 
   const getUserInitials = () => {
     if (!user?.email) return 'A';

@@ -33,6 +33,8 @@ type OrderDetails = {
   items: OrderItemRow[];
 };
 
+const TAB_RETURN_EVENT = 'tab-returned-from-idle';
+
 export default function ProductOrders() {
   const { signOut } = useAuth();
   const [orders, setOrders] = useState<OrderSummaryRow[]>([]);
@@ -65,6 +67,17 @@ export default function ProductOrders() {
 
   useEffect(() => {
     fetchOrders();
+  }, [fetchOrders]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const handleTabReturn = () => {
+      fetchOrders();
+    };
+    window.addEventListener(TAB_RETURN_EVENT, handleTabReturn);
+    return () => {
+      window.removeEventListener(TAB_RETURN_EVENT, handleTabReturn);
+    };
   }, [fetchOrders]);
 
   const loadDetailsByPickupCode = useCallback(async (pickupCode: string) => {
@@ -325,4 +338,3 @@ export default function ProductOrders() {
     </AdminLayout>
   );
 }
-

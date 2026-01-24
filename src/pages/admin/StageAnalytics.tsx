@@ -15,6 +15,8 @@ type StageAnalyticsData = {
     weekly_change: number;
 };
 
+const TAB_RETURN_EVENT = 'tab-returned-from-idle';
+
 const StageAnalytics = () => {
     const { signOut, isAdmin } = useAuth();
     const [stages, setStages] = useState<StageAnalyticsData[]>([]);
@@ -23,6 +25,7 @@ const StageAnalytics = () => {
     const [timeFilter, setTimeFilter] = useState<'weekly' | 'monthly' | 'all'>('weekly');
     const isFetchingRef = useRef(false);
     const isMountedRef = useRef(true);
+    const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
 
     useEffect(() => {
         isMountedRef.current = true;
@@ -177,17 +180,18 @@ const StageAnalytics = () => {
         }
     }, [isAdmin, fetchAnalyticsData]);
 
-    // Realtime subscription - separate from fetchAnalyticsData dependency
-    useEffect(() => {
-        if (!isAdmin) return;
+    const setupRealtimeChannel = useCallback(() => {
+        if (channelRef.current) {
+            supabase.removeChannel(channelRef.current);
+            channelRef.current = null;
+        }
 
-        const channel = supabase
+        channelRef.current = supabase
             .channel('stage_scans_changes')
             .on(
                 'postgres_changes',
                 { event: '*', schema: 'public', table: 'stage_scans' },
                 () => {
-                    // Use a small delay to debounce rapid changes
                     setTimeout(() => {
                         if (!isFetchingRef.current) {
                             fetchAnalyticsData(true);
@@ -196,11 +200,34 @@ const StageAnalytics = () => {
                 }
             )
             .subscribe();
+    }, [fetchAnalyticsData]);
+
+    useEffect(() => {
+        if (!isAdmin) return;
+        setupRealtimeChannel();
 
         return () => {
-            supabase.removeChannel(channel);
+            if (channelRef.current) {
+                supabase.removeChannel(channelRef.current);
+                channelRef.current = null;
+            }
         };
-    }, [isAdmin, fetchAnalyticsData]);
+    }, [isAdmin, setupRealtimeChannel]);
+
+    useEffect(() => {
+        if (!isAdmin) return;
+        if (typeof window === 'undefined') return;
+
+        const handleTabReturn = () => {
+            fetchAnalyticsData(true);
+            setupRealtimeChannel();
+        };
+
+        window.addEventListener(TAB_RETURN_EVENT, handleTabReturn);
+        return () => {
+            window.removeEventListener(TAB_RETURN_EVENT, handleTabReturn);
+        };
+    }, [isAdmin, fetchAnalyticsData, setupRealtimeChannel]);
 
     const totalFootTraffic = stages.reduce((sum, s) => sum + s.weekly_scans, 0);
     const mostPopular = stages[0];

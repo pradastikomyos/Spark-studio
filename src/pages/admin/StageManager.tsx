@@ -24,6 +24,8 @@ type StageWithStats = Stage & {
     today_scans: number;
 };
 
+const TAB_RETURN_EVENT = 'tab-returned-from-idle';
+
 const StageManager = () => {
     const { signOut, isAdmin } = useAuth();
     const [stages, setStages] = useState<StageWithStats[]>([]);
@@ -32,6 +34,7 @@ const StageManager = () => {
     const [error, setError] = useState<string | null>(null);
     const [qrByStageId, setQrByStageId] = useState<Record<number, string>>({});
     const isFetchingRef = useRef(false);
+    const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
 
     const fetchStagesWithStats = useCallback(async (force = false) => {
         if (isFetchingRef.current && !force) return;
@@ -99,13 +102,16 @@ const StageManager = () => {
         }
     }, [isAdmin, fetchStagesWithStats]);
 
-    useEffect(() => {
-        if (!isAdmin) return;
-
+    const setupRealtimeChannel = useCallback(() => {
         const todayStart = toLocalDateString(new Date()) + 'T00:00:00';
         const todayStartTime = new Date(todayStart).getTime();
 
-        const channel = supabase
+        if (channelRef.current) {
+            supabase.removeChannel(channelRef.current);
+            channelRef.current = null;
+        }
+
+        channelRef.current = supabase
             .channel('stage_scans_changes_manager')
             .on(
                 'postgres_changes',
@@ -127,11 +133,34 @@ const StageManager = () => {
                 }
             )
             .subscribe();
+    }, []);
+
+    useEffect(() => {
+        if (!isAdmin) return;
+        setupRealtimeChannel();
 
         return () => {
-            supabase.removeChannel(channel);
+            if (channelRef.current) {
+                supabase.removeChannel(channelRef.current);
+                channelRef.current = null;
+            }
         };
-    }, [isAdmin, fetchStagesWithStats]);
+    }, [isAdmin, setupRealtimeChannel]);
+
+    useEffect(() => {
+        if (!isAdmin) return;
+        if (typeof window === 'undefined') return;
+
+        const handleTabReturn = () => {
+            fetchStagesWithStats(true);
+            setupRealtimeChannel();
+        };
+
+        window.addEventListener(TAB_RETURN_EVENT, handleTabReturn);
+        return () => {
+            window.removeEventListener(TAB_RETURN_EVENT, handleTabReturn);
+        };
+    }, [isAdmin, fetchStagesWithStats, setupRealtimeChannel]);
 
     useEffect(() => {
         let cancelled = false;

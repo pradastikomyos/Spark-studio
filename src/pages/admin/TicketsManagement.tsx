@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
 import AdminLayout from '../../components/AdminLayout';
@@ -38,6 +38,8 @@ type PurchasedTicketRow = {
   tickets: { name: string };
 };
 
+const TAB_RETURN_EVENT = 'tab-returned-from-idle';
+
 const TicketsManagement = () => {
   const { signOut } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
@@ -49,6 +51,7 @@ const TicketsManagement = () => {
     totalValid: 0,
     entered: 0,
   });
+  const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
 
   const fetchTickets = useCallback(async () => {
     try {
@@ -112,9 +115,13 @@ const TicketsManagement = () => {
     fetchTickets();
   }, [fetchTickets]);
 
-  // Realtime subscription for ticket updates
-  useEffect(() => {
-    const channel = supabase
+  const setupRealtimeChannel = useCallback(() => {
+    if (channelRef.current) {
+      supabase.removeChannel(channelRef.current);
+      channelRef.current = null;
+    }
+
+    channelRef.current = supabase
       .channel('purchased_tickets_admin_changes')
       .on(
         'postgres_changes',
@@ -123,18 +130,35 @@ const TicketsManagement = () => {
           schema: 'public',
           table: 'purchased_tickets',
         },
-        (payload) => {
-          console.log('Ticket change detected:', payload);
-          // Refetch tickets when any change occurs
+        () => {
           fetchTickets();
         }
       )
       .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
   }, [fetchTickets]);
+
+  useEffect(() => {
+    setupRealtimeChannel();
+    return () => {
+      if (channelRef.current) {
+        supabase.removeChannel(channelRef.current);
+        channelRef.current = null;
+      }
+    };
+  }, [setupRealtimeChannel]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const handleTabReturn = () => {
+      fetchTickets();
+      setupRealtimeChannel();
+    };
+
+    window.addEventListener(TAB_RETURN_EVENT, handleTabReturn);
+    return () => {
+      window.removeEventListener(TAB_RETURN_EVENT, handleTabReturn);
+    };
+  }, [fetchTickets, setupRealtimeChannel]);
 
   const normalizedSearch = searchQuery.trim().toLowerCase();
   const filteredTickets = tickets.filter((ticket) => {
