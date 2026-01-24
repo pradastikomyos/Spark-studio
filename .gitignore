@@ -30,3 +30,5 @@ dist-ssr
 
 # React best practices reference (not part of project source)
 react-best-practices/
+.vercel
+.env*.local

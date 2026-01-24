@@ -12,7 +12,7 @@ type CreateProductTokenResponse = {
 
 export default function ProductCheckoutPage() {
   const navigate = useNavigate();
-  const { user, session } = useAuth();
+  const { user, session, initialized } = useAuth();
   const { items, subtotal, clear } = useCart();
 
   const [customerName, setCustomerName] = useState('');
@@ -50,6 +50,8 @@ export default function ProductCheckoutPage() {
     [items]
   );
 
+  const canCheckout = initialized && Boolean(session?.access_token) && snapLoaded && items.length > 0;
+
   const handlePay = async () => {
     if (!user) {
       navigate('/login');
@@ -58,6 +60,11 @@ export default function ProductCheckoutPage() {
 
     if (!snapLoaded) {
       setError('Payment system not ready. Please refresh.');
+      return;
+    }
+
+    if (!initialized || !session?.access_token) {
+      setError('Session expired. Please refresh and login again.');
       return;
     }
 
@@ -70,7 +77,6 @@ export default function ProductCheckoutPage() {
     setError(null);
 
     try {
-      if (!session?.access_token) throw new Error('Not authenticated');
       if (!user.email) throw new Error('Missing account email');
 
       const { data, error: invokeError } = await supabase.functions.invoke('create-midtrans-product-token', {
@@ -187,10 +193,10 @@ export default function ProductCheckoutPage() {
               </div>
               <button
                 onClick={handlePay}
-                disabled={loading || items.length === 0}
+                disabled={loading || !canCheckout}
                 className="mt-6 w-full bg-primary text-white py-4 uppercase tracking-widest text-sm font-bold hover:bg-red-700 transition-colors shadow-lg shadow-red-900/20 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {loading ? 'Processing...' : 'Pay with Midtrans'}
+                {!initialized ? 'Loading...' : loading ? 'Processing...' : 'Pay with Midtrans'}
               </button>
             </div>
           </aside>
