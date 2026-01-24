@@ -84,7 +84,17 @@ function AppContent() {
       if (refreshInFlightRef.current) return;
 
       refreshInFlightRef.current = true;
-      await supabase.auth.refreshSession();
+      const { data } = await supabase.auth.getSession();
+      if (!data.session) {
+        refreshInFlightRef.current = false;
+        return;
+      }
+
+      const { error } = await supabase.auth.refreshSession();
+      if (error) {
+        refreshInFlightRef.current = false;
+        return;
+      }
       window.dispatchEvent(
         new CustomEvent(TAB_RETURN_EVENT, {
           detail: { idleDuration },
