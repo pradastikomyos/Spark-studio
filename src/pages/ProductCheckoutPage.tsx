@@ -12,7 +12,7 @@ type CreateProductTokenResponse = {
 
 export default function ProductCheckoutPage() {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, session } = useAuth();
   const { items, subtotal, clear } = useCart();
 
   const [customerName, setCustomerName] = useState('');
@@ -70,17 +70,11 @@ export default function ProductCheckoutPage() {
     setError(null);
 
     try {
-      const { data: sessionData } = await supabase.auth.getSession();
-      const token = sessionData.session?.access_token;
-      if (!token) throw new Error('Not authenticated');
+      if (!session?.access_token) throw new Error('Not authenticated');
+      if (!user.email) throw new Error('Missing account email');
 
-      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-midtrans-product-token`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify({
+      const { data, error: invokeError } = await supabase.functions.invoke('create-midtrans-product-token', {
+        body: {
           items: orderItems.map((i) => ({
             productVariantId: i.product_variant_id,
             name: `${i.product_name} - ${i.variant_name}`.slice(0, 50),
@@ -90,13 +84,15 @@ export default function ProductCheckoutPage() {
           customerName: customerName.trim(),
           customerEmail: user.email,
           customerPhone: customerPhone.trim() || undefined,
-        }),
+        },
       });
 
-      const data = (await response.json()) as unknown;
-      if (!response.ok) {
-        const message = typeof (data as { error?: unknown }).error === 'string' ? String((data as { error?: unknown }).error) : 'Failed to create payment';
-        throw new Error(message);
+      if (invokeError) {
+        const contextError =
+          typeof (invokeError as { context?: { error?: unknown } }).context?.error === 'string'
+            ? String((invokeError as { context?: { error?: unknown } }).context?.error)
+            : null;
+        throw new Error(contextError || invokeError.message || 'Failed to create payment');
       }
 
       const payload = data as CreateProductTokenResponse;
