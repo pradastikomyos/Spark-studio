@@ -112,8 +112,8 @@ export default function ProductFormModal(props: ProductFormModalProps) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center px-4 py-6">
       <div className="absolute inset-0 bg-black/60" onClick={() => !saving && onClose()}></div>
-      <div className="relative w-full max-w-4xl rounded-xl border border-white/10 bg-surface-dark text-white shadow-2xl">
-        <div className="flex items-start justify-between border-b border-white/10 px-6 py-5">
+      <div className="relative flex max-h-[90vh] w-full max-w-4xl flex-col rounded-xl border border-white/10 bg-surface-dark text-white shadow-2xl">
+        <div className="flex shrink-0 items-start justify-between border-b border-white/10 px-6 py-5">
           <div>
             <h3 className="text-lg font-bold">{draft.id ? 'Edit Product' : 'Add Product'}</h3>
             <p className="mt-1 text-sm text-gray-400">Create or update product details, variants, and image.</p>
@@ -127,7 +127,7 @@ export default function ProductFormModal(props: ProductFormModalProps) {
           </button>
         </div>
 
-        <div className="grid grid-cols-1 gap-6 p-6 lg:grid-cols-2">
+        <div className="grid min-h-0 flex-1 grid-cols-1 gap-6 overflow-y-auto p-6 lg:grid-cols-2">
           <div className="flex flex-col gap-4">
             {error && (
               <div className="rounded-xl border border-red-500/20 bg-red-500/10 p-4 text-sm text-red-200">
@@ -282,7 +282,7 @@ export default function ProductFormModal(props: ProductFormModalProps) {
               </button>
             </div>
 
-            <div className="mt-4 overflow-x-auto">
+            <div className="mt-4 max-h-[400px] overflow-y-auto overflow-x-auto">
               <table className="w-full text-left text-xs text-gray-300">
                 <thead className="text-[10px] uppercase text-gray-400">
                   <tr>
@@ -415,7 +415,7 @@ export default function ProductFormModal(props: ProductFormModalProps) {
           </div>
         </div>
 
-        <div className="flex items-center justify-between border-t border-white/10 px-6 py-5">
+        <div className="flex shrink-0 items-center justify-between border-t border-white/10 px-6 py-5">
           <p className="text-xs text-gray-400">Saving will apply changes to products and variants.</p>
           <div className="flex items-center gap-3">
             <button
