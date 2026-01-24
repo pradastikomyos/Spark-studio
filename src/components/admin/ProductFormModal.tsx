@@ -86,6 +86,11 @@ export default function ProductFormModal(props: ProductFormModalProps) {
     for (const v of draft.variants) {
       if (!v.name.trim()) return 'Variant name is required.';
       if (!v.sku.trim()) return 'Variant SKU is required.';
+      const hasOnlinePrice = v.online_price && v.online_price.trim() !== '';
+      const hasOfflinePrice = v.offline_price && v.offline_price.trim() !== '';
+      if (!hasOnlinePrice && !hasOfflinePrice) {
+        return `Variant "${v.name || 'unnamed'}" must have at least one price (online or offline).`;
+      }
     }
     return null;
   };
