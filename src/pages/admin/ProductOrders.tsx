@@ -45,7 +45,6 @@ export default function ProductOrders() {
   const [details, setDetails] = useState<OrderDetails | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
-  const verifyButtonRef = useRef<HTMLButtonElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const fetchOrders = useCallback(async () => {
