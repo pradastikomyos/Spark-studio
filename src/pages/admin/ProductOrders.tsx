@@ -36,7 +36,7 @@ type OrderDetails = {
 const TAB_RETURN_EVENT = 'tab-returned-from-idle';
 
 export default function ProductOrders() {
-  const { signOut } = useAuth();
+  const { signOut, session } = useAuth();
   const [activeTab, setActiveTab] = useState<'pending' | 'today' | 'completed'>('pending');
   const [orders, setOrders] = useState<OrderSummaryRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -195,14 +195,35 @@ export default function ProductOrders() {
     setSubmitting(true);
     setActionError(null);
     try {
-      const { data: sessionData } = await supabase.auth.getSession();
-      const token = sessionData.session?.access_token;
-      if (!token) throw new Error('Not authenticated');
+      const invokePickup = async (accessToken: string) => {
+        return supabase.functions.invoke('complete-product-pickup', {
+          body: { pickupCode: details.order.pickup_code },
+          headers: { Authorization: `Bearer ${accessToken}` },
+        });
+      };
 
-      const { error: invokeError } = await supabase.functions.invoke('complete-product-pickup', {
-        body: { pickupCode: details.order.pickup_code },
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      let token = session?.access_token ?? null;
+      if (!token) {
+        const { data, error } = await supabase.auth.refreshSession();
+        if (error) {
+          throw new Error('Sesi login tidak valid. Silakan login ulang.');
+        }
+        token = data.session?.access_token ?? null;
+      }
+      if (!token) throw new Error('Sesi login tidak valid. Silakan login ulang.');
+
+      let { error: invokeError } = await invokePickup(token);
+      const status = (invokeError as { status?: number }).status;
+      if (invokeError && status === 401) {
+        const { data, error } = await supabase.auth.refreshSession();
+        if (error) {
+          throw new Error('Sesi login kadaluarsa. Silakan login ulang.');
+        }
+        token = data.session?.access_token ?? null;
+        if (!token) throw new Error('Sesi login kadaluarsa. Silakan login ulang.');
+        const retry = await invokePickup(token);
+        invokeError = retry.error ?? null;
+      }
 
       if (invokeError) {
         const contextError =
@@ -220,7 +241,7 @@ export default function ProductOrders() {
     } finally {
       setSubmitting(false);
     }
-  }, [details, fetchOrders]);
+  }, [details, fetchOrders, session?.access_token]);
 
   const pendingOrders = useMemo(() => {
     return orders.filter((o) => o.pickup_status === 'pending_pickup');

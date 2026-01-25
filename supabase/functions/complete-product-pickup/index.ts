@@ -16,6 +16,7 @@ serve(async (req) => {
   }
 
   const supabaseUrl = Deno.env.get('SUPABASE_URL')!
+  const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!
   const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 
   try {
@@ -27,12 +28,13 @@ serve(async (req) => {
       })
     }
 
-    const supabase = createClient(supabaseUrl, supabaseServiceKey)
+    const supabaseAuth = createClient(supabaseUrl, supabaseAnonKey)
+    const supabaseService = createClient(supabaseUrl, supabaseServiceKey)
     const token = authHeader.replace('Bearer ', '')
     const {
       data: { user },
       error: authError,
-    } = await supabase.auth.getUser(token)
+    } = await supabaseAuth.auth.getUser(token)
 
     if (authError || !user?.id || !user.email) {
       return new Response(JSON.stringify({ error: 'Invalid token' }), {
@@ -41,7 +43,7 @@ serve(async (req) => {
       })
     }
 
-    const { data: roleRows, error: roleError } = await supabase
+    const { data: roleRows, error: roleError } = await supabaseService
       .from('user_role_assignments')
       .select('role_name')
       .eq('user_id', user.id)
@@ -70,7 +72,7 @@ serve(async (req) => {
       })
     }
 
-    const { data: userRow, error: userRowError } = await supabase.from('users').select('id').eq('email', user.email).single()
+    const { data: userRow, error: userRowError } = await supabaseService.from('users').select('id').eq('email', user.email).single()
     if (userRowError || !userRow) {
       return new Response(JSON.stringify({ error: 'User record not found' }), {
         status: 500,
@@ -80,7 +82,7 @@ serve(async (req) => {
 
     const pickedUpBy = (userRow as { id: number }).id
 
-    const { data: order, error: orderError } = await supabase
+    const { data: order, error: orderError } = await supabaseService
       .from('order_products')
       .select('id, payment_status, pickup_status, pickup_expires_at')
       .eq('pickup_code', pickupCode)
@@ -109,7 +111,7 @@ serve(async (req) => {
 
     const expiresAt = (order as { pickup_expires_at?: string | null }).pickup_expires_at
     if (expiresAt && Date.now() > new Date(expiresAt).getTime()) {
-      await supabase
+      await supabaseService
         .from('order_products')
         .update({ pickup_status: 'expired', updated_at: new Date().toISOString() })
         .eq('id', (order as { id: number }).id)
@@ -120,7 +122,7 @@ serve(async (req) => {
     }
 
     const orderId = (order as { id: number }).id
-    const { data: items, error: itemsError } = await supabase
+    const { data: items, error: itemsError } = await supabaseService
       .from('order_product_items')
       .select('product_variant_id, quantity')
       .eq('order_product_id', orderId)
@@ -136,7 +138,7 @@ serve(async (req) => {
       const variantId = Number((row as { product_variant_id: number | string }).product_variant_id)
       const qty = Math.max(1, Math.floor(Number((row as { quantity: number | string }).quantity)))
 
-      const { data: variant, error: variantError } = await supabase
+      const { data: variant, error: variantError } = await supabaseService
         .from('product_variants')
         .select('id, stock, reserved_stock')
         .eq('id', variantId)
@@ -158,7 +160,7 @@ serve(async (req) => {
         })
       }
 
-      const { error: updateVariantError } = await supabase
+      const { error: updateVariantError } = await supabaseService
         .from('product_variants')
         .update({
           stock: stock - qty,
@@ -175,7 +177,7 @@ serve(async (req) => {
       }
     }
 
-    const { error: updateOrderError } = await supabase
+    const { error: updateOrderError } = await supabaseService
       .from('order_products')
       .update({
         pickup_status: 'completed',
@@ -203,4 +205,3 @@ serve(async (req) => {
     })
   }
 })
-
