@@ -41,6 +41,7 @@ export default function ProductOrders() {
   const [orders, setOrders] = useState<OrderSummaryRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [ordersError, setOrdersError] = useState<string | null>(null);
+  const [pendingCount, setPendingCount] = useState(0);
   const [scannerOpen, setScannerOpen] = useState(false);
   const [lookupCode, setLookupCode] = useState('');
   const [lookupError, setLookupError] = useState<string | null>(null);
@@ -52,21 +53,30 @@ export default function ProductOrders() {
   const fetchOrders = useCallback(async () => {
     setLoading(true);
     setOrdersError(null);
-    const { data, error } = await supabase
-      .from('order_products')
-      .select('id, order_number, total, pickup_code, pickup_status, paid_at, users!order_products_user_id_foreign(name, email)')
-      .eq('payment_status', 'paid')
-      .order('paid_at', { ascending: false })
-      .limit(100);
+    const [ordersResult, pendingResult] = await Promise.all([
+      supabase
+        .from('order_products')
+        .select('id, order_number, total, pickup_code, pickup_status, paid_at, users!order_products_user_id_foreign(name, email)')
+        .eq('payment_status', 'paid')
+        .order('paid_at', { ascending: false })
+        .limit(100),
+      supabase
+        .from('order_products')
+        .select('id', { count: 'exact', head: true })
+        .eq('payment_status', 'paid')
+        .eq('pickup_status', 'pending_pickup'),
+    ]);
 
-    if (error) {
+    if (ordersResult.error) {
       setOrders([]);
-      setOrdersError(error.message || 'Gagal memuat daftar pesanan');
+      setOrdersError(ordersResult.error.message || 'Gagal memuat daftar pesanan');
+      setPendingCount(0);
       setLoading(false);
       return;
     }
 
-    setOrders((data || []) as unknown as OrderSummaryRow[]);
+    setOrders((ordersResult.data || []) as unknown as OrderSummaryRow[]);
+    setPendingCount(pendingResult.count ?? 0);
     setLoading(false);
   }, []);
 
@@ -228,6 +238,19 @@ export default function ProductOrders() {
     return orders.filter((o) => o.pickup_status === 'completed');
   }, [orders]);
 
+  const menuSections = useMemo(() => {
+    return ADMIN_MENU_SECTIONS.map((section) => {
+      if (section.id !== 'store') return section;
+      return {
+        ...section,
+        items: section.items.map((item) => {
+          if (item.id !== 'product-orders') return item;
+          return { ...item, badge: pendingCount };
+        }),
+      };
+    });
+  }, [pendingCount]);
+
   const displayOrders = useMemo(() => {
     if (activeTab === 'pending') return pendingOrders;
     if (activeTab === 'today') return todays;
@@ -237,7 +260,7 @@ export default function ProductOrders() {
   return (
     <AdminLayout
       menuItems={ADMIN_MENU_ITEMS}
-      menuSections={ADMIN_MENU_SECTIONS}
+      menuSections={menuSections}
       defaultActiveMenuId="product-orders"
       title="Pesanan Produk"
       subtitle="Scan pickup code untuk serahkan barang."
