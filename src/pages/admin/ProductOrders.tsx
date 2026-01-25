@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import AdminLayout from '../../components/AdminLayout';
 import QRScannerModal from '../../components/admin/QRScannerModal';
 import { useAuth } from '../../contexts/AuthContext';
@@ -45,6 +45,8 @@ export default function ProductOrders() {
   const [details, setDetails] = useState<OrderDetails | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  const verifyButtonRef = useRef<HTMLButtonElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   const fetchOrders = useCallback(async () => {
     setLoading(true);
@@ -138,10 +140,25 @@ export default function ProductOrders() {
     async (decodedText: string) => {
       const code = decodedText.trim().toUpperCase();
       if (!code) throw new Error('Kode tidak valid');
-      setLookupCode(code);
+      
+      // Clear previous errors
       setLookupError(null);
       setActionError(null);
+      
+      // Try to load details first - only set code if successful
       await loadDetailsByPickupCode(code);
+      
+      // Only reach here if loadDetailsByPickupCode succeeded
+      setLookupCode(code);
+      
+      // Auto-focus input and animate after modal closes
+      setTimeout(() => {
+        inputRef.current?.focus();
+        inputRef.current?.classList.add('ring-2', 'ring-green-500', 'dark:ring-green-400');
+        setTimeout(() => {
+          inputRef.current?.classList.remove('ring-2', 'ring-green-500', 'dark:ring-green-400');
+        }, 2000);
+      }, 300);
     },
     [loadDetailsByPickupCode]
   );
@@ -212,13 +229,14 @@ export default function ProductOrders() {
                 Cari kode
               </label>
               <input
+                ref={inputRef}
                 value={lookupCode}
                 onChange={(e) => setLookupCode(e.target.value.toUpperCase())}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') handleLookup();
                 }}
                 placeholder="PRX-XXX-YYY"
-                className="w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#1a0f0f] px-4 py-3 text-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary dark:text-white font-sans uppercase tracking-widest placeholder:normal-case placeholder:tracking-normal"
+                className="w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#1a0f0f] px-4 py-3 text-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary dark:text-white font-sans uppercase tracking-widest placeholder:normal-case placeholder:tracking-normal transition-all duration-300"
               />
             </div>
             <button
