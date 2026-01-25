@@ -140,24 +140,38 @@ export default function ProductOrders() {
       const code = decodedText.trim().toUpperCase();
       if (!code) throw new Error('Kode tidak valid');
       
-      // Clear previous errors
+      // Set code immediately so user can see what was scanned
+      setLookupCode(code);
       setLookupError(null);
       setActionError(null);
       
-      // Try to load details first - only set code if successful
-      await loadDetailsByPickupCode(code);
-      
-      // Only reach here if loadDetailsByPickupCode succeeded
-      setLookupCode(code);
-      
-      // Auto-focus input and animate after modal closes
-      setTimeout(() => {
-        inputRef.current?.focus();
-        inputRef.current?.classList.add('ring-2', 'ring-green-500', 'dark:ring-green-400');
+      // Try to load details - if it fails, error will show on page, not in modal
+      try {
+        await loadDetailsByPickupCode(code);
+        
+        // Success - animate input
         setTimeout(() => {
-          inputRef.current?.classList.remove('ring-2', 'ring-green-500', 'dark:ring-green-400');
-        }, 2000);
-      }, 300);
+          inputRef.current?.focus();
+          inputRef.current?.classList.add('ring-2', 'ring-green-500', 'dark:ring-green-400');
+          setTimeout(() => {
+            inputRef.current?.classList.remove('ring-2', 'ring-green-500', 'dark:ring-green-400');
+          }, 2000);
+        }, 300);
+      } catch (err) {
+        // Show error on page, not in modal
+        setLookupError(err instanceof Error ? err.message : 'Gagal mencari order');
+        
+        // Still animate input to show code was scanned
+        setTimeout(() => {
+          inputRef.current?.focus();
+          inputRef.current?.classList.add('ring-2', 'ring-red-500', 'dark:ring-red-400');
+          setTimeout(() => {
+            inputRef.current?.classList.remove('ring-2', 'ring-red-500', 'dark:ring-red-400');
+          }, 2000);
+        }, 300);
+      }
+      
+      // Don't throw - let modal close gracefully
     },
     [loadDetailsByPickupCode]
   );
@@ -304,9 +318,10 @@ export default function ProductOrders() {
         title="Scan Pickup QR"
         onScan={handleScan}
         closeOnSuccess={true}
-        closeDelayMs={2500}
+        closeDelayMs={1000}
+        closeOnError={true}
+        closeOnErrorDelayMs={1000}
         autoResumeOnError={false}
-        autoResumeAfterMs={3000}
       />
 
       {details && (
