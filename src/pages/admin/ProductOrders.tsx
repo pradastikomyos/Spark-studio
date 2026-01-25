@@ -5,6 +5,8 @@ import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
 import { ADMIN_MENU_ITEMS, ADMIN_MENU_SECTIONS } from '../../constants/adminMenu';
 import { formatCurrency } from '../../utils/formatters';
+import { ensureFreshToken } from '../../utils/auth';
+import { useSessionRefresh } from '../../hooks/useSessionRefresh';
 
 type OrderSummaryRow = {
   id: number;
@@ -38,6 +40,10 @@ const TAB_RETURN_EVENT = 'tab-returned-from-idle';
 
 export default function ProductOrders() {
   const { signOut, session } = useAuth();
+  
+  // Enable background session refresh for long-idle admin sessions
+  useSessionRefresh();
+  
   const [activeTab, setActiveTab] = useState<'pending' | 'today' | 'completed'>('pending');
   const [orders, setOrders] = useState<OrderSummaryRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -196,7 +202,12 @@ export default function ProductOrders() {
     setSubmitting(true);
     setActionError(null);
     try {
-      const sanitizeToken = (rawToken: string | null) => rawToken?.replace(/^Bearer\s*/i, '').trim() ?? '';
+      // Proactively ensure token is fresh before critical operation
+      let token = await ensureFreshToken(session);
+      
+      if (!token) {
+        throw new Error('Sesi login tidak valid. Silakan login ulang.');
+      }
 
       const invokePickup = async (accessToken: string) => {
         return supabase.functions.invoke('complete-product-pickup', {
@@ -205,25 +216,16 @@ export default function ProductOrders() {
         });
       };
 
-      let token = sanitizeToken(session?.access_token ?? null);
-      if (!token) {
-        const { data, error } = await supabase.auth.refreshSession();
-        if (error) {
-          throw new Error('Sesi login tidak valid. Silakan login ulang.');
-        }
-        token = sanitizeToken(data.session?.access_token ?? null);
-      }
-      if (!token) throw new Error('Sesi login tidak valid. Silakan login ulang.');
-
       let { error: invokeError } = await invokePickup(token);
       const status = invokeError ? (invokeError as { status?: number }).status : undefined;
+      
+      // Fallback: if still get 401, try one more refresh
       if (invokeError && status === 401) {
         const { data, error } = await supabase.auth.refreshSession();
-        if (error) {
+        if (error || !data.session?.access_token) {
           throw new Error('Sesi login kadaluarsa. Silakan login ulang.');
         }
-        token = sanitizeToken(data.session?.access_token ?? null);
-        if (!token) throw new Error('Sesi login kadaluarsa. Silakan login ulang.');
+        token = data.session.access_token;
         const retry = await invokePickup(token);
         invokeError = retry.error ?? null;
       }
@@ -244,7 +246,7 @@ export default function ProductOrders() {
     } finally {
       setSubmitting(false);
     }
-  }, [details, fetchOrders, session?.access_token]);
+  }, [details, fetchOrders, session]);
 
   const pendingOrders = useMemo(() => {
     return orders.filter((o) => o.pickup_status === 'pending_pickup');
