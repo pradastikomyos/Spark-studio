@@ -6,16 +6,16 @@ type QRScannerModalProps = {
   onClose: () => void;
   title?: string;
   onScan?: (decodedText: string) => void | Promise<void>;
-  /** Delay before auto-resume in ms. Default: 2000 */
+  /** Delay before auto-resume in ms. Default: 3000 */
   autoResumeAfterMs?: number;
   autoResumeOnError?: boolean;
   /** If true, close modal automatically after successful scan. Default: false */
   closeOnSuccess?: boolean;
-  /** Delay before closing modal on success (ms). Default: 1500 */
+  /** Delay before closing modal on success (ms). Default: 2500 */
   closeDelayMs?: number;
   /** If true, close modal automatically after error/failed scan. Default: false */
   closeOnError?: boolean;
-  /** Delay before closing modal on error (ms). Default: 2000 */
+  /** Delay before closing modal on error (ms). Default: 3000 */
   closeOnErrorDelayMs?: number;
 };
 
@@ -24,12 +24,12 @@ const QRScannerModal = ({
   onClose,
   title = 'Scan QR Code',
   onScan,
-  autoResumeAfterMs = 2000,
+  autoResumeAfterMs = 3000,
   autoResumeOnError = true,
   closeOnSuccess = false,
-  closeDelayMs = 1500,
+  closeDelayMs = 2500,
   closeOnError = false,
-  closeOnErrorDelayMs = 2000,
+  closeOnErrorDelayMs = 3000,
 }: QRScannerModalProps) => {
   const readerId = useMemo(
     () => `qr-reader-${Date.now()}-${Math.random().toString(16).slice(2)}`,
@@ -39,9 +39,29 @@ const QRScannerModal = ({
   const qrRef = useRef<Html5Qrcode | null>(null);
   const isOpenRef = useRef(false);
   const processingRef = useRef(false);
+  const lastScannedRef = useRef<string>('');
+  const lastScannedTimeRef = useRef<number>(0);
+  const closingRef = useRef(false);
   const [status, setStatus] = useState<'idle' | 'starting' | 'scanning' | 'processing' | 'success' | 'error'>('idle');
   const [errorMessage, setErrorMessage] = useState<string>('');
   const [errorDetails, setErrorDetails] = useState<string>('');
+  const [isClosing, setIsClosing] = useState(false);
+
+  // Debounce time to prevent duplicate scans (ms)
+  const SCAN_DEBOUNCE_MS = 2000;
+
+  const handleClose = useCallback(() => {
+    if (closingRef.current) return;
+    closingRef.current = true;
+    setIsClosing(true);
+    
+    // Smooth closing animation
+    setTimeout(() => {
+      onClose();
+      setIsClosing(false);
+      closingRef.current = false;
+    }, 300);
+  }, [onClose]);
 
   const stopScanner = useCallback(async () => {
     const qr = qrRef.current;
@@ -89,12 +109,23 @@ const QRScannerModal = ({
     const { Html5Qrcode } = await import('html5-qrcode');
     qrRef.current = new Html5Qrcode(readerId);
     const qr = qrRef.current;
-    const config = { fps: 10, qrbox: { width: 250, height: 250 } };
+    
+    // Lower FPS for smoother, less aggressive scanning
+    const config = { fps: 5, qrbox: { width: 250, height: 250 } };
 
     const onScanSuccessHandler = async (decodedText: string) => {
-      // Prevent duplicate scans
-      if (processingRef.current) return;
+      // Prevent duplicate scans with debounce
+      const now = Date.now();
+      if (
+        processingRef.current ||
+        (decodedText === lastScannedRef.current && now - lastScannedTimeRef.current < SCAN_DEBOUNCE_MS)
+      ) {
+        return;
+      }
+      
       processingRef.current = true;
+      lastScannedRef.current = decodedText;
+      lastScannedTimeRef.current = now;
 
       // Stop scanner immediately
       setStatus('processing');
@@ -119,24 +150,24 @@ const QRScannerModal = ({
       } catch (err) {
         console.error('Scan processing error:', err);
         setStatus('error');
-        const error = err instanceof Error ? err : new Error('Gagal memproses tiket');
+        const error = err instanceof Error ? err : new Error('Gagal memproses');
         setErrorMessage(error.message);
         setErrorDetails('');
         scanSucceeded = false;
       }
 
-      // Handle post-scan behavior
+      // Handle post-scan behavior with smooth transitions
       if (scanSucceeded && closeOnSuccess) {
-        // Close modal after delay on success
+        // Show success state for a moment, then close smoothly
         setTimeout(() => {
           processingRef.current = false;
-          onClose();
+          handleClose();
         }, closeDelayMs);
       } else if (!scanSucceeded && closeOnError) {
-        // Close modal after delay on error
+        // Show error state for a moment, then close smoothly
         setTimeout(() => {
           processingRef.current = false;
-          onClose();
+          handleClose();
         }, closeOnErrorDelayMs);
       } else if (scanSucceeded) {
         // Auto-restart scanner after delay for next scan
@@ -224,11 +255,17 @@ const QRScannerModal = ({
         }
       }
     }
-    }, [autoResumeAfterMs, autoResumeOnError, closeOnSuccess, closeDelayMs, closeOnError, closeOnErrorDelayMs, onScan, onClose, readerId, stopScanner]);
+    }, [autoResumeAfterMs, autoResumeOnError, closeOnSuccess, closeDelayMs, closeOnError, closeOnErrorDelayMs, onScan, handleClose, readerId, stopScanner]);
 
   useEffect(() => {
     isOpenRef.current = isOpen;
     if (!isOpen) return;
+
+    // Reset states when opening
+    setIsClosing(false);
+    closingRef.current = false;
+    lastScannedRef.current = '';
+    lastScannedTimeRef.current = 0;
 
     const timer = setTimeout(() => {
       startScanner().catch((err) => {
@@ -245,6 +282,7 @@ const QRScannerModal = ({
   useEffect(() => {
     if (!isOpen) {
       processingRef.current = false;
+      closingRef.current = false;
       stopScanner().catch(() => {
         // ignore
       });
@@ -255,6 +293,7 @@ const QRScannerModal = ({
   useEffect(() => {
     return () => {
       processingRef.current = false;
+      closingRef.current = false;
       stopScanner().catch(() => {
         // ignore
       });
@@ -264,13 +303,19 @@ const QRScannerModal = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-white dark:bg-[#1a0f0f] rounded-2xl shadow-2xl max-w-md w-full p-6 border border-gray-200 dark:border-white/10">
+    <div 
+      className={`fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 transition-opacity duration-300 ${isClosing ? 'opacity-0' : 'opacity-100'}`}
+      onClick={handleClose}
+    >
+      <div 
+        className={`bg-white dark:bg-[#1a0f0f] rounded-2xl shadow-2xl max-w-md w-full p-6 border border-gray-200 dark:border-white/10 transition-all duration-300 ${isClosing ? 'scale-95 opacity-0' : 'scale-100 opacity-100'}`}
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="flex items-center justify-between mb-6">
           <h3 className="text-xl font-bold text-neutral-900 dark:text-white">{title}</h3>
           <button
-            onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
+            onClick={handleClose}
+            className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-white/10"
           >
             <span className="material-symbols-outlined">close</span>
           </button>
@@ -281,53 +326,70 @@ const QRScannerModal = ({
 
           {/* Starting State */}
           {status === 'starting' && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-white/90 dark:bg-black/70">
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-white/90 dark:bg-black/70 transition-opacity duration-300">
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
               <p className="text-sm text-neutral-900 dark:text-white font-medium">Memulai kamera...</p>
             </div>
           )}
 
-          {/* Processing State */}
-          {status === 'processing' && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-white/90 dark:bg-black/70">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-              <p className="text-sm text-neutral-900 dark:text-white font-medium">Memproses tiket...</p>
+          {/* Scanning State - subtle indicator */}
+          {status === 'scanning' && (
+            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-black/60 backdrop-blur-sm px-4 py-2 rounded-full">
+              <p className="text-xs text-white font-medium flex items-center gap-2">
+                <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></span>
+                Arahkan ke QR Code
+              </p>
             </div>
           )}
 
-          {/* Success State */}
+          {/* Processing State */}
+          {status === 'processing' && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-white/90 dark:bg-black/70 transition-opacity duration-300">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+              <p className="text-sm text-neutral-900 dark:text-white font-medium">Memproses...</p>
+            </div>
+          )}
+
+          {/* Success State - Clear and visible */}
           {status === 'success' && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-green-50/95 dark:bg-green-900/70 p-6">
-              <div className="animate-bounce">
-                <span className="material-symbols-outlined text-6xl text-green-600 dark:text-green-400">check_circle</span>
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 bg-green-50/95 dark:bg-green-900/80 p-6 transition-all duration-500">
+              <div className="relative">
+                <div className="absolute inset-0 bg-green-400/30 rounded-full animate-ping"></div>
+                <div className="relative bg-green-500 rounded-full p-4">
+                  <span className="material-symbols-outlined text-4xl text-white">check</span>
+                </div>
               </div>
-              <p className="text-base font-bold text-green-800 dark:text-green-200">Tiket Valid!</p>
-              {closeOnSuccess ? (
-                <p className="text-sm text-green-700 dark:text-green-300">Menutup scanner...</p>
-              ) : (
-                <p className="text-sm text-green-700 dark:text-green-300">Memulai ulang pemindai...</p>
-              )}
+              <div className="text-center">
+                <p className="text-lg font-bold text-green-800 dark:text-green-100">Berhasil!</p>
+                <p className="text-sm text-green-700 dark:text-green-200 mt-1">
+                  {closeOnSuccess ? 'Menutup...' : 'Siap scan berikutnya...'}
+                </p>
+              </div>
             </div>
           )}
 
           {/* Error State */}
           {status === 'error' && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-white/90 dark:bg-black/70 p-6">
-              <span className="material-symbols-outlined text-5xl text-red-500 mb-2">error</span>
-              {errorMessage && (
-                <p className="text-base font-bold text-neutral-900 dark:text-white text-center">{errorMessage}</p>
-              )}
-              {errorDetails && (
-                <p className="text-sm text-neutral-700 dark:text-gray-300 text-center max-w-xs">{errorDetails}</p>
-              )}
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 bg-white/95 dark:bg-black/80 p-6 transition-all duration-300">
+              <div className="bg-red-100 dark:bg-red-900/50 rounded-full p-4">
+                <span className="material-symbols-outlined text-4xl text-red-500 dark:text-red-400">error</span>
+              </div>
+              <div className="text-center">
+                {errorMessage && (
+                  <p className="text-base font-bold text-neutral-900 dark:text-white">{errorMessage}</p>
+                )}
+                {errorDetails && (
+                  <p className="text-sm text-neutral-600 dark:text-gray-300 mt-2 max-w-xs">{errorDetails}</p>
+                )}
+              </div>
               {closeOnError ? (
-                <p className="text-sm text-red-700 dark:text-red-300">Menutup scanner...</p>
+                <p className="text-sm text-red-600 dark:text-red-300 mt-2">Menutup...</p>
               ) : (
                 <button
                   onClick={() => startScanner()}
                   className="bg-primary hover:bg-red-700 text-white px-6 py-3 rounded-lg font-bold transition-colors mt-2 flex items-center gap-2"
                 >
-                  <span className="material-symbols-outlined">refresh</span>
+                  <span className="material-symbols-outlined text-xl">refresh</span>
                   Coba Lagi
                 </button>
               )}
@@ -337,8 +399,8 @@ const QRScannerModal = ({
 
         <div className="flex gap-2">
           <button
-            onClick={onClose}
-            className="flex-1 bg-primary hover:bg-red-700 text-white py-3 rounded-lg font-bold transition-colors"
+            onClick={handleClose}
+            className="flex-1 bg-neutral-200 dark:bg-neutral-800 hover:bg-neutral-300 dark:hover:bg-neutral-700 text-neutral-900 dark:text-white py-3 rounded-lg font-bold transition-colors"
           >
             Tutup
           </button>

@@ -287,9 +287,9 @@ export default function ProductOrders() {
         title="Scan Pickup QR"
         onScan={handleScan}
         closeOnSuccess={true}
-        closeDelayMs={1500}
+        closeDelayMs={2500}
         autoResumeOnError={false}
-        autoResumeAfterMs={2500}
+        autoResumeAfterMs={3000}
       />
 
       {details && (
