@@ -286,7 +286,11 @@ export default function ProductOrders() {
         onClose={() => setScannerOpen(false)}
         title="Scan Pickup QR"
         onScan={handleScan}
-        closeOnSuccess
+        closeOnSuccess={true}
+        closeDelayMs={1500}
+        closeOnError={true}
+        closeOnErrorDelayMs={2000}
+        autoResumeAfterMs={2500}
       />
 
       {details && (
