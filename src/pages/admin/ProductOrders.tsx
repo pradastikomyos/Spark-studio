@@ -199,26 +199,24 @@ export default function ProductOrders() {
       const token = sessionData.session?.access_token;
       if (!token) throw new Error('Not authenticated');
 
-      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/complete-product-pickup`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify({ pickupCode: details.order.pickup_code }),
+      const { error: invokeError } = await supabase.functions.invoke('complete-product-pickup', {
+        body: { pickupCode: details.order.pickup_code },
+        headers: { Authorization: `Bearer ${token}` },
       });
 
-      const data = (await response.json()) as unknown;
-      if (!response.ok) {
-        const message = typeof (data as { error?: unknown }).error === 'string' ? String((data as { error?: unknown }).error) : 'Gagal menyelesaikan pickup';
-        throw new Error(message);
+      if (invokeError) {
+        const contextError =
+          typeof (invokeError as { context?: { error?: unknown } }).context?.error === 'string'
+            ? String((invokeError as { context?: { error?: unknown } }).context?.error)
+            : null;
+        throw new Error(contextError || invokeError.message || 'Gagal memverifikasi barang');
       }
 
       setDetails(null);
       setLookupCode('');
       await fetchOrders();
     } catch (e) {
-      setActionError(e instanceof Error ? e.message : 'Gagal menyelesaikan pickup');
+      setActionError(e instanceof Error ? e.message : 'Gagal memverifikasi barang');
     } finally {
       setSubmitting(false);
     }
@@ -263,7 +261,7 @@ export default function ProductOrders() {
       menuSections={menuSections}
       defaultActiveMenuId="product-orders"
       title="Pesanan Produk"
-      subtitle="Scan pickup code untuk serahkan barang."
+      subtitle="Scan pickup code untuk verifikasi barang."
       headerActions={
         <button
           onClick={() => setScannerOpen(true)}
@@ -457,7 +455,7 @@ export default function ProductOrders() {
                 disabled={submitting}
                 className="mt-6 w-full rounded-lg bg-primary px-6 py-3 text-sm font-bold text-white hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {submitting ? 'Memproses...' : 'Serahkan Barang'}
+                {submitting ? 'Memproses...' : 'Verifikasi Barang'}
               </button>
             </div>
           </div>
