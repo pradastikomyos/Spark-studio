@@ -40,6 +40,7 @@ export default function ProductOrders() {
   const [activeTab, setActiveTab] = useState<'pending' | 'today' | 'completed'>('pending');
   const [orders, setOrders] = useState<OrderSummaryRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [ordersError, setOrdersError] = useState<string | null>(null);
   const [scannerOpen, setScannerOpen] = useState(false);
   const [lookupCode, setLookupCode] = useState('');
   const [lookupError, setLookupError] = useState<string | null>(null);
@@ -50,6 +51,7 @@ export default function ProductOrders() {
 
   const fetchOrders = useCallback(async () => {
     setLoading(true);
+    setOrdersError(null);
     const { data, error } = await supabase
       .from('order_products')
       .select('id, order_number, total, pickup_code, pickup_status, paid_at, users(name, email)')
@@ -59,6 +61,7 @@ export default function ProductOrders() {
 
     if (error) {
       setOrders([]);
+      setOrdersError(error.message || 'Gagal memuat daftar pesanan');
       setLoading(false);
       return;
     }
@@ -324,6 +327,7 @@ export default function ProductOrders() {
               </button>
             </div>
           </div>
+          {ordersError && <div className="mb-4 text-sm text-red-600 dark:text-red-300">{ordersError}</div>}
 
           {loading ? (
             <div className="py-10 text-sm text-gray-500 dark:text-gray-400">Loading...</div>

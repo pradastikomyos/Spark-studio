@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import Logo from '../components/Logo';
 import { useAuth } from '../contexts/AuthContext';
 import { isAdmin } from '../utils/auth';
+import { supabase } from '../lib/supabase';
 
 interface LoginProps {
   isDark: boolean;
@@ -30,8 +31,9 @@ const Login = ({ isDark }: LoginProps) => {
       setError(error.message);
       setLoading(false);
     } else {
-      // Check if user is admin from database
-      const adminStatus = await isAdmin(email);
+      const { data: sessionData } = await supabase.auth.getSession();
+      const userId = sessionData.session?.user?.id;
+      const adminStatus = userId ? await isAdmin(userId) : false;
       
       if (adminStatus) {
         navigate('/admin/dashboard');
