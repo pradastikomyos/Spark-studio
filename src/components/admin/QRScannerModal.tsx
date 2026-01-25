@@ -8,6 +8,7 @@ type QRScannerModalProps = {
   onScan?: (decodedText: string) => void | Promise<void>;
   /** Delay before auto-resume in ms. Default: 2000 */
   autoResumeAfterMs?: number;
+  autoResumeOnError?: boolean;
   /** If true, close modal automatically after successful scan. Default: false */
   closeOnSuccess?: boolean;
   /** Delay before closing modal on success (ms). Default: 1500 */
@@ -24,6 +25,7 @@ const QRScannerModal = ({
   title = 'Scan QR Code',
   onScan,
   autoResumeAfterMs = 2000,
+  autoResumeOnError = true,
   closeOnSuccess = false,
   closeDelayMs = 1500,
   closeOnError = false,
@@ -136,7 +138,7 @@ const QRScannerModal = ({
           processingRef.current = false;
           onClose();
         }, closeOnErrorDelayMs);
-      } else {
+      } else if (scanSucceeded) {
         // Auto-restart scanner after delay for next scan
         setTimeout(() => {
           if (!isOpenRef.current) return;
@@ -147,6 +149,18 @@ const QRScannerModal = ({
             setErrorMessage('Gagal memulai ulang pemindai');
           });
         }, autoResumeAfterMs);
+      } else if (autoResumeOnError) {
+        setTimeout(() => {
+          if (!isOpenRef.current) return;
+          processingRef.current = false;
+          startScanner().catch((err) => {
+            console.error('Failed to restart scanner:', err);
+            setStatus('error');
+            setErrorMessage('Gagal memulai ulang pemindai');
+          });
+        }, autoResumeAfterMs);
+      } else {
+        processingRef.current = false;
       }
     };
 
@@ -210,7 +224,7 @@ const QRScannerModal = ({
         }
       }
     }
-    }, [autoResumeAfterMs, closeOnSuccess, closeDelayMs, closeOnError, closeOnErrorDelayMs, onScan, onClose, readerId, stopScanner]);
+    }, [autoResumeAfterMs, autoResumeOnError, closeOnSuccess, closeDelayMs, closeOnError, closeOnErrorDelayMs, onScan, onClose, readerId, stopScanner]);
 
   useEffect(() => {
     isOpenRef.current = isOpen;

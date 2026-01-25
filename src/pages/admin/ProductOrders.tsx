@@ -288,8 +288,7 @@ export default function ProductOrders() {
         onScan={handleScan}
         closeOnSuccess={true}
         closeDelayMs={1500}
-        closeOnError={true}
-        closeOnErrorDelayMs={2000}
+        autoResumeOnError={false}
         autoResumeAfterMs={2500}
       />
 

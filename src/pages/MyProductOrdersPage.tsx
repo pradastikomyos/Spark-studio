@@ -29,6 +29,20 @@ interface OrderItem {
   imageUrl?: string;
 }
 
+type OrderItemRow = {
+  id: number;
+  quantity: number;
+  price: number;
+  subtotal: number;
+  product_variants?: {
+    name?: string | null;
+    products?: {
+      name?: string | null;
+      image_url?: string | null;
+    } | null;
+  } | null;
+};
+
 export default function MyProductOrdersPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -108,7 +122,7 @@ export default function MyProductOrdersPage() {
               `)
               .eq('order_product_id', order.id);
 
-            const items: OrderItem[] = (itemsData || []).map((item: any) => ({
+            const items: OrderItem[] = ((itemsData as OrderItemRow[] | null) || []).map((item) => ({
               id: item.id,
               quantity: item.quantity,
               price: item.price,
