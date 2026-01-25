@@ -4,6 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useCart } from '../contexts/cartStore';
 import { supabase } from '../lib/supabase';
 import { loadSnapScript, type SnapResult } from '../utils/midtransSnap';
+import { formatCurrency } from '../utils/formatters';
 
 type CreateProductTokenResponse = {
   token: string;
@@ -182,16 +183,16 @@ export default function ProductCheckoutPage() {
                     <div className="min-w-0">
                       <p className="truncate">{i.product_name}</p>
                       <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
-                        {i.variant_name} · {i.quantity} × ${i.unit_price.toFixed(2)}
+                        {i.variant_name} · {i.quantity} × {formatCurrency(i.unit_price)}
                       </p>
                     </div>
-                    <span className="font-medium">${i.subtotal.toFixed(2)}</span>
+                    <span className="font-medium">{formatCurrency(i.subtotal)}</span>
                   </div>
                 ))}
               </div>
               <div className="border-t border-gray-200 dark:border-gray-800 pt-4 flex justify-between items-center">
                 <span className="uppercase tracking-widest text-xs text-gray-500 dark:text-gray-400">Total</span>
-                <span className="font-display text-2xl text-primary">${subtotal.toFixed(2)}</span>
+                <span className="font-display text-2xl text-primary">{formatCurrency(subtotal)}</span>
               </div>
               <button
                 onClick={handlePay}

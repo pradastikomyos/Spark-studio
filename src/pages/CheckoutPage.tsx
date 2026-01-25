@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { formatCurrency } from '../utils/formatters';
 
 export default function CheckoutPage() {
   const navigate = useNavigate();
@@ -408,7 +409,7 @@ export default function CheckoutPage() {
                   <p className="text-xs text-gray-500 font-body">{item.description}</p>
                 </div>
                 <div className="text-sm font-medium font-body">
-                  ${(item.price * item.quantity).toFixed(2)}
+                  {formatCurrency(item.price * item.quantity)}
                 </div>
               </div>
             ))}
@@ -432,7 +433,7 @@ export default function CheckoutPage() {
           <div className="space-y-3 text-sm font-body text-gray-600 mb-8">
             <div className="flex justify-between">
               <span>Subtotal</span>
-              <span className="text-[#1c0d0d] font-medium">${subtotal.toFixed(2)}</span>
+              <span className="text-[#1c0d0d] font-medium">{formatCurrency(subtotal)}</span>
             </div>
             <div className="flex justify-between">
               <span>Shipping</span>
@@ -445,13 +446,12 @@ export default function CheckoutPage() {
                   info
                 </span>
               </span>
-              <span className="text-[#1c0d0d] font-medium">${tax.toFixed(2)}</span>
+              <span className="text-[#1c0d0d] font-medium">{formatCurrency(tax)}</span>
             </div>
             <div className="flex justify-between items-center pt-4 mt-4 border-t border-gray-200 text-[#1c0d0d]">
               <span className="text-base font-display font-bold">Total</span>
               <div className="flex items-baseline gap-2">
-                <span className="text-xs text-gray-500">USD</span>
-                <span className="text-2xl font-bold font-display tracking-tight">${total.toFixed(2)}</span>
+                <span className="text-2xl font-bold font-display tracking-tight">{formatCurrency(total)}</span>
               </div>
             </div>
           </div>

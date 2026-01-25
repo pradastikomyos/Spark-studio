@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
-import { toLocalDateString } from '../utils/formatters';
+import { formatCurrency, toLocalDateString } from '../utils/formatters';
 
 interface Ticket {
   id: number;
@@ -465,15 +465,15 @@ export default function BookingPage() {
               <div className="pt-6 border-t border-background-light dark:border-background-dark space-y-4">
                 <div className="flex justify-between text-sm">
                   <span>Ticket Price</span>
-                  <span className="font-bold">Rp {price.toLocaleString('id-ID')}</span>
+                  <span className="font-bold">{formatCurrency(price)}</span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span>VAT (10%)</span>
-                  <span className="font-bold">Rp {vat.toLocaleString('id-ID')}</span>
+                  <span className="font-bold">{formatCurrency(vat)}</span>
                 </div>
                 <div className="flex justify-between text-xl font-black pt-4 border-t border-dashed border-[#e8cece] dark:border-[#3d2424]">
                   <span className="uppercase tracking-tighter">Total</span>
-                  <span className="text-primary">Rp {total.toLocaleString('id-ID')}</span>
+                  <span className="text-primary">{formatCurrency(total)}</span>
                 </div>
               </div>
 

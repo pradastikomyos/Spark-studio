@@ -7,6 +7,7 @@ import ProductFormModal, { type CategoryOption, type ProductDraft } from '../../
 import { ADMIN_MENU_ITEMS, ADMIN_MENU_SECTIONS } from '../../constants/adminMenu';
 import { getStockBadge, getStockBarColor } from '../../utils/statusHelpers';
 import { uploadProductImage } from '../../utils/uploadProductImage';
+import { formatCurrency } from '../../utils/formatters';
 
 type ProductVariantRow = {
   id: number;
@@ -605,8 +606,8 @@ const StoreInventory = () => {
                     <div className="flex justify-between items-start">
                       <h4 className="text-base font-bold text-neutral-900 dark:text-white leading-tight font-display">{product.name}</h4>
                       <span className="text-sm font-bold text-neutral-900 dark:text-white">
-                        ${product.price_min.toFixed(2)}
-                        {product.price_max !== product.price_min ? `\u2013$${product.price_max.toFixed(2)}` : ''}
+                        {formatCurrency(product.price_min)}
+                        {product.price_max !== product.price_min ? `–${formatCurrency(product.price_max)}` : ''}
                       </span>
                     </div>
                     <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 font-sans">

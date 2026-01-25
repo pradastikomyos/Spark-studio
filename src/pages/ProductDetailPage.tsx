@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
+import { formatCurrency } from '../utils/formatters';
 import { useCart } from '../contexts/cartStore';
 
 type Variant = {
@@ -183,7 +184,7 @@ export default function ProductDetailPage() {
                   <div>
                     <p className="text-xs uppercase tracking-widest text-gray-500 dark:text-gray-400">Price</p>
                     <p className="text-2xl font-display text-primary">
-                      ${selectedVariant ? selectedVariant.price.toFixed(2) : '0.00'}
+                      {formatCurrency(selectedVariant ? selectedVariant.price : 0)}
                     </p>
                   </div>
                   <div className="text-right">

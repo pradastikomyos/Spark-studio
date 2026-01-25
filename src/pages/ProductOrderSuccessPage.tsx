@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import QRCode from 'react-qr-code';
 import { supabase } from '../lib/supabase';
+import { formatCurrency } from '../utils/formatters';
 
 type ProductOrder = {
   id: number;
@@ -200,7 +201,7 @@ export default function ProductOrderSuccessPage() {
                       </div>
                       <div className="flex justify-between">
                         <span className="text-gray-500 dark:text-gray-400">Total</span>
-                        <span className="font-medium">${Number(order?.total ?? 0).toFixed(2)}</span>
+                        <span className="font-medium">{formatCurrency(Number(order?.total ?? 0))}</span>
                       </div>
                     </div>
                     {order?.pickup_expires_at && (
@@ -244,10 +245,10 @@ export default function ProductOrderSuccessPage() {
                     <div className="flex-1 min-w-0">
                       <p className="truncate font-medium text-gray-900 dark:text-white">{i.productName}</p>
                       <p className="truncate text-sm text-gray-500 dark:text-gray-400">
-                        {i.variantName} · {i.quantity} × ${i.price.toFixed(2)}
+                        {i.variantName} · {i.quantity} × {formatCurrency(i.price)}
                       </p>
                     </div>
-                    <span className="font-medium text-gray-900 dark:text-white">${i.subtotal.toFixed(2)}</span>
+                    <span className="font-medium text-gray-900 dark:text-white">{formatCurrency(i.subtotal)}</span>
                   </div>
                 ))}
               </div>

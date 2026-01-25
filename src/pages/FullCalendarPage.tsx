@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { formatCurrency } from '../utils/formatters';
 
 interface DayData {
   day: number;
@@ -267,7 +268,7 @@ export default function FullCalendarPage() {
                       </span>
                     </span>
                     <span className={`text-xs font-semibold ${selectedTime === 'morning' ? 'text-primary' : 'text-gray-500'}`}>
-                      $150
+                      {formatCurrency(150)}
                     </span>
                   </label>
 
@@ -291,7 +292,7 @@ export default function FullCalendarPage() {
                       </span>
                     </span>
                     <span className={`text-xs font-semibold ${selectedTime === 'afternoon' ? 'text-primary' : 'text-gray-500'}`}>
-                      $150
+                      {formatCurrency(150)}
                     </span>
                   </label>
 

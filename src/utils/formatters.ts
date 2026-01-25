@@ -17,7 +17,7 @@ export const getInitials = (name: string) => {
 
 export const formatCurrency = (amount: number | string) => {
   const numAmount = typeof amount === 'string' ? parseFloat(amount) : amount;
-  return `Rp ${numAmount.toLocaleString('id-ID')}`;
+  return `IDR ${numAmount.toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 };
 
 /**

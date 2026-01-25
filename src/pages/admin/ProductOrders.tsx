@@ -4,6 +4,7 @@ import QRScannerModal from '../../components/admin/QRScannerModal';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
 import { ADMIN_MENU_ITEMS, ADMIN_MENU_SECTIONS } from '../../constants/adminMenu';
+import { formatCurrency } from '../../utils/formatters';
 
 type OrderSummaryRow = {
   id: number;
@@ -406,7 +407,7 @@ export default function ProductOrders() {
                     </p>
                   </div>
                   <div className="flex items-center gap-3">
-                    <span className="text-xs font-bold text-gray-500 dark:text-gray-400">${Number(o.total ?? 0).toFixed(2)}</span>
+                    <span className="text-xs font-bold text-gray-500 dark:text-gray-400">{formatCurrency(Number(o.total ?? 0))}</span>
                     <span className={`text-xs font-bold uppercase tracking-wide px-2 py-1 rounded ${
                       o.pickup_status === 'pending_pickup' 
                         ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400'
@@ -458,17 +459,17 @@ export default function ProductOrders() {
                     <div className="min-w-0">
                       <p className="text-sm font-bold text-neutral-900 dark:text-white truncate">{i.productName}</p>
                       <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
-                        {i.variantName} · {i.quantity} × ${i.price.toFixed(2)}
+                        {i.variantName} · {i.quantity} × {formatCurrency(i.price)}
                       </p>
                     </div>
-                    <span className="text-sm font-bold text-neutral-900 dark:text-white">${i.subtotal.toFixed(2)}</span>
+                    <span className="text-sm font-bold text-neutral-900 dark:text-white">{formatCurrency(i.subtotal)}</span>
                   </div>
                 ))}
               </div>
 
               <div className="mt-6 border-t border-gray-200 dark:border-white/10 pt-4 flex items-center justify-between">
                 <span className="text-xs uppercase tracking-widest text-gray-500 dark:text-gray-400">Total</span>
-                <span className="text-xl font-bold text-primary">${Number(details.order.total ?? 0).toFixed(2)}</span>
+                <span className="text-xl font-bold text-primary">{formatCurrency(Number(details.order.total ?? 0))}</span>
               </div>
 
               <button

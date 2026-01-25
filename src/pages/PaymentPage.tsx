@@ -4,6 +4,7 @@ import { useDarkMode } from '../hooks/useDarkMode';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import { loadSnapScript } from '../utils/midtransSnap';
+import { formatCurrency } from '../utils/formatters';
 
 interface LocationState {
   ticketId?: number;
@@ -262,7 +263,7 @@ export default function PaymentPage() {
                     <p className="font-bold text-[#1c0d0d] dark:text-white">{ticketName}</p>
                     <p className="text-sm text-[#9c4949] dark:text-[#cc7a7a] capitalize">{ticketType}</p>
                   </div>
-                  <p className="font-semibold">IDR {price.toLocaleString('id-ID')}</p>
+                  <p className="font-semibold">{formatCurrency(price)}</p>
                 </div>
 
                 <div className="space-y-3">
@@ -287,7 +288,7 @@ export default function PaymentPage() {
                   <p className="text-lg font-bold">Total Amount</p>
                   <div className="text-right">
                     <p className="text-2xl font-black text-primary tracking-tight">
-                      IDR {total.toLocaleString('id-ID')}
+                      {formatCurrency(total)}
                     </p>
                     <p className="text-[10px] text-[#9c4949] uppercase tracking-wider">
                       Inclusive of all taxes
@@ -381,7 +382,7 @@ export default function PaymentPage() {
                 ) : (
                   <>
                     <span className="material-symbols-outlined text-[20px]">lock</span>
-                    Pay IDR {total.toLocaleString('id-ID')} Now
+                    Pay {formatCurrency(total)} Now
                   </>
                 )}
               </button>

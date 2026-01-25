@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useCart } from '../contexts/cartStore';
+import { formatCurrency } from '../utils/formatters';
 
 interface Product {
   id: number;
@@ -286,10 +287,10 @@ const Shop = () => {
                   </h3>
                   <p className="text-xs text-subtext-light dark:text-subtext-dark mb-2">{product.description}</p>
                   <div className="flex items-center gap-2">
-                    <span className="text-sm font-bold text-primary">${product.price.toFixed(2)}</span>
+                    <span className="text-sm font-bold text-primary">{formatCurrency(product.price)}</span>
                     {product.originalPrice && (
                       <span className="text-xs text-subtext-light dark:text-subtext-dark line-through">
-                        ${product.originalPrice.toFixed(2)}
+                        {formatCurrency(product.originalPrice)}
                       </span>
                     )}
                   </div>

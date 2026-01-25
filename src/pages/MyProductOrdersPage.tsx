@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import QRCode from 'react-qr-code';
 import { supabase } from '../lib/supabase';
+import { formatCurrency } from '../utils/formatters';
 import { useAuth } from '../contexts/AuthContext';
 
 interface ProductOrder {
@@ -345,7 +346,7 @@ export default function MyProductOrdersPage() {
                       <div className="text-right">
                         <p className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wider">Total</p>
                         <p className="text-xl font-serif font-bold text-[#1c0d0d] dark:text-white">
-                          ${order.total.toFixed(2)}
+                          {formatCurrency(order.total)}
                         </p>
                         <p className="text-xs text-gray-500 dark:text-gray-400">{order.itemCount} items</p>
                       </div>
@@ -424,10 +425,10 @@ export default function MyProductOrdersPage() {
                           <div className="flex-1 min-w-0">
                             <p className="truncate font-medium text-gray-900 dark:text-white">{item.productName}</p>
                             <p className="truncate text-sm text-gray-500 dark:text-gray-400">
-                              {item.variantName} · {item.quantity} × ${item.price.toFixed(2)}
+                              {item.variantName} · {item.quantity} × {formatCurrency(item.price)}
                             </p>
                           </div>
-                          <span className="font-medium text-gray-900 dark:text-white">${item.subtotal.toFixed(2)}</span>
+                          <span className="font-medium text-gray-900 dark:text-white">{formatCurrency(item.subtotal)}</span>
                         </div>
                       ))}
                     </div>

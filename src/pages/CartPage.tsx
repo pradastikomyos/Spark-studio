@@ -1,5 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import { useCart } from '../contexts/cartStore';
+import { formatCurrency } from '../utils/formatters';
 
 export default function CartPage() {
   const navigate = useNavigate();
@@ -82,7 +83,7 @@ export default function CartPage() {
                           +
                         </button>
                       </div>
-                      <span className="font-display text-xl text-primary">${(item.unitPrice * item.quantity).toFixed(2)}</span>
+                      <span className="font-display text-xl text-primary">{formatCurrency(item.unitPrice * item.quantity)}</span>
                     </div>
                   </div>
                 </div>
@@ -97,11 +98,11 @@ export default function CartPage() {
               <div className="space-y-4 text-sm font-light mb-8">
                 <div className="flex justify-between text-gray-600 dark:text-gray-300">
                   <span>Subtotal</span>
-                  <span>${subtotal.toFixed(2)}</span>
+                  <span>{formatCurrency(subtotal)}</span>
                 </div>
                 <div className="border-t border-gray-300 dark:border-gray-600 pt-4 flex justify-between font-normal">
                   <span>Total</span>
-                  <span className="font-display text-lg text-primary">${subtotal.toFixed(2)}</span>
+                  <span className="font-display text-lg text-primary">{formatCurrency(subtotal)}</span>
                 </div>
               </div>
 
