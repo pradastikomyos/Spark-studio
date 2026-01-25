@@ -54,11 +54,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           )
         ]);
 
-        const { data: { session }, error } = await getSessionWithTimeout;
-        
-        if (error) {
-          // Session error handled silently
-        }
+        const { data: { session } } = await getSessionWithTimeout;
 
         if (!isMounted) return;
 
@@ -70,7 +66,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         }
         
         if (!isMounted) return;
-      } catch (error) {
+      } catch {
         if (!isMounted) return;
         setSession(null);
         setUser(null);

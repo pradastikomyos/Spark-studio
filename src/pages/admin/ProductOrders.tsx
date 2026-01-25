@@ -54,7 +54,7 @@ export default function ProductOrders() {
     setOrdersError(null);
     const { data, error } = await supabase
       .from('order_products')
-      .select('id, order_number, total, pickup_code, pickup_status, paid_at, users(name, email)')
+      .select('id, order_number, total, pickup_code, pickup_status, paid_at, users!order_products_user_id_foreign(name, email)')
       .eq('payment_status', 'paid')
       .order('paid_at', { ascending: false })
       .limit(100);
@@ -88,7 +88,7 @@ export default function ProductOrders() {
   const loadDetailsByPickupCode = useCallback(async (pickupCode: string) => {
     const { data: orderRow, error: orderError } = await supabase
       .from('order_products')
-      .select('id, order_number, total, pickup_code, pickup_status, paid_at, payment_status, status, pickup_expires_at, users(name, email)')
+      .select('id, order_number, total, pickup_code, pickup_status, paid_at, payment_status, status, pickup_expires_at, users!order_products_user_id_foreign(name, email)')
       .eq('pickup_code', pickupCode)
       .single();
 

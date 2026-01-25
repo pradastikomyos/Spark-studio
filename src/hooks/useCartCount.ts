@@ -46,7 +46,7 @@ export const useCartCount = () => {
         } else {
           setCount(cartCount || 0);
         }
-      } catch (error) {
+      } catch {
         setCount(0);
       } finally {
         setLoading(false);

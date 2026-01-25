@@ -38,7 +38,7 @@ export const useTicketCount = () => {
         } else {
           setCount(ticketCount || 0);
         }
-      } catch (error) {
+      } catch {
         setCount(0);
       } finally {
         setLoading(false);

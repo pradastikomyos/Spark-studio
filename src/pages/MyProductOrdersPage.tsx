@@ -141,7 +141,7 @@ export default function MyProductOrdersPage() {
         );
 
         setOrders(ordersWithItems);
-      } catch (error) {
+      } catch {
         setOrders([]);
       } finally {
         if (showLoader) setLoading(false);
