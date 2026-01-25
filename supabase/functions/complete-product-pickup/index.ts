@@ -20,7 +20,7 @@ serve(async (req) => {
   const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 
   try {
-    const authHeader = req.headers.get('Authorization')
+    const authHeader = req.headers.get('Authorization') ?? req.headers.get('authorization')
     if (!authHeader) {
       return new Response(JSON.stringify({ error: 'Missing authorization header' }), {
         status: 401,
@@ -30,7 +30,7 @@ serve(async (req) => {
 
     const supabaseAuth = createClient(supabaseUrl, supabaseAnonKey)
     const supabaseService = createClient(supabaseUrl, supabaseServiceKey)
-    const token = authHeader.replace('Bearer ', '')
+    const token = authHeader.replace(/Bearer\s*/i, '').trim()
     const {
       data: { user },
       error: authError,
