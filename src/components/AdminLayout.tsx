@@ -241,7 +241,7 @@ const AdminLayout = ({
             </div>
           </div>
           <div className="flex items-center gap-3 flex-shrink-0">
-            {headerActions ? <div className="hidden md:flex items-center gap-3">{headerActions}</div> : null}
+            {headerActions ? <div className="flex items-center gap-3">{headerActions}</div> : null}
             <div className="relative w-full max-w-xs hidden sm:block">
               <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">
                 search

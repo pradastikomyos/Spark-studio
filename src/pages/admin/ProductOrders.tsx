@@ -196,10 +196,10 @@ export default function ProductOrders() {
       headerActions={
         <button
           onClick={() => setScannerOpen(true)}
-          className="flex items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-bold text-white hover:bg-red-700 transition-colors shadow-md"
+          className="flex items-center justify-center gap-2 rounded-lg bg-primary px-3 md:px-4 py-2.5 text-sm font-bold text-white hover:bg-red-700 transition-colors shadow-md"
         >
           <span className="material-symbols-outlined text-[20px]">qr_code_scanner</span>
-          <span>Scan QR</span>
+          <span className="hidden sm:inline">Scan QR</span>
         </button>
       }
       onLogout={signOut}
