@@ -123,7 +123,37 @@ serve(async (req) => {
     const orderNumber = `PRD-${Date.now()}-${Math.random().toString(36).substring(2, 7).toUpperCase()}`
 
     const now = new Date()
-    const paymentExpiredAt = new Date(now.getTime() + 24 * 60 * 60 * 1000)
+    
+    // Dynamic payment expiry based on stock scarcity
+    // Industry standard: Scarce inventory requires faster payment
+    let minStockLevel = Infinity
+    for (const item of normalizedItems) {
+      const { data: variantRow } = await supabase
+        .from('product_variants')
+        .select('stock, reserved_stock')
+        .eq('id', item.productVariantId)
+        .single()
+      
+      if (variantRow) {
+        const available = (variantRow.stock ?? 0) - (variantRow.reserved_stock ?? 0)
+        minStockLevel = Math.min(minStockLevel, available)
+      }
+    }
+    
+    // Formula: Low stock = shorter payment window to prevent inventory deadlock
+    // Stock < 5: 15 minutes (high urgency)
+    // Stock 5-20: 30 minutes (medium urgency)
+    // Stock > 20: 60 minutes (low urgency)
+    let paymentExpiryMinutes = 60 // Default 1 hour
+    if (minStockLevel < 5) {
+      paymentExpiryMinutes = 15
+    } else if (minStockLevel < 20) {
+      paymentExpiryMinutes = 30
+    }
+    
+    console.log(`Payment expiry set to ${paymentExpiryMinutes} minutes (min stock level: ${minStockLevel})`)
+    
+    const paymentExpiredAt = new Date(now.getTime() + paymentExpiryMinutes * 60 * 1000)
 
     const reservedAdjustments: { variantId: number; quantity: number }[] = []
 
@@ -253,6 +283,10 @@ serve(async (req) => {
         first_name: payload.customerName.trim(),
         email: payload.customerEmail,
         phone: payload.customerPhone || '',
+      },
+      custom_expiry: {
+        expiry_duration: paymentExpiryMinutes,
+        unit: 'minute',
       },
       callbacks: {
         finish: `${req.headers.get('origin')}/order/product/success/${orderNumber}`,

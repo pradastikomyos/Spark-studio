@@ -201,22 +201,83 @@ serve(async (req) => {
               : currentStatus || 'awaiting_payment'
 
       if (newStatus === 'paid' && currentPaymentStatus !== 'paid') {
+        // Validate stock availability before creating order
+        // Defense against admin stock adjustments during payment window
+        const { data: orderItems } = await supabase
+          .from('order_product_items')
+          .select('product_variant_id, quantity')
+          .eq('order_product_id', (productOrder as { id: number }).id)
+
+        let stockValidationFailed = false
+        const stockIssues: string[] = []
+
+        if (Array.isArray(orderItems)) {
+          for (const row of orderItems) {
+            const variantId = Number((row as { product_variant_id: number | string }).product_variant_id)
+            const qty = Math.max(1, Math.floor(Number((row as { quantity: number | string }).quantity)))
+
+            const { data: variant } = await supabase
+              .from('product_variants')
+              .select('stock, reserved_stock')
+              .eq('id', variantId)
+              .single()
+
+            if (variant) {
+              const currentStock = (variant as { stock?: number }).stock ?? 0
+              const currentReserved = (variant as { reserved_stock?: number }).reserved_stock ?? 0
+              
+              // Check if there's still enough reserved stock for this order
+              if (currentReserved < qty) {
+                stockValidationFailed = true
+                stockIssues.push(`Variant ${variantId}: reserved=${currentReserved}, needed=${qty}`)
+              }
+              
+              // Check if actual stock is sufficient
+              if (currentStock < qty) {
+                stockValidationFailed = true
+                stockIssues.push(`Variant ${variantId}: stock=${currentStock}, needed=${qty}`)
+              }
+            }
+          }
+        }
+
         const { data: pickupCodeRow } = await supabase.rpc('generate_pickup_code')
         const pickupCode = String(pickupCodeRow || '')
         const pickupExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
 
+        // If stock validation failed, flag order for manual review
+        const finalStatus = stockValidationFailed ? 'requires_review' : status
+        const finalPickupStatus = stockValidationFailed ? 'pending_review' : 'pending_pickup'
+
         await supabase
           .from('order_products')
           .update({
-            status,
+            status: finalStatus,
             payment_status: paymentStatus,
             paid_at: nowIso,
             pickup_code: pickupCode,
-            pickup_status: 'pending_pickup',
+            pickup_status: finalPickupStatus,
             pickup_expires_at: pickupExpiresAt,
             updated_at: nowIso,
           })
           .eq('id', (productOrder as { id: number }).id)
+
+        // Log stock validation issues for admin review
+        if (stockValidationFailed) {
+          console.warn(`[WEBHOOK] Stock validation failed for order ${orderId}: ${stockIssues.join(', ')}`)
+          await logWebhook(supabase, {
+            orderNumber: orderId,
+            eventType: 'stock_validation_failed_requires_review',
+            payload: {
+              order_id: orderId,
+              stock_issues: stockIssues,
+              payment_completed_at: nowIso,
+            },
+            success: true,
+            errorMessage: `Stock insufficient: ${stockIssues.join('; ')}`,
+            processedAt: nowIso,
+          })
+        }
       } else {
         const updateFields: Record<string, unknown> = {
           status,
