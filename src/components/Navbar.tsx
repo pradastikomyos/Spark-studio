@@ -98,6 +98,9 @@ const Navbar = ({ isDark, onToggleDarkMode }: NavbarProps) => {
                 </span>
               )}
             </Link>
+            <Link to="/my-orders" className="hover:text-primary transition-colors relative" title="My Orders">
+              <span className="material-symbols-outlined text-[20px]">receipt_long</span>
+            </Link>
             <Link to="/cart" className="hover:text-primary transition-colors relative" title="Shopping Cart">
               <span className="material-symbols-outlined text-[20px]">shopping_bag</span>
               {totalQuantity > 0 && (

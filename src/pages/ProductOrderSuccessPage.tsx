@@ -210,18 +210,19 @@ export default function ProductOrderSuccessPage() {
                     )}
                   </div>
 
-                  <div className="mt-4 flex gap-3">
-                    <Link
-                      to="/shop"
-                      className="flex-1 text-center border border-gray-200 dark:border-gray-800 py-3 uppercase tracking-widest text-xs font-bold text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-white/5 transition-colors"
-                    >
-                      Back to Shop
-                    </Link>
+                  <div className="mt-4 space-y-3">
                     <Link
                       to="/my-orders"
-                      className="flex-1 text-center bg-primary text-white py-3 uppercase tracking-widest text-xs font-bold hover:bg-red-700 transition-colors"
+                      className="w-full flex items-center justify-center gap-2 bg-primary text-white py-3 uppercase tracking-widest text-xs font-bold hover:bg-red-700 transition-colors"
                     >
-                      My Orders
+                      <span className="material-symbols-outlined text-base">receipt_long</span>
+                      View All My Orders
+                    </Link>
+                    <Link
+                      to="/shop"
+                      className="w-full text-center border border-gray-200 dark:border-gray-800 py-3 uppercase tracking-widest text-xs font-bold text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-white/5 transition-colors"
+                    >
+                      Back to Shop
                     </Link>
                   </div>
                 </div>
