@@ -216,7 +216,7 @@ export default function ProductOrders() {
       if (!token) throw new Error('Sesi login tidak valid. Silakan login ulang.');
 
       let { error: invokeError } = await invokePickup(token);
-      const status = (invokeError as { status?: number }).status;
+      const status = invokeError ? (invokeError as { status?: number }).status : undefined;
       if (invokeError && status === 401) {
         const { data, error } = await supabase.auth.refreshSession();
         if (error) {
