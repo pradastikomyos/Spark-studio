@@ -81,6 +81,9 @@ serve(async (req) => {
     const nowUTC = new Date()
     const nowWIB = new Date(nowUTC.getTime() + WIB_OFFSET_HOURS * 60 * 60 * 1000)
     
+    // Calculate dynamic payment expiry based on earliest slot
+    let minMinutesToSlot = Infinity
+    
     for (const item of items) {
       // Skip validation for all-day tickets
       if (item.timeSlot === 'all-day') continue
@@ -110,7 +113,28 @@ serve(async (req) => {
           }
         )
       }
+      
+      // Track earliest slot for payment expiry calculation
+      const minutesToSlot = Math.floor((bookingDateTimeWIB.getTime() - nowWIB.getTime()) / (60 * 1000))
+      minMinutesToSlot = Math.min(minMinutesToSlot, minutesToSlot)
     }
+    
+    // Calculate dynamic payment expiry
+    // Formula: Give user time to pay, but ensure payment completes before slot starts
+    // Max 20 minutes, or (time_to_slot - 5min buffer), whichever is smaller
+    const MAX_PAYMENT_MINUTES = 20
+    const PAYMENT_BUFFER_MINUTES = 5
+    let paymentExpiryMinutes = MAX_PAYMENT_MINUTES
+    
+    if (minMinutesToSlot !== Infinity) {
+      // For time-specific slots, limit payment window
+      paymentExpiryMinutes = Math.min(
+        MAX_PAYMENT_MINUTES,
+        Math.max(10, minMinutesToSlot - PAYMENT_BUFFER_MINUTES) // Minimum 10 minutes to pay
+      )
+    }
+    
+    console.log(`Payment expiry set to ${paymentExpiryMinutes} minutes (slot in ${minMinutesToSlot} minutes)`)
 
     // Get user from public.users table, or create if doesn't exist
     const { data: userDataResult, error: userError } = await supabase
@@ -233,6 +257,10 @@ serve(async (req) => {
         first_name: customerName,
         email: customerEmail,
         phone: customerPhone || '',
+      },
+      custom_expiry: {
+        expiry_duration: paymentExpiryMinutes,
+        unit: 'minute',
       },
       callbacks: {
         finish: `${req.headers.get('origin')}/booking-success?order_id=${orderNumber}`,

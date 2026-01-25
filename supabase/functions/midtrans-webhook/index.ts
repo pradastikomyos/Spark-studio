@@ -316,6 +316,11 @@ serve(async (req) => {
       const { data: orderItems, error: itemsError } = await supabase.from('order_items').select('*').eq('order_id', order.id)
 
       if (!itemsError && Array.isArray(orderItems)) {
+        // Timezone: WIB (UTC+7) for Bandung business operations
+        const WIB_OFFSET_HOURS = 7
+        const nowUTC = new Date()
+        const nowWIB = new Date(nowUTC.getTime() + WIB_OFFSET_HOURS * 60 * 60 * 1000)
+        
         for (const item of orderItems) {
           const { count: existingCount } = await supabase
             .from('purchased_tickets')
@@ -328,7 +333,35 @@ serve(async (req) => {
 
           const slots = normalizeSelectedTimeSlots(item.selected_time_slots)
           const firstSlot = slots[0]
-          const timeSlotForTicket = firstSlot && firstSlot !== 'all-day' && /^\d{2}:\d{2}/.test(firstSlot) ? firstSlot : null
+          let timeSlotForTicket = firstSlot && firstSlot !== 'all-day' && /^\d{2}:\d{2}/.test(firstSlot) ? firstSlot : null
+          
+          // Validate time slot is still valid (graceful degradation)
+          let slotExpired = false
+          if (timeSlotForTicket && item.selected_date) {
+            const bookingDateTimeWIB = new Date(`${item.selected_date}T${timeSlotForTicket}:00+07:00`)
+            if (bookingDateTimeWIB < nowWIB) {
+              slotExpired = true
+              console.warn(`[WEBHOOK] Time slot expired for order ${orderId}: ${item.selected_date} ${timeSlotForTicket}. Converting to all-day access.`)
+              
+              // Graceful degradation: Convert to all-day access
+              // Business keeps revenue, customer can still use studio today
+              timeSlotForTicket = null
+              
+              // Log for audit trail
+              await logWebhook(supabase, {
+                orderNumber: orderId,
+                eventType: 'slot_expired_converted_to_allday',
+                payload: {
+                  original_slot: firstSlot,
+                  selected_date: item.selected_date,
+                  payment_completed_at: nowIso,
+                },
+                success: true,
+                errorMessage: null,
+                processedAt: nowIso,
+              })
+            }
+          }
 
           for (let i = 0; i < needed; i++) {
             const ticketCode = generateTicketCode()
@@ -345,11 +378,14 @@ serve(async (req) => {
             })
           }
 
+          // Update sold capacity
+          // If slot expired and converted to all-day, increment all-day capacity instead
           for (const slot of slots) {
+            const slotToIncrement = slotExpired ? null : normalizeAvailabilityTimeSlot(String(slot))
             await incrementSoldCapacityOptimistic(supabase, {
               ticketId: item.ticket_id,
               date: item.selected_date,
-              timeSlot: normalizeAvailabilityTimeSlot(String(slot)),
+              timeSlot: slotToIncrement,
               delta: needed,
             })
           }
