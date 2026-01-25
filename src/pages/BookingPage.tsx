@@ -167,15 +167,34 @@ export default function BookingPage() {
   }, [ticket, currentDate, availabilities]);
 
   // Get available time slots for selected date - memoized to prevent recalculation on every render
+  // Timezone: Uses browser's local time (WIB for users in Indonesia)
   const availableTimeSlots = useMemo(() => {
     if (!selectedDate) return [];
 
     const dateString = toLocalDateString(selectedDate);
+    const now = new Date(); // Browser local time (WIB in Indonesia)
+    const isToday = selectedDate.toDateString() === now.toDateString();
+    
+    // Industry standard: 30-minute buffer for booking preparation
+    const BOOKING_BUFFER_MINUTES = 30;
+    const bufferTime = new Date(now.getTime() + BOOKING_BUFFER_MINUTES * 60 * 1000);
 
     const filtered = availabilities.filter((avail) => {
       const matchesDate = avail.date === dateString;
       const hasCapacity = avail.available_capacity > 0;
       const hasTimeSlot = !!avail.time_slot;
+
+      // For today, filter out past time slots and slots within buffer period
+      if (isToday && avail.time_slot) {
+        const [hours, minutes] = avail.time_slot.split(':').map(Number);
+        const slotTime = new Date();
+        slotTime.setHours(hours, minutes, 0, 0);
+        
+        // Only show slots that are at least 30 minutes in the future
+        if (slotTime <= bufferTime) {
+          return false;
+        }
+      }
 
       return matchesDate && hasCapacity && hasTimeSlot;
     });

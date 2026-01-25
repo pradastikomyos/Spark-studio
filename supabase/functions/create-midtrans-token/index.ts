@@ -71,6 +71,47 @@ serve(async (req) => {
       })
     }
 
+    // Validate that time slots are not in the past (with 30-min buffer)
+    // Industry standard: booking systems require buffer time for preparation
+    // Timezone: WIB (UTC+7) for Bandung business operations
+    const BOOKING_BUFFER_MINUTES = 30
+    const WIB_OFFSET_HOURS = 7
+    
+    // Get current time in WIB
+    const nowUTC = new Date()
+    const nowWIB = new Date(nowUTC.getTime() + WIB_OFFSET_HOURS * 60 * 60 * 1000)
+    
+    for (const item of items) {
+      // Skip validation for all-day tickets
+      if (item.timeSlot === 'all-day') continue
+
+      // Parse booking date and time in WIB
+      // item.date format: YYYY-MM-DD, item.timeSlot format: HH:MM
+      const bookingDateTimeWIB = new Date(`${item.date}T${item.timeSlot}:00+07:00`)
+      
+      // Add 30-minute buffer: slot must be at least 30 minutes in the future
+      const bufferTimeWIB = new Date(nowWIB.getTime() + BOOKING_BUFFER_MINUTES * 60 * 1000)
+      
+      if (bookingDateTimeWIB < bufferTimeWIB) {
+        const isPast = bookingDateTimeWIB < nowWIB
+        console.error(`${isPast ? 'Past' : 'Too soon'} time slot detected: ${item.date} ${item.timeSlot} WIB (Current: ${nowWIB.toISOString()})`)
+        return new Response(
+          JSON.stringify({ 
+            error: isPast 
+              ? 'Cannot book a time slot that has already passed'
+              : 'Time slot must be at least 30 minutes in the future',
+            details: isPast
+              ? `The selected time slot (${item.timeSlot} on ${item.date}) is no longer available.`
+              : `Please select a time slot at least 30 minutes from now. Selected: ${item.timeSlot} on ${item.date}`
+          }), 
+          {
+            status: 400,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          }
+        )
+      }
+    }
+
     // Get user from public.users table, or create if doesn't exist
     const { data: userDataResult, error: userError } = await supabase
       .from('users')
