@@ -37,6 +37,7 @@ const TAB_RETURN_EVENT = 'tab-returned-from-idle';
 
 export default function ProductOrders() {
   const { signOut } = useAuth();
+  const [activeTab, setActiveTab] = useState<'pending' | 'today' | 'completed'>('pending');
   const [orders, setOrders] = useState<OrderSummaryRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [scannerOpen, setScannerOpen] = useState(false);
@@ -54,7 +55,7 @@ export default function ProductOrders() {
       .select('id, order_number, total, pickup_code, pickup_status, paid_at, users(name, email)')
       .eq('payment_status', 'paid')
       .order('paid_at', { ascending: false })
-      .limit(25);
+      .limit(100);
 
     if (error) {
       setOrders([]);
@@ -210,11 +211,25 @@ export default function ProductOrders() {
     }
   }, [details, fetchOrders]);
 
+  const pendingOrders = useMemo(() => {
+    return orders.filter((o) => o.pickup_status === 'pending_pickup');
+  }, [orders]);
+
   const todays = useMemo(() => {
     const today = new Date();
     const key = today.toISOString().slice(0, 10);
     return orders.filter((o) => (o.paid_at ? String(o.paid_at).slice(0, 10) === key : false));
   }, [orders]);
+
+  const completedOrders = useMemo(() => {
+    return orders.filter((o) => o.pickup_status === 'completed');
+  }, [orders]);
+
+  const displayOrders = useMemo(() => {
+    if (activeTab === 'pending') return pendingOrders;
+    if (activeTab === 'today') return todays;
+    return completedOrders;
+  }, [activeTab, pendingOrders, todays, completedOrders]);
 
   return (
     <AdminLayout
@@ -265,24 +280,67 @@ export default function ProductOrders() {
 
       <section className="rounded-xl border border-gray-200 dark:border-white/10 bg-white dark:bg-[#1a0f0f] shadow-sm overflow-hidden">
         <div className="p-6">
-          <div className="flex items-center justify-between gap-4">
-            <h3 className="text-xl font-bold text-neutral-900 dark:text-white">Pesanan Hari Ini</h3>
-            <button
-              onClick={fetchOrders}
-              className="text-sm font-bold text-primary hover:underline"
-              disabled={loading}
-            >
-              Refresh
-            </button>
+          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-4">
+            <h3 className="text-xl font-bold text-neutral-900 dark:text-white">Daftar Pesanan</h3>
+            <div className="flex items-center gap-3">
+              <div className="flex gap-1 bg-gray-100 dark:bg-[#2a1616] p-1 rounded-lg">
+                <button
+                  onClick={() => setActiveTab('pending')}
+                  className={`px-3 py-1.5 text-xs font-bold rounded transition-colors ${
+                    activeTab === 'pending'
+                      ? 'bg-primary text-white'
+                      : 'text-gray-600 dark:text-gray-400 hover:bg-white dark:hover:bg-[#1a0f0f]'
+                  }`}
+                >
+                  Pending ({pendingOrders.length})
+                </button>
+                <button
+                  onClick={() => setActiveTab('today')}
+                  className={`px-3 py-1.5 text-xs font-bold rounded transition-colors ${
+                    activeTab === 'today'
+                      ? 'bg-primary text-white'
+                      : 'text-gray-600 dark:text-gray-400 hover:bg-white dark:hover:bg-[#1a0f0f]'
+                  }`}
+                >
+                  Hari Ini ({todays.length})
+                </button>
+                <button
+                  onClick={() => setActiveTab('completed')}
+                  className={`px-3 py-1.5 text-xs font-bold rounded transition-colors ${
+                    activeTab === 'completed'
+                      ? 'bg-primary text-white'
+                      : 'text-gray-600 dark:text-gray-400 hover:bg-white dark:hover:bg-[#1a0f0f]'
+                  }`}
+                >
+                  Selesai ({completedOrders.length})
+                </button>
+              </div>
+              <button
+                onClick={fetchOrders}
+                className="text-sm font-bold text-primary hover:underline"
+                disabled={loading}
+              >
+                Refresh
+              </button>
+            </div>
           </div>
 
           {loading ? (
             <div className="py-10 text-sm text-gray-500 dark:text-gray-400">Loading...</div>
-          ) : todays.length === 0 ? (
-            <div className="py-10 text-sm text-gray-500 dark:text-gray-400">Belum ada pesanan paid hari ini.</div>
+          ) : displayOrders.length === 0 ? (
+            <div className="py-10 text-center">
+              <span className="material-symbols-outlined text-4xl text-gray-300 dark:text-gray-700 mb-2">
+                {activeTab === 'pending' ? 'inventory_2' : activeTab === 'today' ? 'today' : 'check_circle'}
+              </span>
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                {activeTab === 'pending' && 'Tidak ada pesanan menunggu pickup.'}
+                {activeTab === 'today' && 'Belum ada pesanan paid hari ini.'}
+                {activeTab === 'completed' && 'Belum ada pesanan selesai.'}
+              </p>
+            </div>
           ) : (
-            <div className="mt-4 space-y-2">
-              {todays.map((o) => (
+            <div className="space-y-2">
+              {displayOrders.map((o) => (
                 <button
                   key={o.id}
                   onClick={() => {
@@ -293,7 +351,7 @@ export default function ProductOrders() {
                   }}
                   className="w-full flex items-center justify-between gap-4 rounded-lg border border-gray-100 dark:border-white/10 bg-gray-50/60 dark:bg-white/5 px-4 py-3 text-left hover:bg-gray-100 dark:hover:bg-white/10 transition-colors"
                 >
-                  <div className="min-w-0">
+                  <div className="min-w-0 flex-1">
                     <p className="text-sm font-bold text-neutral-900 dark:text-white truncate">
                       {o.pickup_code ?? '-'}
                     </p>
@@ -303,7 +361,15 @@ export default function ProductOrders() {
                   </div>
                   <div className="flex items-center gap-3">
                     <span className="text-xs font-bold text-gray-500 dark:text-gray-400">${Number(o.total ?? 0).toFixed(2)}</span>
-                    <span className="text-xs font-bold uppercase tracking-wide text-gray-500 dark:text-gray-400">{o.pickup_status ?? 'pending'}</span>
+                    <span className={`text-xs font-bold uppercase tracking-wide px-2 py-1 rounded ${
+                      o.pickup_status === 'pending_pickup' 
+                        ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400'
+                        : o.pickup_status === 'completed'
+                        ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400'
+                        : 'bg-gray-100 dark:bg-gray-900/30 text-gray-700 dark:text-gray-400'
+                    }`}>
+                      {o.pickup_status === 'pending_pickup' ? 'Pending' : o.pickup_status === 'completed' ? 'Selesai' : o.pickup_status ?? 'pending'}
+                    </span>
                   </div>
                 </button>
               ))}
