@@ -196,6 +196,8 @@ export default function ProductOrders() {
     setSubmitting(true);
     setActionError(null);
     try {
+      const sanitizeToken = (rawToken: string | null) => rawToken?.replace(/^Bearer\s*/i, '').trim() ?? '';
+
       const invokePickup = async (accessToken: string) => {
         return supabase.functions.invoke('complete-product-pickup', {
           body: { pickupCode: details.order.pickup_code },
@@ -203,13 +205,13 @@ export default function ProductOrders() {
         });
       };
 
-      let token = session?.access_token ?? null;
+      let token = sanitizeToken(session?.access_token ?? null);
       if (!token) {
         const { data, error } = await supabase.auth.refreshSession();
         if (error) {
           throw new Error('Sesi login tidak valid. Silakan login ulang.');
         }
-        token = data.session?.access_token ?? null;
+        token = sanitizeToken(data.session?.access_token ?? null);
       }
       if (!token) throw new Error('Sesi login tidak valid. Silakan login ulang.');
 
@@ -220,7 +222,7 @@ export default function ProductOrders() {
         if (error) {
           throw new Error('Sesi login kadaluarsa. Silakan login ulang.');
         }
-        token = data.session?.access_token ?? null;
+        token = sanitizeToken(data.session?.access_token ?? null);
         if (!token) throw new Error('Sesi login kadaluarsa. Silakan login ulang.');
         const retry = await invokePickup(token);
         invokeError = retry.error ?? null;
