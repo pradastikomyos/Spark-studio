@@ -82,15 +82,11 @@ export default function ProductOrders() {
   }, [fetchOrders]);
 
   const loadDetailsByPickupCode = useCallback(async (pickupCode: string) => {
-    console.log('🔍 Loading details for pickup code:', pickupCode);
-    
     const { data: orderRow, error: orderError } = await supabase
       .from('order_products')
       .select('id, order_number, total, pickup_code, pickup_status, paid_at, payment_status, status, pickup_expires_at, users(name, email)')
       .eq('pickup_code', pickupCode)
       .single();
-
-    console.log('📦 Order query result:', { orderRow, orderError });
 
     if (orderError || !orderRow) throw orderError ?? new Error('Order not found');
 
@@ -109,8 +105,6 @@ export default function ProductOrders() {
       .from('order_product_items')
       .select('id, quantity, price, subtotal, product_variants(name, products(name))')
       .eq('order_product_id', orderId);
-
-    console.log('📋 Items query result:', { itemRows, itemsError });
 
     if (itemsError) throw itemsError;
 

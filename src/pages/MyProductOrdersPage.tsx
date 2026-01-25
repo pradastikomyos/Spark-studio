@@ -71,7 +71,6 @@ export default function MyProductOrdersPage() {
           .single();
 
         if (userError || !userData) {
-          console.error('Error fetching user:', userError);
           setOrders([]);
           setUserId(null);
           return;
@@ -97,7 +96,6 @@ export default function MyProductOrdersPage() {
           .order('created_at', { ascending: false });
 
         if (ordersError) {
-          console.error('Error fetching orders:', ordersError);
           setOrders([]);
           return;
         }
@@ -144,7 +142,6 @@ export default function MyProductOrdersPage() {
 
         setOrders(ordersWithItems);
       } catch (error) {
-        console.error('Error in fetchOrders:', error);
         setOrders([]);
       } finally {
         if (showLoader) setLoading(false);

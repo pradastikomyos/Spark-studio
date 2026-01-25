@@ -34,13 +34,11 @@ export const useTicketCount = () => {
           .gte('valid_date', todayStr);
 
         if (ticketError) {
-          console.error('Error fetching ticket count:', ticketError);
           setCount(0);
         } else {
           setCount(ticketCount || 0);
         }
       } catch (error) {
-        console.error('Error in useTicketCount:', error);
         setCount(0);
       } finally {
         setLoading(false);

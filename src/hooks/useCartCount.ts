@@ -42,13 +42,11 @@ export const useCartCount = () => {
           .eq('status', 'pending');
 
         if (cartError) {
-          console.error('Error fetching cart count:', cartError);
           setCount(0);
         } else {
           setCount(cartCount || 0);
         }
       } catch (error) {
-        console.error('Error in useCartCount:', error);
         setCount(0);
       } finally {
         setLoading(false);
