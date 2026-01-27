@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useDarkMode } from '../hooks/useDarkMode';
 import { useAuth } from '../contexts/AuthContext';
+import { supabase } from '../lib/supabase';
 import { loadSnapScript } from '../utils/midtransSnap';
 import { formatCurrency } from '../utils/formatters';
 import { createWIBDate } from '../utils/timezone';
@@ -27,7 +28,7 @@ export default function PaymentPage() {
   const navigate = useNavigate();
   const state = location.state as LocationState;
   const { isDark, toggleDarkMode } = useDarkMode();
-  const { user, session, validateSession } = useAuth();
+  const { user } = useAuth();
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -116,23 +117,22 @@ export default function PaymentPage() {
     };
 
     try {
-      // Use the new validateSession for robust check
-      const isValid = await validateSession();
-      if (!isValid) {
-        // handleAuthError will handle state preservation and navigation
+      // CRITICAL FIX: Force refresh session to get a brand new valid token
+      // Root cause: Browser localStorage might have stale/conflicting session
+      // Solution: Explicitly refresh session to get fresh token from server
+      console.log('[PaymentPage] Refreshing session before payment...');
+      const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
+      
+      if (refreshError || !refreshData.session) {
+        console.error('[PaymentPage] Session refresh failed:', refreshError);
         alert('Your session has expired. We\'ve saved your booking details—please log in again to complete your payment.');
         await errorHandler.handleAuthError({ status: 401 }, { returnPath: location.pathname, state: bookingData });
         setLoading(false);
         return;
       }
 
-      // CRITICAL: Use session from AuthContext (validated), not from supabase.auth.getSession() (localStorage)
-      // This ensures we send the EXACT token that was just validated, preventing 401 errors
-      const token = session?.access_token;
-
-      if (!token) {
-        throw new Error('Not authenticated');
-      }
+      console.log('[PaymentPage] Session refreshed successfully');
+      const token = refreshData.session.access_token;
 
       // Call edge function to create Midtrans token
       const response = await fetch(
