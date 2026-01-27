@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, waitFor, renderHook } from '@testing-library/react'
+import { waitFor, renderHook } from '@testing-library/react'
 import fc from 'fast-check'
 import { AuthProvider, useAuth } from './AuthContext'
 import { supabase } from '../lib/supabase'

@@ -1,10 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, fireEvent, waitFor, renderHook } from '@testing-library/react'
-import { MemoryRouter, useLocation, useNavigate } from 'react-router-dom'
+import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { MemoryRouter, useLocation } from 'react-router-dom'
 import PaymentPage from './PaymentPage'
 import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../lib/supabase'
-import { loadSnapScript } from '../utils/midtransSnap'
 import { hasBookingState, restoreBookingState, clearBookingState, preserveBookingState } from '../utils/bookingStateManager'
 
 // Mock dependencies
@@ -163,7 +162,7 @@ describe('PaymentPage', () => {
             global.fetch = vi.fn().mockResolvedValue({
                 ok: true,
                 json: async () => ({ token: 'snap-token', order_id: '123' })
-            })
+            }) as any
 
             // Mock window.snap.pay
             const mockSnapPay = vi.fn().mockImplementation((token, callbacks) => {
