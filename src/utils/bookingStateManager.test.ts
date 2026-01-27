@@ -8,7 +8,7 @@ import {
   getBookingStateAge,
   type BookingState
 } from './bookingStateManager'
-import { bookingStateArb, freshTimestampArb, staleTimestampArb } from '@/test/generators'
+import { bookingStateArb, staleTimestampArb } from '@/test/generators'
 
 describe('Feature: session-expiry-fix', () => {
   beforeEach(() => {
@@ -18,7 +18,7 @@ describe('Feature: session-expiry-fix', () => {
   describe('Property 6: Booking State Round Trip', () => {
     it('should preserve and restore booking state within staleness window', () => {
       fc.assert(
-        fc.property(bookingStateArb, (bookingState) => {
+        fc.property(bookingStateArb, (bookingState: Omit<BookingState, 'timestamp'>) => {
           // Preserve the booking state
           preserveBookingState(bookingState)
 
@@ -53,7 +53,7 @@ describe('Feature: session-expiry-fix', () => {
 
     it('should return null for stale booking state (>30 minutes)', () => {
       fc.assert(
-        fc.property(bookingStateArb, staleTimestampArb, (bookingState, staleTimestamp) => {
+        fc.property(bookingStateArb, staleTimestampArb, (bookingState: Omit<BookingState, 'timestamp'>, staleTimestamp: number) => {
           // Manually create stale state in sessionStorage
           const staleState: BookingState = {
             ...bookingState,
@@ -105,7 +105,7 @@ describe('Feature: session-expiry-fix', () => {
             'timestamp'
           ),
           bookingStateArb,
-          (fieldToRemove, bookingState) => {
+          (fieldToRemove: string, bookingState: Omit<BookingState, 'timestamp'>) => {
             // Create state with missing field
             const incompleteState: any = { ...bookingState, timestamp: Date.now() }
             delete incompleteState[fieldToRemove]
@@ -132,7 +132,7 @@ describe('Feature: session-expiry-fix', () => {
   describe('Property 7: Booking State Serialization Completeness', () => {
     it('should serialize all required fields to sessionStorage', () => {
       fc.assert(
-        fc.property(bookingStateArb, (bookingState) => {
+        fc.property(bookingStateArb, (bookingState: Omit<BookingState, 'timestamp'>) => {
           // Preserve the booking state
           preserveBookingState(bookingState)
 

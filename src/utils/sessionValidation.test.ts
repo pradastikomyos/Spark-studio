@@ -32,7 +32,6 @@ describe('Feature: session-expiry-fix', () => {
             return true
           }
 
-          const startTime = Date.now()
           const callTimes: number[] = []
           let callCount = 0
 
