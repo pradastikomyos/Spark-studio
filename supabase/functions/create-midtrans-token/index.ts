@@ -83,11 +83,7 @@ serve(async (req) => {
     // Industry standard: booking systems require buffer time for preparation
     // Timezone: WIB (UTC+7) for Bandung business operations
     const BOOKING_BUFFER_MINUTES = 30
-    const WIB_OFFSET_HOURS = 7
-
-    // Get current time in WIB
-    const nowUTC = new Date()
-    const nowWIB = new Date(nowUTC.getTime() + WIB_OFFSET_HOURS * 60 * 60 * 1000)
+    const now = new Date()
 
     // Calculate dynamic payment expiry based on earliest slot
     let minMinutesToSlot = Infinity
@@ -101,11 +97,11 @@ serve(async (req) => {
       const bookingDateTimeWIB = new Date(`${item.date}T${item.timeSlot}:00+07:00`)
 
       // Add 30-minute buffer: slot must be at least 30 minutes in the future
-      const bufferTimeWIB = new Date(nowWIB.getTime() + BOOKING_BUFFER_MINUTES * 60 * 1000)
+      const bufferTimeWIB = new Date(now.getTime() + BOOKING_BUFFER_MINUTES * 60 * 1000)
 
       if (bookingDateTimeWIB < bufferTimeWIB) {
-        const isPast = bookingDateTimeWIB < nowWIB
-        console.error(`${isPast ? 'Past' : 'Too soon'} time slot detected: ${item.date} ${item.timeSlot} WIB (Current: ${nowWIB.toISOString()})`)
+        const isPast = bookingDateTimeWIB < now
+        console.error(`${isPast ? 'Past' : 'Too soon'} time slot detected: ${item.date} ${item.timeSlot} WIB (Current: ${now.toISOString()})`)
         return new Response(
           JSON.stringify({
             error: isPast
@@ -123,7 +119,7 @@ serve(async (req) => {
       }
 
       // Track earliest slot for payment expiry calculation
-      const minutesToSlot = Math.floor((bookingDateTimeWIB.getTime() - nowWIB.getTime()) / (60 * 1000))
+      const minutesToSlot = Math.floor((bookingDateTimeWIB.getTime() - now.getTime()) / (60 * 1000))
       minMinutesToSlot = Math.min(minMinutesToSlot, minutesToSlot)
     }
 

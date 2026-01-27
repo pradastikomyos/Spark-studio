@@ -377,10 +377,7 @@ serve(async (req) => {
       const { data: orderItems, error: itemsError } = await supabase.from('order_items').select('*').eq('order_id', order.id)
 
       if (!itemsError && Array.isArray(orderItems)) {
-        // Timezone: WIB (UTC+7) for Bandung business operations
-        const WIB_OFFSET_HOURS = 7
-        const nowUTC = new Date()
-        const nowWIB = new Date(nowUTC.getTime() + WIB_OFFSET_HOURS * 60 * 60 * 1000)
+        const now = new Date()
         
         for (const item of orderItems) {
           const { count: existingCount } = await supabase
@@ -400,7 +397,7 @@ serve(async (req) => {
           let slotExpired = false
           if (timeSlotForTicket && item.selected_date) {
             const bookingDateTimeWIB = new Date(`${item.selected_date}T${timeSlotForTicket}:00+07:00`)
-            if (bookingDateTimeWIB < nowWIB) {
+            if (bookingDateTimeWIB < now) {
               slotExpired = true
               console.warn(`[WEBHOOK] Time slot expired for order ${orderId}: ${item.selected_date} ${timeSlotForTicket}. Converting to all-day access.`)
               

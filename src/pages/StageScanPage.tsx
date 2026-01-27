@@ -163,7 +163,7 @@ const StageScanPage = () => {
 
                 {/* Footer */}
                 <p className="text-xs text-gray-600 mt-6">
-                    Scan recorded at {new Date().toLocaleTimeString()}
+                    Scan recorded at {new Date().toLocaleTimeString('en-US', { timeZone: 'Asia/Jakarta', hour: '2-digit', minute: '2-digit' })}
                 </p>
             </div>
         </div>

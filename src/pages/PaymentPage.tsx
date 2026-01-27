@@ -5,6 +5,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import { loadSnapScript } from '../utils/midtransSnap';
 import { formatCurrency } from '../utils/formatters';
+import { createWIBDate } from '../utils/timezone';
 import {
   restoreBookingState,
   hasBookingState,
@@ -232,8 +233,9 @@ export default function PaymentPage() {
 
   const formatDate = (dateString: string) => {
     if (!dateString) return '-';
-    const date = new Date(dateString);
+    const date = createWIBDate(dateString);
     return date.toLocaleDateString('en-US', {
+      timeZone: 'Asia/Jakarta',
       weekday: 'short',
       month: 'short',
       day: 'numeric',

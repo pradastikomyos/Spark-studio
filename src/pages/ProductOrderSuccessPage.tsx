@@ -123,6 +123,15 @@ export default function ProductOrderSuccessPage() {
   }, [orderNumber, pickupCode, fetchOrder]);
 
   const totalItems = useMemo(() => items.reduce((sum, i) => sum + i.quantity, 0), [items]);
+  const formatPickupExpiry = (value: string) =>
+    new Date(value).toLocaleString('en-US', {
+      timeZone: 'Asia/Jakarta',
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
 
   if (!orderNumber) {
     return (
@@ -206,7 +215,7 @@ export default function ProductOrderSuccessPage() {
                     </div>
                     {order?.pickup_expires_at && (
                       <p className="mt-4 text-xs text-gray-500 dark:text-gray-400">
-                        Pickup expires: {new Date(order.pickup_expires_at).toLocaleString()}
+                        Pickup expires: {formatPickupExpiry(order.pickup_expires_at)}
                       </p>
                     )}
                   </div>
