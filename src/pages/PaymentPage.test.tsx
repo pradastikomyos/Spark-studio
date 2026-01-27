@@ -165,7 +165,7 @@ describe('PaymentPage', () => {
             }) as any
 
             // Mock window.snap.pay
-            const mockSnapPay = vi.fn().mockImplementation((token, callbacks) => {
+            const mockSnapPay = vi.fn().mockImplementation((_token, callbacks) => {
                 callbacks.onSuccess({ status_code: '200' })
             })
             global.window.snap = { pay: mockSnapPay } as any
