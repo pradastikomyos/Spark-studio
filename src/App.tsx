@@ -1,6 +1,7 @@
 import { lazy, Suspense, useEffect, useRef } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { useDarkMode } from './hooks/useDarkMode';
+import { useSessionRefresh } from './hooks/useSessionRefresh';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { CartProvider } from './contexts/CartContext';
 import ProtectedRoute from './components/ProtectedRoute';
@@ -75,6 +76,9 @@ function AppContent() {
   const hiddenAtRef = useRef<number | null>(null);
   const refreshInFlightRef = useRef(false);
   const lastActiveAtRef = useRef(Date.now());
+  
+  // Enterprise-grade session refresh - auto-refresh before expiry
+  useSessionRefresh();
 
   useEffect(() => {
     if (typeof document === 'undefined') return;

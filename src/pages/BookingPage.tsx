@@ -167,7 +167,10 @@ export default function BookingPage() {
   }, [ticket, currentDate, availabilities]);
 
   // Get available time slots for selected date - memoized to prevent recalculation on every render
-  // Timezone: Uses browser's local time (WIB for users in Indonesia)
+  // CRITICAL: Timezone handling
+  // - Database stores time_slot as TIME WITHOUT TIMEZONE (treated as local WIB time)
+  // - Browser Date() uses local timezone (WIB for Indonesian users)
+  // - We compare apples-to-apples: WIB time slot vs WIB current time
   const availableTimeSlots = useMemo(() => {
     if (!selectedDate) return [];
 
@@ -177,7 +180,7 @@ export default function BookingPage() {
     
     // Industry standard: 30-minute buffer for booking preparation
     const BOOKING_BUFFER_MINUTES = 30;
-    const bufferTime = new Date(now.getTime() + BOOKING_BUFFER_MINUTES * 60 * 1000);
+    const currentTimeWithBuffer = new Date(now.getTime() + BOOKING_BUFFER_MINUTES * 60 * 1000);
 
     const filtered = availabilities.filter((avail) => {
       const matchesDate = avail.date === dateString;
@@ -186,12 +189,17 @@ export default function BookingPage() {
 
       // For today, filter out past time slots and slots within buffer period
       if (isToday && avail.time_slot) {
+        // Parse time slot (HH:MM:SS format from database)
         const [hours, minutes] = avail.time_slot.split(':').map(Number);
-        const slotTime = new Date();
-        slotTime.setHours(hours, minutes, 0, 0);
         
-        // Only show slots that are at least 30 minutes in the future
-        if (slotTime <= bufferTime) {
+        // Create Date object for slot time TODAY in local timezone
+        const slotDateTime = new Date(selectedDate);
+        slotDateTime.setHours(hours, minutes, 0, 0);
+        
+        // Compare: slot time must be at least 30 minutes in the future
+        // Both times are in local timezone (WIB), so comparison is valid
+        if (slotDateTime <= currentTimeWithBuffer) {
+          console.log(`[BookingPage] Filtering out slot ${avail.time_slot}: ${slotDateTime.toLocaleTimeString()} <= ${currentTimeWithBuffer.toLocaleTimeString()}`);
           return false;
         }
       }
@@ -199,6 +207,7 @@ export default function BookingPage() {
       return matchesDate && hasCapacity && hasTimeSlot;
     });
 
+    console.log(`[BookingPage] Available slots for ${dateString}:`, filtered.length);
     return filtered.map((avail) => ({
       time: avail.time_slot as string,
       available: avail.available_capacity,

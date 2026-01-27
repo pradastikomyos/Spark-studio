@@ -15,6 +15,7 @@ interface AuthContextType {
   signUp: (email: string, password: string, name: string) => Promise<{ error: AuthError | null }>;
   signOut: () => Promise<{ error: Error | null }>;
   validateSession: () => Promise<boolean>; // NEW: explicit validation method
+  refreshSession: () => Promise<void>; // NEW: manual refresh trigger
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -29,6 +30,26 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const errorHandler = new SessionErrorHandler({
     // AuthContext handles navigation/signOut manually or via onAuthStateChange
   });
+
+  // NEW: Manual session refresh
+  const refreshSession = useCallback(async () => {
+    console.log('[AuthContext] Manual session refresh triggered');
+    try {
+      const { data, error } = await supabase.auth.refreshSession();
+      if (error) {
+        console.error('[AuthContext] Refresh failed:', error);
+        throw error;
+      }
+      if (data.session) {
+        setSession(data.session);
+        setUser(data.session.user);
+        console.log('[AuthContext] Session refreshed successfully');
+      }
+    } catch (error) {
+      console.error('[AuthContext] Refresh error:', error);
+      throw error;
+    }
+  }, []);
 
   // Memoized admin check to avoid re-creating function
   const checkAdminStatus = useCallback(async (userId: string | undefined) => {
@@ -226,7 +247,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         signIn,
         signUp,
         signOut,
-        validateSession
+        validateSession,
+        refreshSession
       }}
     >
       {children}
