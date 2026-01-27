@@ -5,7 +5,9 @@ import { formatCurrency, toLocalDateString } from '../utils/formatters';
 import { 
   todayWIB, 
   nowWIB,
-  isTimeSlotBookable 
+  isTimeSlotBookable,
+  createWIBDate,
+  getBookingBufferTime
 } from '../utils/timezone';
 
 interface Ticket {
@@ -56,6 +58,9 @@ export default function BookingPage() {
   // Layer 1: Track current time for time-based filtering (updates every minute)
   // This ensures past slots are filtered out as time progresses without manual refresh
   const [currentTime, setCurrentTime] = useState(nowWIB());
+  
+  // Urgency confirmation modal state
+  const [showUrgencyModal, setShowUrgencyModal] = useState(false);
 
   // Extract availability fetching logic for reuse
   const fetchAvailabilities = async (ticketId: number) => {
@@ -266,6 +271,33 @@ export default function BookingPage() {
     }));
   }, [selectedDate, availabilities, currentTime]); // CRITICAL: Added currentTime dependency
 
+  // Calculate time until slot closes (for warning system)
+  // Returns minutes until booking closes, or null if not applicable
+  const getMinutesUntilClose = (timeSlot: string): number | null => {
+    if (!selectedDate) return null;
+    
+    const dateString = toLocalDateString(selectedDate);
+    const isToday = selectedDate.toDateString() === todayWIB().toDateString();
+    
+    if (!isToday) return null; // No urgency for future dates
+    
+    const slotDateTime = createWIBDate(dateString, timeSlot);
+    const bufferTime = getBookingBufferTime(30); // 30-minute buffer
+    const diffMs = slotDateTime.getTime() - bufferTime.getTime();
+    const diffMinutes = Math.floor(diffMs / (60 * 1000));
+    
+    return diffMinutes > 0 ? diffMinutes : 0;
+  };
+
+  // Get urgency level for a time slot
+  const getSlotUrgency = (timeSlot: string): 'none' | 'low' | 'medium' | 'high' => {
+    const minutes = getMinutesUntilClose(timeSlot);
+    if (minutes === null || minutes > 60) return 'none';
+    if (minutes > 30) return 'low';
+    if (minutes > 15) return 'medium';
+    return 'high';
+  };
+
   // Check if this ticket has all-day access (no time slots) - memoized
   const isAllDayTicket = useMemo(() => {
     if (!selectedDate) return false;
@@ -303,6 +335,15 @@ export default function BookingPage() {
     if (!isAllDay && !selectedTime) {
       alert('Please select a time slot');
       return;
+    }
+
+    // Check urgency level - show confirmation modal for high urgency slots
+    if (selectedTime) {
+      const urgency = getSlotUrgency(selectedTime);
+      if (urgency === 'high' && !showUrgencyModal) {
+        setShowUrgencyModal(true);
+        return;
+      }
     }
 
     navigate('/payment', {
@@ -469,20 +510,45 @@ export default function BookingPage() {
                           <div className="flex flex-wrap gap-3">
                             {slots.map((slot) => {
                               const isSelected = slot.time === selectedTime;
+                              const urgency = getSlotUrgency(slot.time);
+                              const minutesLeft = getMinutesUntilClose(slot.time);
+                              
                               return (
-                                <button
-                                  key={slot.time}
-                                  onClick={() => setSelectedTime(slot.time)}
-                                  className={`px-6 py-3 rounded-lg text-sm font-medium transition-all
-                                    ${isSelected
-                                      ? 'border-2 border-primary bg-primary/5 text-primary font-bold'
-                                      : 'border border-[#e8cece] dark:border-[#3d2424] hover:border-primary'
-                                    }
-                                  `}
-                                >
-                                  {slot.time.substring(0, 5)}
-                                  <span className="text-xs ml-2 opacity-60">({slot.available} left)</span>
-                                </button>
+                                <div key={slot.time} className="relative">
+                                  <button
+                                    onClick={() => setSelectedTime(slot.time)}
+                                    className={`px-6 py-3 rounded-lg text-sm font-medium transition-all relative
+                                      ${isSelected
+                                        ? 'border-2 border-primary bg-primary/5 text-primary font-bold'
+                                        : 'border border-[#e8cece] dark:border-[#3d2424] hover:border-primary'
+                                      }
+                                    `}
+                                  >
+                                    {slot.time.substring(0, 5)}
+                                    <span className="text-xs ml-2 opacity-60">({slot.available} left)</span>
+                                    
+                                    {/* Urgency Badge */}
+                                    {urgency !== 'none' && (
+                                      <span className={`absolute -top-2 -right-2 px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider
+                                        ${urgency === 'high' ? 'bg-red-500 text-white animate-pulse' : ''}
+                                        ${urgency === 'medium' ? 'bg-orange-500 text-white' : ''}
+                                        ${urgency === 'low' ? 'bg-yellow-500 text-black' : ''}
+                                      `}>
+                                        {minutesLeft}m
+                                      </span>
+                                    )}
+                                  </button>
+                                  
+                                  {/* Warning Tooltip */}
+                                  {urgency === 'high' && (
+                                    <div className="absolute top-full mt-2 left-1/2 -translate-x-1/2 z-10 w-48 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-2 text-xs text-red-700 dark:text-red-300">
+                                      <div className="flex items-start gap-1">
+                                        <span className="material-symbols-outlined text-sm">warning</span>
+                                        <span>Booking closes in {minutesLeft} minutes. Complete payment quickly!</span>
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
                               );
                             })}
                           </div>
@@ -529,7 +595,7 @@ export default function BookingPage() {
 
                 <div className="flex items-start gap-4">
                   <span className="material-symbols-outlined text-primary">schedule</span>
-                  <div>
+                  <div className="flex-1">
                     <p className="text-sm font-bold uppercase tracking-tighter opacity-60">Time</p>
                     <p className="font-display font-medium">
                       {selectedTime
@@ -538,6 +604,50 @@ export default function BookingPage() {
                           ? 'All Day Access'
                           : 'Not selected'}
                     </p>
+                    
+                    {/* Urgency Warning in Summary */}
+                    {selectedTime && (() => {
+                      const urgency = getSlotUrgency(selectedTime);
+                      const minutesLeft = getMinutesUntilClose(selectedTime);
+                      
+                      if (urgency === 'high') {
+                        return (
+                          <div className="mt-2 p-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded text-xs text-red-700 dark:text-red-300">
+                            <div className="flex items-start gap-1">
+                              <span className="material-symbols-outlined text-sm">warning</span>
+                              <div>
+                                <p className="font-bold">Booking closes in {minutesLeft} minutes!</p>
+                                <p className="mt-1 opacity-80">Complete payment quickly to secure your slot.</p>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      }
+                      
+                      if (urgency === 'medium') {
+                        return (
+                          <div className="mt-2 p-2 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded text-xs text-orange-700 dark:text-orange-300">
+                            <div className="flex items-center gap-1">
+                              <span className="material-symbols-outlined text-sm">schedule</span>
+                              <span>Booking closes in {minutesLeft} minutes</span>
+                            </div>
+                          </div>
+                        );
+                      }
+                      
+                      if (urgency === 'low') {
+                        return (
+                          <div className="mt-2 p-2 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded text-xs text-yellow-700 dark:text-yellow-300">
+                            <div className="flex items-center gap-1">
+                              <span className="material-symbols-outlined text-sm">info</span>
+                              <span>Booking closes in {minutesLeft} minutes</span>
+                            </div>
+                          </div>
+                        );
+                      }
+                      
+                      return null;
+                    })()}
                   </div>
                 </div>
               </div>
@@ -585,6 +695,65 @@ export default function BookingPage() {
           </div>
         </div>
       </main>
+
+      {/* Urgency Confirmation Modal */}
+      {showUrgencyModal && selectedTime && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-[#1a0c0c] rounded-xl shadow-2xl border-2 border-red-500 max-w-md w-full p-6 animate-in fade-in zoom-in duration-200">
+            <div className="flex items-start gap-4 mb-4">
+              <div className="flex-shrink-0 w-12 h-12 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center">
+                <span className="material-symbols-outlined text-red-600 dark:text-red-400 text-2xl animate-pulse">
+                  warning
+                </span>
+              </div>
+              <div className="flex-1">
+                <h3 className="text-xl font-black text-red-600 dark:text-red-400 mb-2">
+                  Booking Closes Soon!
+                </h3>
+                <p className="text-sm text-gray-700 dark:text-gray-300">
+                  Your selected time slot <span className="font-bold">{selectedTime.substring(0, 5)}</span> closes for booking in{' '}
+                  <span className="font-bold text-red-600 dark:text-red-400">
+                    {getMinutesUntilClose(selectedTime)} minutes
+                  </span>.
+                </p>
+              </div>
+            </div>
+
+            <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4 mb-6">
+              <p className="text-sm text-red-800 dark:text-red-200 font-medium mb-2">
+                ⚠️ Important Reminders:
+              </p>
+              <ul className="text-xs text-red-700 dark:text-red-300 space-y-1">
+                <li>• Complete payment within the next few minutes</li>
+                <li>• Midtrans payment window: 15-30 minutes</li>
+                <li>• If payment is late, your booking may be invalid</li>
+                <li>• Consider choosing a later time slot for more flexibility</li>
+              </ul>
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => {
+                  setShowUrgencyModal(false);
+                  setSelectedTime(null);
+                }}
+                className="flex-1 px-4 py-3 border-2 border-gray-300 dark:border-gray-600 rounded-lg font-bold text-sm hover:bg-gray-50 dark:hover:bg-gray-800 transition-all"
+              >
+                Choose Different Time
+              </button>
+              <button
+                onClick={() => {
+                  setShowUrgencyModal(false);
+                  handleProceedToPayment();
+                }}
+                className="flex-1 px-4 py-3 bg-red-600 hover:bg-red-700 text-white rounded-lg font-bold text-sm transition-all shadow-lg"
+              >
+                I Understand, Continue
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

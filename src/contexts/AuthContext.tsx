@@ -68,27 +68,51 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     }
   }, []);
 
-  // NEW: Explicit session validation method
+  // NEW: Explicit session validation method with automatic refresh
+  // Enterprise pattern: Google/Slack/Notion - try refresh before declaring session invalid
   const validateSession = useCallback(async (): Promise<boolean> => {
+    console.log('[AuthContext] Validating session...');
+    
+    // Step 1: Check current session
     const result = await validateSessionWithRetry();
 
     if (result.valid && result.user && result.session) {
+      console.log('[AuthContext] Session valid');
       setUser(result.user);
       setSession(result.session);
       await checkAdminStatus(result.user.id);
       return true;
-    } else {
-      // Session invalid - clear all state
-
-      await errorHandler.handleAuthError(result.error || { status: 401 }, {
-        returnPath: window.location.pathname
-      });
-      setUser(null);
-      setSession(null);
-      setIsAdmin(false);
-      return false;
     }
-  }, [checkAdminStatus]);
+
+    // Step 2: Session invalid - try to refresh FIRST (enterprise pattern)
+    // Google/Slack/Notion all do silent token refresh before showing errors
+    console.log('[AuthContext] Session invalid, attempting automatic refresh...');
+    try {
+      await refreshSession();
+      
+      // Step 3: Validate again after refresh
+      const retryResult = await validateSessionWithRetry();
+      if (retryResult.valid && retryResult.user && retryResult.session) {
+        console.log('[AuthContext] Session refreshed successfully and now valid');
+        setUser(retryResult.user);
+        setSession(retryResult.session);
+        await checkAdminStatus(retryResult.user.id);
+        return true;
+      }
+      
+      console.log('[AuthContext] Session still invalid after refresh');
+    } catch (refreshError) {
+      console.error('[AuthContext] Refresh failed:', refreshError);
+    }
+
+    // Step 4: Clear state only (let caller handle error display)
+    // Separation of concerns: validateSession is a utility, not an error handler
+    console.log('[AuthContext] Session validation failed after refresh attempt');
+    setUser(null);
+    setSession(null);
+    setIsAdmin(false);
+    return false;
+  }, [checkAdminStatus, refreshSession]);
 
   useEffect(() => {
     let isMounted = true;
