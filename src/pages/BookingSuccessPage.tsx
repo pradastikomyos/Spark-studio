@@ -3,6 +3,7 @@ import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import QRCode from 'react-qr-code';
 import { supabase } from '../lib/supabase';
 import { getOrderStatusPresentation } from '../utils/midtransStatus';
+import { useAuth } from '../contexts/AuthContext';
 
 interface LocationState {
   orderNumber?: string;
@@ -63,6 +64,7 @@ export default function BookingSuccessPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const state = location.state as LocationState;
+  const { session } = useAuth();
 
   const [loading, setLoading] = useState(true);
   const [tickets, setTickets] = useState<PurchasedTicket[]>([]);
@@ -284,8 +286,8 @@ export default function BookingSuccessPage() {
     setSyncing(true);
     setSyncError(null);
     try {
-      const { data: sessionData } = await supabase.auth.getSession();
-      const token = sessionData.session?.access_token;
+      // CRITICAL: Use session from AuthContext (validated), not from supabase.auth.getSession() (localStorage)
+      const token = session?.access_token;
       if (!token) {
         setSyncError('Not authenticated');
         return;

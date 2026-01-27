@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useDarkMode } from '../hooks/useDarkMode';
 import { useAuth } from '../contexts/AuthContext';
-import { supabase } from '../lib/supabase';
 import { loadSnapScript } from '../utils/midtransSnap';
 import { formatCurrency } from '../utils/formatters';
 import { createWIBDate } from '../utils/timezone';
@@ -28,7 +27,7 @@ export default function PaymentPage() {
   const navigate = useNavigate();
   const state = location.state as LocationState;
   const { isDark, toggleDarkMode } = useDarkMode();
-  const { user, validateSession } = useAuth();
+  const { user, session, validateSession } = useAuth();
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -127,7 +126,8 @@ export default function PaymentPage() {
         return;
       }
 
-      const { data: { session } } = await supabase.auth.getSession();
+      // CRITICAL: Use session from AuthContext (validated), not from supabase.auth.getSession() (localStorage)
+      // This ensures we send the EXACT token that was just validated, preventing 401 errors
       const token = session?.access_token;
 
       if (!token) {
