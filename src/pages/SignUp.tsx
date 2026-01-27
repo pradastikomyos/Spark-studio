@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import Logo from '../components/Logo';
 import { useAuth } from '../contexts/AuthContext';
+import { isAdmin } from '../utils/auth';
+import { supabase } from '../lib/supabase';
 
 interface SignUpProps {
   isDark: boolean;
@@ -42,8 +44,22 @@ const SignUp = ({ isDark }: SignUpProps) => {
       setLoading(false);
     } else {
       setSuccess(true);
+      
+      // Auto-login: Supabase already created session, check admin status and redirect
+      const { data: sessionData } = await supabase.auth.getSession();
+      const userId = sessionData.session?.user?.id;
+      const adminStatus = userId ? await isAdmin(userId) : false;
+      
       setLoading(false);
-      setTimeout(() => navigate('/login'), 2000);
+      
+      // Redirect to appropriate page after brief success message
+      setTimeout(() => {
+        if (adminStatus) {
+          navigate('/admin/dashboard');
+        } else {
+          navigate('/');
+        }
+      }, 1500);
     }
   };
 
@@ -79,7 +95,7 @@ const SignUp = ({ isDark }: SignUpProps) => {
             {/* Success Message */}
             {success && (
               <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 text-green-600 dark:text-green-400 px-4 py-3 rounded-sm text-sm">
-                Account created successfully! Redirecting to login...
+                Account created successfully! Logging you in...
               </div>
             )}
 
