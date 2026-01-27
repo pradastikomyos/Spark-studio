@@ -56,10 +56,19 @@ serve(async (req) => {
     } = await supabase.auth.getUser(token)
 
     if (authError || !user?.id) {
-      return new Response(JSON.stringify({ error: 'Invalid token', details: authError?.message }), {
-        status: 401,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
+      console.error('Auth error:', authError)
+      const isExpired = authError?.message?.toLowerCase().includes('expired')
+      return new Response(
+        JSON.stringify({
+          error: isExpired ? 'Session Expired' : 'Unauthorized',
+          code: isExpired ? 'SESSION_EXPIRED' : 'INVALID_TOKEN',
+          message: authError?.message || 'Invalid or expired session'
+        }),
+        {
+          status: 401,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        }
+      )
     }
 
     const payload = (await req.json()) as CreateTokenRequest
@@ -97,7 +106,7 @@ serve(async (req) => {
     const orderNumber = `PRD-${Date.now()}-${Math.random().toString(36).substring(2, 7).toUpperCase()}`
 
     const now = new Date()
-    
+
     // Dynamic payment expiry based on stock scarcity
     // Industry standard: Scarce inventory requires faster payment
     let minStockLevel = Infinity
@@ -107,13 +116,13 @@ serve(async (req) => {
         .select('stock, reserved_stock')
         .eq('id', item.productVariantId)
         .single()
-      
+
       if (variantRow) {
         const available = (variantRow.stock ?? 0) - (variantRow.reserved_stock ?? 0)
         minStockLevel = Math.min(minStockLevel, available)
       }
     }
-    
+
     // Formula: Low stock = shorter payment window to prevent inventory deadlock
     // Stock < 5: 15 minutes (high urgency)
     // Stock 5-20: 30 minutes (medium urgency)
@@ -124,9 +133,9 @@ serve(async (req) => {
     } else if (minStockLevel < 20) {
       paymentExpiryMinutes = 30
     }
-    
+
     console.log(`Payment expiry set to ${paymentExpiryMinutes} minutes (min stock level: ${minStockLevel})`)
-    
+
     const paymentExpiredAt = new Date(now.getTime() + paymentExpiryMinutes * 60 * 1000)
 
     const reservedAdjustments: { variantId: number; quantity: number }[] = []

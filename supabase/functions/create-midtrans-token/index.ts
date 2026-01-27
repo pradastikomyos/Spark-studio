@@ -45,18 +45,26 @@ serve(async (req) => {
 
     // Create Supabase client with service role key for database operations
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
-    
+
     // Verify JWT token manually using service role client
     // This is the correct way when verify_jwt is disabled
     const token = authHeader.replace('Bearer ', '')
     const { data: { user }, error: authError } = await supabase.auth.getUser(token)
-    
+
     if (authError || !user?.id) {
       console.error('Auth error:', authError)
-      return new Response(JSON.stringify({ error: 'Invalid token', details: authError?.message }), {
-        status: 401,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
+      const isExpired = authError?.message?.toLowerCase().includes('expired')
+      return new Response(
+        JSON.stringify({
+          error: isExpired ? 'Session Expired' : 'Unauthorized',
+          code: isExpired ? 'SESSION_EXPIRED' : 'INVALID_TOKEN',
+          message: authError?.message || 'Invalid or expired session'
+        }),
+        {
+          status: 401,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        }
+      )
     }
 
     // supabase client already created above for auth verification
@@ -76,14 +84,14 @@ serve(async (req) => {
     // Timezone: WIB (UTC+7) for Bandung business operations
     const BOOKING_BUFFER_MINUTES = 30
     const WIB_OFFSET_HOURS = 7
-    
+
     // Get current time in WIB
     const nowUTC = new Date()
     const nowWIB = new Date(nowUTC.getTime() + WIB_OFFSET_HOURS * 60 * 60 * 1000)
-    
+
     // Calculate dynamic payment expiry based on earliest slot
     let minMinutesToSlot = Infinity
-    
+
     for (const item of items) {
       // Skip validation for all-day tickets
       if (item.timeSlot === 'all-day') continue
@@ -91,41 +99,41 @@ serve(async (req) => {
       // Parse booking date and time in WIB
       // item.date format: YYYY-MM-DD, item.timeSlot format: HH:MM
       const bookingDateTimeWIB = new Date(`${item.date}T${item.timeSlot}:00+07:00`)
-      
+
       // Add 30-minute buffer: slot must be at least 30 minutes in the future
       const bufferTimeWIB = new Date(nowWIB.getTime() + BOOKING_BUFFER_MINUTES * 60 * 1000)
-      
+
       if (bookingDateTimeWIB < bufferTimeWIB) {
         const isPast = bookingDateTimeWIB < nowWIB
         console.error(`${isPast ? 'Past' : 'Too soon'} time slot detected: ${item.date} ${item.timeSlot} WIB (Current: ${nowWIB.toISOString()})`)
         return new Response(
-          JSON.stringify({ 
-            error: isPast 
+          JSON.stringify({
+            error: isPast
               ? 'Cannot book a time slot that has already passed'
               : 'Time slot must be at least 30 minutes in the future',
             details: isPast
               ? `The selected time slot (${item.timeSlot} on ${item.date}) is no longer available.`
               : `Please select a time slot at least 30 minutes from now. Selected: ${item.timeSlot} on ${item.date}`
-          }), 
+          }),
           {
             status: 400,
             headers: { ...corsHeaders, 'Content-Type': 'application/json' },
           }
         )
       }
-      
+
       // Track earliest slot for payment expiry calculation
       const minutesToSlot = Math.floor((bookingDateTimeWIB.getTime() - nowWIB.getTime()) / (60 * 1000))
       minMinutesToSlot = Math.min(minMinutesToSlot, minutesToSlot)
     }
-    
+
     // Calculate dynamic payment expiry
     // Formula: Give user time to pay, but ensure payment completes before slot starts
     // Max 20 minutes, or (time_to_slot - 5min buffer), whichever is smaller
     const MAX_PAYMENT_MINUTES = 20
     const PAYMENT_BUFFER_MINUTES = 5
     let paymentExpiryMinutes = MAX_PAYMENT_MINUTES
-    
+
     if (minMinutesToSlot !== Infinity) {
       // For time-specific slots, limit payment window
       paymentExpiryMinutes = Math.min(
@@ -133,7 +141,7 @@ serve(async (req) => {
         Math.max(10, minMinutesToSlot - PAYMENT_BUFFER_MINUTES) // Minimum 10 minutes to pay
       )
     }
-    
+
     console.log(`Payment expiry set to ${paymentExpiryMinutes} minutes (slot in ${minMinutesToSlot} minutes)`)
 
     const userId = user.id
