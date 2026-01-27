@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase';
 import { formatCurrency, toLocalDateString } from '../utils/formatters';
 import { 
   todayWIB, 
+  nowWIB,
   isTimeSlotBookable 
 } from '../utils/timezone';
 
@@ -51,7 +52,38 @@ export default function BookingPage() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
+  
+  // Layer 1: Track current time for time-based filtering (updates every minute)
+  // This ensures past slots are filtered out as time progresses without manual refresh
+  const [currentTime, setCurrentTime] = useState(nowWIB());
 
+  // Extract availability fetching logic for reuse
+  const fetchAvailabilities = async (ticketId: number) => {
+    const { data: availData, error: availError } = await supabase
+      .from('ticket_availabilities')
+      .select('*')
+      .eq('ticket_id', ticketId)
+      .gte('date', toLocalDateString(new Date()))
+      .order('date', { ascending: true })
+      .order('time_slot', { ascending: true });
+
+    console.log('[BookingPage] Fetched raw availabilities:', availData);
+
+    if (availError) {
+      console.error('Error fetching availabilities:', availError);
+      return [];
+    }
+
+    // Calculate available capacity
+    const processedAvail = (availData as RawAvailability[] | null || []).map((avail) => ({
+      ...avail,
+      available_capacity: avail.total_capacity - avail.reserved_capacity - avail.sold_capacity,
+    }));
+    console.log('[BookingPage] Processed availabilities:', processedAvail);
+    return processedAvail;
+  };
+
+  // Initial data fetch
   useEffect(() => {
     const fetchTicketData = async () => {
       if (!slug) {
@@ -78,36 +110,16 @@ export default function BookingPage() {
         setTicket(ticketData);
         console.log('[BookingPage] Fetched ticket:', ticketData);
 
-        // Fetch availabilities for this ticket
-        const { data: availData, error: availError } = await supabase
-          .from('ticket_availabilities')
-          .select('*')
-          .eq('ticket_id', ticketData.id)
-          .gte('date', toLocalDateString(new Date()))
-          .order('date', { ascending: true })
-          .order('time_slot', { ascending: true });
+        // Fetch availabilities
+        const processedAvail = await fetchAvailabilities(ticketData.id);
+        setAvailabilities(processedAvail);
 
-        console.log('[BookingPage] Fetched raw availabilities:', availData);
-        console.log('[BookingPage] Availability error:', availError);
-
-        if (availError) {
-          console.error('Error fetching availabilities:', availError);
-        } else {
-          // Calculate available capacity
-          const processedAvail = (availData as RawAvailability[] | null || []).map((avail) => ({
-            ...avail,
-            available_capacity: avail.total_capacity - avail.reserved_capacity - avail.sold_capacity,
-          }));
-          console.log('[BookingPage] Processed availabilities:', processedAvail);
-          setAvailabilities(processedAvail);
-
-          // Auto-select today's date (entrance tickets are same-day only)
-          const today = new Date();
-          today.setHours(0, 0, 0, 0);
-          console.log('[BookingPage] Auto-selecting today:', today.toISOString());
-          setSelectedDate(today);
-          setCurrentDate(today);
-        }
+        // Auto-select today's date (entrance tickets are same-day only)
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        console.log('[BookingPage] Auto-selecting today:', today.toISOString());
+        setSelectedDate(today);
+        setCurrentDate(today);
       } catch (err) {
         console.error('Error fetching ticket data:', err);
         setError('Failed to load ticket');
@@ -118,6 +130,53 @@ export default function BookingPage() {
 
     fetchTicketData();
   }, [slug]);
+
+  // Layer 1: Update current time every minute (enterprise pattern: Google Calendar, Outlook)
+  // This ensures time-based filtering stays accurate as time progresses
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCurrentTime(nowWIB());
+      console.log('[BookingPage] Current time updated:', nowWIB().toISOString());
+    }, 60000); // Update every 60 seconds
+
+    return () => clearInterval(interval);
+  }, []);
+
+  // Layer 2: Background polling for availability changes (enterprise pattern: Gmail, Slack)
+  // Polls every 30 seconds when tab is visible to catch capacity changes from other users
+  useEffect(() => {
+    if (!ticket?.id) return;
+
+    const pollInterval = setInterval(async () => {
+      // Don't poll if tab is hidden (battery/bandwidth optimization)
+      if (document.hidden) {
+        console.log('[BookingPage] Skipping poll: tab hidden');
+        return;
+      }
+
+      console.log('[BookingPage] Polling for availability updates...');
+      const processedAvail = await fetchAvailabilities(ticket.id);
+      setAvailabilities(processedAvail);
+    }, 30000); // Poll every 30 seconds
+
+    return () => clearInterval(pollInterval);
+  }, [ticket?.id]);
+
+  // Layer 3: Refresh on tab visibility change (enterprise pattern: GitHub, Notion)
+  // When user returns to tab, refresh data to show latest availability
+  useEffect(() => {
+    const handleVisibilityChange = async () => {
+      if (!document.hidden && ticket?.id) {
+        console.log('[BookingPage] Tab visible: refreshing data...');
+        const processedAvail = await fetchAvailabilities(ticket.id);
+        setAvailabilities(processedAvail);
+        setCurrentTime(nowWIB()); // Also update current time
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [ticket?.id]);
 
   // Generate calendar days for current month - memoized to prevent recalculation on every render
   const calendarDays = useMemo(() => {
@@ -171,6 +230,7 @@ export default function BookingPage() {
 
   // Get available time slots for selected date - memoized to prevent recalculation on every render
   // TIMEZONE-SAFE: All comparisons use WIB timezone utilities
+  // CRITICAL FIX: Now includes currentTime in dependencies to auto-update as time progresses
   const availableTimeSlots = useMemo(() => {
     if (!selectedDate) return [];
 
@@ -187,7 +247,7 @@ export default function BookingPage() {
 
       // For today, filter out past time slots and slots within buffer period
       if (isToday && avail.time_slot) {
-        // Use timezone-safe validation
+        // Use timezone-safe validation with current time
         const isBookable = isTimeSlotBookable(dateString, avail.time_slot, BOOKING_BUFFER_MINUTES);
         
         if (!isBookable) {
@@ -199,12 +259,12 @@ export default function BookingPage() {
       return matchesDate && hasCapacity && hasTimeSlot;
     });
 
-    console.log(`[BookingPage] Available slots for ${dateString}:`, filtered.length);
+    console.log(`[BookingPage] Available slots for ${dateString} at ${currentTime.toISOString()}:`, filtered.length);
     return filtered.map((avail) => ({
       time: avail.time_slot as string,
       available: avail.available_capacity,
     }));
-  }, [selectedDate, availabilities]);
+  }, [selectedDate, availabilities, currentTime]); // CRITICAL: Added currentTime dependency
 
   // Check if this ticket has all-day access (no time slots) - memoized
   const isAllDayTicket = useMemo(() => {
