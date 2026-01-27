@@ -6,8 +6,7 @@ import {
   todayWIB, 
   nowWIB,
   isTimeSlotBookable,
-  createWIBDate,
-  getBookingBufferTime
+  getMinutesUntilSessionEnd,
 } from '../utils/timezone';
 
 interface Ticket {
@@ -235,28 +234,25 @@ export default function BookingPage() {
 
   // Get available time slots for selected date - memoized to prevent recalculation on every render
   // TIMEZONE-SAFE: All comparisons use WIB timezone utilities
-  // CRITICAL FIX: Now includes currentTime in dependencies to auto-update as time progresses
+  // NEW LOGIC (Jan 2026): Check against session END time, not start time + buffer
   const availableTimeSlots = useMemo(() => {
     if (!selectedDate) return [];
 
     const dateString = toLocalDateString(selectedDate);
     const isToday = selectedDate.toDateString() === todayWIB().toDateString();
-    
-    // Industry standard: 30-minute buffer for booking preparation
-    const BOOKING_BUFFER_MINUTES = 30;
 
     const filtered = availabilities.filter((avail) => {
       const matchesDate = avail.date === dateString;
       const hasCapacity = avail.available_capacity > 0;
       const hasTimeSlot = !!avail.time_slot;
 
-      // For today, filter out past time slots and slots within buffer period
+      // For today, filter out slots where session has already ended
       if (isToday && avail.time_slot) {
-        // Use timezone-safe validation with current time
-        const isBookable = isTimeSlotBookable(dateString, avail.time_slot, BOOKING_BUFFER_MINUTES);
+        // NEW: Check if session end time > current time (no buffer)
+        const isBookable = isTimeSlotBookable(dateString, avail.time_slot);
         
         if (!isBookable) {
-          console.log(`[BookingPage] Filtering out slot ${avail.time_slot}: not bookable (past or within buffer)`);
+          console.log(`[BookingPage] Filtering out slot ${avail.time_slot}: session has ended`);
           return false;
         }
       }
@@ -271,8 +267,9 @@ export default function BookingPage() {
     }));
   }, [selectedDate, availabilities, currentTime]); // CRITICAL: Added currentTime dependency
 
-  // Calculate time until slot closes (for warning system)
-  // Returns minutes until booking closes, or null if not applicable
+  // Calculate time until session ends (for warning system)
+  // NEW LOGIC (Jan 2026): Returns minutes until SESSION END, not start time
+  // This allows booking during active sessions
   const getMinutesUntilClose = (timeSlot: string): number | null => {
     if (!selectedDate) return null;
     
@@ -281,20 +278,21 @@ export default function BookingPage() {
     
     if (!isToday) return null; // No urgency for future dates
     
-    const slotDateTime = createWIBDate(dateString, timeSlot);
-    const bufferTime = getBookingBufferTime(30); // 30-minute buffer
-    const diffMs = slotDateTime.getTime() - bufferTime.getTime();
-    const diffMinutes = Math.floor(diffMs / (60 * 1000));
-    
-    return diffMinutes > 0 ? diffMinutes : 0;
+    // Calculate time until session END (start + 2.5 hours)
+    return getMinutesUntilSessionEnd(dateString, timeSlot);
   };
 
   // Get urgency level for a time slot
+  // NEW THRESHOLDS (Jan 2026): Based on time until session ENDS
+  // - High: < 30 min until session ends (complete payment quickly!)
+  // - Medium: 30-60 min until session ends
+  // - Low: 60-90 min until session ends
+  // - None: > 90 min until session ends
   const getSlotUrgency = (timeSlot: string): 'none' | 'low' | 'medium' | 'high' => {
     const minutes = getMinutesUntilClose(timeSlot);
-    if (minutes === null || minutes > 60) return 'none';
-    if (minutes > 30) return 'low';
-    if (minutes > 15) return 'medium';
+    if (minutes === null || minutes > 90) return 'none';
+    if (minutes > 60) return 'low';
+    if (minutes > 30) return 'medium';
     return 'high';
   };
 
@@ -308,20 +306,24 @@ export default function BookingPage() {
   }, [selectedDate, availabilities]);
 
   // Group time slots by period - memoized
+  // UPDATED (Jan 2026): New session times (2.5 hours each)
+  // Morning: 09:00-11:30, Afternoon: 12:00-14:30 & 15:00-17:30, Evening: 18:00-20:30
   const groupedSlots = useMemo(() => {
     const morning: typeof availableTimeSlots = [];
-    const afternoon: typeof availableTimeSlots = [];
+    const afternoon1: typeof availableTimeSlots = [];
+    const afternoon2: typeof availableTimeSlots = [];
     const evening: typeof availableTimeSlots = [];
 
     availableTimeSlots.forEach((slot) => {
       if (!slot.time) return; // Skip null/undefined time slots
       const hour = parseInt(slot.time.split(':')[0]);
-      if (hour < 12) morning.push(slot);
-      else if (hour < 17) afternoon.push(slot);
-      else evening.push(slot);
+      if (hour >= 9 && hour < 12) morning.push(slot);
+      else if (hour >= 12 && hour < 15) afternoon1.push(slot);
+      else if (hour >= 15 && hour < 18) afternoon2.push(slot);
+      else if (hour >= 18) evening.push(slot);
     });
 
-    return { morning, afternoon, evening };
+    return { morning, afternoon1, afternoon2, evening };
   }, [availableTimeSlots]);
 
   const handleProceedToPayment = () => {
@@ -502,10 +504,19 @@ export default function BookingPage() {
                     )}
                     {Object.entries(groupedSlots).map(([period, slots]) => {
                       if (slots.length === 0) return null;
+                      
+                      // Display names for new session structure
+                      const periodNames: Record<string, string> = {
+                        morning: 'Morning (09:00 - 11:30)',
+                        afternoon1: 'Afternoon Early (12:00 - 14:30)',
+                        afternoon2: 'Afternoon Late (15:00 - 17:30)',
+                        evening: 'Evening (18:00 - 20:30)'
+                      };
+                      
                       return (
                         <div key={period}>
                           <p className="text-xs font-black uppercase tracking-widest text-primary/60 mb-4">
-                            {period} Sessions
+                            {periodNames[period] || period}
                           </p>
                           <div className="flex flex-wrap gap-3">
                             {slots.map((slot) => {
@@ -527,8 +538,8 @@ export default function BookingPage() {
                                     {slot.time.substring(0, 5)}
                                     <span className="text-xs ml-2 opacity-60">({slot.available} left)</span>
                                     
-                                    {/* Urgency Badge */}
-                                    {urgency !== 'none' && (
+                                    {/* Urgency Badge - shows time until SESSION ENDS */}
+                                    {urgency !== 'none' && minutesLeft !== null && (
                                       <span className={`absolute -top-2 -right-2 px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider
                                         ${urgency === 'high' ? 'bg-red-500 text-white animate-pulse' : ''}
                                         ${urgency === 'medium' ? 'bg-orange-500 text-white' : ''}
@@ -539,12 +550,12 @@ export default function BookingPage() {
                                     )}
                                   </button>
                                   
-                                  {/* Warning Tooltip */}
-                                  {urgency === 'high' && (
+                                  {/* Warning Tooltip - clarifies session ending soon */}
+                                  {urgency === 'high' && minutesLeft !== null && (
                                     <div className="absolute top-full mt-2 left-1/2 -translate-x-1/2 z-10 w-48 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-2 text-xs text-red-700 dark:text-red-300">
                                       <div className="flex items-start gap-1">
                                         <span className="material-symbols-outlined text-sm">warning</span>
-                                        <span>Booking closes in {minutesLeft} minutes. Complete payment quickly!</span>
+                                        <span>Session ends in {minutesLeft} min. Complete payment quickly!</span>
                                       </div>
                                     </div>
                                   )}
@@ -605,42 +616,42 @@ export default function BookingPage() {
                           : 'Not selected'}
                     </p>
                     
-                    {/* Urgency Warning in Summary */}
+                    {/* Urgency Warning in Summary - Updated for session end time */}
                     {selectedTime && (() => {
                       const urgency = getSlotUrgency(selectedTime);
                       const minutesLeft = getMinutesUntilClose(selectedTime);
                       
-                      if (urgency === 'high') {
+                      if (urgency === 'high' && minutesLeft !== null) {
                         return (
                           <div className="mt-2 p-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded text-xs text-red-700 dark:text-red-300">
                             <div className="flex items-start gap-1">
                               <span className="material-symbols-outlined text-sm">warning</span>
                               <div>
-                                <p className="font-bold">Booking closes in {minutesLeft} minutes!</p>
-                                <p className="mt-1 opacity-80">Complete payment quickly to secure your slot.</p>
+                                <p className="font-bold">Session ends in {minutesLeft} minutes!</p>
+                                <p className="mt-1 opacity-80">Complete payment quickly to secure your booking.</p>
                               </div>
                             </div>
                           </div>
                         );
                       }
                       
-                      if (urgency === 'medium') {
+                      if (urgency === 'medium' && minutesLeft !== null) {
                         return (
                           <div className="mt-2 p-2 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded text-xs text-orange-700 dark:text-orange-300">
                             <div className="flex items-center gap-1">
                               <span className="material-symbols-outlined text-sm">schedule</span>
-                              <span>Booking closes in {minutesLeft} minutes</span>
+                              <span>Session ends in {minutesLeft} minutes</span>
                             </div>
                           </div>
                         );
                       }
                       
-                      if (urgency === 'low') {
+                      if (urgency === 'low' && minutesLeft !== null) {
                         return (
                           <div className="mt-2 p-2 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded text-xs text-yellow-700 dark:text-yellow-300">
                             <div className="flex items-center gap-1">
                               <span className="material-symbols-outlined text-sm">info</span>
-                              <span>Booking closes in {minutesLeft} minutes</span>
+                              <span>Session ends in {minutesLeft} minutes</span>
                             </div>
                           </div>
                         );
@@ -696,7 +707,7 @@ export default function BookingPage() {
         </div>
       </main>
 
-      {/* Urgency Confirmation Modal */}
+      {/* Urgency Confirmation Modal - Updated for flexible booking */}
       {showUrgencyModal && selectedTime && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white dark:bg-[#1a0c0c] rounded-xl shadow-2xl border-2 border-red-500 max-w-md w-full p-6 animate-in fade-in zoom-in duration-200">
@@ -708,10 +719,10 @@ export default function BookingPage() {
               </div>
               <div className="flex-1">
                 <h3 className="text-xl font-black text-red-600 dark:text-red-400 mb-2">
-                  Booking Closes Soon!
+                  Session Ending Soon!
                 </h3>
                 <p className="text-sm text-gray-700 dark:text-gray-300">
-                  Your selected time slot <span className="font-bold">{selectedTime.substring(0, 5)}</span> closes for booking in{' '}
+                  The session for <span className="font-bold">{selectedTime.substring(0, 5)}</span> ends in{' '}
                   <span className="font-bold text-red-600 dark:text-red-400">
                     {getMinutesUntilClose(selectedTime)} minutes
                   </span>.
@@ -726,8 +737,9 @@ export default function BookingPage() {
               <ul className="text-xs text-red-700 dark:text-red-300 space-y-1">
                 <li>• Complete payment within the next few minutes</li>
                 <li>• Midtrans payment window: 15-30 minutes</li>
-                <li>• If payment is late, your booking may be invalid</li>
-                <li>• Consider choosing a later time slot for more flexibility</li>
+                <li>• You can still book even if session has started</li>
+                <li>• Booking closes when session ends (not when it starts)</li>
+                <li>• Consider a later session for more flexibility</li>
               </ul>
             </div>
 

@@ -394,12 +394,18 @@ serve(async (req) => {
           let timeSlotForTicket = firstSlot && firstSlot !== 'all-day' && /^\d{2}:\d{2}/.test(firstSlot) ? firstSlot : null
           
           // Validate time slot is still valid (graceful degradation)
+          // NEW LOGIC (Jan 2026): Check if SESSION has ended (not just if slot started)
+          // Session duration: 2.5 hours (150 minutes)
           let slotExpired = false
           if (timeSlotForTicket && item.selected_date) {
-            const bookingDateTimeWIB = new Date(`${item.selected_date}T${timeSlotForTicket}:00+07:00`)
-            if (bookingDateTimeWIB < now) {
+            const SESSION_DURATION_MINUTES = 150; // 2.5 hours
+            const sessionStartTimeWIB = new Date(`${item.selected_date}T${timeSlotForTicket}:00+07:00`)
+            const sessionEndTimeWIB = new Date(sessionStartTimeWIB.getTime() + SESSION_DURATION_MINUTES * 60 * 1000)
+            
+            // Only mark as expired if session has ENDED (not just started)
+            if (now > sessionEndTimeWIB) {
               slotExpired = true
-              console.warn(`[WEBHOOK] Time slot expired for order ${orderId}: ${item.selected_date} ${timeSlotForTicket}. Converting to all-day access.`)
+              console.warn(`[WEBHOOK] Session ended for order ${orderId}: ${item.selected_date} ${timeSlotForTicket}. Converting to all-day access.`)
               
               // Graceful degradation: Convert to all-day access
               // Business keeps revenue, customer can still use studio today
@@ -408,10 +414,11 @@ serve(async (req) => {
               // Log for audit trail
               await logWebhook(supabase, {
                 orderNumber: orderId,
-                eventType: 'slot_expired_converted_to_allday',
+                eventType: 'session_ended_converted_to_allday',
                 payload: {
                   original_slot: firstSlot,
                   selected_date: item.selected_date,
+                  session_end_time: sessionEndTimeWIB.toISOString(),
                   payment_completed_at: nowIso,
                 },
                 success: true,

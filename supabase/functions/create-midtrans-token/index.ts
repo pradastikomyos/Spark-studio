@@ -79,14 +79,17 @@ serve(async (req) => {
       })
     }
 
-    // Validate that time slots are not in the past (with 30-min buffer)
-    // Industry standard: booking systems require buffer time for preparation
+    // Validate that sessions haven't ended yet
+    // NEW LOGIC (Jan 2026): Allow booking as long as session hasn't ended
+    // - Session duration: 2.5 hours (150 minutes)
+    // - Customers can book even after session starts
+    // - Booking closes when session END time is reached
     // Timezone: WIB (UTC+7) for Bandung business operations
-    const BOOKING_BUFFER_MINUTES = 30
+    const SESSION_DURATION_MINUTES = 150 // 2.5 hours
     const now = new Date()
 
-    // Calculate dynamic payment expiry based on earliest slot
-    let minMinutesToSlot = Infinity
+    // Calculate dynamic payment expiry based on earliest slot END time
+    let minMinutesToSessionEnd = Infinity
 
     for (const item of items) {
       // Skip validation for all-day tickets
@@ -94,22 +97,16 @@ serve(async (req) => {
 
       // Parse booking date and time in WIB
       // item.date format: YYYY-MM-DD, item.timeSlot format: HH:MM
-      const bookingDateTimeWIB = new Date(`${item.date}T${item.timeSlot}:00+07:00`)
+      const sessionStartTimeWIB = new Date(`${item.date}T${item.timeSlot}:00+07:00`)
+      const sessionEndTimeWIB = new Date(sessionStartTimeWIB.getTime() + SESSION_DURATION_MINUTES * 60 * 1000)
 
-      // Add 30-minute buffer: slot must be at least 30 minutes in the future
-      const bufferTimeWIB = new Date(now.getTime() + BOOKING_BUFFER_MINUTES * 60 * 1000)
-
-      if (bookingDateTimeWIB < bufferTimeWIB) {
-        const isPast = bookingDateTimeWIB < now
-        console.error(`${isPast ? 'Past' : 'Too soon'} time slot detected: ${item.date} ${item.timeSlot} WIB (Current: ${now.toISOString()})`)
+      // NEW: Check if session has ended (not if it's about to start)
+      if (now > sessionEndTimeWIB) {
+        console.error(`Session has ended: ${item.date} ${item.timeSlot} WIB (ended at ${sessionEndTimeWIB.toISOString()})`)
         return new Response(
           JSON.stringify({
-            error: isPast
-              ? 'Cannot book a time slot that has already passed'
-              : 'Time slot must be at least 30 minutes in the future',
-            details: isPast
-              ? `The selected time slot (${item.timeSlot} on ${item.date}) is no longer available.`
-              : `Please select a time slot at least 30 minutes from now. Selected: ${item.timeSlot} on ${item.date}`
+            error: 'Session has ended',
+            details: `The selected session (${item.timeSlot} on ${item.date}) has already ended. Please select a different time slot.`
           }),
           {
             status: 400,
@@ -118,27 +115,27 @@ serve(async (req) => {
         )
       }
 
-      // Track earliest slot for payment expiry calculation
-      const minutesToSlot = Math.floor((bookingDateTimeWIB.getTime() - now.getTime()) / (60 * 1000))
-      minMinutesToSlot = Math.min(minMinutesToSlot, minutesToSlot)
+      // Track earliest session end time for payment expiry calculation
+      const minutesToSessionEnd = Math.floor((sessionEndTimeWIB.getTime() - now.getTime()) / (60 * 1000))
+      minMinutesToSessionEnd = Math.min(minMinutesToSessionEnd, minutesToSessionEnd)
     }
 
     // Calculate dynamic payment expiry
-    // Formula: Give user time to pay, but ensure payment completes before slot starts
-    // Max 20 minutes, or (time_to_slot - 5min buffer), whichever is smaller
+    // Formula: Give user time to pay, but ensure payment completes before session ends
+    // Max 20 minutes, or (time_to_session_end - 5min buffer), whichever is smaller
     const MAX_PAYMENT_MINUTES = 20
     const PAYMENT_BUFFER_MINUTES = 5
     let paymentExpiryMinutes = MAX_PAYMENT_MINUTES
 
-    if (minMinutesToSlot !== Infinity) {
-      // For time-specific slots, limit payment window
+    if (minMinutesToSessionEnd !== Infinity) {
+      // For time-specific slots, limit payment window to before session ends
       paymentExpiryMinutes = Math.min(
         MAX_PAYMENT_MINUTES,
-        Math.max(10, minMinutesToSlot - PAYMENT_BUFFER_MINUTES) // Minimum 10 minutes to pay
+        Math.max(10, minMinutesToSessionEnd - PAYMENT_BUFFER_MINUTES) // Minimum 10 minutes to pay
       )
     }
 
-    console.log(`Payment expiry set to ${paymentExpiryMinutes} minutes (slot in ${minMinutesToSlot} minutes)`)
+    console.log(`Payment expiry set to ${paymentExpiryMinutes} minutes (session ends in ${minMinutesToSessionEnd} minutes)`)
 
     const userId = user.id
 

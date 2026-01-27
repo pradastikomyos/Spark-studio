@@ -26,10 +26,13 @@ export const WIB_OFFSET_MS = WIB_OFFSET_HOURS * 60 * 60 * 1000;
 /**
  * Get current time in WIB timezone
  * Use this instead of new Date() for business logic
+ * Returns a Date object representing current WIB time
  */
 export function nowWIB(): Date {
-  const utc = new Date();
-  return new Date(utc.getTime() + WIB_OFFSET_MS);
+  // Get current UTC time
+  const now = new Date();
+  // Return as-is (Date object internally stores UTC, we interpret it as WIB)
+  return now;
 }
 
 /**
@@ -77,13 +80,16 @@ export function todayWIB(): Date {
  * Create a Date object for a specific date and time in WIB
  * @param dateString - YYYY-MM-DD format
  * @param timeString - HH:MM or HH:MM:SS format (optional)
+ * @returns Date object representing the WIB time
  */
 export function createWIBDate(dateString: string, timeString?: string): Date {
-  // Parse as if it's in WIB timezone
-  const isoString = timeString 
-    ? `${dateString}T${timeString}:00+07:00`
-    : `${dateString}T00:00:00+07:00`;
+  // Parse as if it's in WIB timezone (UTC+7)
+  // Add :00 for seconds if timeString is HH:MM format
+  const fullTimeString = timeString 
+    ? (timeString.split(':').length === 2 ? `${timeString}:00` : timeString)
+    : '00:00:00';
   
+  const isoString = `${dateString}T${fullTimeString}+07:00`;
   return new Date(isoString);
 }
 
@@ -174,24 +180,69 @@ export function parseTimeSlotToday(timeSlot: string, referenceDate?: Date): Date
 }
 
 /**
+ * Session duration in minutes (2.5 hours)
+ * Updated: January 2026 - Changed from 3 hours to 2.5 hours
+ */
+export const SESSION_DURATION_MINUTES = 150; // 2.5 hours
+
+/**
  * Get booking buffer time (current time + buffer minutes) in WIB
- * Industry standard: 30 minutes
+ * @deprecated Use isTimeSlotBookable instead - buffer logic removed
  */
 export function getBookingBufferTime(bufferMinutes: number = 30): Date {
   return addMinutes(nowWIB(), bufferMinutes);
 }
 
 /**
- * Validate if a time slot is bookable (not in the past + buffer)
+ * Validate if a time slot is bookable
+ * NEW LOGIC (Jan 2026): Allow booking as long as session hasn't ended
+ * - Customers can book even after session starts
+ * - Booking closes when session END time is reached
+ * - No artificial 30-minute buffer
+ * 
+ * @param dateString - Date in YYYY-MM-DD format
+ * @param timeSlot - Time in HH:MM:SS format (session start time)
+ * @returns true if current time is before session end time
+ * 
+ * Example:
+ * - Session: 18:00-20:30 (2.5 hours)
+ * - Current: 18:15 → ✅ Bookable (session ends at 20:30)
+ * - Current: 20:35 → ❌ Not bookable (session ended)
  */
 export function isTimeSlotBookable(
   dateString: string,
-  timeSlot: string,
-  bufferMinutes: number = 30
+  timeSlot: string
 ): boolean {
-  const slotDateTime = createWIBDate(dateString, timeSlot);
-  const bufferTime = getBookingBufferTime(bufferMinutes);
-  return slotDateTime > bufferTime;
+  const slotStartTime = createWIBDate(dateString, timeSlot);
+  const slotEndTime = addMinutes(slotStartTime, SESSION_DURATION_MINUTES);
+  const currentTime = nowWIB();
+  
+  // Allow booking if session hasn't ended yet
+  return slotEndTime > currentTime;
+}
+
+/**
+ * Get the end time of a session
+ * @param dateString - Date in YYYY-MM-DD format
+ * @param timeSlot - Time in HH:MM:SS format (session start time)
+ * @returns Session end time as Date
+ */
+export function getSessionEndTime(dateString: string, timeSlot: string): Date {
+  const slotStartTime = createWIBDate(dateString, timeSlot);
+  return addMinutes(slotStartTime, SESSION_DURATION_MINUTES);
+}
+
+/**
+ * Get minutes remaining until session ends
+ * @param dateString - Date in YYYY-MM-DD format
+ * @param timeSlot - Time in HH:MM:SS format (session start time)
+ * @returns Minutes until session ends, or 0 if session has ended
+ */
+export function getMinutesUntilSessionEnd(dateString: string, timeSlot: string): number {
+  const sessionEndTime = getSessionEndTime(dateString, timeSlot);
+  const currentTime = nowWIB();
+  const diffMs = sessionEndTime.getTime() - currentTime.getTime();
+  return Math.max(0, Math.floor(diffMs / (60 * 1000)));
 }
 
 /**
