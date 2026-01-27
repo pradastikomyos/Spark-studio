@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
+import { todayWIB, createWIBDate } from '../utils/timezone';
 
 interface PurchasedTicket {
   id: number;
@@ -133,33 +134,29 @@ export default function MyTicketsPage() {
     };
   }, [userId, fetchTickets]);
 
-  // Filter tickets based on active tab
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  // Filter tickets based on active tab - TIMEZONE-SAFE
+  const today = todayWIB();
 
   const upcomingTickets = tickets.filter((ticket) => {
-    const ticketDate = new Date(ticket.valid_date);
-    ticketDate.setHours(0, 0, 0, 0);
+    const ticketDate = createWIBDate(ticket.valid_date);
     return ticketDate >= today && ticket.status === 'active';
   });
 
   const historyTickets = tickets.filter((ticket) => {
-    const ticketDate = new Date(ticket.valid_date);
-    ticketDate.setHours(0, 0, 0, 0);
+    const ticketDate = createWIBDate(ticket.valid_date);
     return ticketDate < today || ticket.status !== 'active';
   });
 
   const displayTickets = activeTab === 'upcoming' ? upcomingTickets : historyTickets;
 
   const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
+    const date = createWIBDate(dateString);
     const month = date.toLocaleDateString('en-US', { month: 'short' });
     const day = date.getDate();
     const dayOfWeek = date.toLocaleDateString('en-US', { weekday: 'long' });
 
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const ticketDate = new Date(dateString);
+    const today = todayWIB();
+    const ticketDate = createWIBDate(dateString);
     ticketDate.setHours(0, 0, 0, 0);
     const isToday = ticketDate.getTime() === today.getTime();
 
