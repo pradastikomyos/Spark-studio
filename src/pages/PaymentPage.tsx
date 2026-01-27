@@ -5,6 +5,13 @@ import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import { loadSnapScript } from '../utils/midtransSnap';
 import { formatCurrency } from '../utils/formatters';
+import {
+  restoreBookingState,
+  hasBookingState,
+  clearBookingState,
+  type BookingState
+} from '../utils/bookingStateManager';
+import { SessionErrorHandler } from '../utils/sessionErrorHandler';
 
 interface LocationState {
   ticketId?: number;
@@ -20,7 +27,7 @@ export default function PaymentPage() {
   const navigate = useNavigate();
   const state = location.state as LocationState;
   const { isDark, toggleDarkMode } = useDarkMode();
-  const { user } = useAuth();
+  const { user, validateSession } = useAuth();
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -58,14 +65,34 @@ export default function PaymentPage() {
   useEffect(() => {
     // Check if we have required booking data
     if (!ticketId || !price || !bookingDate || !timeSlot) {
-      setError('Missing booking information. Please go back and select your session.');
+      // Try to restore from sessionStorage if current state is missing
+      if (hasBookingState()) {
+        const restored = restoreBookingState();
+        if (restored) {
+          console.log('Restoring booking state after session recovery');
+          navigate(location.pathname, { state: restored, replace: true });
+          return;
+        }
+      }
+      setError('We couldn\'t find your booking details. Your selection may have timed out. Please go back and select your session again.');
+    } else {
+      // We have valid state, clear the backup
+      // clearBookingState(); // Only clear after successful payment
     }
-  }, [ticketId, price, bookingDate, timeSlot]);
+  }, [ticketId, price, bookingDate, timeSlot, navigate, location.pathname]);
+
+  const errorHandler = new SessionErrorHandler({
+    onSessionExpired: (returnPath, state) => {
+      // State is preserved by the handler if preserveState is true
+      navigate('/login', { state: { returnTo: returnPath, returnState: state } });
+    },
+    preserveState: true
+  });
 
   const handlePayWithMidtrans = async () => {
     if (!user) {
-      alert('Please login to continue with payment');
-      navigate('/login');
+      alert('Please log in to complete your payment. We\'ll save your booking details so you can continue immediately after signing in.');
+      navigate('/login', { state: { returnTo: location.pathname, returnState: state } });
       return;
     }
 
@@ -77,20 +104,30 @@ export default function PaymentPage() {
     setLoading(true);
     setError(null);
 
+    const bookingData: Omit<BookingState, 'timestamp'> = {
+      ticketId,
+      ticketName,
+      ticketType,
+      price,
+      date: bookingDate,
+      time: timeSlot,
+      quantity,
+      total
+    };
+
     try {
-      // Get auth session token and validate it's still valid
-      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
-      
-      if (sessionError || !sessionData.session) {
-        // Session expired or invalid - force re-login
-        console.error('Session error:', sessionError);
-        await supabase.auth.signOut(); // Clear invalid session from localStorage
-        alert('Your session has expired. Please login again.');
-        navigate('/login', { state: { returnTo: location.pathname, returnState: state } });
+      // Use the new validateSession for robust check
+      const isValid = await validateSession();
+      if (!isValid) {
+        // handleAuthError will handle state preservation and navigation
+        alert('Your session has expired. We\'ve saved your booking details—please log in again to complete your payment.');
+        await errorHandler.handleAuthError({ status: 401 }, { returnPath: location.pathname, state: bookingData });
+        setLoading(false);
         return;
       }
 
-      const token = sessionData.session.access_token;
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
 
       if (!token) {
         throw new Error('Not authenticated');
@@ -129,9 +166,9 @@ export default function PaymentPage() {
         // Handle 401 Unauthorized - session expired on server
         if (response.status === 401) {
           console.error('Auth error from edge function:', data);
-          await supabase.auth.signOut(); // Clear invalid session
-          alert('Your session has expired. Please login again.');
-          navigate('/login', { state: { returnTo: location.pathname, returnState: state } });
+          alert('Your session has timed out for security. Don\'t worry—your booking details are saved. Please log in again to finish.');
+          // Use errorHandler to handle session expiration and navigation
+          await errorHandler.handleAuthError({ status: 401 }, { returnPath: location.pathname, state: bookingData });
           return;
         }
         throw new Error(data.error || 'Failed to create payment');
@@ -142,6 +179,7 @@ export default function PaymentPage() {
         window.snap.pay(data.token, {
           onSuccess: (result) => {
             console.log('Payment success:', result);
+            clearBookingState(); // Success! Clear the preserved state
             navigate('/booking-success', {
               state: {
                 orderNumber: data.order_number,
@@ -409,13 +447,13 @@ export default function PaymentPage() {
               <div className="mt-6 pt-6 border-t border-[#e8cece] dark:border-[#422020]">
                 <p className="text-xs text-center text-[#9c4949] mb-3">Supported Payment Methods</p>
                 <div className="flex justify-center items-center gap-4 flex-wrap opacity-60">
-                  <img 
-                    alt="Visa" 
+                  <img
+                    alt="Visa"
                     className="h-5"
                     src="https://upload.wikimedia.org/wikipedia/commons/thumb/5/5e/Visa_Inc._logo.svg/200px-Visa_Inc._logo.svg.png"
                   />
-                  <img 
-                    alt="Mastercard" 
+                  <img
+                    alt="Mastercard"
                     className="h-5"
                     src="https://upload.wikimedia.org/wikipedia/commons/thumb/2/2a/Mastercard-logo.svg/200px-Mastercard-logo.svg.png"
                   />
