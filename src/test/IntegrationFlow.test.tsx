@@ -41,6 +41,7 @@ vi.mock('../utils/midtransSnap', () => ({
 
 // Mock useAuth hook
 const mockValidateSession = vi.fn()
+const mockRefreshSession = vi.fn()
 vi.spyOn(AuthContext, 'useAuth').mockReturnValue({
     user: { id: 'user-1', email: 'test@example.com', user_metadata: {}, app_metadata: {}, aud: 'authenticated', created_at: new Date().toISOString() },
     session: { access_token: 'token', refresh_token: 'refresh', expires_in: 3600, token_type: 'bearer', user: null as any },
@@ -48,6 +49,7 @@ vi.spyOn(AuthContext, 'useAuth').mockReturnValue({
     initialized: true,
     loggingOut: false,
     validateSession: mockValidateSession,
+    refreshSession: mockRefreshSession,
     signIn: vi.fn(),
     signUp: vi.fn(),
     signOut: vi.fn()
