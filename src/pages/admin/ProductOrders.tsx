@@ -15,7 +15,7 @@ type OrderSummaryRow = {
   pickup_code: string | null;
   pickup_status: string | null;
   paid_at: string | null;
-  users?: { name?: string; email?: string } | null;
+  profiles?: { name?: string; email?: string } | null;
 };
 
 type OrderItemRow = {
@@ -63,7 +63,7 @@ export default function ProductOrders() {
     const [ordersResult, pendingResult] = await Promise.all([
       supabase
         .from('order_products')
-        .select('id, order_number, total, pickup_code, pickup_status, paid_at, users!order_products_user_id_foreign(name, email)')
+        .select('id, order_number, total, pickup_code, pickup_status, paid_at, profiles!order_products_user_id_foreign(name, email)')
         .eq('payment_status', 'paid')
         .order('paid_at', { ascending: false })
         .limit(100),
@@ -105,7 +105,7 @@ export default function ProductOrders() {
   const loadDetailsByPickupCode = useCallback(async (pickupCode: string) => {
     const { data: orderRow, error: orderError } = await supabase
       .from('order_products')
-      .select('id, order_number, total, pickup_code, pickup_status, paid_at, payment_status, status, pickup_expires_at, users!order_products_user_id_foreign(name, email)')
+      .select('id, order_number, total, pickup_code, pickup_status, paid_at, payment_status, status, pickup_expires_at, profiles!order_products_user_id_foreign(name, email)')
       .eq('pickup_code', pickupCode)
       .single();
 
@@ -407,7 +407,7 @@ export default function ProductOrders() {
                       {o.pickup_code ?? '-'}
                     </p>
                     <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
-                      {o.users?.name ?? o.users?.email ?? 'Customer'}
+                      {o.profiles?.name ?? o.profiles?.email ?? 'Customer'}
                     </p>
                   </div>
                   <div className="flex items-center gap-3">
@@ -448,7 +448,7 @@ export default function ProductOrders() {
               <div className="min-w-0">
                 <p className="text-xs uppercase tracking-widest text-gray-500 dark:text-gray-400">Pickup Code</p>
                 <h3 className="text-2xl font-bold text-neutral-900 dark:text-white truncate">{details.order.pickup_code}</h3>
-                <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{details.order.users?.name ?? details.order.users?.email ?? 'Customer'}</p>
+                <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{details.order.profiles?.name ?? details.order.profiles?.email ?? 'Customer'}</p>
               </div>
               <button className="text-gray-400 hover:text-white" onClick={() => setDetails(null)} aria-label="Close">
                 <span className="material-symbols-outlined">close</span>

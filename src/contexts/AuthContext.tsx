@@ -58,11 +58,40 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
         if (!isMounted) return;
 
-        setSession(session);
-        setUser(session?.user ?? null);
-
-        if (session?.user?.id) {
-          await checkAdminStatus(session.user.id);
+        // Validate session by checking if it's actually valid on server
+        // If session exists but is expired, force refresh or sign out
+        if (session) {
+          try {
+            // Try to get user to validate session is still valid
+            const { data: { user: validatedUser }, error: userError } = await supabase.auth.getUser();
+            
+            if (userError || !validatedUser) {
+              // Session is invalid on server, clear it
+              console.warn('Session invalid on server, clearing local session');
+              await supabase.auth.signOut();
+              setSession(null);
+              setUser(null);
+              setIsAdmin(false);
+            } else {
+              // Session is valid
+              setSession(session);
+              setUser(validatedUser);
+              if (validatedUser.id) {
+                await checkAdminStatus(validatedUser.id);
+              }
+            }
+          } catch (validationError) {
+            console.error('Session validation error:', validationError);
+            // On validation error, clear session to be safe
+            await supabase.auth.signOut();
+            setSession(null);
+            setUser(null);
+            setIsAdmin(false);
+          }
+        } else {
+          setSession(null);
+          setUser(null);
+          setIsAdmin(false);
         }
         
         if (!isMounted) return;

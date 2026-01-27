@@ -14,31 +14,18 @@ export const useCartCount = () => {
     }
 
     const fetchCartCount = async () => {
-      if (!user?.email) {
+      if (!user?.id) {
         setCount(0);
         setLoading(false);
         return;
       }
 
       try {
-        // First get the user_id from public.users table based on email
-        const { data: userData, error: userError } = await supabase
-          .from('users')
-          .select('id')
-          .eq('email', user.email)
-          .single();
-
-        if (userError || !userData) {
-          setCount(0);
-          setLoading(false);
-          return;
-        }
-
         // Count reservations with status 'pending' (items in cart)
         const { count: cartCount, error: cartError } = await supabase
           .from('reservations')
           .select('*', { count: 'exact', head: true })
-          .eq('user_id', userData.id)
+          .eq('user_id', user.id)
           .eq('status', 'pending');
 
         if (cartError) {
@@ -66,7 +53,7 @@ export const useCartCount = () => {
     return () => {
       subscription.unsubscribe();
     };
-  }, [user, initialized]);
+  }, [user?.id, initialized]);
 
   return { count, loading };
 };

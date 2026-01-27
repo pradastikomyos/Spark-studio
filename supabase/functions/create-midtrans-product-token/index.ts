@@ -55,7 +55,7 @@ serve(async (req) => {
       error: authError,
     } = await supabase.auth.getUser(token)
 
-    if (authError || !user?.email) {
+    if (authError || !user?.id) {
       return new Response(JSON.stringify({ error: 'Invalid token', details: authError?.message }), {
         status: 401,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -77,33 +77,7 @@ serve(async (req) => {
       })
     }
 
-    const { data: userDataResult, error: userError } = await supabase.from('users').select('id').eq('email', user.email).single()
-    let userData = userDataResult as { id: number } | null
-
-    if (userError || !userData) {
-      const userName = user.user_metadata?.name || payload.customerName || user.email.split('@')[0] || 'User'
-      const { data: newUser, error: createError } = await supabase
-        .from('users')
-        .insert({
-          email: user.email,
-          name: userName,
-          password: '',
-          phone_number: payload.customerPhone || null,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        })
-        .select('id')
-        .single()
-
-      if (createError || !newUser) {
-        return new Response(JSON.stringify({ error: 'Failed to create user record', details: createError?.message }), {
-          status: 500,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        })
-      }
-
-      userData = newUser as { id: number }
-    }
+    const userId = user.id
 
     const normalizedItems: ProductItem[] = payload.items.map((i) => ({
       productVariantId: toNumber(i.productVariantId, 0),
@@ -199,7 +173,7 @@ serve(async (req) => {
       .from('order_products')
       .insert({
         order_number: orderNumber,
-        user_id: userData.id,
+        user_id: userId,
         channel: 'online',
         status: 'awaiting_payment',
         payment_status: 'unpaid',

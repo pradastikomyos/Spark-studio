@@ -70,15 +70,7 @@ serve(async (req) => {
       })
     }
 
-    const { data: userRow, error: userRowError } = await supabaseService.from('users').select('id').eq('email', user.email).single()
-    if (userRowError || !userRow) {
-      return new Response(JSON.stringify({ error: 'User record not found' }), {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
-    }
-
-    const pickedUpBy = (userRow as { id: number }).id
+    const pickedUpBy = user.id
 
     const { data: order, error: orderError } = await supabaseService
       .from('order_products')

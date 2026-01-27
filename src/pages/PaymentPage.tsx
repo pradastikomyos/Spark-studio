@@ -78,9 +78,19 @@ export default function PaymentPage() {
     setError(null);
 
     try {
-      // Get auth session token
-      const { data: sessionData } = await supabase.auth.getSession();
-      const token = sessionData.session?.access_token;
+      // Get auth session token and validate it's still valid
+      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+      
+      if (sessionError || !sessionData.session) {
+        // Session expired or invalid - force re-login
+        console.error('Session error:', sessionError);
+        await supabase.auth.signOut(); // Clear invalid session from localStorage
+        alert('Your session has expired. Please login again.');
+        navigate('/login', { state: { returnTo: location.pathname, returnState: state } });
+        return;
+      }
+
+      const token = sessionData.session.access_token;
 
       if (!token) {
         throw new Error('Not authenticated');
@@ -116,6 +126,14 @@ export default function PaymentPage() {
       const data = await response.json();
 
       if (!response.ok) {
+        // Handle 401 Unauthorized - session expired on server
+        if (response.status === 401) {
+          console.error('Auth error from edge function:', data);
+          await supabase.auth.signOut(); // Clear invalid session
+          alert('Your session has expired. Please login again.');
+          navigate('/login', { state: { returnTo: location.pathname, returnState: state } });
+          return;
+        }
         throw new Error(data.error || 'Failed to create payment');
       }
 

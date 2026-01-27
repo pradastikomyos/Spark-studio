@@ -39,13 +39,13 @@ export default function MyTicketsPage() {
   const [activeTab, setActiveTab] = useState<'upcoming' | 'history'>('upcoming');
   const [tickets, setTickets] = useState<PurchasedTicket[]>([]);
   const [loading, setLoading] = useState(true);
-  const [userId, setUserId] = useState<number | null>(null);
+  const [userId, setUserId] = useState<string | null>(null);
 
   const fetchTickets = useCallback(
     async (showLoader = false) => {
       if (showLoader) setLoading(true);
 
-      if (!user?.email) {
+      if (!user?.id) {
         setTickets([]);
         setUserId(null);
         setLoading(false);
@@ -53,20 +53,7 @@ export default function MyTicketsPage() {
       }
 
       try {
-        const { data: userData, error: userError } = await supabase
-          .from('users')
-          .select('id')
-          .eq('email', user.email)
-          .single();
-
-        if (userError || !userData) {
-          console.error('Error fetching user:', userError);
-          setTickets([]);
-          setUserId(null);
-          return;
-        }
-
-        setUserId(userData.id);
+        setUserId(user.id);
 
         const { data: ticketsData, error: ticketsError } = await supabase
           .from('purchased_tickets')
@@ -84,7 +71,7 @@ export default function MyTicketsPage() {
               description
             )
           `)
-          .eq('user_id', userData.id)
+          .eq('user_id', user.id)
           .order('valid_date', { ascending: true });
 
         if (ticketsError) {
@@ -118,7 +105,7 @@ export default function MyTicketsPage() {
         if (showLoader) setLoading(false);
       }
     },
-    [user?.email]
+    [user?.id]
   );
 
   useEffect(() => {

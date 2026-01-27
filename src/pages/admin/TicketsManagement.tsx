@@ -28,13 +28,12 @@ type PurchasedTicket = {
 type PurchasedTicketRow = {
   id: string | number;
   ticket_id: string | number;
-  user_id: string | number;
+  user_id: string;
   created_at: string | null;
   status: 'active' | 'used' | 'cancelled' | 'expired';
   used_at: string | null;
   ticket_code: string;
   valid_date: string;
-  users: { name: string; email: string };
   tickets: { name: string };
 };
 
@@ -69,7 +68,6 @@ const TicketsManagement = () => {
           used_at,
           ticket_code,
           valid_date,
-          users!inner(name, email),
           tickets!inner(name)
         `
         )
@@ -79,6 +77,21 @@ const TicketsManagement = () => {
       if (error) throw error;
 
       const rows = (ticketsData || []) as unknown as PurchasedTicketRow[];
+      const userIds = Array.from(new Set(rows.map((row) => row.user_id).filter(Boolean)));
+      const { data: profilesData, error: profilesError } =
+        userIds.length > 0
+          ? await supabase.from('profiles').select('id, name, email').in('id', userIds)
+          : { data: [], error: null };
+
+      if (profilesError) throw profilesError;
+
+      const profilesMap = new Map(
+        (profilesData || []).map((profile) => [
+          String(profile.id),
+          { name: String(profile.name || '-'), email: String(profile.email || '-') },
+        ])
+      );
+
       const mapped: PurchasedTicket[] = rows.map((row) => {
         const entry_status: PurchasedTicket['entry_status'] =
           row.status === 'used' ? 'entered' : row.status === 'active' ? 'not_yet' : 'invalid';
@@ -93,7 +106,7 @@ const TicketsManagement = () => {
           status: row.status,
           valid_date: row.valid_date,
           used_at: row.used_at,
-          users: row.users,
+          users: profilesMap.get(String(row.user_id)) || { name: '-', email: '-' },
           tickets: row.tickets,
         };
       });

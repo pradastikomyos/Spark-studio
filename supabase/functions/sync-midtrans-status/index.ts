@@ -102,7 +102,7 @@ serve(async (req) => {
     const token = authHeader.replace('Bearer ', '')
     const { data: { user }, error: authError } = await supabase.auth.getUser(token)
 
-    if (authError || !user?.email) {
+    if (authError || !user?.id) {
       return new Response(JSON.stringify({ error: 'Invalid token' }), {
         status: 401,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -114,19 +114,6 @@ serve(async (req) => {
     if (!orderNumber) {
       return new Response(JSON.stringify({ error: 'Missing order_number' }), {
         status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
-    }
-
-    const { data: publicUser, error: publicUserError } = await supabase
-      .from('users')
-      .select('id')
-      .eq('email', user.email)
-      .single()
-
-    if (publicUserError || !publicUser) {
-      return new Response(JSON.stringify({ error: 'User not found' }), {
-        status: 403,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
     }
@@ -144,7 +131,7 @@ serve(async (req) => {
       })
     }
 
-    if (order.user_id !== publicUser.id) {
+    if (order.user_id !== user.id) {
       return new Response(JSON.stringify({ error: 'Forbidden' }), {
         status: 403,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },

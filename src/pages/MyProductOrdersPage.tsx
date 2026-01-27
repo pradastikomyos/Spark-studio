@@ -51,13 +51,13 @@ export default function MyProductOrdersPage() {
   const [orders, setOrders] = useState<ProductOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedOrder, setExpandedOrder] = useState<number | null>(null);
-  const [userId, setUserId] = useState<number | null>(null);
+  const [userId, setUserId] = useState<string | null>(null);
 
   const fetchOrders = useCallback(
     async (showLoader = false) => {
       if (showLoader) setLoading(true);
 
-      if (!user?.email) {
+      if (!user?.id) {
         setOrders([]);
         setUserId(null);
         setLoading(false);
@@ -65,19 +65,7 @@ export default function MyProductOrdersPage() {
       }
 
       try {
-        const { data: userData, error: userError } = await supabase
-          .from('users')
-          .select('id')
-          .eq('email', user.email)
-          .single();
-
-        if (userError || !userData) {
-          setOrders([]);
-          setUserId(null);
-          return;
-        }
-
-        setUserId(userData.id);
+        setUserId(user.id);
 
         const { data: ordersData, error: ordersError } = await supabase
           .from('order_products')
@@ -93,7 +81,7 @@ export default function MyProductOrdersPage() {
             total,
             created_at
           `)
-          .eq('user_id', userData.id)
+          .eq('user_id', user.id)
           .order('created_at', { ascending: false });
 
         if (ordersError) {
@@ -148,7 +136,7 @@ export default function MyProductOrdersPage() {
         if (showLoader) setLoading(false);
       }
     },
-    [user?.email]
+    [user?.id]
   );
 
   useEffect(() => {

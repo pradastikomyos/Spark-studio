@@ -27,7 +27,7 @@ const OrderTicket = () => {
     status: string;
     valid_date: string;
     used_at: string | null;
-    users?: { name: string; email: string } | null;
+    profiles?: { name: string; email: string } | null;
     tickets?: { name: string } | null;
   };
 
@@ -49,7 +49,7 @@ const OrderTicket = () => {
             status, 
             valid_date, 
             used_at,
-            users!inner(name, email),
+            profiles!inner(name, email),
             tickets!inner(name)
           `)
           .eq('ticket_code', code)
@@ -136,7 +136,7 @@ const OrderTicket = () => {
           message: 'Tiket berhasil divalidasi! Masuk diizinkan.',
           ticketInfo: {
             code: ticketData.ticket_code,
-            userName: ticketData.users?.name || '-',
+            userName: ticketData.profiles?.name || '-',
             ticketName: ticketData.tickets?.name || '-',
             validDate: new Date(ticketData.valid_date).toLocaleDateString('id-ID'),
           }

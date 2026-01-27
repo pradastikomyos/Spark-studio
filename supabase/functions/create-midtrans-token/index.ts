@@ -51,7 +51,7 @@ serve(async (req) => {
     const token = authHeader.replace('Bearer ', '')
     const { data: { user }, error: authError } = await supabase.auth.getUser(token)
     
-    if (authError || !user) {
+    if (authError || !user?.id) {
       console.error('Auth error:', authError)
       return new Response(JSON.stringify({ error: 'Invalid token', details: authError?.message }), {
         status: 401,
@@ -136,43 +136,7 @@ serve(async (req) => {
     
     console.log(`Payment expiry set to ${paymentExpiryMinutes} minutes (slot in ${minMinutesToSlot} minutes)`)
 
-    // Get user from public.users table, or create if doesn't exist
-    const { data: userDataResult, error: userError } = await supabase
-      .from('users')
-      .select('id')
-      .eq('email', user.email)
-      .single()
-    let userData = userDataResult
-
-    // If user doesn't exist in public.users, create them
-    if (userError || !userData) {
-      console.log('User not found in public.users, creating new user record...')
-      
-      // Get user metadata from auth.users
-      const userName = user.user_metadata?.name || customerName || user.email?.split('@')[0] || 'User'
-      
-      const { data: newUser, error: createError } = await supabase
-        .from('users')
-        .insert({
-          email: user.email!,
-          name: userName,
-          password: '', // Not used for Supabase Auth users
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        })
-        .select('id')
-        .single()
-
-      if (createError || !newUser) {
-        console.error('Failed to create user:', createError)
-        return new Response(JSON.stringify({ error: 'Failed to create user record', details: createError?.message }), {
-          status: 500,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        })
-      }
-
-      userData = newUser
-    }
+    const userId = user.id
 
     // Calculate total amount
     const totalAmount = items.reduce((sum, item) => sum + (item.price * item.quantity), 0)
@@ -188,7 +152,7 @@ serve(async (req) => {
       .from('orders')
       .insert({
         order_number: orderNumber,
-        user_id: userData.id,
+        user_id: userId,
         total_amount: totalAmount,
         status: 'pending',
         expires_at: expiresAt.toISOString(),
