@@ -27,7 +27,7 @@ const OrderTicket = () => {
     status: string;
     valid_date: string;
     used_at: string | null;
-    profiles?: { name: string; email: string } | null;
+    user_id: string | null;
     tickets?: { name: string } | null;
   };
 
@@ -41,6 +41,7 @@ const OrderTicket = () => {
       setLastScanResult(null);
 
       try {
+        // Step 1: Fetch ticket data (without profiles join)
         const { data, error } = await supabase
           .from('purchased_tickets')
           .select(`
@@ -49,7 +50,7 @@ const OrderTicket = () => {
             status, 
             valid_date, 
             used_at,
-            profiles!user_id(name, email),
+            user_id,
             tickets!inner(name)
           `)
           .eq('ticket_code', code)
@@ -62,6 +63,29 @@ const OrderTicket = () => {
         }
         
         const ticketData = data as PurchasedTicketRow | null;
+
+        if (!ticketData) {
+          const errMsg = 'Kode tiket tidak ditemukan di sistem.';
+          setLastScanResult({ type: 'error', message: errMsg });
+          throw new Error(errMsg);
+        }
+
+        // Step 2: Fetch user profile data separately
+        let userName = '-';
+        let userEmail = '-';
+        
+        if (ticketData.user_id) {
+          const { data: profileData } = await supabase
+            .from('profiles')
+            .select('name, email')
+            .eq('id', ticketData.user_id)
+            .maybeSingle();
+          
+          if (profileData) {
+            userName = profileData.name || '-';
+            userEmail = profileData.email || '-';
+          }
+        }
 
         if (!ticketData) {
           const errMsg = 'Kode tiket tidak ditemukan di sistem.';
@@ -136,7 +160,7 @@ const OrderTicket = () => {
           message: 'Tiket berhasil divalidasi! Masuk diizinkan.',
           ticketInfo: {
             code: ticketData.ticket_code,
-            userName: ticketData.profiles?.name || '-',
+            userName: userName,
             ticketName: ticketData.tickets?.name || '-',
             validDate: new Date(ticketData.valid_date).toLocaleDateString('id-ID'),
           }
