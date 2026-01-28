@@ -71,6 +71,11 @@ export default function BookingSuccessPage() {
   const [orderData, setOrderData] = useState<OrderState | null>(null);
   const [syncing, setSyncing] = useState(false);
   const [syncError, setSyncError] = useState<string | null>(null);
+  
+  // Auto-polling state
+  const [autoSyncAttempts, setAutoSyncAttempts] = useState(0);
+  const [showManualButton, setShowManualButton] = useState(false);
+  const [autoSyncInProgress, setAutoSyncInProgress] = useState(false);
 
   // Get order number from state or URL params
   const orderNumber = state?.orderNumber || searchParams.get('order_id') || '';
@@ -275,16 +280,69 @@ export default function BookingSuccessPage() {
       }, 5000);
     }
 
+    // AUTO-POLLING: Smart sync for webhook failures
+    // Wait 30s for webhook, then poll sync API every 15s (max 4 times)
+    let initialWaitTimer: NodeJS.Timeout | null = null;
+    let autoSyncInterval: NodeJS.Timeout | null = null;
+    
+    if (orderNumber && effectiveStatus === 'pending') {
+      console.log('[Auto-Sync] Order pending - Starting smart polling...');
+      console.log('[Auto-Sync] Waiting 30 seconds for webhook...');
+      
+      // Wait 30 seconds for webhook to fire
+      initialWaitTimer = setTimeout(() => {
+        console.log('[Auto-Sync] Webhook timeout - Starting active polling every 15s');
+        
+        // Start polling sync API every 15 seconds
+        autoSyncInterval = setInterval(async () => {
+          // Check if we've reached max attempts
+          if (autoSyncAttempts >= 4) {
+            console.log('[Auto-Sync] Max attempts reached (4/4) - Showing manual button');
+            setShowManualButton(true);
+            if (autoSyncInterval) clearInterval(autoSyncInterval);
+            return;
+          }
+          
+          // Check if status changed (webhook might have fired)
+          if (effectiveStatus !== 'pending') {
+            console.log('[Auto-Sync] Status changed - Stopping auto-polling');
+            if (autoSyncInterval) clearInterval(autoSyncInterval);
+            return;
+          }
+          
+          // Increment attempt counter and trigger sync
+          setAutoSyncAttempts(prev => prev + 1);
+          await handleSyncStatus(true);
+        }, 15000); // 15 seconds
+      }, 30000); // 30 seconds initial wait
+    }
+
     return () => {
       if (channel) supabase.removeChannel(channel);
       if (pollInterval) clearInterval(pollInterval);
+      if (initialWaitTimer) clearTimeout(initialWaitTimer);
+      if (autoSyncInterval) clearInterval(autoSyncInterval);
     };
-  }, [orderNumber, state?.ticketCode]);
+  }, [orderNumber, state?.ticketCode, effectiveStatus, autoSyncAttempts]);
 
-  const handleSyncStatus = async () => {
+  const handleSyncStatus = async (isAutoSync = false) => {
     if (!orderNumber) return;
-    setSyncing(true);
+    
+    // Prevent concurrent auto-sync calls
+    if (isAutoSync && autoSyncInProgress) {
+      console.log('[Auto-Sync] Skipping - sync already in progress');
+      return;
+    }
+    
+    if (isAutoSync) {
+      setAutoSyncInProgress(true);
+      console.log(`[Auto-Sync] Attempt ${autoSyncAttempts + 1}/4 - Checking payment status...`);
+    } else {
+      setSyncing(true);
+    }
+    
     setSyncError(null);
+    
     try {
       // CRITICAL: Use session from AuthContext (validated), not from supabase.auth.getSession() (localStorage)
       const token = session?.access_token;
@@ -307,15 +365,38 @@ export default function BookingSuccessPage() {
 
       const data = await response.json().catch(() => null);
       if (!response.ok) {
-        setSyncError(data?.error || 'Failed to sync status');
+        const errorMsg = data?.error || 'Failed to sync status';
+        setSyncError(errorMsg);
+        if (isAutoSync) {
+          console.log(`[Auto-Sync] Failed: ${errorMsg}`);
+        }
         return;
       }
 
       setOrderData(data?.order || orderData);
+      
+      // If successful and status is paid, stop auto-polling
+      if (data?.order?.status === 'paid') {
+        setShowManualButton(false);
+        setAutoSyncAttempts(0);
+        if (isAutoSync) {
+          console.log('[Auto-Sync] Success - Payment confirmed!');
+        }
+      } else if (isAutoSync) {
+        console.log(`[Auto-Sync] Status still: ${data?.order?.status || 'pending'}`);
+      }
     } catch (e: unknown) {
-      setSyncError(e instanceof Error ? e.message : 'Failed to sync status');
+      const errorMsg = e instanceof Error ? e.message : 'Failed to sync status';
+      setSyncError(errorMsg);
+      if (isAutoSync) {
+        console.log(`[Auto-Sync] Error: ${errorMsg}`);
+      }
     } finally {
-      setSyncing(false);
+      if (isAutoSync) {
+        setAutoSyncInProgress(false);
+      } else {
+        setSyncing(false);
+      }
     }
   };
 
@@ -508,13 +589,31 @@ export default function BookingSuccessPage() {
                     <p className="text-sm text-gray-400 mt-4">
                       Order: {orderNumber}
                     </p>
+                    
+                    {/* Auto-sync progress indicator */}
+                    {autoSyncAttempts > 0 && !showManualButton && (
+                      <div className="mt-4 flex items-center justify-center gap-2 text-sm text-blue-600">
+                        <span className="material-symbols-outlined text-lg animate-spin">sync</span>
+                        <span>Checking payment status... (Attempt {autoSyncAttempts}/4)</span>
+                      </div>
+                    )}
+                    
+                    {/* Manual button - shown after max auto-sync attempts or on demand */}
                     <div className="mt-6">
+                      {showManualButton && (
+                        <div className="mb-4 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
+                          <p className="text-sm text-yellow-700 dark:text-yellow-300">
+                            <span className="material-symbols-outlined text-base align-middle mr-1">info</span>
+                            Payment verification is taking longer than expected. Please check status manually.
+                          </p>
+                        </div>
+                      )}
                       <button
-                        onClick={handleSyncStatus}
-                        disabled={syncing}
-                        className="h-11 px-5 rounded-xl bg-primary text-white font-bold hover:bg-primary/90 disabled:opacity-60"
+                        onClick={() => handleSyncStatus(false)}
+                        disabled={syncing || autoSyncInProgress}
+                        className="h-11 px-5 rounded-xl bg-primary text-white font-bold hover:bg-primary/90 disabled:opacity-60 transition-all"
                       >
-                        {syncing ? 'Checking...' : 'Check Status'}
+                        {syncing || autoSyncInProgress ? 'Checking...' : 'Check Status'}
                       </button>
                       {syncError && (
                         <p className="text-sm text-red-600 mt-3">

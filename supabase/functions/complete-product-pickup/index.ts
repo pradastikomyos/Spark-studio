@@ -28,13 +28,23 @@ serve(async (req) => {
       })
     }
 
-    // CRITICAL FIX: Use anon key for JWT verification
-    const token = authHeader.replace(/Bearer\s*/i, '').trim()
-    const supabaseAuth = createClient(supabaseUrl, supabaseAnonKey)
+    // CRITICAL FIX: Use ANON KEY with Authorization header in client config
+    // According to Supabase docs: Pass Authorization header to client, then call getUser() without params
+    const supabaseAuth = createClient(
+      supabaseUrl,
+      supabaseAnonKey,
+      {
+        global: {
+          headers: { Authorization: authHeader },
+        },
+      }
+    )
+    
+    // Call getUser() WITHOUT token parameter - it will use the Authorization header
     const {
       data: { user },
       error: authError,
-    } = await supabaseAuth.auth.getUser(token)
+    } = await supabaseAuth.auth.getUser()
 
     if (authError || !user?.id || !user.email) {
       return new Response(JSON.stringify({ error: 'Invalid token', details: authError?.message ?? null }), {
@@ -45,13 +55,6 @@ serve(async (req) => {
 
     // Use service role key for database operations
     const supabaseService = createClient(supabaseUrl, supabaseServiceKey)
-
-    if (authError || !user?.id || !user.email) {
-      return new Response(JSON.stringify({ error: 'Invalid token', details: authError?.message ?? null }), {
-        status: 401,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
-    }
 
     const { data: roleRows, error: roleError } = await supabaseService
       .from('user_role_assignments')

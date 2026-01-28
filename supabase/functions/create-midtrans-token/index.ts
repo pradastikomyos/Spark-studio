@@ -44,14 +44,23 @@ serve(async (req) => {
       })
     }
 
-    // CRITICAL FIX: Use anon key for JWT verification, service role key for database operations
-    // According to Supabase docs: getUser() with service role key will ALWAYS FAIL
-    // Service role key bypasses RLS and cannot verify user JWT tokens
-    const token = authHeader.replace('Bearer ', '')
+    // CRITICAL FIX: Use anon key for JWT verification with Authorization header in client config
+    // According to Supabase docs: Pass Authorization header to client, then call getUser() without params
+    // This ensures proper JWT validation with RLS context
     
-    // Create client with ANON KEY for JWT verification
-    const supabaseAuth = createClient(supabaseUrl, supabaseAnonKey)
-    const { data: { user }, error: authError } = await supabaseAuth.auth.getUser(token)
+    // Create client with ANON KEY and Authorization header for JWT verification
+    const supabaseAuth = createClient(
+      supabaseUrl,
+      supabaseAnonKey,
+      {
+        global: {
+          headers: { Authorization: authHeader },
+        },
+      }
+    )
+    
+    // Call getUser() WITHOUT token parameter - it will use the Authorization header
+    const { data: { user }, error: authError } = await supabaseAuth.auth.getUser()
 
     if (authError || !user?.id) {
       console.error('Auth error:', authError)
