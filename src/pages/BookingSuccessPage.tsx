@@ -73,7 +73,6 @@ export default function BookingSuccessPage() {
   const [syncError, setSyncError] = useState<string | null>(null);
   
   // Auto-polling state
-  const [autoSyncAttempts, setAutoSyncAttempts] = useState(0);
   const [showManualButton, setShowManualButton] = useState(false);
   const [autoSyncInProgress, setAutoSyncInProgress] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false); // Simplified: just show spinner
@@ -287,6 +286,7 @@ export default function BookingSuccessPage() {
     let autoSyncInterval: NodeJS.Timeout | null = null;
     let showButtonTimer: NodeJS.Timeout | null = null;
     
+    // Compute status inside effect to avoid stale closures
     const currentStatus = orderData?.status || (initialIsPending ? 'pending' : null);
     
     if (orderNumber && currentStatus === 'pending') {
@@ -307,27 +307,24 @@ export default function BookingSuccessPage() {
       initialWaitTimer = setTimeout(() => {
         console.log('[Auto-Sync] Webhook timeout - Starting active polling every 3s');
         
+        // Track attempts locally to avoid stale closure issues
+        let attemptCount = 0;
+        
         // Start polling sync API every 3 seconds
         autoSyncInterval = setInterval(async () => {
+          attemptCount++;
+          console.log(`[Auto-Sync] Attempt ${attemptCount}/10`);
+          
           // Check if we've reached max attempts
-          if (autoSyncAttempts >= 10) {
+          if (attemptCount >= 10) {
             console.log('[Auto-Sync] Max attempts reached (10/10) - Showing manual button');
             setShowManualButton(true);
-            if (autoSyncInterval) clearInterval(autoSyncInterval);
-            return;
-          }
-          
-          // Check if status changed (webhook might have fired)
-          const latestStatus = orderData?.status || (initialIsPending ? 'pending' : null);
-          if (latestStatus !== 'pending') {
-            console.log(`[Auto-Sync] Status changed to ${latestStatus} - Stopping auto-polling`);
             setIsProcessing(false);
             if (autoSyncInterval) clearInterval(autoSyncInterval);
             return;
           }
           
-          // Increment attempt counter and trigger sync
-          setAutoSyncAttempts(prev => prev + 1);
+          // Trigger sync
           await handleSyncStatus(true);
         }, 3000); // 3 seconds
       }, 5000); // 5 seconds initial wait
@@ -353,7 +350,7 @@ export default function BookingSuccessPage() {
     
     if (isAutoSync) {
       setAutoSyncInProgress(true);
-      console.log(`[Auto-Sync] Attempt ${autoSyncAttempts + 1}/4 - Checking payment status...`);
+      console.log('[Auto-Sync] Checking payment status...');
     } else {
       setSyncing(true);
     }
@@ -395,7 +392,6 @@ export default function BookingSuccessPage() {
       // If successful and status is paid, stop auto-polling
       if (data?.order?.status === 'paid') {
         setShowManualButton(false);
-        setAutoSyncAttempts(0);
         setIsProcessing(false);
         if (isAutoSync) {
           console.log('[Auto-Sync] Success - Payment confirmed!');
