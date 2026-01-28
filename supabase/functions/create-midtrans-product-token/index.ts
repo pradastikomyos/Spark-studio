@@ -36,6 +36,7 @@ serve(async (req) => {
 
   const supabaseUrl = Deno.env.get('SUPABASE_URL')!
   const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+  const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!
   const midtransServerKey = Deno.env.get('MIDTRANS_SERVER_KEY')!
   const midtransIsProduction = Deno.env.get('MIDTRANS_IS_PRODUCTION') === 'true'
 
@@ -48,12 +49,13 @@ serve(async (req) => {
       })
     }
 
-    const supabase = createClient(supabaseUrl, supabaseServiceKey)
+    // CRITICAL FIX: Use anon key for JWT verification
     const token = authHeader.replace('Bearer ', '')
+    const supabaseAuth = createClient(supabaseUrl, supabaseAnonKey)
     const {
       data: { user },
       error: authError,
-    } = await supabase.auth.getUser(token)
+    } = await supabaseAuth.auth.getUser(token)
 
     if (authError || !user?.id) {
       console.error('Auth error:', authError)

@@ -17,6 +17,7 @@ serve(async (req) => {
 
   const supabaseUrl = Deno.env.get('SUPABASE_URL')!
   const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+  const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!
 
   try {
     const authHeader = req.headers.get('Authorization') ?? req.headers.get('authorization')
@@ -27,12 +28,23 @@ serve(async (req) => {
       })
     }
 
-    const supabaseService = createClient(supabaseUrl, supabaseServiceKey)
+    // CRITICAL FIX: Use anon key for JWT verification
     const token = authHeader.replace(/Bearer\s*/i, '').trim()
+    const supabaseAuth = createClient(supabaseUrl, supabaseAnonKey)
     const {
       data: { user },
       error: authError,
-    } = await supabaseService.auth.getUser(token)
+    } = await supabaseAuth.auth.getUser(token)
+
+    if (authError || !user?.id || !user.email) {
+      return new Response(JSON.stringify({ error: 'Invalid token', details: authError?.message ?? null }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
+    // Use service role key for database operations
+    const supabaseService = createClient(supabaseUrl, supabaseServiceKey)
 
     if (authError || !user?.id || !user.email) {
       return new Response(JSON.stringify({ error: 'Invalid token', details: authError?.message ?? null }), {

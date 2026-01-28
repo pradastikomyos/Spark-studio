@@ -31,6 +31,7 @@ serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!
     const midtransServerKey = Deno.env.get('MIDTRANS_SERVER_KEY')!
     const midtransIsProduction = Deno.env.get('MIDTRANS_IS_PRODUCTION') === 'true'
 
@@ -43,13 +44,14 @@ serve(async (req) => {
       })
     }
 
-    // Create Supabase client with service role key for database operations
-    const supabase = createClient(supabaseUrl, supabaseServiceKey)
-
-    // Verify JWT token manually using service role client
-    // This is the correct way when verify_jwt is disabled
+    // CRITICAL FIX: Use anon key for JWT verification, service role key for database operations
+    // According to Supabase docs: getUser() with service role key will ALWAYS FAIL
+    // Service role key bypasses RLS and cannot verify user JWT tokens
     const token = authHeader.replace('Bearer ', '')
-    const { data: { user }, error: authError } = await supabase.auth.getUser(token)
+    
+    // Create client with ANON KEY for JWT verification
+    const supabaseAuth = createClient(supabaseUrl, supabaseAnonKey)
+    const { data: { user }, error: authError } = await supabaseAuth.auth.getUser(token)
 
     if (authError || !user?.id) {
       console.error('Auth error:', authError)
@@ -67,7 +69,8 @@ serve(async (req) => {
       )
     }
 
-    // supabase client already created above for auth verification
+    // Create separate client with SERVICE ROLE KEY for database operations
+    const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
     // Parse request body
     const { items, customerName, customerEmail, customerPhone }: CreateTokenRequest = await req.json()

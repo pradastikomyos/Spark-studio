@@ -117,32 +117,34 @@ export default function PaymentPage() {
     };
 
     try {
-      // ENTERPRISE PATTERN: Use session from AuthContext (already auto-refreshed by useSessionRefresh)
-      // Google/Slack/Notion approach: Trust the automatic refresh system, don't call refreshSession() manually
-      // Root cause of hang: Manual refreshSession() conflicts with automatic refresh, causing Promise to never resolve
-      // Solution: Use validated session from context with timeout protection
-      console.log('[PaymentPage] Getting session token from context...');
+      // SUPABASE BEST PRACTICE: Use getUser() to validate and auto-refresh JWT
+      // Source: https://supabase.com/docs/guides/auth/server-side/creating-a-client
+      // getUser() validates JWT with server and auto-refreshes if needed
+      // getSession() only reads from localStorage without validation (can be stale!)
+      console.log('[PaymentPage] Validating session with getUser()...');
       
-      // Get current session with timeout protection (enterprise pattern)
-      const sessionPromise = supabase.auth.getSession();
-      const timeoutPromise = new Promise<never>((_, reject) => 
-        setTimeout(() => reject(new Error('Session retrieval timeout')), 5000)
-      );
+      const { data: { user: validatedUser }, error: userError } = await supabase.auth.getUser();
       
-      const { data: { session: currentSession }, error: sessionError } = await Promise.race([
-        sessionPromise,
-        timeoutPromise
-      ]);
-      
-      if (sessionError || !currentSession) {
-        console.error('[PaymentPage] Failed to get session:', sessionError);
+      if (userError || !validatedUser) {
+        console.error('[PaymentPage] Session validation failed:', userError);
         alert('Your session has expired. We\'ve saved your booking details—please log in again to complete your payment.');
         await errorHandler.handleAuthError({ status: 401 }, { returnPath: location.pathname, state: bookingData });
         setLoading(false);
         return;
       }
 
-      console.log('[PaymentPage] Session token retrieved successfully');
+      // After getUser() validates, getSession() will have fresh token
+      const { data: { session: currentSession } } = await supabase.auth.getSession();
+      
+      if (!currentSession) {
+        console.error('[PaymentPage] No session after validation');
+        alert('Your session has expired. We\'ve saved your booking details—please log in again to complete your payment.');
+        await errorHandler.handleAuthError({ status: 401 }, { returnPath: location.pathname, state: bookingData });
+        setLoading(false);
+        return;
+      }
+
+      console.log('[PaymentPage] Session validated and refreshed successfully');
       const token = currentSession.access_token;
 
       // Call edge function to create Midtrans token
