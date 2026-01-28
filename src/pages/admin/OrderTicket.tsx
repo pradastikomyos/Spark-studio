@@ -49,7 +49,7 @@ const OrderTicket = () => {
             status, 
             valid_date, 
             used_at,
-            profiles!inner(name, email),
+            profiles!user_id(name, email),
             tickets!inner(name)
           `)
           .eq('ticket_code', code)
