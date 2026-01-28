@@ -285,8 +285,11 @@ export default function BookingSuccessPage() {
     let initialWaitTimer: NodeJS.Timeout | null = null;
     let autoSyncInterval: NodeJS.Timeout | null = null;
     
-    if (orderNumber && effectiveStatus === 'pending') {
+    const currentStatus = orderData?.status || (initialIsPending ? 'pending' : null);
+    
+    if (orderNumber && currentStatus === 'pending') {
       console.log('[Auto-Sync] Order pending - Starting smart polling...');
+      console.log(`[Auto-Sync] Order: ${orderNumber}, Status: ${currentStatus}`);
       console.log('[Auto-Sync] Waiting 30 seconds for webhook...');
       
       // Wait 30 seconds for webhook to fire
@@ -304,8 +307,9 @@ export default function BookingSuccessPage() {
           }
           
           // Check if status changed (webhook might have fired)
-          if (effectiveStatus !== 'pending') {
-            console.log('[Auto-Sync] Status changed - Stopping auto-polling');
+          const latestStatus = orderData?.status || (initialIsPending ? 'pending' : null);
+          if (latestStatus !== 'pending') {
+            console.log(`[Auto-Sync] Status changed to ${latestStatus} - Stopping auto-polling`);
             if (autoSyncInterval) clearInterval(autoSyncInterval);
             return;
           }
@@ -323,7 +327,7 @@ export default function BookingSuccessPage() {
       if (initialWaitTimer) clearTimeout(initialWaitTimer);
       if (autoSyncInterval) clearInterval(autoSyncInterval);
     };
-  }, [orderNumber, state?.ticketCode, effectiveStatus, autoSyncAttempts]);
+  }, [orderNumber, state?.ticketCode, orderData?.status, initialIsPending]);
 
   const handleSyncStatus = async (isAutoSync = false) => {
     if (!orderNumber) return;
