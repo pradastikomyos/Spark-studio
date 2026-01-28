@@ -280,7 +280,7 @@ const OrderTicket = () => {
         onClose={() => setShowScanner(false)}
         title="Pindai Tiket Masuk"
         closeOnSuccess={true}
-        closeDelayMs={1500}
+        closeDelayMs={600}
         closeOnError={true}
         closeOnErrorDelayMs={2000}
         autoResumeAfterMs={2500}

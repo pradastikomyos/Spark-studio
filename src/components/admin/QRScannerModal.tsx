@@ -361,9 +361,9 @@ const QRScannerModal = ({
               </div>
               <div className="text-center">
                 <p className="text-lg font-bold text-green-800 dark:text-green-100">Berhasil!</p>
-                <p className="text-sm text-green-700 dark:text-green-200 mt-1">
-                  {closeOnSuccess ? 'Menutup...' : 'Siap scan berikutnya...'}
-                </p>
+                {!closeOnSuccess && (
+                  <p className="text-sm text-green-700 dark:text-green-200 mt-1">Siap scan berikutnya...</p>
+                )}
               </div>
             </div>
           )}
