@@ -72,18 +72,16 @@ const OrderTicket = () => {
 
         // Step 2: Fetch user profile data separately
         let userName = '-';
-        let userEmail = '-';
         
         if (ticketData.user_id) {
           const { data: profileData } = await supabase
             .from('profiles')
-            .select('name, email')
+            .select('name')
             .eq('id', ticketData.user_id)
             .maybeSingle();
           
           if (profileData) {
             userName = profileData.name || '-';
-            userEmail = profileData.email || '-';
           }
         }
 
