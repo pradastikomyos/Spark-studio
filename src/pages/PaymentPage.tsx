@@ -117,22 +117,33 @@ export default function PaymentPage() {
     };
 
     try {
-      // CRITICAL FIX: Force refresh session to get a brand new valid token
-      // Root cause: Browser localStorage might have stale/conflicting session
-      // Solution: Explicitly refresh session to get fresh token from server
-      console.log('[PaymentPage] Refreshing session before payment...');
-      const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
+      // ENTERPRISE PATTERN: Use session from AuthContext (already auto-refreshed by useSessionRefresh)
+      // Google/Slack/Notion approach: Trust the automatic refresh system, don't call refreshSession() manually
+      // Root cause of hang: Manual refreshSession() conflicts with automatic refresh, causing Promise to never resolve
+      // Solution: Use validated session from context with timeout protection
+      console.log('[PaymentPage] Getting session token from context...');
       
-      if (refreshError || !refreshData.session) {
-        console.error('[PaymentPage] Session refresh failed:', refreshError);
+      // Get current session with timeout protection (enterprise pattern)
+      const sessionPromise = supabase.auth.getSession();
+      const timeoutPromise = new Promise<never>((_, reject) => 
+        setTimeout(() => reject(new Error('Session retrieval timeout')), 5000)
+      );
+      
+      const { data: { session: currentSession }, error: sessionError } = await Promise.race([
+        sessionPromise,
+        timeoutPromise
+      ]);
+      
+      if (sessionError || !currentSession) {
+        console.error('[PaymentPage] Failed to get session:', sessionError);
         alert('Your session has expired. We\'ve saved your booking details—please log in again to complete your payment.');
         await errorHandler.handleAuthError({ status: 401 }, { returnPath: location.pathname, state: bookingData });
         setLoading(false);
         return;
       }
 
-      console.log('[PaymentPage] Session refreshed successfully');
-      const token = refreshData.session.access_token;
+      console.log('[PaymentPage] Session token retrieved successfully');
+      const token = currentSession.access_token;
 
       // Call edge function to create Midtrans token
       const response = await fetch(

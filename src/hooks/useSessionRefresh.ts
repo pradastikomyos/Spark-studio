@@ -115,7 +115,7 @@ export function useSessionRefresh() {
     }
   }, [user, refreshSession, clearTimers]);
 
-  // Initialize session refresh on mount and when session changes
+  // Initialize session refresh on mount and when session expiry changes
   useEffect(() => {
     if (!user || !session) {
       clearTimers();
@@ -134,7 +134,7 @@ export function useSessionRefresh() {
       console.log('[SessionRefresh] Cleaning up');
       clearTimers();
     };
-  }, [user, session, scheduleNextRefresh, heartbeat, clearTimers]);
+  }, [user?.id, session?.expires_at, scheduleNextRefresh, heartbeat, clearTimers]);
 
   // Handle visibility change - refresh when tab becomes visible
   useEffect(() => {
