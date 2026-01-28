@@ -76,6 +76,8 @@ export default function BookingSuccessPage() {
   const [autoSyncAttempts, setAutoSyncAttempts] = useState(0);
   const [showManualButton, setShowManualButton] = useState(false);
   const [autoSyncInProgress, setAutoSyncInProgress] = useState(false);
+  const [countdown, setCountdown] = useState(5); // Initial wait countdown
+  const [isWaitingForWebhook, setIsWaitingForWebhook] = useState(false);
 
   // Get order number from state or URL params
   const orderNumber = state?.orderNumber || searchParams.get('order_id') || '';
@@ -281,26 +283,42 @@ export default function BookingSuccessPage() {
     }
 
     // AUTO-POLLING: Smart sync for webhook failures
-    // Wait 30s for webhook, then poll sync API every 15s (max 4 times)
+    // Wait 5s for webhook, then poll sync API every 3s (max 10 times)
     let initialWaitTimer: NodeJS.Timeout | null = null;
     let autoSyncInterval: NodeJS.Timeout | null = null;
+    let countdownInterval: NodeJS.Timeout | null = null;
     
     const currentStatus = orderData?.status || (initialIsPending ? 'pending' : null);
     
     if (orderNumber && currentStatus === 'pending') {
       console.log('[Auto-Sync] Order pending - Starting smart polling...');
       console.log(`[Auto-Sync] Order: ${orderNumber}, Status: ${currentStatus}`);
-      console.log('[Auto-Sync] Waiting 30 seconds for webhook...');
+      console.log('[Auto-Sync] Waiting 5 seconds for webhook...');
       
-      // Wait 30 seconds for webhook to fire
+      // Show countdown during initial wait
+      setIsWaitingForWebhook(true);
+      setCountdown(5);
+      
+      // Countdown timer (updates every second)
+      let remainingSeconds = 5;
+      countdownInterval = setInterval(() => {
+        remainingSeconds--;
+        setCountdown(remainingSeconds);
+        if (remainingSeconds <= 0 && countdownInterval) {
+          clearInterval(countdownInterval);
+        }
+      }, 1000);
+      
+      // Wait 5 seconds for webhook to fire
       initialWaitTimer = setTimeout(() => {
-        console.log('[Auto-Sync] Webhook timeout - Starting active polling every 15s');
+        setIsWaitingForWebhook(false);
+        console.log('[Auto-Sync] Webhook timeout - Starting active polling every 3s');
         
-        // Start polling sync API every 15 seconds
+        // Start polling sync API every 3 seconds
         autoSyncInterval = setInterval(async () => {
           // Check if we've reached max attempts
-          if (autoSyncAttempts >= 4) {
-            console.log('[Auto-Sync] Max attempts reached (4/4) - Showing manual button');
+          if (autoSyncAttempts >= 10) {
+            console.log('[Auto-Sync] Max attempts reached (10/10) - Showing manual button');
             setShowManualButton(true);
             if (autoSyncInterval) clearInterval(autoSyncInterval);
             return;
@@ -317,8 +335,8 @@ export default function BookingSuccessPage() {
           // Increment attempt counter and trigger sync
           setAutoSyncAttempts(prev => prev + 1);
           await handleSyncStatus(true);
-        }, 15000); // 15 seconds
-      }, 30000); // 30 seconds initial wait
+        }, 3000); // 3 seconds
+      }, 5000); // 5 seconds initial wait
     }
 
     return () => {
@@ -326,6 +344,7 @@ export default function BookingSuccessPage() {
       if (pollInterval) clearInterval(pollInterval);
       if (initialWaitTimer) clearTimeout(initialWaitTimer);
       if (autoSyncInterval) clearInterval(autoSyncInterval);
+      if (countdownInterval) clearInterval(countdownInterval);
     };
   }, [orderNumber, state?.ticketCode, orderData?.status, initialIsPending]);
 
@@ -594,11 +613,27 @@ export default function BookingSuccessPage() {
                       Order: {orderNumber}
                     </p>
                     
+                    {/* Visual feedback during initial wait */}
+                    {isWaitingForWebhook && (
+                      <div className="mt-6 flex flex-col items-center gap-3">
+                        <div className="flex items-center gap-2 text-blue-600 dark:text-blue-400">
+                          <span className="material-symbols-outlined text-2xl animate-spin">sync</span>
+                          <span className="text-base font-medium">Confirming your payment...</span>
+                        </div>
+                        <div className="text-sm text-gray-500">
+                          <span className="font-mono font-bold text-lg">{countdown}</span> seconds
+                        </div>
+                      </div>
+                    )}
+                    
                     {/* Auto-sync progress indicator */}
-                    {autoSyncAttempts > 0 && !showManualButton && (
-                      <div className="mt-4 flex items-center justify-center gap-2 text-sm text-blue-600">
-                        <span className="material-symbols-outlined text-lg animate-spin">sync</span>
-                        <span>Checking payment status... (Attempt {autoSyncAttempts}/4)</span>
+                    {!isWaitingForWebhook && autoSyncAttempts > 0 && !showManualButton && (
+                      <div className="mt-6 flex flex-col items-center gap-2">
+                        <div className="flex items-center gap-2 text-blue-600 dark:text-blue-400">
+                          <span className="material-symbols-outlined text-lg animate-spin">sync</span>
+                          <span className="text-sm font-medium">Checking payment status... ({autoSyncAttempts}/10)</span>
+                        </div>
+                        <p className="text-xs text-gray-400">This usually takes a few seconds</p>
                       </div>
                     )}
                     
