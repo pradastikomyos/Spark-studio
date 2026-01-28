@@ -76,8 +76,7 @@ export default function BookingSuccessPage() {
   const [autoSyncAttempts, setAutoSyncAttempts] = useState(0);
   const [showManualButton, setShowManualButton] = useState(false);
   const [autoSyncInProgress, setAutoSyncInProgress] = useState(false);
-  const [countdown, setCountdown] = useState(5); // Initial wait countdown
-  const [isWaitingForWebhook, setIsWaitingForWebhook] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false); // Simplified: just show spinner
 
   // Get order number from state or URL params
   const orderNumber = state?.orderNumber || searchParams.get('order_id') || '';
@@ -286,7 +285,7 @@ export default function BookingSuccessPage() {
     // Wait 5s for webhook, then poll sync API every 3s (max 10 times)
     let initialWaitTimer: NodeJS.Timeout | null = null;
     let autoSyncInterval: NodeJS.Timeout | null = null;
-    let countdownInterval: NodeJS.Timeout | null = null;
+    let showButtonTimer: NodeJS.Timeout | null = null;
     
     const currentStatus = orderData?.status || (initialIsPending ? 'pending' : null);
     
@@ -295,23 +294,17 @@ export default function BookingSuccessPage() {
       console.log(`[Auto-Sync] Order: ${orderNumber}, Status: ${currentStatus}`);
       console.log('[Auto-Sync] Waiting 5 seconds for webhook...');
       
-      // Show countdown during initial wait
-      setIsWaitingForWebhook(true);
-      setCountdown(5);
+      // Show processing state
+      setIsProcessing(true);
       
-      // Countdown timer (updates every second)
-      let remainingSeconds = 5;
-      countdownInterval = setInterval(() => {
-        remainingSeconds--;
-        setCountdown(remainingSeconds);
-        if (remainingSeconds <= 0 && countdownInterval) {
-          clearInterval(countdownInterval);
-        }
-      }, 1000);
+      // Show manual button after 30 seconds
+      showButtonTimer = setTimeout(() => {
+        console.log('[Auto-Sync] 30 seconds elapsed - Showing manual button');
+        setShowManualButton(true);
+      }, 30000);
       
       // Wait 5 seconds for webhook to fire
       initialWaitTimer = setTimeout(() => {
-        setIsWaitingForWebhook(false);
         console.log('[Auto-Sync] Webhook timeout - Starting active polling every 3s');
         
         // Start polling sync API every 3 seconds
@@ -328,6 +321,7 @@ export default function BookingSuccessPage() {
           const latestStatus = orderData?.status || (initialIsPending ? 'pending' : null);
           if (latestStatus !== 'pending') {
             console.log(`[Auto-Sync] Status changed to ${latestStatus} - Stopping auto-polling`);
+            setIsProcessing(false);
             if (autoSyncInterval) clearInterval(autoSyncInterval);
             return;
           }
@@ -344,7 +338,7 @@ export default function BookingSuccessPage() {
       if (pollInterval) clearInterval(pollInterval);
       if (initialWaitTimer) clearTimeout(initialWaitTimer);
       if (autoSyncInterval) clearInterval(autoSyncInterval);
-      if (countdownInterval) clearInterval(countdownInterval);
+      if (showButtonTimer) clearTimeout(showButtonTimer);
     };
   }, [orderNumber, state?.ticketCode, orderData?.status, initialIsPending]);
 
@@ -402,6 +396,7 @@ export default function BookingSuccessPage() {
       if (data?.order?.status === 'paid') {
         setShowManualButton(false);
         setAutoSyncAttempts(0);
+        setIsProcessing(false);
         if (isAutoSync) {
           console.log('[Auto-Sync] Success - Payment confirmed!');
         }
@@ -613,53 +608,42 @@ export default function BookingSuccessPage() {
                       Order: {orderNumber}
                     </p>
                     
-                    {/* Visual feedback during initial wait */}
-                    {isWaitingForWebhook && (
+                    {/* Clean spinner - no countdown, no counter */}
+                    {isProcessing && !showManualButton && (
                       <div className="mt-6 flex flex-col items-center gap-3">
-                        <div className="flex items-center gap-2 text-blue-600 dark:text-blue-400">
-                          <span className="material-symbols-outlined text-2xl animate-spin">sync</span>
-                          <span className="text-base font-medium">Confirming your payment...</span>
+                        <div className="flex items-center gap-3">
+                          <span className="material-symbols-outlined text-3xl text-primary animate-spin">sync</span>
+                          <span className="text-base font-medium text-gray-700 dark:text-gray-300">
+                            Confirming your payment...
+                          </span>
                         </div>
-                        <div className="text-sm text-gray-500">
-                          <span className="font-mono font-bold text-lg">{countdown}</span> seconds
-                        </div>
+                        <p className="text-sm text-gray-400">This usually takes a few seconds</p>
                       </div>
                     )}
                     
-                    {/* Auto-sync progress indicator */}
-                    {!isWaitingForWebhook && autoSyncAttempts > 0 && !showManualButton && (
-                      <div className="mt-6 flex flex-col items-center gap-2">
-                        <div className="flex items-center gap-2 text-blue-600 dark:text-blue-400">
-                          <span className="material-symbols-outlined text-lg animate-spin">sync</span>
-                          <span className="text-sm font-medium">Checking payment status... ({autoSyncAttempts}/10)</span>
-                        </div>
-                        <p className="text-xs text-gray-400">This usually takes a few seconds</p>
-                      </div>
-                    )}
-                    
-                    {/* Manual button - shown after max auto-sync attempts or on demand */}
-                    <div className="mt-6">
-                      {showManualButton && (
+                    {/* Manual button - only shown after 30 seconds */}
+                    {showManualButton && (
+                      <div className="mt-6">
                         <div className="mb-4 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
                           <p className="text-sm text-yellow-700 dark:text-yellow-300">
                             <span className="material-symbols-outlined text-base align-middle mr-1">info</span>
                             Payment verification is taking longer than expected. Please check status manually.
                           </p>
                         </div>
-                      )}
-                      <button
-                        onClick={() => handleSyncStatus(false)}
-                        disabled={syncing || autoSyncInProgress}
-                        className="h-11 px-5 rounded-xl bg-primary text-white font-bold hover:bg-primary/90 disabled:opacity-60 transition-all"
-                      >
-                        {syncing || autoSyncInProgress ? 'Checking...' : 'Check Status'}
-                      </button>
-                      {syncError && (
-                        <p className="text-sm text-red-600 mt-3">
-                          {syncError}
-                        </p>
-                      )}
-                    </div>
+                        <button
+                          onClick={() => handleSyncStatus(false)}
+                          disabled={syncing || autoSyncInProgress}
+                          className="h-11 px-5 rounded-xl bg-primary text-white font-bold hover:bg-primary/90 disabled:opacity-60 transition-all"
+                        >
+                          {syncing || autoSyncInProgress ? 'Checking...' : 'Check Status'}
+                        </button>
+                        {syncError && (
+                          <p className="text-sm text-red-600 mt-3">
+                            {syncError}
+                          </p>
+                        )}
+                      </div>
+                    )}
                   </>
                 ) : (
                   <>

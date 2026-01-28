@@ -49,18 +49,26 @@ const [autoSyncInProgress, setAutoSyncInProgress] = useState(false);
 - Added detailed console logging for debugging
 - Auto-stops polling when status becomes "paid"
 
-#### 3. **Smart Auto-Polling Logic**
+#### 3. **Smart Auto-Polling Logic (Enterprise-Grade)**
 ```
-Timeline: 30s wait → 15s polling (4x max) → Manual button
+Timeline: 5s wait → 3s polling (10x max) → Manual button
 
 Flow:
 1. User completes payment
-2. Wait 30 seconds for webhook (most arrive within 10-20s)
-3. If still "pending": auto-call sync API every 15s
-4. Max 4 attempts (total 60s of active polling)
-5. After 90s total: show manual button with warning message
-6. Realtime subscription remains active throughout
+2. Wait 5 seconds for webhook (Tokopedia/Shopee standard)
+3. Show countdown timer: "Confirming your payment... 5 seconds"
+4. If still "pending": auto-call sync API every 3s
+5. Show progress: "Checking payment status... (X/10)"
+6. Max 10 attempts (total 30s of active polling)
+7. After 35s total: show manual button with warning message
+8. Realtime subscription remains active throughout
 ```
+
+**Why These Timings?**
+- **5s initial wait**: Industry standard (Tokopedia, Shopee, Grab)
+- **3s polling interval**: Fast enough for UX, safe for server
+- **10 max attempts**: Covers Midtrans sandbox delays
+- **Total 35s**: User tolerance threshold before manual intervention
 
 #### 4. **UI Enhancements**
 - Progress indicator: "Checking payment status... (Attempt X/4)"
