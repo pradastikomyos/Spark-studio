@@ -1,6 +1,8 @@
 import { useState, useEffect, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { useDarkMode } from '../hooks/useDarkMode';
+import DarkModeToggle from './DarkModeToggle';
 
 export type AdminMenuSection = {
   id: string;
@@ -45,6 +47,7 @@ const AdminLayout = ({
 }: AdminLayoutProps) => {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { isDark, toggleDarkMode } = useDarkMode();
   const [activeMenu, setActiveMenu] = useState(defaultActiveMenuId);
   const [expandedSections, setExpandedSections] = useState<string[]>(['tickets', 'store']);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -242,6 +245,7 @@ const AdminLayout = ({
           </div>
           <div className="flex items-center gap-3 flex-shrink-0">
             {headerActions ? <div className="flex items-center gap-3">{headerActions}</div> : null}
+            <DarkModeToggle isDark={isDark} onToggle={toggleDarkMode} />
             <div className="relative w-full max-w-xs hidden sm:block">
               <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">
                 search

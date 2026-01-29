@@ -10,7 +10,7 @@ export const useDarkMode = () => {
     } catch {
       void 0;
     }
-    return true;
+    return false; // Default to light mode
   });
 
   useEffect(() => {
