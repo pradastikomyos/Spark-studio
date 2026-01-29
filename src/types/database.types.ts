@@ -67,12 +67,105 @@ export type Database = {
           deleted_at: string | null
           description: string | null
           id: number
+          image_url: string | null
           is_active: boolean
           name: string
           sku: string
           slug: string
-          type: string
           updated_at: string | null
+        }
+        Insert: {
+          category_id: number
+          created_at?: string | null
+          deleted_at?: string | null
+          description?: string | null
+          id?: number
+          image_url?: string | null
+          is_active?: boolean
+          name: string
+          sku: string
+          slug: string
+          updated_at?: string | null
+        }
+        Update: {
+          category_id?: number
+          created_at?: string | null
+          deleted_at?: string | null
+          description?: string | null
+          id?: number
+          image_url?: string | null
+          is_active?: boolean
+          name?: string
+          sku?: string
+          slug?: string
+          updated_at?: string | null
+        }
+      }
+      product_variants: {
+        Row: {
+          attributes: Json | null
+          created_at: string | null
+          id: number
+          is_active: boolean
+          name: string
+          price: number | null
+          product_id: number
+          reserved_stock: number
+          sku: string
+          stock: number
+          updated_at: string | null
+        }
+        Insert: {
+          attributes?: Json | null
+          created_at?: string | null
+          id?: number
+          is_active?: boolean
+          name: string
+          price?: number | null
+          product_id: number
+          reserved_stock?: number
+          sku: string
+          stock?: number
+          updated_at?: string | null
+        }
+        Update: {
+          attributes?: Json | null
+          created_at?: string | null
+          id?: number
+          is_active?: boolean
+          name?: string
+          price?: number | null
+          product_id?: number
+          reserved_stock?: number
+          sku?: string
+          stock?: number
+          updated_at?: string | null
+        }
+      }
+      categories: {
+        Row: {
+          created_at: string | null
+          id: number
+          is_active: boolean
+          name: string
+          slug: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: number
+          is_active?: boolean
+          name: string
+          slug: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: number
+          is_active?: boolean
+          name?: string
+          slug?: string
+          updated_at?: string | null
         }
       }
     }

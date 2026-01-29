@@ -45,7 +45,7 @@ const Shop = () => {
               is_active,
               deleted_at,
               categories(name, slug),
-              product_variants(id, name, online_price, offline_price, attributes, is_active, stock, reserved_stock)
+              product_variants(id, name, price, attributes, is_active, stock, reserved_stock)
             `
             )
             .is('deleted_at', null)
@@ -68,8 +68,7 @@ const Shop = () => {
           const variants = ((row as unknown as { product_variants?: unknown[] }).product_variants || []) as {
             id: number;
             name: string;
-            online_price: string | number | null;
-            offline_price: string | number | null;
+            price: string | number | null;
             attributes: Record<string, unknown> | null;
             is_active: boolean | null;
             stock: number | null;
@@ -86,7 +85,7 @@ const Shop = () => {
 
           for (const v of variants) {
             if (v.is_active === false) continue;
-            const price = typeof v.online_price === 'number' ? v.online_price : Number(v.online_price ?? v.offline_price ?? 0);
+            const price = typeof v.price === 'number' ? v.price : Number(v.price ?? 0);
             if (Number.isFinite(price)) priceMin = Math.min(priceMin, price);
             if (!image) {
               const maybeImage = typeof v.attributes?.image_url === 'string' ? v.attributes.image_url : null;

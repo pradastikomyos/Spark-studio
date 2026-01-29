@@ -48,7 +48,7 @@ export default function ProductDetailPage() {
             name,
             description,
             image_url,
-            product_variants(id, name, online_price, offline_price, attributes, is_active, stock, reserved_stock)
+            product_variants(id, name, price, attributes, is_active, stock, reserved_stock)
           `
           )
           .eq('id', numericId)
@@ -60,8 +60,7 @@ export default function ProductDetailPage() {
         const variants = ((data as { product_variants?: unknown[] }).product_variants || []) as {
           id: number;
           name: string;
-          online_price: string | number | null;
-          offline_price: string | number | null;
+          price: string | number | null;
           attributes: Record<string, unknown> | null;
           is_active: boolean | null;
           stock: number | null;
@@ -71,7 +70,7 @@ export default function ProductDetailPage() {
         const mappedVariants: Variant[] = variants
           .filter((v) => v.is_active !== false)
           .map((v) => {
-            const price = typeof v.online_price === 'number' ? v.online_price : Number(v.online_price ?? v.offline_price ?? 0);
+            const price = typeof v.price === 'number' ? v.price : Number(v.price ?? 0);
             const available = Math.max(0, (v.stock ?? 0) - (v.reserved_stock ?? 0));
             const imageUrl = typeof v.attributes?.image_url === 'string' ? v.attributes.image_url : undefined;
             return {

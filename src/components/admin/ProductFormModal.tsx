@@ -12,8 +12,7 @@ export type ProductVariantDraft = {
   id?: number;
   name: string;
   sku: string;
-  online_price: string;
-  offline_price: string;
+  price: string;
   stock: number;
   size?: string;
   color?: string;
@@ -25,7 +24,6 @@ export type ProductDraft = {
   slug: string;
   description: string;
   category_id: number | null;
-  type: 'fashion' | 'beauty' | 'other';
   sku: string;
   is_active: boolean;
   variants: ProductVariantDraft[];
@@ -44,10 +42,9 @@ const emptyDraft = (): ProductDraft => ({
   slug: '',
   description: '',
   category_id: null,
-  type: 'other',
   sku: '',
   is_active: true,
-  variants: [{ name: 'Default', sku: '', online_price: '', offline_price: '', stock: 0 }],
+  variants: [{ name: 'Default', sku: '', price: '', stock: 0 }],
 });
 
 export default function ProductFormModal(props: ProductFormModalProps) {
@@ -86,10 +83,8 @@ export default function ProductFormModal(props: ProductFormModalProps) {
     for (const v of draft.variants) {
       if (!v.name.trim()) return 'Variant name is required.';
       if (!v.sku.trim()) return 'Variant SKU is required.';
-      const hasOnlinePrice = v.online_price && v.online_price.trim() !== '';
-      const hasOfflinePrice = v.offline_price && v.offline_price.trim() !== '';
-      if (!hasOnlinePrice && !hasOfflinePrice) {
-        return `Variant "${v.name || 'unnamed'}" must have at least one price (online or offline).`;
+      if (!v.price || v.price.trim() === '' || Number(v.price) <= 0) {
+        return `Variant "${v.name || 'unnamed'}" must have a valid price greater than 0.`;
       }
     }
     return null;
@@ -170,29 +165,15 @@ export default function ProductFormModal(props: ProductFormModalProps) {
               </label>
             </div>
 
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <label className="flex flex-col gap-1">
-                <span className="text-xs font-bold text-gray-400">Product SKU</span>
-                <input
-                  value={draft.sku}
-                  onChange={(e) => setDraft((prev) => ({ ...prev, sku: e.target.value.toUpperCase() }))}
-                  className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary"
-                  placeholder="PROD-001"
-                />
-              </label>
-              <label className="flex flex-col gap-1">
-                <span className="text-xs font-bold text-gray-400">Type</span>
-                <select
-                  value={draft.type}
-                  onChange={(e) => setDraft((prev) => ({ ...prev, type: e.target.value as ProductDraft['type'] }))}
-                  className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary"
-                >
-                  <option value="fashion">fashion</option>
-                  <option value="beauty">beauty</option>
-                  <option value="other">other</option>
-                </select>
-              </label>
-            </div>
+            <label className="flex flex-col gap-1">
+              <span className="text-xs font-bold text-gray-400">Product SKU</span>
+              <input
+                value={draft.sku}
+                onChange={(e) => setDraft((prev) => ({ ...prev, sku: e.target.value.toUpperCase() }))}
+                className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+                placeholder="PROD-001"
+              />
+            </label>
 
             <label className="flex flex-col gap-1">
               <span className="text-xs font-bold text-gray-400">Category</span>
@@ -278,7 +259,7 @@ export default function ProductFormModal(props: ProductFormModalProps) {
                 onClick={() =>
                   setDraft((prev) => ({
                     ...prev,
-                    variants: [...prev.variants, { name: '', sku: '', online_price: '', offline_price: '', stock: 0 }],
+                    variants: [...prev.variants, { name: '', sku: '', price: '', stock: 0 }],
                   }))
                 }
                 className="rounded-lg bg-primary px-3 py-2 text-xs font-bold text-white hover:bg-red-700"
@@ -293,8 +274,7 @@ export default function ProductFormModal(props: ProductFormModalProps) {
                   <tr>
                     <th className="py-2 pr-3">Name</th>
                     <th className="py-2 pr-3">SKU</th>
-                    <th className="py-2 pr-3">Online</th>
-                    <th className="py-2 pr-3">Offline</th>
+                    <th className="py-2 pr-3">Price</th>
                     <th className="py-2 pr-3">Stock</th>
                     <th className="py-2 pr-3">Size</th>
                     <th className="py-2 pr-3">Color</th>
@@ -332,28 +312,19 @@ export default function ProductFormModal(props: ProductFormModalProps) {
                       </td>
                       <td className="py-2 pr-3">
                         <input
-                          value={v.online_price}
+                          type="number"
+                          min="0"
+                          step="1"
+                          value={v.price}
                           onChange={(e) =>
                             setDraft((prev) => {
                               const next = prev.variants.slice();
-                              next[idx] = { ...next[idx], online_price: e.target.value };
+                              next[idx] = { ...next[idx], price: e.target.value };
                               return { ...prev, variants: next };
                             })
                           }
-                          className="w-20 rounded border border-white/10 bg-white/5 px-2 py-1 outline-none focus:border-primary"
-                        />
-                      </td>
-                      <td className="py-2 pr-3">
-                        <input
-                          value={v.offline_price}
-                          onChange={(e) =>
-                            setDraft((prev) => {
-                              const next = prev.variants.slice();
-                              next[idx] = { ...next[idx], offline_price: e.target.value };
-                              return { ...prev, variants: next };
-                            })
-                          }
-                          className="w-20 rounded border border-white/10 bg-white/5 px-2 py-1 outline-none focus:border-primary"
+                          className="w-24 rounded border border-white/10 bg-white/5 px-2 py-1 outline-none focus:border-primary"
+                          placeholder="50000"
                         />
                       </td>
                       <td className="py-2 pr-3">

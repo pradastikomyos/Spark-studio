@@ -2,6 +2,7 @@ import { useMemo, useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
 import AdminLayout from '../../components/AdminLayout';
+import CategoryManager from '../../components/admin/CategoryManager';
 import QRScannerModal from '../../components/admin/QRScannerModal';
 import ProductFormModal, { type CategoryOption, type ProductDraft } from '../../components/admin/ProductFormModal';
 import { ADMIN_MENU_ITEMS, ADMIN_MENU_SECTIONS } from '../../constants/adminMenu';
@@ -14,8 +15,7 @@ type ProductVariantRow = {
   product_id: number;
   name: string;
   sku: string;
-  online_price: string | number | null;
-  offline_price: string | number | null;
+  price: string | number | null;
   stock: number | null;
   reserved_stock: number | null;
   attributes: Record<string, unknown> | null;
@@ -30,7 +30,6 @@ type ProductRow = {
   image_url?: string | null;
   category_id: number;
   sku: string;
-  type: 'fashion' | 'beauty' | 'other';
   is_active: boolean;
   deleted_at: string | null;
   categories?: { id: number; name: string; slug: string; is_active: boolean | null } | null;
@@ -41,7 +40,6 @@ type InventoryProduct = {
   id: number;
   name: string;
   sku: string;
-  type: ProductRow['type'];
   is_active: boolean;
   category: string;
   category_slug?: string;
@@ -84,6 +82,7 @@ const StoreInventory = () => {
   const [deletingProduct, setDeletingProduct] = useState<{ id: number; name: string } | null>(null);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [showCategoryManager, setShowCategoryManager] = useState(false);
 
   const fetchProducts = useCallback(async () => {
     try {
@@ -101,7 +100,6 @@ const StoreInventory = () => {
               image_url,
               category_id,
               sku,
-              type,
               is_active,
               deleted_at,
               categories(id, name, slug, is_active),
@@ -110,8 +108,7 @@ const StoreInventory = () => {
                 product_id,
                 name,
                 sku,
-                online_price,
-                offline_price,
+                price,
                 stock,
                 reserved_stock,
                 attributes,
@@ -187,7 +184,7 @@ const StoreInventory = () => {
       for (const v of variants) {
         const stock = Math.max(toNumber(v.stock, 0) - toNumber(v.reserved_stock, 0), 0);
         stockAvailable += stock;
-        const price = toNumber(v.online_price ?? v.offline_price, 0);
+        const price = toNumber(v.price, 0);
         priceMin = Math.min(priceMin, price);
         priceMax = Math.max(priceMax, price);
         if (!imageUrl) {
@@ -203,7 +200,6 @@ const StoreInventory = () => {
         id: row.id,
         name: row.name,
         sku: row.sku,
-        type: row.type,
         is_active: row.is_active,
         category: categoryName,
         category_slug: categorySlug,
@@ -253,8 +249,7 @@ const StoreInventory = () => {
         id: v.id,
         name: v.name,
         sku: v.sku,
-        online_price: String(v.online_price ?? ''),
-        offline_price: String(v.offline_price ?? ''),
+        price: String(v.price ?? ''),
         stock: toNumber(v.stock, 0),
         size: typeof attrs.size === 'string' ? attrs.size : '',
         color: typeof attrs.color === 'string' ? attrs.color : '',
@@ -267,10 +262,9 @@ const StoreInventory = () => {
       slug: row.slug,
       description: row.description ?? '',
       category_id: row.category_id ?? null,
-      type: row.type,
       sku: row.sku,
       is_active: row.is_active,
-      variants: mapped.length ? mapped : [{ name: 'Default', sku: '', online_price: '', offline_price: '', stock: 0 }],
+      variants: mapped.length ? mapped : [{ name: 'Default', sku: '', price: '', stock: 0 }],
     };
 
     return initial;
@@ -325,7 +319,6 @@ const StoreInventory = () => {
             description: draft.description || null,
             category_id: draft.category_id,
             sku: draft.sku,
-            type: draft.type,
             is_active: draft.is_active,
           })
           .select('id')
@@ -341,7 +334,6 @@ const StoreInventory = () => {
             description: draft.description || null,
             category_id: draft.category_id,
             sku: draft.sku,
-            type: draft.type,
             is_active: draft.is_active,
           })
           .eq('id', productId);
@@ -377,8 +369,7 @@ const StoreInventory = () => {
           .update({
             name: v.name,
             sku: v.sku,
-            online_price: v.online_price ? Number(v.online_price) : null,
-            offline_price: v.offline_price ? Number(v.offline_price) : null,
+            price: v.price ? Number(v.price) : null,
             stock: v.stock,
             is_active: true,
             attributes: Object.keys(nextAttributes).length ? nextAttributes : null,
@@ -398,8 +389,7 @@ const StoreInventory = () => {
             product_id: productId,
             name: v.name,
             sku: v.sku,
-            online_price: v.online_price ? Number(v.online_price) : null,
-            offline_price: v.offline_price ? Number(v.offline_price) : null,
+            price: v.price ? Number(v.price) : null,
             stock: v.stock,
             reserved_stock: 0,
             is_active: true,
@@ -432,6 +422,13 @@ const StoreInventory = () => {
       subtitle="Manage products, stock levels, and pickup verification."
       headerActions={
         <>
+          <button
+            onClick={() => setShowCategoryManager(true)}
+            className="flex items-center justify-center gap-2 rounded-lg bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 px-4 py-2.5 text-sm font-bold text-neutral-900 dark:text-white hover:bg-gray-50 dark:hover:bg-white/10 transition-colors shadow-sm"
+          >
+            <span className="material-symbols-outlined text-[20px]">category</span>
+            <span>Categories</span>
+          </button>
           <button className="flex items-center justify-center gap-2 rounded-lg bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 px-4 py-2.5 text-sm font-bold text-neutral-900 dark:text-white hover:bg-gray-50 dark:hover:bg-white/10 transition-colors shadow-sm">
             <span className="material-symbols-outlined text-[20px]">inventory_2</span>
             <span>Stock Report</span>
@@ -686,6 +683,12 @@ const StoreInventory = () => {
           </div>
         </div>
       )}
+
+      <CategoryManager
+        isOpen={showCategoryManager}
+        onClose={() => setShowCategoryManager(false)}
+        onUpdate={fetchProducts}
+      />
 
       <QRScannerModal 
         isOpen={showScanner} 
