@@ -1,9 +1,12 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import QRCode from 'react-qr-code';
-import { supabase } from '../lib/supabase';
 import { formatCurrency } from '../utils/formatters';
 import { useAuth } from '../contexts/AuthContext';
+import { useMyOrders } from '../hooks/useMyOrders';
+import TableRowSkeleton from '../components/skeletons/TableRowSkeleton';
+import { PageTransition } from '../components/PageTransition';
+import { useToast } from '../components/Toast';
 
 interface ProductOrder {
   id: number;
@@ -30,137 +33,18 @@ interface OrderItem {
   imageUrl?: string;
 }
 
-type OrderItemRow = {
-  id: number;
-  quantity: number;
-  price: number;
-  subtotal: number;
-  product_variants?: {
-    name?: string | null;
-    products?: {
-      name?: string | null;
-      image_url?: string | null;
-    } | null;
-  } | null;
-};
-
 export default function MyProductOrdersPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { showToast } = useToast();
   const [activeTab, setActiveTab] = useState<'active' | 'history'>('active');
-  const [orders, setOrders] = useState<ProductOrder[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { data: orders = [], error, isLoading: loading } = useMyOrders(user?.id);
   const [expandedOrder, setExpandedOrder] = useState<number | null>(null);
-  const [userId, setUserId] = useState<string | null>(null);
-
-  const fetchOrders = useCallback(
-    async (showLoader = false) => {
-      if (showLoader) setLoading(true);
-
-      if (!user?.id) {
-        setOrders([]);
-        setUserId(null);
-        setLoading(false);
-        return;
-      }
-
-      try {
-        setUserId(user.id);
-
-        const { data: ordersData, error: ordersError } = await supabase
-          .from('order_products')
-          .select(`
-            id,
-            order_number,
-            payment_status,
-            status,
-            pickup_code,
-            pickup_status,
-            pickup_expires_at,
-            paid_at,
-            total,
-            created_at
-          `)
-          .eq('user_id', user.id)
-          .order('created_at', { ascending: false });
-
-        if (ordersError) {
-          setOrders([]);
-          return;
-        }
-
-        // Fetch items for each order
-        const ordersWithItems = await Promise.all(
-          (ordersData || []).map(async (order) => {
-            const { data: itemsData } = await supabase
-              .from('order_product_items')
-              .select(`
-                id,
-                quantity,
-                price,
-                subtotal,
-                product_variants (
-                  name,
-                  products (
-                    name,
-                    image_url
-                  )
-                )
-              `)
-              .eq('order_product_id', order.id);
-
-            const items: OrderItem[] = ((itemsData as OrderItemRow[] | null) || []).map((item) => ({
-              id: item.id,
-              quantity: item.quantity,
-              price: item.price,
-              subtotal: item.subtotal,
-              productName: item.product_variants?.products?.name || 'Product',
-              variantName: item.product_variants?.name || 'Variant',
-              imageUrl: item.product_variants?.products?.image_url || undefined,
-            }));
-
-            const itemCount = items.reduce((sum, item) => sum + item.quantity, 0);
-
-            return {
-              ...order,
-              itemCount,
-              items,
-            };
-          })
-        );
-
-        setOrders(ordersWithItems);
-      } catch {
-        setOrders([]);
-      } finally {
-        if (showLoader) setLoading(false);
-      }
-    },
-    [user?.id]
-  );
-
   useEffect(() => {
-    fetchOrders(true);
-  }, [fetchOrders]);
-
-  useEffect(() => {
-    if (!userId) return;
-
-    const channel = supabase
-      .channel('my_orders_changes')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'order_products', filter: `user_id=eq.${userId}` },
-        () => {
-          fetchOrders(false);
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [userId, fetchOrders]);
+    if (error) {
+      showToast('error', error instanceof Error ? error.message : 'Failed to load orders');
+    }
+  }, [error, showToast]);
 
   // Filter orders based on active tab
   const activeOrders = orders.filter(
@@ -238,18 +122,26 @@ export default function MyProductOrdersPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-background-light dark:bg-background-dark flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-          <p className="text-gray-500 dark:text-gray-400">Loading your orders...</p>
+      <PageTransition>
+        <div className="min-h-screen bg-background-light dark:bg-background-dark flex items-center justify-center">
+          <div className="w-full max-w-4xl bg-white dark:bg-[#1c0d0d] rounded-xl border border-[#f4e7e7] dark:border-[#331a1a] overflow-hidden">
+            <table className="w-full">
+              <tbody>
+                <TableRowSkeleton columns={6} />
+                <TableRowSkeleton columns={6} />
+                <TableRowSkeleton columns={6} />
+              </tbody>
+            </table>
+          </div>
         </div>
-      </div>
+      </PageTransition>
     );
   }
 
   return (
-    <div className="min-h-screen bg-background-light dark:bg-background-dark flex flex-col">
-      <main className="flex-grow w-full max-w-[1000px] mx-auto py-8 px-4 md:px-10 mt-24">
+    <PageTransition>
+      <div className="min-h-screen bg-background-light dark:bg-background-dark flex flex-col">
+        <main className="flex-grow w-full max-w-[1000px] mx-auto py-8 px-4 md:px-10 mt-24">
         {/* Breadcrumb */}
         <div className="mb-8">
           <div className="w-full flex gap-2 pb-4">
@@ -447,7 +339,8 @@ export default function MyProductOrdersPage() {
             </div>
           )}
         </div>
-      </main>
-    </div>
+        </main>
+      </div>
+    </PageTransition>
   );
 }

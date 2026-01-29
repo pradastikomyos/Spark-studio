@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect, useCallback } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
 import AdminLayout from '../../components/AdminLayout';
@@ -9,32 +9,9 @@ import { ADMIN_MENU_ITEMS, ADMIN_MENU_SECTIONS } from '../../constants/adminMenu
 import { getStockBadge, getStockBarColor } from '../../utils/statusHelpers';
 import { uploadProductImage } from '../../utils/uploadProductImage';
 import { formatCurrency } from '../../utils/formatters';
-
-type ProductVariantRow = {
-  id: number;
-  product_id: number;
-  name: string;
-  sku: string;
-  price: string | number | null;
-  stock: number | null;
-  reserved_stock: number | null;
-  attributes: Record<string, unknown> | null;
-  is_active: boolean | null;
-};
-
-type ProductRow = {
-  id: number;
-  name: string;
-  slug: string;
-  description: string | null;
-  image_url?: string | null;
-  category_id: number;
-  sku: string;
-  is_active: boolean;
-  deleted_at: string | null;
-  categories?: { id: number; name: string; slug: string; is_active: boolean | null } | null;
-  product_variants?: ProductVariantRow[] | null;
-};
+import { useInventory, type ProductRow } from '../../hooks/useInventory';
+import TableRowSkeleton from '../../components/skeletons/TableRowSkeleton';
+import { useToast } from '../../components/Toast';
 
 type InventoryProduct = {
   id: number;
@@ -69,78 +46,41 @@ const computeStockStatus = (stock: number): InventoryProduct['stock_status'] => 
 
 const StoreInventory = () => {
   const { signOut } = useAuth();
+  const { showToast } = useToast();
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
   const [stockFilter, setStockFilter] = useState('');
   const [orderCode, setOrderCode] = useState('');
   const [showScanner, setShowScanner] = useState(false);
   const [productsRaw, setProductsRaw] = useState<ProductRow[]>([]);
-  const [categories, setCategories] = useState<CategoryOption[]>([]);
-  const [loading, setLoading] = useState(true);
   const [showProductForm, setShowProductForm] = useState(false);
   const [editingProductId, setEditingProductId] = useState<number | null>(null);
   const [deletingProduct, setDeletingProduct] = useState<{ id: number; name: string } | null>(null);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [showCategoryManager, setShowCategoryManager] = useState(false);
-
-  const fetchProducts = useCallback(async () => {
-    try {
-      setLoading(true);
-
-      const [productsResult, categoriesResult] = await Promise.all([
-        supabase
-          .from('products')
-          .select(
-            `
-              id,
-              name,
-              slug,
-              description,
-              image_url,
-              category_id,
-              sku,
-              is_active,
-              deleted_at,
-              categories(id, name, slug, is_active),
-              product_variants(
-                id,
-                product_id,
-                name,
-                sku,
-                price,
-                stock,
-                reserved_stock,
-                attributes,
-                is_active
-              )
-            `
-          )
-          .is('deleted_at', null)
-          .order('name', { ascending: true }),
-        supabase
-          .from('categories')
-          .select('id, name, slug, is_active')
-          .order('name', { ascending: true }),
-      ]);
-
-      if (productsResult.error) throw productsResult.error;
-      if (categoriesResult.error) throw categoriesResult.error;
-
-      setProductsRaw((productsResult.data || []) as unknown as ProductRow[]);
-      setCategories((categoriesResult.data || []) as unknown as CategoryOption[]);
-    } catch (error) {
-      console.error('Error in fetchProducts:', error);
-      setProductsRaw([]);
-      setCategories([]);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const { data, error, isLoading, mutate } = useInventory();
+  const inventoryCategories = data?.categories ?? [];
+  const categoryOptions = useMemo((): CategoryOption[] => {
+    return inventoryCategories.map((c) => ({
+      id: c.id,
+      name: c.name,
+      slug: c.slug,
+      is_active: c.is_active ?? undefined,
+    }));
+  }, [inventoryCategories]);
 
   useEffect(() => {
-    fetchProducts();
-  }, [fetchProducts]);
+    if (data) {
+      setProductsRaw(data.products);
+    }
+  }, [data]);
+
+  useEffect(() => {
+    if (error) {
+      showToast('error', error instanceof Error ? error.message : 'Failed to load inventory');
+    }
+  }, [error, showToast]);
 
   const handleVerify = (code?: string) => {
     const value = (code ?? orderCode).trim();
@@ -286,6 +226,8 @@ const StoreInventory = () => {
     if (!deletingProduct) return;
     setSaving(true);
     setSaveError(null);
+    const optimisticProducts = productsRaw.filter((product) => product.id !== deletingProduct.id);
+    mutate({ products: optimisticProducts, categories: inventoryCategories }, { revalidate: false, rollbackOnError: true });
     try {
       const { error } = await supabase
         .from('products')
@@ -293,10 +235,11 @@ const StoreInventory = () => {
         .eq('id', deletingProduct.id);
       if (error) throw error;
       setDeletingProduct(null);
-      await fetchProducts();
+      await mutate();
     } catch (e) {
       const message = e instanceof Error ? e.message : 'Failed to delete product';
       setSaveError(message);
+      showToast('error', message);
     } finally {
       setSaving(false);
     }
@@ -309,6 +252,34 @@ const StoreInventory = () => {
 
     try {
       let productId = draft.id ?? null;
+      if (productId != null) {
+        const stableProductId = productId;
+        const optimisticProducts = productsRaw.map((product) =>
+          product.id === stableProductId
+            ? {
+                ...product,
+                name: draft.name,
+                slug: draft.slug,
+                description: draft.description || null,
+                category_id: draft.category_id,
+                sku: draft.sku,
+                is_active: draft.is_active,
+                product_variants: draft.variants.map((variant) => ({
+                  id: variant.id ?? 0,
+                  product_id: stableProductId,
+                  name: variant.name,
+                  sku: variant.sku,
+                  price: variant.price ? Number(variant.price) : null,
+                  stock: variant.stock,
+                  reserved_stock: 0,
+                  attributes: null,
+                  is_active: true,
+                })),
+              }
+            : product
+        );
+        mutate({ products: optimisticProducts, categories: inventoryCategories }, { revalidate: false, rollbackOnError: true });
+      }
 
       if (!productId) {
         const { data, error } = await supabase
@@ -403,10 +374,11 @@ const StoreInventory = () => {
 
       setShowProductForm(false);
       setEditingProductId(null);
-      await fetchProducts();
+      await mutate();
     } catch (e) {
       const message = e instanceof Error ? e.message : 'Failed to save product';
       setSaveError(message);
+      showToast('error', message);
       throw e;
     } finally {
       setSaving(false);
@@ -515,7 +487,7 @@ const StoreInventory = () => {
               onChange={(e) => setCategoryFilter(e.target.value)}
             >
               <option value="">All Categories</option>
-              {categories.map((c) => (
+              {categoryOptions.map((c) => (
                 <option key={c.id} value={c.slug}>
                   {c.name}
                 </option>
@@ -534,12 +506,15 @@ const StoreInventory = () => {
           </div>
         </div>
 
-        {loading ? (
-          <div className="flex items-center justify-center py-16">
-            <div className="text-center">
-              <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-primary border-r-transparent"></div>
-              <p className="mt-4 text-gray-500 dark:text-gray-400">Loading products...</p>
-            </div>
+        {isLoading ? (
+          <div className="w-full overflow-hidden rounded-xl border border-gray-200 dark:border-white/10 bg-white dark:bg-[#1a0f0f]">
+            <table className="w-full">
+              <tbody>
+                <TableRowSkeleton columns={6} />
+                <TableRowSkeleton columns={6} />
+                <TableRowSkeleton columns={6} />
+              </tbody>
+            </table>
           </div>
         ) : filteredProducts.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 px-4 rounded-xl border-2 border-dashed border-gray-200 dark:border-white/10 bg-gray-50/50 dark:bg-white/5">
@@ -646,7 +621,7 @@ const StoreInventory = () => {
 
       <ProductFormModal
         isOpen={showProductForm}
-        categories={categories}
+        categories={categoryOptions}
         initialValue={editingProduct}
         onClose={() => {
           if (saving) return;
@@ -687,7 +662,7 @@ const StoreInventory = () => {
       <CategoryManager
         isOpen={showCategoryManager}
         onClose={() => setShowCategoryManager(false)}
-        onUpdate={fetchProducts}
+        onUpdate={() => mutate()}
       />
 
       <QRScannerModal 

@@ -1,142 +1,32 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { supabase } from '../lib/supabase';
 import { useCart } from '../contexts/cartStore';
 import { formatCurrency } from '../utils/formatters';
-
-interface Product {
-  id: number;
-  name: string;
-  description: string;
-  price: number;
-  originalPrice?: number;
-  image?: string;
-  badge?: string;
-  placeholder?: string;
-  categorySlug?: string | null;
-  defaultVariantId?: number;
-  defaultVariantName?: string;
-}
+import { useProducts } from '../hooks/useProducts';
+import { useCategories } from '../hooks/useCategories';
+import { useToast } from '../components/Toast';
+import { PageTransition } from '../components/PageTransition';
+import ProductCardSkeleton from '../components/skeletons/ProductCardSkeleton';
 
 const Shop = () => {
   const { addItem } = useCart();
+  const { showToast } = useToast();
   const [activeCategory, setActiveCategory] = useState<string>('all');
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [products, setProducts] = useState<Product[]>([]);
-  const [categories, setCategories] = useState<{ name: string; slug: string }[]>([]);
-  const [toast, setToast] = useState<string | null>(null);
 
+  // Use SWR hooks for data fetching
+  const { data: products = [], error: productsError, isLoading: productsLoading, mutate: mutateProducts } = useProducts();
+  const { data: categories = [], error: categoriesError, isLoading: categoriesLoading, mutate: mutateCategories } = useCategories();
+
+  // Combine loading and error states
+  const loading = productsLoading || categoriesLoading;
+  const error = productsError || categoriesError;
+
+  // Show error toast when data fetching fails (only once per error)
   useEffect(() => {
-    const fetchShopData = async () => {
-      try {
-        setLoading(true);
-        setError(null);
-
-        const [productsResult, categoriesResult] = await Promise.all([
-          supabase
-            .from('products')
-            .select(
-              `
-              id,
-              name,
-              description,
-              image_url,
-              is_active,
-              deleted_at,
-              categories(name, slug),
-              product_variants(id, name, price, attributes, is_active, stock, reserved_stock)
-            `
-            )
-            .is('deleted_at', null)
-            .eq('is_active', true)
-            .order('name', { ascending: true }),
-          supabase
-            .from('categories')
-            .select('name, slug, is_active')
-            .eq('is_active', true)
-            .order('name', { ascending: true }),
-        ]);
-
-        if (productsResult.error) throw productsResult.error;
-        if (categoriesResult.error) throw categoriesResult.error;
-
-        const categoryRows = (categoriesResult.data || []) as unknown as { name: string; slug: string }[];
-        setCategories(categoryRows);
-
-        const mapped: Product[] = (productsResult.data || []).map((row) => {
-          const variants = ((row as unknown as { product_variants?: unknown[] }).product_variants || []) as {
-            id: number;
-            name: string;
-            price: string | number | null;
-            attributes: Record<string, unknown> | null;
-            is_active: boolean | null;
-            stock: number | null;
-            reserved_stock: number | null;
-          }[];
-
-          let priceMin = Number.POSITIVE_INFINITY;
-          let image: string | undefined;
-          let defaultVariantId: number | undefined;
-          let defaultVariantName: string | undefined;
-          let defaultVariantPrice = Number.POSITIVE_INFINITY;
-          const productImage = (row as unknown as { image_url?: string | null }).image_url ?? null;
-          if (productImage) image = productImage;
-
-          for (const v of variants) {
-            if (v.is_active === false) continue;
-            const price = typeof v.price === 'number' ? v.price : Number(v.price ?? 0);
-            if (Number.isFinite(price)) priceMin = Math.min(priceMin, price);
-            if (!image) {
-              const maybeImage = typeof v.attributes?.image_url === 'string' ? v.attributes.image_url : null;
-              if (maybeImage) image = maybeImage;
-            }
-
-            const available = (v.stock ?? 0) - (v.reserved_stock ?? 0);
-            const isAvailable = available > 0;
-            if (isAvailable && Number.isFinite(price) && price >= 0 && price < defaultVariantPrice) {
-              defaultVariantPrice = price;
-              defaultVariantId = Number(v.id);
-              defaultVariantName = String(v.name);
-            }
-          }
-
-          if (!Number.isFinite(priceMin)) priceMin = 0;
-
-          const categorySlug = (row as unknown as { categories?: { slug: string } | null }).categories?.slug ?? null;
-
-          return {
-            id: Number((row as unknown as { id: number | string }).id),
-            name: String((row as unknown as { name: string }).name),
-            description: String((row as unknown as { description?: string | null }).description ?? ''),
-            price: priceMin,
-            image,
-            placeholder: image ? undefined : 'inventory_2',
-            categorySlug,
-            defaultVariantId,
-            defaultVariantName,
-          };
-        });
-
-        setProducts(mapped);
-      } catch (e) {
-        const message = e instanceof Error ? e.message : 'Failed to load products';
-        setError(message);
-        setProducts([]);
-        setCategories([]);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchShopData();
-  }, []);
-
-  useEffect(() => {
-    if (!toast) return;
-    const timer = window.setTimeout(() => setToast(null), 2000);
-    return () => window.clearTimeout(timer);
-  }, [toast]);
+    if (error) {
+      showToast('error', error instanceof Error ? error.message : 'Failed to load shop data');
+    }
+  }, [error, showToast]);
 
   const filteredProducts = useMemo(() => {
     if (activeCategory === 'all') return products;
@@ -149,24 +39,29 @@ const Shop = () => {
     { icon: 'check', text: 'Designed in-house by Spark Artists' },
   ];
 
-  const handleAddToCart = (product: Product) => {
+  const handleAddToCart = (product: typeof products[0]) => {
     if (!product.defaultVariantId || !product.defaultVariantName) return;
-    addItem(
-      {
-        productId: product.id,
-        productName: product.name,
-        productImageUrl: product.image,
-        variantId: product.defaultVariantId,
-        variantName: product.defaultVariantName,
-        unitPrice: product.price,
-      },
-      1
-    );
-    setToast('Berhasil memasukkan ke keranjang');
+    try {
+      addItem(
+        {
+          productId: product.id,
+          productName: product.name,
+          productImageUrl: product.image,
+          variantId: product.defaultVariantId,
+          variantName: product.defaultVariantName,
+          unitPrice: product.price,
+        },
+        1
+      );
+      showToast('success', 'Berhasil memasukkan ke keranjang');
+    } catch {
+      showToast('error', 'Gagal menambahkan ke keranjang');
+    }
   };
 
   return (
-    <div className="bg-white dark:bg-background-dark min-h-screen">
+    <PageTransition>
+      <div className="bg-white dark:bg-background-dark min-h-screen">
       {/* Hero Header */}
       <header className="relative w-full h-[50vh] min-h-[400px] overflow-hidden">
         <img
@@ -233,17 +128,28 @@ const Shop = () => {
 
         {/* Products Grid */}
         {error && (
-          <div className="mb-8 rounded-xl border border-red-500/20 bg-red-500/10 p-4 text-sm text-red-700 dark:text-red-200">
-            {error}
+          <div className="mb-8 rounded-xl border border-red-500/20 bg-red-500/10 p-6 text-center">
+            <p className="text-sm text-red-700 dark:text-red-200 mb-4">
+              {error instanceof Error ? error.message : 'Failed to load shop data'}
+            </p>
+            <button
+              onClick={() => {
+                mutateProducts();
+                mutateCategories();
+              }}
+              className="px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm font-medium"
+            >
+              Retry
+            </button>
           </div>
         )}
 
         {loading ? (
-          <div className="flex items-center justify-center py-16">
-            <div className="text-center">
-              <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-primary border-r-transparent"></div>
-              <p className="mt-4 text-gray-500 dark:text-gray-400">Loading products...</p>
-            </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-x-8 gap-y-16">
+            {/* Show 8 skeleton cards during loading */}
+            {Array.from({ length: 8 }).map((_, index) => (
+              <ProductCardSkeleton key={index} />
+            ))}
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-x-8 gap-y-16">
@@ -370,13 +276,8 @@ const Shop = () => {
           </button>
         </form>
       </section>
-
-      {toast && (
-        <div className="fixed bottom-6 right-6 z-50 rounded-full bg-black text-white px-5 py-3 text-sm shadow-lg">
-          {toast}
-        </div>
-      )}
     </div>
+    </PageTransition>
   );
 };
 

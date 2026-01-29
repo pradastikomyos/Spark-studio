@@ -1,6 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { supabase } from '../lib/supabase';
 import { formatCurrency, toLocalDateString } from '../utils/formatters';
 import { 
   todayWIB, 
@@ -8,47 +7,21 @@ import {
   isTimeSlotBookable,
   getMinutesUntilSessionEnd,
 } from '../utils/timezone';
-
-interface Ticket {
-  id: number;
-  type: string;
-  name: string;
-  slug: string;
-  description: string | null;
-  price: string;
-  available_from: string;
-  available_until: string;
-  time_slots: string[];
-  is_active: boolean;
-}
-
-interface Availability {
-  id: number;
-  date: string;
-  time_slot: string | null;
-  total_capacity: number;
-  reserved_capacity: number;
-  sold_capacity: number;
-  available_capacity: number;
-}
-
-interface RawAvailability {
-  id: number;
-  date: string;
-  time_slot: string | null;
-  total_capacity: number;
-  reserved_capacity: number;
-  sold_capacity: number;
-}
+import { useTickets } from '../hooks/useTickets';
+import { useTicketAvailability } from '../hooks/useTicketAvailability';
+import { useToast } from '../components/Toast';
+import { PageTransition } from '../components/PageTransition';
+import TicketCardSkeleton from '../components/skeletons/TicketCardSkeleton';
+import { LazyMotion, m } from 'framer-motion';
 
 export default function BookingPage() {
   const { slug } = useParams<{ slug: string }>();
   const navigate = useNavigate();
-
-  const [ticket, setTicket] = useState<Ticket | null>(null);
-  const [availabilities, setAvailabilities] = useState<Availability[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { showToast } = useToast();
+  const { data: ticket, error: ticketError, isLoading: ticketLoading } = useTickets(slug);
+  const { data: availabilities = [], error: availabilityError, isLoading: availabilityLoading, mutate: mutateAvailability } = useTicketAvailability(ticket?.id ?? null);
+  const loading = ticketLoading || availabilityLoading;
+  const error = ticketError || availabilityError;
 
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
@@ -61,79 +34,19 @@ export default function BookingPage() {
   // Urgency confirmation modal state
   const [showUrgencyModal, setShowUrgencyModal] = useState(false);
 
-  // Extract availability fetching logic for reuse
-  const fetchAvailabilities = async (ticketId: number) => {
-    const { data: availData, error: availError } = await supabase
-      .from('ticket_availabilities')
-      .select('*')
-      .eq('ticket_id', ticketId)
-      .gte('date', toLocalDateString(new Date()))
-      .order('date', { ascending: true })
-      .order('time_slot', { ascending: true });
-
-    console.log('[BookingPage] Fetched raw availabilities:', availData);
-
-    if (availError) {
-      console.error('Error fetching availabilities:', availError);
-      return [];
-    }
-
-    // Calculate available capacity
-    const processedAvail = (availData as RawAvailability[] | null || []).map((avail) => ({
-      ...avail,
-      available_capacity: avail.total_capacity - avail.reserved_capacity - avail.sold_capacity,
-    }));
-    console.log('[BookingPage] Processed availabilities:', processedAvail);
-    return processedAvail;
-  };
-
-  // Initial data fetch
   useEffect(() => {
-    const fetchTicketData = async () => {
-      if (!slug) {
-        setError('No ticket specified');
-        setLoading(false);
-        return;
-      }
+    if (!ticket) return;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    setSelectedDate(today);
+    setCurrentDate(today);
+  }, [ticket]);
 
-      try {
-        // Fetch ticket details
-        const { data: ticketData, error: ticketError } = await supabase
-          .from('tickets')
-          .select('*')
-          .eq('slug', slug)
-          .eq('is_active', true)
-          .single();
-
-        if (ticketError || !ticketData) {
-          setError('Ticket not found');
-          setLoading(false);
-          return;
-        }
-
-        setTicket(ticketData);
-        console.log('[BookingPage] Fetched ticket:', ticketData);
-
-        // Fetch availabilities
-        const processedAvail = await fetchAvailabilities(ticketData.id);
-        setAvailabilities(processedAvail);
-
-        // Auto-select today's date (entrance tickets are same-day only)
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        console.log('[BookingPage] Auto-selecting today:', today.toISOString());
-        setSelectedDate(today);
-        setCurrentDate(today);
-      } catch (err) {
-        console.error('Error fetching ticket data:', err);
-        setError('Failed to load ticket');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchTicketData();
-  }, [slug]);
+  useEffect(() => {
+    if (error) {
+      showToast('error', error instanceof Error ? error.message : 'Failed to load booking data');
+    }
+  }, [error, showToast]);
 
   // Layer 1: Update current time every minute (enterprise pattern: Google Calendar, Outlook)
   // This ensures time-based filtering stays accurate as time progresses
@@ -146,41 +59,16 @@ export default function BookingPage() {
     return () => clearInterval(interval);
   }, []);
 
-  // Layer 2: Background polling for availability changes (enterprise pattern: Gmail, Slack)
-  // Polls every 30 seconds when tab is visible to catch capacity changes from other users
   useEffect(() => {
-    if (!ticket?.id) return;
-
-    const pollInterval = setInterval(async () => {
-      // Don't poll if tab is hidden (battery/bandwidth optimization)
-      if (document.hidden) {
-        console.log('[BookingPage] Skipping poll: tab hidden');
-        return;
-      }
-
-      console.log('[BookingPage] Polling for availability updates...');
-      const processedAvail = await fetchAvailabilities(ticket.id);
-      setAvailabilities(processedAvail);
-    }, 30000); // Poll every 30 seconds
-
-    return () => clearInterval(pollInterval);
-  }, [ticket?.id]);
-
-  // Layer 3: Refresh on tab visibility change (enterprise pattern: GitHub, Notion)
-  // When user returns to tab, refresh data to show latest availability
-  useEffect(() => {
-    const handleVisibilityChange = async () => {
-      if (!document.hidden && ticket?.id) {
-        console.log('[BookingPage] Tab visible: refreshing data...');
-        const processedAvail = await fetchAvailabilities(ticket.id);
-        setAvailabilities(processedAvail);
-        setCurrentTime(nowWIB()); // Also update current time
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        setCurrentTime(nowWIB());
       }
     };
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-  }, [ticket?.id]);
+  }, []);
 
   // Generate calendar days for current month - memoized to prevent recalculation on every render
   const calendarDays = useMemo(() => {
@@ -348,6 +236,18 @@ export default function BookingPage() {
       }
     }
 
+    const dateKey = toLocalDateString(selectedDate);
+    const optimistic = availabilities.map((avail) => {
+      if (avail.date !== dateKey) return avail;
+      if (selectedTime && avail.time_slot !== selectedTime) return avail;
+      if (!selectedTime && avail.time_slot) return avail;
+      return {
+        ...avail,
+        available_capacity: Math.max(0, avail.available_capacity - 1),
+      };
+    });
+    mutateAvailability(optimistic, { revalidate: false, rollbackOnError: true });
+
     navigate('/payment', {
       state: {
         ticketId: ticket.id,
@@ -364,29 +264,33 @@ export default function BookingPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-background-light dark:bg-background-dark flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-          <p className="text-gray-500 dark:text-gray-400">Loading ticket details...</p>
+      <PageTransition>
+        <div className="min-h-screen bg-background-light dark:bg-background-dark flex items-center justify-center">
+          <div className="max-w-5xl w-full px-8 grid grid-cols-1 md:grid-cols-2 gap-6">
+            <TicketCardSkeleton />
+            <TicketCardSkeleton />
+          </div>
         </div>
-      </div>
+      </PageTransition>
     );
   }
 
   if (error || !ticket) {
     return (
-      <div className="min-h-screen bg-background-light dark:bg-background-dark flex items-center justify-center">
-        <div className="text-center">
-          <span className="material-symbols-outlined text-6xl text-gray-300 dark:text-gray-700 mb-4">error</span>
-          <p className="text-gray-500 dark:text-gray-400 text-lg mb-4">{error || 'Ticket not found'}</p>
-          <button
-            onClick={() => navigate('/')}
-            className="bg-primary text-white px-6 py-2 rounded-lg hover:bg-primary/90"
-          >
-            Go Home
-          </button>
+      <PageTransition>
+        <div className="min-h-screen bg-background-light dark:bg-background-dark flex items-center justify-center">
+          <div className="text-center">
+            <span className="material-symbols-outlined text-6xl text-gray-300 dark:text-gray-700 mb-4">error</span>
+            <p className="text-gray-500 dark:text-gray-400 text-lg mb-4">{error instanceof Error ? error.message : error || 'Ticket not found'}</p>
+            <button
+              onClick={() => navigate('/')}
+              className="bg-primary text-white px-6 py-2 rounded-lg hover:bg-primary/90"
+            >
+              Go Home
+            </button>
+          </div>
         </div>
-      </div>
+      </PageTransition>
     );
   }
 
@@ -397,8 +301,10 @@ export default function BookingPage() {
   const monthName = currentDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
 
   return (
-    <div className="min-h-screen bg-background-light dark:bg-background-dark">
-      <main className="flex-1 max-w-[1200px] mx-auto w-full px-10 py-10">
+    <PageTransition>
+      <LazyMotion features={() => import('framer-motion').then((mod) => mod.domAnimation)}>
+        <div className="min-h-screen bg-background-light dark:bg-background-dark">
+          <main className="flex-1 max-w-[1200px] mx-auto w-full px-10 py-10">
         {/* Progress Bar */}
         <div className="mb-10">
           <div className="flex flex-col gap-3">
@@ -447,7 +353,7 @@ export default function BookingPage() {
                   const isSelected = selectedDate?.toDateString() === dayData.date.toDateString();
 
                   return (
-                    <button
+                    <m.button
                       key={dayData.day}
                       onClick={() => {
                         if (!dayData.isDisabled) {
@@ -456,13 +362,14 @@ export default function BookingPage() {
                         }
                       }}
                       disabled={dayData.isDisabled}
+                      whileTap={{ scale: 0.98 }}
                       className={`h-14 w-full text-sm font-medium rounded-lg flex items-center justify-center transition-all
                         ${isSelected ? 'bg-primary text-white font-bold shadow-lg shadow-primary/20' : ''}
                         ${dayData.isDisabled ? 'opacity-20 cursor-not-allowed' : 'hover:bg-primary/5'}
                       `}
                     >
                       {dayData.day}
-                    </button>
+                    </m.button>
                   );
                 })}
               </div>
@@ -478,8 +385,9 @@ export default function BookingPage() {
                 {/* All Day Access Option */}
                 {isAllDayTicket && (
                   <div className="mb-6">
-                    <button
+                    <m.button
                       onClick={() => setSelectedTime(null)}
+                      whileTap={{ scale: 0.98 }}
                       className={`w-full px-6 py-4 rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-3
                         ${!selectedTime
                           ? 'border-2 border-primary bg-primary/5 text-primary font-bold'
@@ -490,7 +398,7 @@ export default function BookingPage() {
                       <span className="material-symbols-outlined">calendar_today</span>
                       All Day Access
                       <span className="text-xs opacity-60">(Valid entire day)</span>
-                    </button>
+                    </m.button>
                   </div>
                 )}
 
@@ -526,8 +434,9 @@ export default function BookingPage() {
                               
                               return (
                                 <div key={slot.time} className="relative">
-                                  <button
+                                  <m.button
                                     onClick={() => setSelectedTime(slot.time)}
+                                    whileTap={{ scale: 0.98 }}
                                     className={`px-6 py-3 rounded-lg text-sm font-medium transition-all relative
                                       ${isSelected
                                         ? 'border-2 border-primary bg-primary/5 text-primary font-bold'
@@ -548,7 +457,7 @@ export default function BookingPage() {
                                         {minutesLeft}m
                                       </span>
                                     )}
-                                  </button>
+                                  </m.button>
                                   
                                   {/* Warning Tooltip - clarifies session ending soon */}
                                   {urgency === 'high' && minutesLeft !== null && (
@@ -678,13 +587,14 @@ export default function BookingPage() {
                 </div>
               </div>
 
-              <button
+              <m.button
                 onClick={handleProceedToPayment}
                 disabled={!selectedDate || (!selectedTime && !isAllDayTicket)}
+                whileTap={{ scale: 0.98 }}
                 className="w-full mt-8 bg-primary hover:bg-primary/90 text-white py-5 rounded-lg font-black uppercase tracking-widest text-sm shadow-xl shadow-primary/30 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Proceed to Payment
-              </button>
+              </m.button>
 
               <p className="text-[10px] text-center mt-6 opacity-50 font-sans uppercase tracking-widest">
                 Secure Encrypted Checkout
@@ -705,7 +615,7 @@ export default function BookingPage() {
             </div>
           </div>
         </div>
-      </main>
+          </main>
 
       {/* Urgency Confirmation Modal - Updated for flexible booking */}
       {showUrgencyModal && selectedTime && (
@@ -766,6 +676,8 @@ export default function BookingPage() {
           </div>
         </div>
       )}
-    </div>
+        </div>
+      </LazyMotion>
+    </PageTransition>
   );
 }

@@ -86,6 +86,10 @@ export class SessionErrorHandler {
     if (error && typeof error === 'object' && 'status' in error) {
       return (error as { status: number }).status === 401
     }
+    if (error && typeof error === 'object' && 'type' in error) {
+      const type = (error as { type?: unknown }).type
+      return type === 'expired' || type === 'invalid'
+    }
     return false
   }
 

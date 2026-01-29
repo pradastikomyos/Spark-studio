@@ -1,138 +1,25 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { todayWIB, createWIBDate } from '../utils/timezone';
-
-interface PurchasedTicket {
-  id: number;
-  ticket_code: string;
-  ticket_id: number;
-  valid_date: string;
-  time_slot: string | null;
-  status: string;
-  created_at: string;
-  ticket: {
-    name: string;
-    type: string;
-    description: string | null;
-  };
-}
-
-interface PurchasedTicketRow {
-  id: number;
-  ticket_code: string;
-  ticket_id: number;
-  valid_date: string;
-  time_slot: string | null;
-  status: string;
-  created_at: string;
-  tickets?: {
-    name: string;
-    type: string;
-    description?: string | null;
-  } | { name: string; type: string; description?: string | null }[] | null;
-}
+import { useMyTickets } from '../hooks/useMyTickets';
+import TicketCardSkeleton from '../components/skeletons/TicketCardSkeleton';
+import { PageTransition } from '../components/PageTransition';
+import { useToast } from '../components/Toast';
+import { LazyMotion, m } from 'framer-motion';
 
 export default function MyTicketsPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { showToast } = useToast();
   const [activeTab, setActiveTab] = useState<'upcoming' | 'history'>('upcoming');
-  const [tickets, setTickets] = useState<PurchasedTicket[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [userId, setUserId] = useState<string | null>(null);
-
-  const fetchTickets = useCallback(
-    async (showLoader = false) => {
-      if (showLoader) setLoading(true);
-
-      if (!user?.id) {
-        setTickets([]);
-        setUserId(null);
-        setLoading(false);
-        return;
-      }
-
-      try {
-        setUserId(user.id);
-
-        const { data: ticketsData, error: ticketsError } = await supabase
-          .from('purchased_tickets')
-          .select(`
-            id,
-            ticket_code,
-            ticket_id,
-            valid_date,
-            time_slot,
-            status,
-            created_at,
-            tickets:ticket_id (
-              name,
-              type,
-              description
-            )
-          `)
-          .eq('user_id', user.id)
-          .order('valid_date', { ascending: true });
-
-        if (ticketsError) {
-          console.error('Error fetching tickets:', ticketsError);
-          setTickets([]);
-          return;
-        }
-
-        const transformedTickets = ((ticketsData as PurchasedTicketRow[] | null) || []).map((ticket) => {
-          const ticketMeta = Array.isArray(ticket.tickets) ? ticket.tickets[0] : ticket.tickets;
-          return {
-            id: ticket.id,
-            ticket_code: ticket.ticket_code,
-            ticket_id: ticket.ticket_id,
-            valid_date: ticket.valid_date,
-            time_slot: ticket.time_slot,
-            status: ticket.status,
-            created_at: ticket.created_at,
-            ticket: {
-              name: ticketMeta?.name || 'Unknown Ticket',
-              type: ticketMeta?.type || 'entrance',
-              description: ticketMeta?.description || null,
-            },
-          };
-        });
-        setTickets(transformedTickets);
-      } catch (error) {
-        console.error('Error in fetchTickets:', error);
-        setTickets([]);
-      } finally {
-        if (showLoader) setLoading(false);
-      }
-    },
-    [user?.id]
-  );
+  const { data: tickets = [], error, isLoading: loading } = useMyTickets(user?.id);
 
   useEffect(() => {
-    // Auth is guaranteed to be initialized by AuthGate in App.tsx
-    // So we can fetch immediately
-    fetchTickets(true);
-  }, [fetchTickets]);
-
-  useEffect(() => {
-    if (!userId) return;
-
-    const channel = supabase
-      .channel('my_tickets_changes')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'purchased_tickets', filter: `user_id=eq.${userId}` },
-        () => {
-          fetchTickets(false);
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [userId, fetchTickets]);
+    if (error) {
+      showToast('error', error instanceof Error ? error.message : 'Failed to load tickets');
+    }
+  }, [error, showToast]);
 
   // Filter tickets based on active tab - TIMEZONE-SAFE
   const today = todayWIB();
@@ -176,18 +63,21 @@ export default function MyTicketsPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-background-light dark:bg-background-dark flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-          <p className="text-gray-500 dark:text-gray-400">Loading your tickets...</p>
+      <PageTransition>
+        <div className="min-h-screen bg-background-light dark:bg-background-dark flex items-center justify-center">
+          <div className="max-w-5xl w-full px-8 grid grid-cols-1 md:grid-cols-2 gap-6">
+            <TicketCardSkeleton />
+            <TicketCardSkeleton />
+          </div>
         </div>
-      </div>
+      </PageTransition>
     );
   }
 
   return (
-    <div className="min-h-screen bg-background-light dark:bg-background-dark flex flex-col">
-      <main className="flex-grow w-full max-w-[1000px] mx-auto py-8 px-4 md:px-10 mt-24">
+    <PageTransition>
+      <div className="min-h-screen bg-background-light dark:bg-background-dark flex flex-col">
+        <main className="flex-grow w-full max-w-[1000px] mx-auto py-8 px-4 md:px-10 mt-24">
         {/* Breadcrumb */}
         <div className="mb-8">
           <div className="w-full flex gap-2 pb-4">
@@ -238,15 +128,19 @@ export default function MyTicketsPage() {
         </div>
 
         {/* Tickets List */}
+        <LazyMotion features={() => import('framer-motion').then((mod) => mod.domAnimation)}>
         <div className="space-y-4">
           {displayTickets.length > 0 ? (
-            displayTickets.map((ticket) => {
+            displayTickets.map((ticket, index) => {
               const { month, day, dayOfWeek, isToday } = formatDate(ticket.valid_date);
               const timeDisplay = ticket.time_slot || 'All Day';
 
               return (
-                <div
+                <m.div
                   key={ticket.id}
+                  initial={{ opacity: 0, y: 12 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.4, delay: index * 0.05 }}
                   className={`group bg-white dark:bg-[#1c0d0d] rounded-xl p-6 border border-[#f4e7e7] dark:border-[#331a1a] shadow-sm hover:shadow-lg hover:border-primary/20 transition-all flex flex-col md:flex-row items-start md:items-center justify-between gap-6 relative overflow-hidden ${isToday ? 'pl-6 md:pl-6' : 'pl-6 md:pl-6'
                     }`}
                 >
@@ -331,7 +225,7 @@ export default function MyTicketsPage() {
                       {ticket.status === 'active' ? 'View QR' : 'Tiket Tidak Aktif'}
                     </button>
                   </div>
-                </div>
+                </m.div>
               );
             })
           ) : (
@@ -350,7 +244,9 @@ export default function MyTicketsPage() {
             </div>
           )}
         </div>
-      </main>
-    </div>
+        </LazyMotion>
+        </main>
+      </div>
+    </PageTransition>
   );
 }

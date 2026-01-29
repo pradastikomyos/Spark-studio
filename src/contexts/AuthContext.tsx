@@ -75,6 +75,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     
     // Step 1: Check current session
     const result = await validateSessionWithRetry();
+    let finalErrorType = result.error?.type;
 
     if (result.valid && result.user && result.session) {
       console.log('[AuthContext] Session valid');
@@ -92,6 +93,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       
       // Step 3: Validate again after refresh
       const retryResult = await validateSessionWithRetry();
+      finalErrorType = retryResult.error?.type ?? finalErrorType;
       if (retryResult.valid && retryResult.user && retryResult.session) {
         console.log('[AuthContext] Session refreshed successfully and now valid');
         setUser(retryResult.user);
@@ -108,6 +110,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     // Step 4: Clear state only (let caller handle error display)
     // Separation of concerns: validateSession is a utility, not an error handler
     console.log('[AuthContext] Session validation failed after refresh attempt');
+    if (finalErrorType !== 'network') {
+      await supabase.auth.signOut();
+    }
     setUser(null);
     setSession(null);
     setIsAdmin(false);
@@ -165,6 +170,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       } catch (error) {
         if (!isMounted) return;
         await errorHandler.handleAuthError(error, { returnPath: window.location.pathname });
+        if (error instanceof Error && error.message.includes('timeout')) {
+          await supabase.auth.signOut();
+        }
         setSession(null);
         setUser(null);
         setIsAdmin(false);
@@ -179,7 +187,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     initializeAuth();
 
     // STEP 2: Listen for auth state changes (sign in, sign out, token refresh)
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+    const { data } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         if (!isMounted) return;
 
@@ -215,10 +223,11 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         }
       }
     );
+    const subscription = data?.subscription;
 
     return () => {
       isMounted = false;
-      subscription.unsubscribe();
+      subscription?.unsubscribe();
     };
   }, [checkAdminStatus]);
 

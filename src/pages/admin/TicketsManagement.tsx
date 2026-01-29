@@ -1,178 +1,42 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
-import { supabase } from '../../lib/supabase';
 import AdminLayout from '../../components/AdminLayout';
 import AvailabilityGenerator from '../../components/admin/AvailabilityGenerator';
 import PurchasedTicketsTable from '../../components/admin/PurchasedTicketsTable';
 import { ADMIN_MENU_ITEMS, ADMIN_MENU_SECTIONS } from '../../constants/adminMenu';
-
-type PurchasedTicket = {
-  id: string;
-  ticket_id: string;
-  user_id: string;
-  purchase_date: string;
-  entry_status: 'entered' | 'not_yet' | 'invalid';
-  qr_code: string;
-  status: 'active' | 'used' | 'cancelled' | 'expired';
-  valid_date: string;
-  used_at?: string | null;
-  users: {
-    name: string;
-    email: string;
-  };
-  tickets: {
-    name: string;
-  };
-};
-
-type PurchasedTicketRow = {
-  id: string | number;
-  ticket_id: string | number;
-  user_id: string;
-  created_at: string | null;
-  status: 'active' | 'used' | 'cancelled' | 'expired';
-  used_at: string | null;
-  ticket_code: string;
-  valid_date: string;
-  tickets: { name: string };
-};
+import { useTicketsManagement } from '../../hooks/useTicketsManagement';
+import TableRowSkeleton from '../../components/skeletons/TableRowSkeleton';
+import { useToast } from '../../components/Toast';
 
 const TAB_RETURN_EVENT = 'tab-returned-from-idle';
 
 const TicketsManagement = () => {
   const { signOut } = useAuth();
+  const { showToast } = useToast();
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('used'); // Default to 'used' (scanned tickets)
   const [eventFilter, setEventFilter] = useState('');
-  const [tickets, setTickets] = useState<PurchasedTicket[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [stats, setStats] = useState({
-    totalValid: 0,
-    entered: 0,
-  });
-  const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
-
-  const fetchTickets = useCallback(async () => {
-    try {
-      setLoading(true);
-
-      const { data: ticketsData, error } = await supabase
-        .from('purchased_tickets')
-        .select(
-          `
-          id,
-          ticket_id,
-          user_id,
-          created_at,
-          status,
-          used_at,
-          ticket_code,
-          valid_date,
-          tickets!inner(name)
-        `
-        )
-        .order('created_at', { ascending: false })
-        .limit(50);
-
-      if (error) throw error;
-
-      const rows = (ticketsData || []) as unknown as PurchasedTicketRow[];
-      const userIds = Array.from(new Set(rows.map((row) => row.user_id).filter(Boolean)));
-      const { data: profilesData, error: profilesError } =
-        userIds.length > 0
-          ? await supabase.from('profiles').select('id, name, email').in('id', userIds)
-          : { data: [], error: null };
-
-      if (profilesError) throw profilesError;
-
-      const profilesMap = new Map(
-        (profilesData || []).map((profile) => [
-          String(profile.id),
-          { name: String(profile.name || '-'), email: String(profile.email || '-') },
-        ])
-      );
-
-      const mapped: PurchasedTicket[] = rows.map((row) => {
-        const entry_status: PurchasedTicket['entry_status'] =
-          row.status === 'used' ? 'entered' : row.status === 'active' ? 'not_yet' : 'invalid';
-
-        return {
-          id: String(row.id),
-          ticket_id: String(row.ticket_id),
-          user_id: String(row.user_id),
-          purchase_date: row.created_at || new Date().toISOString(),
-          entry_status,
-          qr_code: row.ticket_code,
-          status: row.status,
-          valid_date: row.valid_date,
-          used_at: row.used_at,
-          users: profilesMap.get(String(row.user_id)) || { name: '-', email: '-' },
-          tickets: row.tickets,
-        };
-      });
-
-      setTickets(mapped);
-
-      const totalValid = mapped.length;
-      const entered = mapped.filter((t) => t.status === 'used').length;
-
-      setStats({ totalValid, entered });
-    } catch (error) {
-      console.error('Error fetching tickets:', error);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchTickets();
-  }, [fetchTickets]);
-
-  const setupRealtimeChannel = useCallback(() => {
-    if (channelRef.current) {
-      supabase.removeChannel(channelRef.current);
-      channelRef.current = null;
-    }
-
-    channelRef.current = supabase
-      .channel('purchased_tickets_admin_changes')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'purchased_tickets',
-        },
-        () => {
-          fetchTickets();
-        }
-      )
-      .subscribe();
-  }, [fetchTickets]);
-
-  useEffect(() => {
-    setupRealtimeChannel();
-    return () => {
-      if (channelRef.current) {
-        supabase.removeChannel(channelRef.current);
-        channelRef.current = null;
-      }
-    };
-  }, [setupRealtimeChannel]);
+  const { data, error, isLoading, isValidating, mutate } = useTicketsManagement();
+  const tickets = data?.tickets ?? [];
+  const stats = data?.stats ?? { totalValid: 0, entered: 0 };
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const handleTabReturn = () => {
-      fetchTickets();
-      setupRealtimeChannel();
+      mutate();
     };
 
     window.addEventListener(TAB_RETURN_EVENT, handleTabReturn);
     return () => {
       window.removeEventListener(TAB_RETURN_EVENT, handleTabReturn);
     };
-  }, [fetchTickets, setupRealtimeChannel]);
+  }, [mutate]);
 
+  useEffect(() => {
+    if (error) {
+      showToast('error', error instanceof Error ? error.message : 'Failed to load tickets');
+    }
+  }, [error, showToast]);
   const normalizedSearch = searchQuery.trim().toLowerCase();
   const filteredTickets = tickets.filter((ticket) => {
     const matchesSearch =
@@ -214,12 +78,12 @@ const TicketsManagement = () => {
             </p>
           </div>
           <button
-            onClick={fetchTickets}
-            disabled={loading}
+            onClick={() => mutate()}
+            disabled={isValidating}
             className="flex items-center gap-2 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg transition-colors disabled:opacity-50 flex-shrink-0"
           >
-            <span className={`material-symbols-outlined text-sm ${loading ? 'animate-spin' : ''}`}>
-              {loading ? 'progress_activity' : 'refresh'}
+            <span className={`material-symbols-outlined text-sm ${isValidating ? 'animate-spin' : ''}`}>
+              {isValidating ? 'progress_activity' : 'refresh'}
             </span>
             Refresh
           </button>
@@ -228,7 +92,7 @@ const TicketsManagement = () => {
 
       {/* Availability Generator Section */}
       <section className="mb-8">
-        <AvailabilityGenerator onSuccess={fetchTickets} />
+        <AvailabilityGenerator onSuccess={() => mutate()} />
       </section>
 
       {/* Filters Section */}
@@ -283,11 +147,19 @@ const TicketsManagement = () => {
             Menampilkan {filteredTickets.length} dari {tickets.length} tiket
           </div>
         </div>
-        <PurchasedTicketsTable
-          tickets={filteredTickets}
-          loading={loading}
-          stats={stats}
-        />
+        {isLoading ? (
+          <div className="w-full overflow-hidden rounded-xl border border-white/5 bg-surface-dark">
+            <table className="w-full">
+              <tbody>
+                <TableRowSkeleton columns={6} />
+                <TableRowSkeleton columns={6} />
+                <TableRowSkeleton columns={6} />
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <PurchasedTicketsTable tickets={filteredTickets} loading={false} stats={stats} />
+        )}
       </section>
     </AdminLayout>
   );

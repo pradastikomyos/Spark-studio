@@ -14,6 +14,7 @@ vi.mock('../contexts/AuthContext', () => ({
 vi.mock('../lib/supabase', () => ({
     supabase: {
         auth: {
+            getUser: vi.fn(),
             getSession: vi.fn(),
             signOut: vi.fn(),
         }
@@ -59,41 +60,41 @@ describe('PaymentPage', () => {
         vi.clearAllMocks()
         vi.mocked(useAuth).mockReturnValue({
             user: mockUser,
-            validateSession: vi.fn().mockResolvedValue(true)
         } as any)
         vi.mocked(useLocation).mockReturnValue({
             state: mockBookingState,
             pathname: '/payment'
         } as any)
         vi.mocked(hasBookingState).mockReturnValue(false)
+        vi.mocked(supabase.auth.getUser).mockResolvedValue({
+            data: { user: mockUser },
+            error: null
+        } as any)
+        vi.mocked(supabase.auth.getSession).mockResolvedValue({
+            data: { session: { access_token: 'valid' } }
+        } as any)
+        global.fetch = vi.fn().mockResolvedValue({
+            ok: true,
+            json: async () => ({ token: 'snap-token', order_id: '123', order_number: 'ORD-123' })
+        }) as any
     })
 
     describe('Task 4.1: Pre-flight session validation', () => {
-        it('should call validateSession before processing payment', async () => {
-            const validateSession = vi.fn().mockResolvedValue(true)
-            vi.mocked(useAuth).mockReturnValue({
-                user: mockUser,
-                validateSession
-            } as any)
-
-            vi.mocked(supabase.auth.getSession).mockResolvedValue({
-                data: { session: { access_token: 'valid' } }
-            } as any)
-
+        it('should validate session with supabase.auth.getUser before processing payment', async () => {
             render(<MemoryRouter><PaymentPage /></MemoryRouter>)
 
             const payButton = await screen.findByRole('button', { name: /Pay/i })
             fireEvent.click(payButton)
 
-            await waitFor(() => expect(validateSession).toHaveBeenCalled())
+            await waitFor(() => expect(supabase.auth.getUser).toHaveBeenCalled())
         })
     })
 
     describe('Task 4.3: State preservation on 401 errors', () => {
         it('should preserve state and navigate to login on session expiry', async () => {
-            vi.mocked(useAuth).mockReturnValue({
-                user: mockUser,
-                validateSession: vi.fn().mockResolvedValue(false)
+            vi.mocked(supabase.auth.getUser).mockResolvedValue({
+                data: { user: null },
+                error: { status: 401, message: 'Unauthorized' }
             } as any)
 
             render(<MemoryRouter><PaymentPage /></MemoryRouter>)

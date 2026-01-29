@@ -1,13 +1,18 @@
-import { lazy, Suspense, useEffect, useRef } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { lazy, Suspense, useEffect, useRef, type ReactNode } from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { AnimatePresence } from 'framer-motion';
+import { SWRConfig } from 'swr';
 import { useDarkMode } from './hooks/useDarkMode';
 import { useSessionRefresh } from './hooks/useSessionRefresh';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { CartProvider } from './contexts/CartContext';
+import { ToastProvider } from './components/Toast';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import ProtectedRoute from './components/ProtectedRoute';
 import PublicLayout from './components/PublicLayout';
 import Home from './pages/Home';
 import { supabase } from './lib/supabase';
+import { swrConfig } from './lib/swr';
 
 const OnStage = lazy(() => import('./pages/OnStage'));
 const Shop = lazy(() => import('./pages/Shop'));
@@ -70,6 +75,330 @@ function RouteLoading() {
 // Main app content - only rendered after auth is initialized
 const TAB_RETURN_EVENT = 'tab-returned-from-idle';
 const TAB_IDLE_THRESHOLD_MS = 2 * 60 * 1000;
+
+function AppRoutes({ isDark, onToggleDarkMode }: { isDark: boolean; onToggleDarkMode: () => void }) {
+  const location = useLocation();
+  const wrap = (node: ReactNode) => <ErrorBoundary>{node}</ErrorBoundary>;
+  return (
+    <AnimatePresence mode="wait">
+      <Routes location={location} key={location.pathname}>
+        <Route
+          path="/login"
+          element={
+            wrap(
+              <Suspense fallback={<RouteLoading />}>
+                <Login isDark={isDark} />
+              </Suspense>
+            )
+          }
+        />
+        <Route
+          path="/signup"
+          element={
+            wrap(
+              <Suspense fallback={<RouteLoading />}>
+                <SignUp isDark={isDark} />
+              </Suspense>
+            )
+          }
+        />
+        <Route
+          path="/checkout"
+          element={
+            wrap(
+              <Suspense fallback={<RouteLoading />}>
+                <CheckoutPage />
+              </Suspense>
+            )
+          }
+        />
+        <Route
+          path="/checkout/product"
+          element={
+            wrap(
+              <ProtectedRoute>
+                <Suspense fallback={<RouteLoading />}>
+                  <ProductCheckoutPage />
+                </Suspense>
+              </ProtectedRoute>
+            )
+          }
+        />
+        <Route
+          path="/scan/:stageCode"
+          element={
+            wrap(
+              <Suspense fallback={<RouteLoading />}>
+                <StageScanPage />
+              </Suspense>
+            )
+          }
+        />
+        <Route
+          path="/admin"
+          element={
+            wrap(
+              <ProtectedRoute adminOnly>
+                <Navigate to="/admin/dashboard" replace />
+              </ProtectedRoute>
+            )
+          }
+        />
+        <Route
+          path="/admin/dashboard"
+          element={
+            wrap(
+              <ProtectedRoute adminOnly>
+                <Suspense fallback={<RouteLoading />}>
+                  <Dashboard />
+                </Suspense>
+              </ProtectedRoute>
+            )
+          }
+        />
+        <Route
+          path="/admin/tickets"
+          element={
+            wrap(
+              <ProtectedRoute adminOnly>
+                <Suspense fallback={<RouteLoading />}>
+                  <TicketsManagement />
+                </Suspense>
+              </ProtectedRoute>
+            )
+          }
+        />
+        <Route
+          path="/admin/store"
+          element={
+            wrap(
+              <ProtectedRoute adminOnly>
+                <Suspense fallback={<RouteLoading />}>
+                  <StoreInventory />
+                </Suspense>
+              </ProtectedRoute>
+            )
+          }
+        />
+        <Route
+          path="/admin/stages"
+          element={
+            wrap(
+              <ProtectedRoute adminOnly>
+                <Suspense fallback={<RouteLoading />}>
+                  <StageManager />
+                </Suspense>
+              </ProtectedRoute>
+            )
+          }
+        />
+        <Route
+          path="/admin/stage-analytics"
+          element={
+            wrap(
+              <ProtectedRoute adminOnly>
+                <Suspense fallback={<RouteLoading />}>
+                  <StageAnalytics />
+                </Suspense>
+              </ProtectedRoute>
+            )
+          }
+        />
+        <Route
+          path="/admin/qr-bulk"
+          element={
+            wrap(
+              <ProtectedRoute adminOnly>
+                <Suspense fallback={<RouteLoading />}>
+                  <StageBulkQR />
+                </Suspense>
+              </ProtectedRoute>
+            )
+          }
+        />
+        <Route
+          path="/admin/order-ticket"
+          element={
+            wrap(
+              <ProtectedRoute adminOnly>
+                <Suspense fallback={<RouteLoading />}>
+                  <OrderTicket />
+                </Suspense>
+              </ProtectedRoute>
+            )
+          }
+        />
+        <Route
+          path="/admin/pickup-scanner"
+          element={
+            wrap(
+              <ProtectedRoute adminOnly>
+                <Navigate to="/admin/product-orders" replace />
+              </ProtectedRoute>
+            )
+          }
+        />
+        <Route
+          path="/admin/product-orders"
+          element={
+            wrap(
+              <ProtectedRoute adminOnly>
+                <Suspense fallback={<RouteLoading />}>
+                  <ProductOrders />
+                </Suspense>
+              </ProtectedRoute>
+            )
+          }
+        />
+        <Route element={<PublicLayout isDark={isDark} onToggleDarkMode={onToggleDarkMode} />}>
+          <Route index element={<Home />} />
+          <Route
+            path="on-stage"
+            element={
+              wrap(
+                <Suspense fallback={<RouteLoading />}>
+                  <OnStage />
+                </Suspense>
+              )
+            }
+          />
+          <Route
+            path="shop"
+            element={
+              wrap(
+                <Suspense fallback={<RouteLoading />}>
+                  <Shop />
+                </Suspense>
+              )
+            }
+          />
+          <Route
+            path="shop/product/:productId"
+            element={
+              wrap(
+                <Suspense fallback={<RouteLoading />}>
+                  <ProductDetailPage />
+                </Suspense>
+              )
+            }
+          />
+          <Route
+            path="events"
+            element={
+              wrap(
+                <Suspense fallback={<RouteLoading />}>
+                  <Events />
+                </Suspense>
+              )
+            }
+          />
+          <Route
+            path="booking/:slug"
+            element={
+              wrap(
+                <ProtectedRoute>
+                  <Suspense fallback={<RouteLoading />}>
+                    <BookingPage />
+                  </Suspense>
+                </ProtectedRoute>
+              )
+            }
+          />
+          <Route
+            path="payment"
+            element={
+              wrap(
+                <ProtectedRoute>
+                  <Suspense fallback={<RouteLoading />}>
+                    <PaymentPage />
+                  </Suspense>
+                </ProtectedRoute>
+              )
+            }
+          />
+          <Route
+            path="booking-success"
+            element={
+              wrap(
+                <ProtectedRoute>
+                  <Suspense fallback={<RouteLoading />}>
+                    <BookingSuccessPage />
+                  </Suspense>
+                </ProtectedRoute>
+              )
+            }
+          />
+          <Route
+            path="calendar"
+            element={
+              wrap(
+                <Suspense fallback={<RouteLoading />}>
+                  <FullCalendarPage />
+                </Suspense>
+              )
+            }
+          />
+          <Route
+            path="cart"
+            element={
+              wrap(
+                <Suspense fallback={<RouteLoading />}>
+                  <CartPage />
+                </Suspense>
+              )
+            }
+          />
+          <Route
+            path="my-tickets"
+            element={
+              wrap(
+                <ProtectedRoute>
+                  <Suspense fallback={<RouteLoading />}>
+                    <MyTicketsPage />
+                  </Suspense>
+                </ProtectedRoute>
+              )
+            }
+          />
+          <Route
+            path="my-orders"
+            element={
+              wrap(
+                <ProtectedRoute>
+                  <Suspense fallback={<RouteLoading />}>
+                    <MyProductOrdersPage />
+                  </Suspense>
+                </ProtectedRoute>
+              )
+            }
+          />
+          <Route
+            path="order/product/success/:orderNumber"
+            element={
+              wrap(
+                <ProtectedRoute>
+                  <Suspense fallback={<RouteLoading />}>
+                    <ProductOrderSuccessPage />
+                  </Suspense>
+                </ProtectedRoute>
+              )
+            }
+          />
+          <Route
+            path="*"
+            element={
+              wrap(
+                <Suspense fallback={<RouteLoading />}>
+                  <NotFound />
+                </Suspense>
+              )
+            }
+          />
+        </Route>
+      </Routes>
+    </AnimatePresence>
+  );
+}
 
 function AppContent() {
   const { isDark, toggleDarkMode } = useDarkMode();
@@ -141,265 +470,7 @@ function AppContent() {
   return (
     <Router>
       <div className="bg-background-light dark:bg-background-dark text-text-light dark:text-text-dark font-sans transition-colors duration-500 antialiased selection:bg-primary selection:text-white">
-        <Routes>
-          <Route
-            path="/login"
-            element={
-              <Suspense fallback={<RouteLoading />}>
-                <Login isDark={isDark} />
-              </Suspense>
-            }
-          />
-          <Route
-            path="/signup"
-            element={
-              <Suspense fallback={<RouteLoading />}>
-                <SignUp isDark={isDark} />
-              </Suspense>
-            }
-          />
-          <Route
-            path="/checkout"
-            element={
-              <Suspense fallback={<RouteLoading />}>
-                <CheckoutPage />
-              </Suspense>
-            }
-          />
-          <Route
-            path="/checkout/product"
-            element={
-              <ProtectedRoute>
-                <Suspense fallback={<RouteLoading />}>
-                  <ProductCheckoutPage />
-                </Suspense>
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/scan/:stageCode"
-            element={
-              <Suspense fallback={<RouteLoading />}>
-                <StageScanPage />
-              </Suspense>
-            }
-          />
-          <Route
-            path="/admin"
-            element={
-              <ProtectedRoute adminOnly>
-                <Navigate to="/admin/dashboard" replace />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/admin/dashboard"
-            element={
-              <ProtectedRoute adminOnly>
-                <Suspense fallback={<RouteLoading />}>
-                  <Dashboard />
-                </Suspense>
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/admin/tickets"
-            element={
-              <ProtectedRoute adminOnly>
-                <Suspense fallback={<RouteLoading />}>
-                  <TicketsManagement />
-                </Suspense>
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/admin/store"
-            element={
-              <ProtectedRoute adminOnly>
-                <Suspense fallback={<RouteLoading />}>
-                  <StoreInventory />
-                </Suspense>
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/admin/stages"
-            element={
-              <ProtectedRoute adminOnly>
-                <Suspense fallback={<RouteLoading />}>
-                  <StageManager />
-                </Suspense>
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/admin/stage-analytics"
-            element={
-              <ProtectedRoute adminOnly>
-                <Suspense fallback={<RouteLoading />}>
-                  <StageAnalytics />
-                </Suspense>
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/admin/qr-bulk"
-            element={
-              <ProtectedRoute adminOnly>
-                <Suspense fallback={<RouteLoading />}>
-                  <StageBulkQR />
-                </Suspense>
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/admin/order-ticket"
-            element={
-              <ProtectedRoute adminOnly>
-                <Suspense fallback={<RouteLoading />}>
-                  <OrderTicket />
-                </Suspense>
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/admin/pickup-scanner"
-            element={
-              <ProtectedRoute adminOnly>
-                <Navigate to="/admin/product-orders" replace />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/admin/product-orders"
-            element={
-              <ProtectedRoute adminOnly>
-                <Suspense fallback={<RouteLoading />}>
-                  <ProductOrders />
-                </Suspense>
-              </ProtectedRoute>
-            }
-          />
-          <Route element={<PublicLayout isDark={isDark} onToggleDarkMode={toggleDarkMode} />}>
-            <Route index element={<Home />} />
-            <Route
-              path="on-stage"
-              element={
-                <Suspense fallback={<RouteLoading />}>
-                  <OnStage />
-                </Suspense>
-              }
-            />
-            <Route
-              path="shop"
-              element={
-                <Suspense fallback={<RouteLoading />}>
-                  <Shop />
-                </Suspense>
-              }
-            />
-            <Route
-              path="shop/product/:productId"
-              element={
-                <Suspense fallback={<RouteLoading />}>
-                  <ProductDetailPage />
-                </Suspense>
-              }
-            />
-            <Route
-              path="events"
-              element={
-                <Suspense fallback={<RouteLoading />}>
-                  <Events />
-                </Suspense>
-              }
-            />
-            <Route
-              path="booking/:slug"
-              element={
-                <ProtectedRoute>
-                  <Suspense fallback={<RouteLoading />}>
-                    <BookingPage />
-                  </Suspense>
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="payment"
-              element={
-                <ProtectedRoute>
-                  <Suspense fallback={<RouteLoading />}>
-                    <PaymentPage />
-                  </Suspense>
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="booking-success"
-              element={
-                <ProtectedRoute>
-                  <Suspense fallback={<RouteLoading />}>
-                    <BookingSuccessPage />
-                  </Suspense>
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="calendar"
-              element={
-                <Suspense fallback={<RouteLoading />}>
-                  <FullCalendarPage />
-                </Suspense>
-              }
-            />
-            <Route
-              path="cart"
-              element={
-                <Suspense fallback={<RouteLoading />}>
-                  <CartPage />
-                </Suspense>
-              }
-            />
-            <Route
-              path="my-tickets"
-              element={
-                <ProtectedRoute>
-                  <Suspense fallback={<RouteLoading />}>
-                    <MyTicketsPage />
-                  </Suspense>
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="my-orders"
-              element={
-                <ProtectedRoute>
-                  <Suspense fallback={<RouteLoading />}>
-                    <MyProductOrdersPage />
-                  </Suspense>
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="order/product/success/:orderNumber"
-              element={
-                <ProtectedRoute>
-                  <Suspense fallback={<RouteLoading />}>
-                    <ProductOrderSuccessPage />
-                  </Suspense>
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="*"
-              element={
-                <Suspense fallback={<RouteLoading />}>
-                  <NotFound />
-                </Suspense>
-              }
-            />
-          </Route>
-        </Routes>
+        <AppRoutes isDark={isDark} onToggleDarkMode={toggleDarkMode} />
       </div>
     </Router>
   );
@@ -420,11 +491,17 @@ function AuthGate() {
 
 function App() {
   return (
-    <AuthProvider>
-      <CartProvider>
-        <AuthGate />
-      </CartProvider>
-    </AuthProvider>
+    <ErrorBoundary>
+      <SWRConfig value={swrConfig}>
+        <ToastProvider>
+          <AuthProvider>
+            <CartProvider>
+              <AuthGate />
+            </CartProvider>
+          </AuthProvider>
+        </ToastProvider>
+      </SWRConfig>
+    </ErrorBoundary>
   );
 }
 

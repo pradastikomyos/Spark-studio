@@ -1,95 +1,35 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
-import { supabase } from '../../lib/supabase';
 import AdminLayout from '../../components/AdminLayout';
 import { ADMIN_MENU_ITEMS, ADMIN_MENU_SECTIONS } from '../../constants/adminMenu';
+import { useDashboardStats } from '../../hooks/useDashboardStats';
+import DashboardStatSkeleton from '../../components/skeletons/DashboardStatSkeleton';
+import { useToast } from '../../components/Toast';
+import { LazyMotion, m } from 'framer-motion';
 
 const TAB_RETURN_EVENT = 'tab-returned-from-idle';
 
 const Dashboard = () => {
   const { user, signOut } = useAuth();
-  const [loading, setLoading] = useState(true);
-  const [stats, setStats] = useState({
-    totalPurchasedTickets: 0,
-    totalEntered: 0,
-    totalNoShow: 0,
-    totalGiftsExchanged: 0,
-    totalOrders: 0,
-    pendingOrders: 0,
-    paidOrders: 0,
-    processingOrders: 0,
-  });
-
-  const fetchDashboardData = useCallback(async () => {
-    try {
-      setLoading(true);
-
-      // Fetch purchased tickets stats
-      const { count: totalPurchased } = await supabase
-        .from('purchased_tickets')
-        .select('*', { count: 'exact', head: true });
-
-      const { count: totalUsed } = await supabase
-        .from('purchased_tickets')
-        .select('*', { count: 'exact', head: true })
-        .eq('status', 'used');
-
-      const { count: totalRedeemed } = await supabase
-        .from('purchased_tickets')
-        .select('*', { count: 'exact', head: true })
-        .not('redeemed_merchandise_at', 'is', null);
-
-      // Fetch orders stats
-      const { count: totalOrders } = await supabase
-        .from('orders')
-        .select('*', { count: 'exact', head: true });
-
-      const { count: pendingOrders } = await supabase
-        .from('orders')
-        .select('*', { count: 'exact', head: true })
-        .eq('status', 'pending');
-
-      const { count: paidOrders } = await supabase
-        .from('orders')
-        .select('*', { count: 'exact', head: true })
-        .eq('status', 'paid');
-
-      const { count: processingOrders } = await supabase
-        .from('order_products')
-        .select('*', { count: 'exact', head: true })
-        .eq('status', 'processing');
-
-      setStats({
-        totalPurchasedTickets: totalPurchased || 0,
-        totalEntered: totalUsed || 0,
-        totalNoShow: (totalPurchased || 0) - (totalUsed || 0),
-        totalGiftsExchanged: totalRedeemed || 0,
-        totalOrders: totalOrders || 0,
-        pendingOrders: pendingOrders || 0,
-        paidOrders: paidOrders || 0,
-        processingOrders: processingOrders || 0,
-      });
-    } catch (error) {
-      console.error('Error fetching dashboard data:', error);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchDashboardData();
-  }, [fetchDashboardData]);
+  const { showToast } = useToast();
+  const { data: stats, error, isLoading, mutate } = useDashboardStats();
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const handleTabReturn = () => {
-      fetchDashboardData();
+      mutate();
     };
     window.addEventListener(TAB_RETURN_EVENT, handleTabReturn);
     return () => {
       window.removeEventListener(TAB_RETURN_EVENT, handleTabReturn);
     };
-  }, [fetchDashboardData]);
+  }, [mutate]);
+
+  useEffect(() => {
+    if (error) {
+      showToast('error', error instanceof Error ? error.message : 'Failed to load dashboard');
+    }
+  }, [error, showToast]);
 
   const getUserInitials = () => {
     if (!user?.email) return 'A';
@@ -124,61 +64,51 @@ const Dashboard = () => {
         </button>
       </div>
 
-      {/* Ticket Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="rounded-xl border border-white/5 bg-surface-dark p-5">
-          <p className="text-sm text-gray-400 mb-1">Total tiket terjual</p>
-          <p className="text-3xl font-bold text-white">
-            {loading ? '...' : stats.totalPurchasedTickets}
-          </p>
+      <LazyMotion features={() => import('framer-motion').then((mod) => mod.domAnimation)}>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          {isLoading
+            ? Array.from({ length: 4 }).map((_, index) => <DashboardStatSkeleton key={`ticket-${index}`} />)
+            : [
+                { label: 'Total tiket terjual', value: stats?.totalPurchasedTickets ?? 0 },
+                { label: 'Total sudah masuk', value: stats?.totalEntered ?? 0 },
+                { label: 'Total tidak datang', value: stats?.totalNoShow ?? 0 },
+                { label: 'Total sudah tukar hadiah', value: stats?.totalGiftsExchanged ?? 0 },
+              ].map((item, index) => (
+                <m.div
+                  key={item.label}
+                  initial={{ opacity: 0, y: 12 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.4, delay: index * 0.05 }}
+                  className="rounded-xl border border-white/5 bg-surface-dark p-5"
+                >
+                  <p className="text-sm text-gray-400 mb-1">{item.label}</p>
+                  <p className="text-3xl font-bold text-white">{item.value}</p>
+                </m.div>
+              ))}
         </div>
-        <div className="rounded-xl border border-white/5 bg-surface-dark p-5">
-          <p className="text-sm text-gray-400 mb-1">Total sudah masuk</p>
-          <p className="text-3xl font-bold text-white">
-            {loading ? '...' : stats.totalEntered}
-          </p>
-        </div>
-        <div className="rounded-xl border border-white/5 bg-surface-dark p-5">
-          <p className="text-sm text-gray-400 mb-1">Total tidak datang</p>
-          <p className="text-3xl font-bold text-white">
-            {loading ? '...' : stats.totalNoShow}
-          </p>
-        </div>
-        <div className="rounded-xl border border-white/5 bg-surface-dark p-5">
-          <p className="text-sm text-gray-400 mb-1">Total sudah tukar hadiah</p>
-          <p className="text-3xl font-bold text-white">
-            {loading ? '...' : stats.totalGiftsExchanged}
-          </p>
-        </div>
-      </div>
 
-      {/* Order Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="rounded-xl border border-white/5 bg-surface-dark p-5">
-          <p className="text-sm text-gray-400 mb-1">Total Pesanan</p>
-          <p className="text-3xl font-bold text-white">
-            {loading ? '...' : stats.totalOrders}
-          </p>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          {isLoading
+            ? Array.from({ length: 4 }).map((_, index) => <DashboardStatSkeleton key={`order-${index}`} />)
+            : [
+                { label: 'Total Pesanan', value: stats?.totalOrders ?? 0 },
+                { label: 'Pesanan Pending', value: stats?.pendingOrders ?? 0 },
+                { label: 'Pesanan Lunas', value: stats?.paidOrders ?? 0 },
+                { label: 'Pesanan Diproses', value: stats?.processingOrders ?? 0 },
+              ].map((item, index) => (
+                <m.div
+                  key={item.label}
+                  initial={{ opacity: 0, y: 12 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.4, delay: index * 0.05 }}
+                  className="rounded-xl border border-white/5 bg-surface-dark p-5"
+                >
+                  <p className="text-sm text-gray-400 mb-1">{item.label}</p>
+                  <p className="text-3xl font-bold text-white">{item.value}</p>
+                </m.div>
+              ))}
         </div>
-        <div className="rounded-xl border border-white/5 bg-surface-dark p-5">
-          <p className="text-sm text-gray-400 mb-1">Pesanan Pending</p>
-          <p className="text-3xl font-bold text-white">
-            {loading ? '...' : stats.pendingOrders}
-          </p>
-        </div>
-        <div className="rounded-xl border border-white/5 bg-surface-dark p-5">
-          <p className="text-sm text-gray-400 mb-1">Pesanan Lunas</p>
-          <p className="text-3xl font-bold text-white">
-            {loading ? '...' : stats.paidOrders}
-          </p>
-        </div>
-        <div className="rounded-xl border border-white/5 bg-surface-dark p-5">
-          <p className="text-sm text-gray-400 mb-1">Pesanan Diproses</p>
-          <p className="text-3xl font-bold text-white">
-            {loading ? '...' : stats.processingOrders}
-          </p>
-        </div>
-      </div>
+      </LazyMotion>
 
       {/* QR Scanner Section */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

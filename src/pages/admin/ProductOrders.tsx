@@ -7,16 +7,8 @@ import { ADMIN_MENU_ITEMS, ADMIN_MENU_SECTIONS } from '../../constants/adminMenu
 import { formatCurrency } from '../../utils/formatters';
 import { ensureFreshToken } from '../../utils/auth';
 import { useSessionRefresh } from '../../hooks/useSessionRefresh';
-
-type OrderSummaryRow = {
-  id: number;
-  order_number: string;
-  total: number;
-  pickup_code: string | null;
-  pickup_status: string | null;
-  paid_at: string | null;
-  profiles?: { name?: string; email?: string } | null;
-};
+import { useProductOrders, type OrderSummaryRow } from '../../hooks/useProductOrders';
+import { useToast } from '../../components/Toast';
 
 type OrderItemRow = {
   id: number;
@@ -40,15 +32,12 @@ const TAB_RETURN_EVENT = 'tab-returned-from-idle';
 
 export default function ProductOrders() {
   const { signOut, session } = useAuth();
+  const { showToast } = useToast();
   
   // Enable background session refresh for long-idle admin sessions
   useSessionRefresh();
   
   const [activeTab, setActiveTab] = useState<'pending' | 'today' | 'completed'>('pending');
-  const [orders, setOrders] = useState<OrderSummaryRow[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [ordersError, setOrdersError] = useState<string | null>(null);
-  const [pendingCount, setPendingCount] = useState(0);
   const [scannerOpen, setScannerOpen] = useState(false);
   const [lookupCode, setLookupCode] = useState('');
   const [lookupError, setLookupError] = useState<string | null>(null);
@@ -57,50 +46,25 @@ export default function ProductOrders() {
   const [actionError, setActionError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const fetchOrders = useCallback(async () => {
-    setLoading(true);
-    setOrdersError(null);
-    const [ordersResult, pendingResult] = await Promise.all([
-      supabase
-        .from('order_products')
-        .select('id, order_number, total, pickup_code, pickup_status, paid_at, profiles!order_products_user_id_foreign(name, email)')
-        .eq('payment_status', 'paid')
-        .order('paid_at', { ascending: false })
-        .limit(100),
-      supabase
-        .from('order_products')
-        .select('id', { count: 'exact', head: true })
-        .eq('payment_status', 'paid')
-        .eq('pickup_status', 'pending_pickup'),
-    ]);
-
-    if (ordersResult.error) {
-      setOrders([]);
-      setOrdersError(ordersResult.error.message || 'Gagal memuat daftar pesanan');
-      setPendingCount(0);
-      setLoading(false);
-      return;
-    }
-
-    setOrders((ordersResult.data || []) as unknown as OrderSummaryRow[]);
-    setPendingCount(pendingResult.count ?? 0);
-    setLoading(false);
-  }, []);
-
-  useEffect(() => {
-    fetchOrders();
-  }, [fetchOrders]);
+  const { data, error, isLoading, isValidating, mutate } = useProductOrders();
+  const orders = data?.orders ?? [];
+  const pendingCount = data?.pendingCount ?? 0;
+  const ordersError = error instanceof Error ? error.message : error ? 'Gagal memuat daftar pesanan' : null;
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const handleTabReturn = () => {
-      fetchOrders();
+      mutate();
     };
     window.addEventListener(TAB_RETURN_EVENT, handleTabReturn);
     return () => {
       window.removeEventListener(TAB_RETURN_EVENT, handleTabReturn);
     };
-  }, [fetchOrders]);
+  }, [mutate]);
+
+  useEffect(() => {
+    if (ordersError) showToast('error', ordersError);
+  }, [ordersError, showToast]);
 
   const loadDetailsByPickupCode = useCallback(async (pickupCode: string) => {
     const { data: orderRow, error: orderError } = await supabase
@@ -240,13 +204,13 @@ export default function ProductOrders() {
 
       setDetails(null);
       setLookupCode('');
-      await fetchOrders();
+      await mutate();
     } catch (e) {
       setActionError(e instanceof Error ? e.message : 'Gagal memverifikasi barang');
     } finally {
       setSubmitting(false);
     }
-  }, [details, fetchOrders, session]);
+  }, [details, mutate, session]);
 
   const pendingOrders = useMemo(() => {
     return orders.filter((o) => o.pickup_status === 'pending_pickup');
@@ -366,9 +330,9 @@ export default function ProductOrders() {
                 </button>
               </div>
               <button
-                onClick={fetchOrders}
+                onClick={() => mutate()}
                 className="text-sm font-bold text-primary hover:underline"
-                disabled={loading}
+                disabled={isValidating}
               >
                 Refresh
               </button>
@@ -376,8 +340,15 @@ export default function ProductOrders() {
           </div>
           {ordersError && <div className="mb-4 text-sm text-red-600 dark:text-red-300">{ordersError}</div>}
 
-          {loading ? (
-            <div className="py-10 text-sm text-gray-500 dark:text-gray-400">Loading...</div>
+          {isLoading ? (
+            <div className="space-y-2">
+              {Array.from({ length: 6 }).map((_, index) => (
+                <div
+                  key={index}
+                  className="h-[64px] rounded-lg border border-gray-100 dark:border-white/10 bg-gray-50/60 dark:bg-white/5 animate-pulse"
+                />
+              ))}
+            </div>
           ) : displayOrders.length === 0 ? (
             <div className="py-10 text-center">
               <span className="material-symbols-outlined text-4xl text-gray-300 dark:text-gray-700 mb-2">
