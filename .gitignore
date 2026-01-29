@@ -39,3 +39,6 @@ react-best-practices/
 # Database backups (local only)
 backup_*.sql
 *.backup.sql
+
+# Supabase deployment artifacts (local only)
+supabase/.temp/
