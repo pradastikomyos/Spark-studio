@@ -71,8 +71,8 @@ const Events = () => {
     },
   ];
 
-  const filters = ['All Events', 'Workshops', 'Exhibitions', 'Masterclass'];
-
+  const filters = ['Events'];
+  // , 'Workshops', 'Exhibitions', 'Masterclass' (punya atas)
   return (
     <div className="bg-white dark:bg-background-dark min-h-screen">
       {/* Hero Header */}
@@ -118,11 +118,10 @@ const Events = () => {
               <button
                 key={filter}
                 onClick={() => setActiveFilter(filter)}
-                className={`px-6 py-2 rounded-full text-xs uppercase tracking-widest font-bold whitespace-nowrap transition-all ${
-                  activeFilter === filter
-                    ? 'bg-primary text-white shadow-lg shadow-primary/30'
-                    : 'bg-white dark:bg-surface-dark border border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:border-primary hover:text-primary'
-                }`}
+                className={`px-6 py-2 rounded-full text-xs uppercase tracking-widest font-bold whitespace-nowrap transition-all ${activeFilter === filter
+                  ? 'bg-primary text-white shadow-lg shadow-primary/30'
+                  : 'bg-white dark:bg-surface-dark border border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:border-primary hover:text-primary'
+                  }`}
               >
                 {filter}
               </button>
@@ -141,9 +140,8 @@ const Events = () => {
                 {event.image ? (
                   <img
                     alt={event.title}
-                    className={`w-full h-full object-cover transition-transform duration-700 group-hover:scale-105 ${
-                      event.id === 4 ? 'grayscale hover:grayscale-0' : ''
-                    }`}
+                    className={`w-full h-full object-cover transition-transform duration-700 group-hover:scale-105 ${event.id === 4 ? 'grayscale hover:grayscale-0' : ''
+                      }`}
                     src={event.image}
                   />
                 ) : (
@@ -172,11 +170,10 @@ const Events = () => {
                 </div>
                 <div className="absolute bottom-4 right-4">
                   <span
-                    className={`${
-                      event.category === 'Workshop' || event.category === 'Masterclass'
-                        ? 'bg-primary'
-                        : 'bg-gray-900 dark:bg-gray-700'
-                    } text-white text-[10px] font-bold uppercase tracking-widest px-3 py-1 rounded-full shadow-md`}
+                    className={`${event.category === 'Workshop' || event.category === 'Masterclass'
+                      ? 'bg-primary'
+                      : 'bg-gray-900 dark:bg-gray-700'
+                      } text-white text-[10px] font-bold uppercase tracking-widest px-3 py-1 rounded-full shadow-md`}
                   >
                     {event.category}
                   </span>
@@ -229,7 +226,7 @@ const Events = () => {
           </article>
         </div>
 
-        {/* Newsletter Section */}
+        {/* Newsletter Section
         <section className="bg-gray-50 dark:bg-black rounded-[2rem] p-12 md:p-20 text-center relative overflow-hidden border border-gray-100 dark:border-gray-800">
           <div className="absolute top-0 right-0 p-12 opacity-5 pointer-events-none">
             <span className="material-symbols-outlined text-9xl text-primary">star</span>
@@ -256,7 +253,7 @@ const Events = () => {
               </button>
             </form>
           </div>
-        </section>
+        </section> */}
       </main>
     </div>
   );

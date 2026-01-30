@@ -1,8 +1,8 @@
 import Hero from '../components/Hero';
 import TicketSection from '../components/TicketSection';
 import AboutSection from '../components/AboutSection';
-import FeaturedCollections from '../components/FeaturedCollections';
-import Newsletter from '../components/Newsletter';
+// import FeaturedCollections from '../components/FeaturedCollections';
+// import Newsletter from '../components/Newsletter';
 
 const Home = () => {
   return (
@@ -11,8 +11,8 @@ const Home = () => {
       <main className="bg-background-light dark:bg-background-dark">
         <TicketSection />
         <AboutSection />
-        <FeaturedCollections />
-        <Newsletter />
+        {/* <FeaturedCollections />
+        <Newsletter /> */}
       </main>
     </>
   );
