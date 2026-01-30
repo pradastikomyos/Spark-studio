@@ -50,14 +50,13 @@ export function PageTransition({ children }: PageTransitionProps) {
   }, []);
 
   // Animation variants for normal motion
+  // Note: Removed y-axis animations (y: 20, y: -20) to prevent unwanted auto-scroll
   const pageVariants = {
     initial: {
-      opacity: 0,
-      y: 20
+      opacity: 0
     },
     animate: {
       opacity: 1,
-      y: 0,
       transition: {
         duration: 0.3,
         ease: 'easeOut'
@@ -65,9 +64,8 @@ export function PageTransition({ children }: PageTransitionProps) {
     },
     exit: {
       opacity: 0,
-      y: -20,
       transition: {
-        duration: 0.3,
+        duration: 0.2,
         ease: 'easeIn'
       }
     }

@@ -33,10 +33,10 @@ const TAB_RETURN_EVENT = 'tab-returned-from-idle';
 export default function ProductOrders() {
   const { signOut, session } = useAuth();
   const { showToast } = useToast();
-  
+
   // Enable background session refresh for long-idle admin sessions
   useSessionRefresh();
-  
+
   const [activeTab, setActiveTab] = useState<'pending' | 'today' | 'completed'>('pending');
   const [scannerOpen, setScannerOpen] = useState(false);
   const [lookupCode, setLookupCode] = useState('');
@@ -69,7 +69,7 @@ export default function ProductOrders() {
   const loadDetailsByPickupCode = useCallback(async (pickupCode: string) => {
     const { data: orderRow, error: orderError } = await supabase
       .from('order_products')
-      .select('id, order_number, total, pickup_code, pickup_status, paid_at, payment_status, status, pickup_expires_at, profiles!order_products_user_id_foreign(name, email)')
+      .select('id, order_number, total, pickup_code, pickup_status, paid_at, payment_status, status, pickup_expires_at, profiles(name, email)')
       .eq('pickup_code', pickupCode)
       .single();
 
@@ -124,16 +124,16 @@ export default function ProductOrders() {
     async (decodedText: string) => {
       const code = decodedText.trim().toUpperCase();
       if (!code) throw new Error('Kode tidak valid');
-      
+
       // Set code immediately so user can see what was scanned
       setLookupCode(code);
       setLookupError(null);
       setActionError(null);
-      
+
       // Try to load details - if it fails, error will show on page, not in modal
       try {
         await loadDetailsByPickupCode(code);
-        
+
         // Success - animate input
         setTimeout(() => {
           inputRef.current?.focus();
@@ -145,7 +145,7 @@ export default function ProductOrders() {
       } catch (err) {
         // Show error on page, not in modal
         setLookupError(err instanceof Error ? err.message : 'Gagal mencari order');
-        
+
         // Still animate input to show code was scanned
         setTimeout(() => {
           inputRef.current?.focus();
@@ -155,7 +155,7 @@ export default function ProductOrders() {
           }, 2000);
         }, 300);
       }
-      
+
       // Don't throw - let modal close gracefully
     },
     [loadDetailsByPickupCode]
@@ -168,7 +168,7 @@ export default function ProductOrders() {
     try {
       // Proactively ensure token is fresh before critical operation
       let token = await ensureFreshToken(session);
-      
+
       if (!token) {
         throw new Error('Sesi login tidak valid. Silakan login ulang.');
       }
@@ -182,7 +182,7 @@ export default function ProductOrders() {
 
       let { error: invokeError } = await invokePickup(token);
       const status = invokeError ? (invokeError as { status?: number }).status : undefined;
-      
+
       // Fallback: if still get 401, try one more refresh
       if (invokeError && status === 401) {
         const { data, error } = await supabase.auth.refreshSession();
@@ -300,31 +300,28 @@ export default function ProductOrders() {
               <div className="flex gap-1 bg-gray-100 dark:bg-[#2a1616] p-1 rounded-lg">
                 <button
                   onClick={() => setActiveTab('pending')}
-                  className={`px-3 py-1.5 text-xs font-bold rounded transition-colors ${
-                    activeTab === 'pending'
+                  className={`px-3 py-1.5 text-xs font-bold rounded transition-colors ${activeTab === 'pending'
                       ? 'bg-primary text-white'
                       : 'text-gray-600 dark:text-gray-400 hover:bg-white dark:hover:bg-[#1a0f0f]'
-                  }`}
+                    }`}
                 >
                   Pending ({pendingOrders.length})
                 </button>
                 <button
                   onClick={() => setActiveTab('today')}
-                  className={`px-3 py-1.5 text-xs font-bold rounded transition-colors ${
-                    activeTab === 'today'
+                  className={`px-3 py-1.5 text-xs font-bold rounded transition-colors ${activeTab === 'today'
                       ? 'bg-primary text-white'
                       : 'text-gray-600 dark:text-gray-400 hover:bg-white dark:hover:bg-[#1a0f0f]'
-                  }`}
+                    }`}
                 >
                   Hari Ini ({todays.length})
                 </button>
                 <button
                   onClick={() => setActiveTab('completed')}
-                  className={`px-3 py-1.5 text-xs font-bold rounded transition-colors ${
-                    activeTab === 'completed'
+                  className={`px-3 py-1.5 text-xs font-bold rounded transition-colors ${activeTab === 'completed'
                       ? 'bg-primary text-white'
                       : 'text-gray-600 dark:text-gray-400 hover:bg-white dark:hover:bg-[#1a0f0f]'
-                  }`}
+                    }`}
                 >
                   Selesai ({completedOrders.length})
                 </button>
@@ -383,13 +380,12 @@ export default function ProductOrders() {
                   </div>
                   <div className="flex items-center gap-3">
                     <span className="text-xs font-bold text-gray-500 dark:text-gray-400">{formatCurrency(Number(o.total ?? 0))}</span>
-                    <span className={`text-xs font-bold uppercase tracking-wide px-2 py-1 rounded ${
-                      o.pickup_status === 'pending_pickup' 
+                    <span className={`text-xs font-bold uppercase tracking-wide px-2 py-1 rounded ${o.pickup_status === 'pending_pickup'
                         ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400'
                         : o.pickup_status === 'completed'
-                        ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400'
-                        : 'bg-gray-100 dark:bg-gray-900/30 text-gray-700 dark:text-gray-400'
-                    }`}>
+                          ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400'
+                          : 'bg-gray-100 dark:bg-gray-900/30 text-gray-700 dark:text-gray-400'
+                      }`}>
                       {o.pickup_status === 'pending_pickup' ? 'Pending' : o.pickup_status === 'completed' ? 'Selesai' : o.pickup_status ?? 'pending'}
                     </span>
                   </div>

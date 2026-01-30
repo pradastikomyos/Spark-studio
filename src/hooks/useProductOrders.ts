@@ -19,7 +19,7 @@ export function useProductOrders() {
       const [ordersResult, pendingResult] = await Promise.all([
         supabase
           .from('order_products')
-          .select('id, order_number, total, pickup_code, pickup_status, paid_at, profiles!order_products_user_id_foreign(name, email)')
+          .select('id, order_number, total, pickup_code, pickup_status, paid_at, profiles(name, email)')
           .eq('payment_status', 'paid')
           .order('paid_at', { ascending: false })
           .limit(100),
