@@ -18,7 +18,7 @@ const DarkModeToggle = ({ isDark, onToggle }: DarkModeToggleProps) => {
         {isDark ? (
           <span className="material-symbols-outlined text-yellow-400 text-sm">dark_mode</span>
         ) : (
-          <span className="material-symbols-outlined text-yellow-500 text-sm">light_mode</span>
+          <span className="material-symbols-outlined text-yellow-400 text-sm">light_mode</span>
         )}
       </span>
     </button>
