@@ -5,6 +5,7 @@ import AdminLayout from '../../components/AdminLayout';
 import QRScannerModal from '../../components/admin/QRScannerModal';
 import { ADMIN_MENU_ITEMS, ADMIN_MENU_SECTIONS } from '../../constants/adminMenu';
 import { toLocalDateString } from '../../utils/formatters';
+import { getMinutesUntilSessionEnd } from '../../utils/timezone';
 
 const OrderTicket = () => {
   const { signOut } = useAuth();
@@ -26,6 +27,7 @@ const OrderTicket = () => {
     ticket_code: string;
     status: string;
     valid_date: string;
+    time_slot: string | null;
     used_at: string | null;
     user_id: string | null;
     tickets?: { name: string } | null;
@@ -48,7 +50,8 @@ const OrderTicket = () => {
             id, 
             ticket_code, 
             status, 
-            valid_date, 
+            valid_date,
+            time_slot,
             used_at,
             user_id,
             tickets!inner(name)
@@ -61,7 +64,7 @@ const OrderTicket = () => {
           setLastScanResult({ type: 'error', message: errMsg });
           throw new Error(errMsg);
         }
-        
+
         const ticketData = data as PurchasedTicketRow | null;
 
         if (!ticketData) {
@@ -72,14 +75,14 @@ const OrderTicket = () => {
 
         // Step 2: Fetch user profile data separately
         let userName = '-';
-        
+
         if (ticketData.user_id) {
           const { data: profileData } = await supabase
             .from('profiles')
             .select('name')
             .eq('id', ticketData.user_id)
             .maybeSingle();
-          
+
           if (profileData) {
             userName = profileData.name || '-';
           }
@@ -92,7 +95,7 @@ const OrderTicket = () => {
         }
 
         if (ticketData.status !== 'active') {
-          const errMsg = ticketData.status === 'used' 
+          const errMsg = ticketData.status === 'used'
             ? `Tiket sudah digunakan pada ${new Date(ticketData.used_at || '').toLocaleString('id-ID')}`
             : `Status tiket: ${ticketData.status}.`;
           setLastScanResult({ type: 'error', message: errMsg });
@@ -115,11 +118,23 @@ const OrderTicket = () => {
           throw new Error(errMsg);
         }
 
+        // Check if session has ended (per boss: "bisa tetap masuk sampe batas waktu berakhir")
+        if (ticketData.time_slot) {
+          const minutesLeft = getMinutesUntilSessionEnd(todayLocal, ticketData.time_slot);
+
+          if (minutesLeft === 0) {
+            const timeDisplay = ticketData.time_slot.substring(0, 5);
+            const errMsg = `⛔ SESI BERAKHIR. Waktu sesi ${timeDisplay} telah habis.`;
+            setLastScanResult({ type: 'error', message: errMsg });
+            throw new Error(errMsg);
+          }
+        }
+
         // Update ticket status to 'used' with timestamp
         console.log('Attempting to update ticket ID:', ticketData.id);
         const { data: updatedTicket, error: updateError } = await supabase
           .from('purchased_tickets')
-          .update({ 
+          .update({
             status: 'used',
             used_at: new Date().toISOString()
           })
@@ -153,8 +168,8 @@ const OrderTicket = () => {
         }
 
         // SUCCESS - only reach here if everything worked
-        setLastScanResult({ 
-          type: 'success', 
+        setLastScanResult({
+          type: 'success',
           message: 'Tiket berhasil divalidasi! Masuk diizinkan.',
           ticketInfo: {
             code: ticketData.ticket_code,
@@ -198,11 +213,10 @@ const OrderTicket = () => {
         {/* Scan Result Banner */}
         {lastScanResult && (
           <div
-            className={`rounded-lg border px-4 md:px-6 py-4 mb-6 ${
-              lastScanResult.type === 'success'
+            className={`rounded-lg border px-4 md:px-6 py-4 mb-6 ${lastScanResult.type === 'success'
                 ? 'border-green-200 bg-green-50 text-green-800 dark:border-green-900/30 dark:bg-green-900/20 dark:text-green-200'
                 : 'border-red-200 bg-red-50 text-red-800 dark:border-red-900/30 dark:bg-red-900/20 dark:text-red-200'
-            }`}
+              }`}
           >
             <div className="flex items-start gap-3">
               <span className="material-symbols-outlined text-2xl flex-shrink-0">

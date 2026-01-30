@@ -71,6 +71,7 @@ export default function BookingPage() {
   }, []);
 
   // Generate calendar days for current month - memoized to prevent recalculation on every render
+  // UPDATED (Jan 2026): Rolling 30-day booking window instead of today-only
   const calendarDays = useMemo(() => {
     if (!ticket) return [];
 
@@ -85,6 +86,10 @@ export default function BookingPage() {
     const availableUntil = new Date(ticket.available_until);
     const today = todayWIB(); // Use WIB timezone
 
+    // Rolling 30-day booking window
+    const maxBookingDate = new Date(today);
+    maxBookingDate.setDate(today.getDate() + 30);
+
     const days = [];
 
     // Add empty cells for days before month starts
@@ -97,16 +102,19 @@ export default function BookingPage() {
       const date = new Date(year, month, day);
       date.setHours(0, 0, 0, 0);
 
-      // Check if date is today (for entrance tickets, only today is bookable)
+      // Check if date is today
       const isToday = date.getTime() === today.getTime();
 
-      const isAvailable = date >= today && date >= availableFrom && date <= availableUntil;
+      // Check if within 30-day rolling window
+      const isWithinBookingWindow = date >= today && date <= maxBookingDate;
+
+      const isAvailable = isWithinBookingWindow && date >= availableFrom && date <= availableUntil;
       const hasAvailability = availabilities.some(
         (avail) => avail.date === toLocalDateString(date) && avail.available_capacity > 0
       );
 
-      // MVP: Same-day booking only - only today can be booked
-      const canBook = isToday && isAvailable && hasAvailability;
+      // UPDATED: 30-day rolling window instead of same-day only
+      const canBook = isAvailable && hasAvailability;
 
       days.push({
         day,
@@ -212,6 +220,35 @@ export default function BookingPage() {
 
     return { morning, afternoon1, afternoon2, evening };
   }, [availableTimeSlots]);
+
+  // Month navigation handlers for 30-day rolling booking
+  const today = todayWIB();
+  const maxBookingDate = new Date(today);
+  maxBookingDate.setDate(today.getDate() + 30);
+
+  const canGoPrevMonth = useMemo(() => {
+    const lastDayOfPrevMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 0);
+    // Can go back if the previous month contains today or future dates within booking window
+    return lastDayOfPrevMonth >= today;
+  }, [currentDate, today]);
+
+  const canGoNextMonth = useMemo(() => {
+    const firstDayOfNextMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1);
+    // Can go forward if next month has dates within 30-day booking window
+    return firstDayOfNextMonth <= maxBookingDate;
+  }, [currentDate, maxBookingDate]);
+
+  const handlePrevMonth = () => {
+    if (canGoPrevMonth) {
+      setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1));
+    }
+  };
+
+  const handleNextMonth = () => {
+    if (canGoNextMonth) {
+      setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1));
+    }
+  };
 
   const handleProceedToPayment = () => {
     if (!ticket || !selectedDate) {
@@ -332,7 +369,25 @@ export default function BookingPage() {
                 <div className="bg-white dark:bg-[#1a0c0c] rounded-xl shadow-sm border border-[#f4e7e7] dark:border-[#3d2424] p-8">
                   <div className="flex items-center justify-between mb-8">
                     <h3 className="text-xl font-bold">Select Date</h3>
-                    <p className="text-lg font-bold uppercase tracking-tighter text-primary">{monthName}</p>
+                    <div className="flex items-center gap-3">
+                      <button
+                        onClick={handlePrevMonth}
+                        disabled={!canGoPrevMonth}
+                        className="p-2 rounded-lg hover:bg-primary/10 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                        aria-label="Previous month"
+                      >
+                        <span className="material-symbols-outlined text-primary">chevron_left</span>
+                      </button>
+                      <p className="text-lg font-bold uppercase tracking-tighter text-primary min-w-[140px] text-center">{monthName}</p>
+                      <button
+                        onClick={handleNextMonth}
+                        disabled={!canGoNextMonth}
+                        className="p-2 rounded-lg hover:bg-primary/10 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                        aria-label="Next month"
+                      >
+                        <span className="material-symbols-outlined text-primary">chevron_right</span>
+                      </button>
+                    </div>
                   </div>
 
                   <div className="grid grid-cols-7 gap-2">
@@ -620,8 +675,8 @@ export default function BookingPage() {
                   </div>
                   <ul className="text-xs space-y-2 font-sans opacity-80 leading-relaxed">
                     <li>• Please arrive 15 minutes before your slot.</li>
-                    <li>• Cancellation required 48 hours in advance.</li>
                     <li>• Ticket is valid only for selected date and time.</li>
+                    <li className="text-red-600 dark:text-red-400 font-semibold">• Tiket tidak dapat di-refund atau di-reschedule.</li>
                   </ul>
                 </div>
               </div>
