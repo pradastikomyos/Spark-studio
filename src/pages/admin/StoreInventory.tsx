@@ -304,6 +304,25 @@ const StoreInventory = () => {
       }
 
       if (!productId) {
+        // Check for duplicate SKU or slug before insert
+        const { data: existingProducts } = await supabase
+          .from('products')
+          .select('id, slug, sku')
+          .or(`slug.eq.${draft.slug},sku.eq.${draft.sku}`)
+          .is('deleted_at', null);
+
+        if (existingProducts && existingProducts.length > 0) {
+          const duplicateSlug = existingProducts.find(p => p.slug === draft.slug);
+          const duplicateSku = existingProducts.find(p => p.sku === draft.sku);
+
+          if (duplicateSlug) {
+            throw new Error(`⚠️ Product with slug "${draft.slug}" already exists. Please use a different product name or edit the slug manually.`);
+          }
+          if (duplicateSku) {
+            throw new Error(`⚠️ Product with SKU "${draft.sku}" already exists. Please use a different SKU.`);
+          }
+        }
+
         const { data, error } = await supabase
           .from('products')
           .insert({
@@ -316,7 +335,21 @@ const StoreInventory = () => {
           })
           .select('id')
           .single();
-        if (error || !data) throw error ?? new Error('Failed to create product');
+
+        if (error) {
+          // Parse error for better user messaging
+          if (error.code === '23505') { // Unique violation
+            if (error.message.includes('slug')) {
+              throw new Error(`⚠️ Product slug "${draft.slug}" is already taken. Please use a different name.`);
+            }
+            if (error.message.includes('sku')) {
+              throw new Error(`⚠️ Product SKU "${draft.sku}" is already taken. Please use a different SKU.`);
+            }
+            throw new Error('⚠️ A product with this slug or SKU already exists.');
+          }
+          throw error;
+        }
+        if (!data) throw new Error('Failed to create product');
         productId = Number(data.id);
       } else {
         const { error } = await supabase

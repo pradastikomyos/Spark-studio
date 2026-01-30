@@ -45,50 +45,59 @@ export function useInventory() {
   return useSWR<{ products: ProductRow[]; categories: CategoryRow[] }>(
     'inventory',
     async () => {
-      const [productsResult, categoriesResult] = await Promise.all([
-        supabase
-          .from('products')
-          .select(
-            `
-              id,
-              name,
-              slug,
-              description,
-              category_id,
-              sku,
-              is_active,
-              deleted_at,
-              categories(id, name, slug, is_active),
-              product_images(image_url, is_primary, display_order),
-              product_variants(
+      try {
+        const [productsResult, categoriesResult] = await Promise.all([
+          supabase
+            .from('products')
+            .select(
+              `
                 id,
-                product_id,
                 name,
+                slug,
+                description,
+                category_id,
                 sku,
-                price,
-                stock,
-                reserved_stock,
-                attributes,
-                is_active
-              )
-            `
-          )
-          .is('deleted_at', null)
-          .order('name', { ascending: true }),
-        supabase.from('categories').select('id, name, slug, is_active').order('name', { ascending: true }),
-      ]);
+                is_active,
+                deleted_at,
+                categories(id, name, slug, is_active),
+                product_images(image_url, is_primary, display_order),
+                product_variants(
+                  id,
+                  product_id,
+                  name,
+                  sku,
+                  price,
+                  stock,
+                  reserved_stock,
+                  attributes,
+                  is_active
+                )
+              `
+            )
+            .is('deleted_at', null)
+            .order('name', { ascending: true }),
+          supabase.from('categories').select('id, name, slug, is_active').order('name', { ascending: true }),
+        ]);
 
-      if (productsResult.error || categoriesResult.error) {
-        const err = new Error('Failed to load inventory') as APIError;
-        err.status = 500;
-        err.info = { products: productsResult.error, categories: categoriesResult.error };
-        throw err;
+        if (productsResult.error || categoriesResult.error) {
+          const err = new Error('Failed to load inventory') as APIError;
+          err.status = productsResult.error?.code === '409' ? 409 : 500;
+          err.info = { products: productsResult.error, categories: categoriesResult.error };
+          throw err;
+        }
+
+        return {
+          products: (productsResult.data || []) as unknown as ProductRow[],
+          categories: (categoriesResult.data || []) as unknown as CategoryRow[],
+        };
+      } catch (error) {
+        // Ignore AbortError - this happens when request is cancelled due to navigation/focus change
+        if (error instanceof Error && error.name === 'AbortError') {
+          // Return empty data to prevent SWR from showing error
+          return { products: [], categories: [] };
+        }
+        throw error;
       }
-
-      return {
-        products: (productsResult.data || []) as unknown as ProductRow[],
-        categories: (categoriesResult.data || []) as unknown as CategoryRow[],
-      };
     },
     {
       revalidateOnFocus: true,
