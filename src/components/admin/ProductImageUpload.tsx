@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 
 export type ImagePreview = {
   file: File;
@@ -17,6 +17,11 @@ type ProductImageUploadProps = {
 export default function ProductImageUpload(props: ProductImageUploadProps) {
   const { images, existingImages = [], maxImages = 3, onChange, onRemoveExisting } = props;
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleEmptySlotClick = useCallback(() => {
+    fileInputRef.current?.click();
+  }, []);
 
   const totalImages = images.length + existingImages.length;
   const canAddMore = totalImages < maxImages;
@@ -82,17 +87,23 @@ export default function ProductImageUpload(props: ProductImageUploadProps) {
           </p>
         </div>
         {canAddMore && (
-          <label className="cursor-pointer rounded-lg bg-primary px-3 py-2 text-xs font-bold text-white hover:bg-red-700">
+          <button
+            type="button"
+            onClick={handleEmptySlotClick}
+            className="cursor-pointer rounded-lg bg-primary px-3 py-2 text-xs font-bold text-white hover:bg-red-700"
+          >
             Add Image
-            <input
-              type="file"
-              accept="image/png,image/jpeg,image/webp"
-              multiple
-              className="hidden"
-              onChange={handleFileSelect}
-            />
-          </label>
+          </button>
         )}
+        {/* Hidden file input - triggered by both button and empty slots */}
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/png,image/jpeg,image/webp"
+          multiple
+          className="hidden"
+          onChange={handleFileSelect}
+        />
       </div>
 
       {/* Image Grid */}
@@ -133,9 +144,8 @@ export default function ProductImageUpload(props: ProductImageUploadProps) {
             onDragStart={() => handleDragStart(idx)}
             onDragOver={(e) => handleDragOver(e, idx)}
             onDragEnd={handleDragEnd}
-            className={`group relative aspect-square cursor-move overflow-hidden rounded-lg border border-white/10 bg-white/5 transition-opacity ${
-              draggedIndex === idx ? 'opacity-50' : 'opacity-100'
-            }`}
+            className={`group relative aspect-square cursor-move overflow-hidden rounded-lg border border-white/10 bg-white/5 transition-opacity ${draggedIndex === idx ? 'opacity-50' : 'opacity-100'
+              }`}
           >
             <img
               src={img.preview}
@@ -160,20 +170,25 @@ export default function ProductImageUpload(props: ProductImageUploadProps) {
           </div>
         ))}
 
-        {/* Empty Slots */}
+        {/* Empty Slots - Clickable to add images */}
         {Array.from({ length: maxImages - totalImages }).map((_, idx) => (
-          <div
+          <button
             key={`empty-${idx}`}
-            className="flex aspect-square items-center justify-center rounded-lg border border-dashed border-white/20 bg-white/5"
+            type="button"
+            onClick={handleEmptySlotClick}
+            className="group flex aspect-square cursor-pointer items-center justify-center rounded-lg border border-dashed border-white/20 bg-white/5 transition-all duration-200 hover:border-primary hover:bg-white/10"
           >
-            <span className="material-symbols-outlined text-3xl text-gray-600">add_photo_alternate</span>
-          </div>
+            <div className="flex flex-col items-center gap-1 transition-transform duration-200 group-hover:scale-110">
+              <span className="material-symbols-outlined text-3xl text-gray-500 transition-colors duration-200 group-hover:text-primary">add_photo_alternate</span>
+              <span className="text-[10px] text-gray-500 transition-colors duration-200 group-hover:text-primary/80">Click to add</span>
+            </div>
+          </button>
         ))}
       </div>
 
       {/* Helper Text */}
       <p className="text-xs text-gray-400">
-        JPG/PNG/WEBP, max 2MB per image. Drag images to reorder.
+        Click on empty slots or use the Add Image button. JPG/PNG/WEBP, max 2MB per image.
       </p>
     </div>
   );
