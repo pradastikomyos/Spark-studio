@@ -78,7 +78,12 @@ const TAB_IDLE_THRESHOLD_MS = 2 * 60 * 1000;
 
 function AppRoutes({ isDark, onToggleDarkMode }: { isDark: boolean; onToggleDarkMode: () => void }) {
   const location = useLocation();
-  const wrap = (node: ReactNode) => <ErrorBoundary>{node}</ErrorBoundary>;
+  const wrap = (node: ReactNode) => {
+    const path = location.pathname;
+    const isSuccessPage = path === '/booking-success' || path.startsWith('/order/product/success/');
+    const shouldWrap = !isSuccessPage && (path.startsWith('/admin') || path === '/shop' || path.startsWith('/shop/'));
+    return shouldWrap ? <ErrorBoundary>{node}</ErrorBoundary> : node;
+  };
   return (
     <AnimatePresence mode="wait">
       <Routes location={location} key={location.pathname}>

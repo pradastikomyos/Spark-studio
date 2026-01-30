@@ -1,93 +1,35 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
-import { toLocalDateString } from '../../utils/formatters';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
-import { supabase } from '../../lib/supabase';
 import AdminLayout from '../../components/AdminLayout';
 import { ADMIN_MENU_ITEMS, ADMIN_MENU_SECTIONS } from '../../constants/adminMenu';
-
-type Stage = {
-    id: number;
-    code: string;
-    name: string;
-    status: 'active' | 'maintenance' | 'inactive';
-    today_scans: number;
-};
+import TableRowSkeleton from '../../components/skeletons/TableRowSkeleton';
+import { useToast } from '../../components/Toast';
+import { useStageQRCodes, type StageQRCode } from '../../hooks/useStageQRCodes';
 
 const StageBulkQR = () => {
     const { signOut } = useAuth();
-    const [stages, setStages] = useState<Stage[]>([]);
-    const [loading, setLoading] = useState(true);
+    const { showToast } = useToast();
     const [searchQuery, setSearchQuery] = useState('');
     const [downloading, setDownloading] = useState(false);
-    const isFetchingRef = useRef(false);
+    const lastToastErrorRef = useRef<string | null>(null);
 
-    const fetchStages = useCallback(async (force = false) => {
-        if (isFetchingRef.current && !force) return;
-        isFetchingRef.current = true;
-        try {
-            setLoading(true);
-
-            const { data: stagesData, error } = await supabase
-                .from('stages')
-                .select('id, code, name, status')
-                .order('id', { ascending: true });
-
-            if (error) throw error;
-
-            // Fetch today's scans for each stage - use local date to avoid timezone issues
-            const todayStart = toLocalDateString(new Date()) + 'T00:00:00';
-
-            const stagesWithScans = await Promise.all(
-                (stagesData || []).map(async (stage) => {
-                    const { count } = await supabase
-                        .from('stage_scans')
-                        .select('*', { count: 'exact', head: true })
-                        .eq('stage_id', stage.id)
-                        .gte('scanned_at', todayStart);
-
-                    return {
-                        ...stage,
-                        today_scans: count || 0,
-                    };
-                })
-            );
-
-            setStages(stagesWithScans);
-        } catch (error) {
-            console.error('Error fetching stages:', error);
-        } finally {
-            setLoading(false);
-            isFetchingRef.current = false;
-        }
-    }, []);
+    const { data, error, isLoading } = useStageQRCodes();
+    const stages = data ?? [];
 
     useEffect(() => {
-        fetchStages();
-    }, [fetchStages]);
-
-    useEffect(() => {
-        const channel = supabase
-            .channel('stage_scans_changes')
-            .on(
-                'postgres_changes',
-                { event: '*', schema: 'public', table: 'stage_scans' },
-                () => {
-                    fetchStages();
-                }
-            )
-            .subscribe();
-
-        return () => {
-            supabase.removeChannel(channel);
-        };
-    }, [fetchStages]);
+        if (!error) return;
+        const message = error instanceof Error ? error.message : 'Gagal memuat data stage';
+        if (lastToastErrorRef.current === message) return;
+        lastToastErrorRef.current = message;
+        showToast('error', message);
+    }, [error, showToast]);
 
     const generateQRCodeUrl = (stageCode: string) => {
         const scanUrl = `${window.location.origin}/scan/${stageCode}`;
         return `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(scanUrl)}`;
     };
 
-    const handleDownloadSingle = async (stage: Stage) => {
+    const handleDownloadSingle = async (stage: StageQRCode) => {
         const qrUrl = generateQRCodeUrl(stage.code);
 
         try {
@@ -125,14 +67,18 @@ const StageBulkQR = () => {
         }
     };
 
-    const filteredStages = stages.filter(
-        (stage) =>
-            stage.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            stage.code.toLowerCase().includes(searchQuery.toLowerCase())
+    const filteredStages = useMemo(
+        () =>
+            stages.filter(
+                (stage) =>
+                    stage.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                    stage.code.toLowerCase().includes(searchQuery.toLowerCase())
+            ),
+        [searchQuery, stages]
     );
 
     // Calculate chart data (max value for scaling)
-    const maxScans = Math.max(...stages.map((s) => s.today_scans), 1);
+    const maxScans = useMemo(() => Math.max(...stages.map((s) => s.today_scans), 1), [stages]);
 
     return (
         <AdminLayout
@@ -143,6 +89,16 @@ const StageBulkQR = () => {
             onLogout={signOut}
         >
             <div className="mx-auto flex w-full max-w-7xl flex-col gap-6">
+                {/* Error Message */}
+                {error && (
+                    <div className="rounded-xl border border-red-500/20 bg-red-500/10 p-4 flex items-center gap-3">
+                        <span className="material-symbols-outlined text-red-500">error</span>
+                        <div>
+                            <p className="text-sm font-medium text-red-500">Error memuat stage</p>
+                            <p className="text-xs text-red-400 mt-1">{error instanceof Error ? error.message : 'Gagal memuat data stage'}</p>
+                        </div>
+                    </div>
+                )}
                 {/* Bulk Operations Header */}
                 <div className="rounded-xl border border-white/5 bg-surface-dark p-6 flex flex-col md:flex-row justify-between items-center gap-4">
                     <div>
@@ -153,7 +109,7 @@ const StageBulkQR = () => {
                     </div>
                     <button
                         onClick={handleDownloadAll}
-                        disabled={downloading || loading}
+                        disabled={downloading || isLoading}
                         className="flex items-center gap-2 rounded-lg bg-primary px-6 py-3 text-sm font-bold text-white hover:bg-red-600 transition-all shadow-lg shadow-red-900/20 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                         {downloading ? (
@@ -179,9 +135,18 @@ const StageBulkQR = () => {
                             <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse"></div>
                         </div>
                     </div>
-                    {loading ? (
-                        <div className="flex items-center justify-center h-64">
-                            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                    {isLoading ? (
+                        <div className="relative h-64 w-full rounded border border-white/5 p-4 overflow-hidden">
+                            <div className="absolute inset-0 bg-[linear-gradient(to_right,#27272a_1px,transparent_1px),linear-gradient(to_bottom,#27272a_1px,transparent_1px)] bg-[size:40px_40px] opacity-50" />
+                            <div className="relative h-full flex items-end justify-between px-2 gap-2">
+                                {Array.from({ length: 10 }).map((_, idx) => (
+                                    <div
+                                        key={`stage-bulk-qr-chart-skel-${idx}`}
+                                        className="w-full bg-white/5 rounded-t animate-pulse"
+                                        style={{ height: `${20 + (idx % 5) * 12}%` }}
+                                    />
+                                ))}
+                            </div>
                         </div>
                     ) : (
                         <div className="relative h-64 w-full rounded border border-white/5 p-4 flex items-end justify-between overflow-hidden bg-[linear-gradient(to_right,#27272a_1px,transparent_1px),linear-gradient(to_bottom,#27272a_1px,transparent_1px)] bg-[size:40px_40px]">
@@ -246,24 +211,23 @@ const StageBulkQR = () => {
                         </div>
                     </div>
 
-                    {loading ? (
-                        <div className="flex items-center justify-center h-64">
-                            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-                        </div>
-                    ) : (
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-left text-sm text-gray-400">
-                                <thead className="bg-surface-darker text-xs uppercase text-gray-500 font-medium">
-                                    <tr>
-                                        <th className="px-6 py-3">Stage ID</th>
-                                        <th className="px-6 py-3">Stage Name</th>
-                                        <th className="px-6 py-3">QR Status</th>
-                                        <th className="px-6 py-3 text-center">Today's Scans</th>
-                                        <th className="px-6 py-3 text-right">Action</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-white/5">
-                                    {filteredStages.map((stage) => (
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-left text-sm text-gray-400">
+                            <thead className="bg-surface-darker text-xs uppercase text-gray-500 font-medium">
+                                <tr>
+                                    <th className="px-6 py-3">Stage ID</th>
+                                    <th className="px-6 py-3">Stage Name</th>
+                                    <th className="px-6 py-3">QR Status</th>
+                                    <th className="px-6 py-3 text-center">Today's Scans</th>
+                                    <th className="px-6 py-3 text-right">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-white/5">
+                                {isLoading
+                                    ? Array.from({ length: 8 }).map((_, idx) => (
+                                        <TableRowSkeleton key={`stage-bulk-qr-skel-${idx}`} columns={5} />
+                                    ))
+                                    : filteredStages.map((stage) => (
                                         <tr key={stage.id} className="hover:bg-white/5 transition-colors group">
                                             <td className="px-6 py-4 font-medium text-white">#{stage.code}</td>
                                             <td className="px-6 py-4">{stage.name}</td>
@@ -295,10 +259,9 @@ const StageBulkQR = () => {
                                             </td>
                                         </tr>
                                     ))}
-                                </tbody>
-                            </table>
-                        </div>
-                    )}
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
         </AdminLayout>

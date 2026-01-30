@@ -5,102 +5,22 @@ import { supabase } from '../../lib/supabase';
 import AdminLayout from '../../components/AdminLayout';
 import { ADMIN_MENU_ITEMS, ADMIN_MENU_SECTIONS } from '../../constants/adminMenu';
 import { toLocalDateString } from '../../utils/formatters';
-
-type Stage = {
-    id: number;
-    code: string;
-    name: string;
-    description: string | null;
-    zone: string | null;
-    max_occupancy: number;
-    status: 'active' | 'maintenance' | 'inactive';
-    qr_code_url: string | null;
-    created_at: string;
-    updated_at: string;
-};
-
-type StageWithStats = Stage & {
-    total_scans: number;
-    today_scans: number;
-};
+import { useStages, type StageWithStats } from '../../hooks/useStages';
 
 const TAB_RETURN_EVENT = 'tab-returned-from-idle';
 
 const StageManager = () => {
     const { signOut, isAdmin } = useAuth();
-    const [stages, setStages] = useState<StageWithStats[]>([]);
-    const [loading, setLoading] = useState(true);
+    const { data: stages = [], error: stagesError, isLoading, mutate } = useStages({ enabled: isAdmin });
     const [searchQuery, setSearchQuery] = useState('');
-    const [error, setError] = useState<string | null>(null);
     const [qrByStageId, setQrByStageId] = useState<Record<number, string>>({});
-    const isFetchingRef = useRef(false);
     const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
 
-    const fetchStagesWithStats = useCallback(async (force = false) => {
-        if (isFetchingRef.current && !force) return;
-
-        // Set fetching flag
-        isFetchingRef.current = true;
-
-        try {
-            setLoading(true);
-            setError(null);
-
-            // Fetch stages and stats in parallel (2 queries instead of 2N)
-            const [stagesResult, statsResult] = await Promise.all([
-                supabase
-                    .from('stages')
-                    .select('*')
-                    .order('id', { ascending: true })
-                    .abortSignal(AbortSignal.timeout(10000)),
-                supabase
-                    .rpc('get_stage_scan_stats')
-                    .abortSignal(AbortSignal.timeout(10000)),
-            ]);
-
-            if (stagesResult.error) throw stagesResult.error;
-            if (statsResult.error) {
-                console.warn('RPC get_stage_scan_stats failed, falling back to zero stats:', statsResult.error);
-            }
-
-            // Build a map of stage_id -> stats for O(1) lookup
-            const statsMap = new Map<number, { total_scans: number; today_scans: number }>();
-            if (statsResult.data) {
-                for (const stat of statsResult.data) {
-                    statsMap.set(stat.stage_id, {
-                        total_scans: Number(stat.total_scans) || 0,
-                        today_scans: Number(stat.today_scans) || 0,
-                    });
-                }
-            }
-
-            // Merge stages with stats
-            const stagesWithStats: StageWithStats[] = (stagesResult.data || []).map((stage) => ({
-                ...stage,
-                total_scans: statsMap.get(stage.id)?.total_scans ?? 0,
-                today_scans: statsMap.get(stage.id)?.today_scans ?? 0,
-            }));
-
-            setStages(stagesWithStats);
-        } catch (error) {
-            console.error('Error fetching stages:', error);
-            const errorMessage = error instanceof Error ? error.message : 'Failed to load stages';
-            setError(errorMessage);
-
-            // Set empty data on error to prevent stuck state
-            setStages([]);
-        } finally {
-            // Always reset loading and fetching states
-            setLoading(false);
-            isFetchingRef.current = false;
-        }
-    }, []);
-
-    useEffect(() => {
-        if (isAdmin) {
-            fetchStagesWithStats();
-        }
-    }, [isAdmin, fetchStagesWithStats]);
+    const errorMessage = useMemo(() => {
+        if (!stagesError) return null;
+        if (stagesError instanceof Error) return stagesError.message;
+        return String(stagesError);
+    }, [stagesError]);
 
     const setupRealtimeChannel = useCallback(() => {
         const todayStart = toLocalDateString(new Date()) + 'T00:00:00';
@@ -123,17 +43,24 @@ const StageManager = () => {
 
                     const scannedAt = record?.scanned_at ? new Date(record.scanned_at).getTime() : null;
 
-                    setStages((prev) =>
-                        prev.map((stage) => {
-                            if (stage.id !== stageId) return stage;
-                            const nextToday = scannedAt != null && scannedAt >= todayStartTime ? stage.today_scans + 1 : stage.today_scans;
-                            return { ...stage, total_scans: stage.total_scans + 1, today_scans: nextToday };
-                        })
+                    mutate(
+                        (current) => {
+                            const prev = current || [];
+                            return prev.map((stage) => {
+                                if (stage.id !== stageId) return stage;
+                                const nextToday =
+                                    scannedAt != null && scannedAt >= todayStartTime
+                                        ? stage.today_scans + 1
+                                        : stage.today_scans;
+                                return { ...stage, total_scans: stage.total_scans + 1, today_scans: nextToday };
+                            });
+                        },
+                        { revalidate: false }
                     );
                 }
             )
             .subscribe();
-    }, []);
+    }, [mutate]);
 
     useEffect(() => {
         if (!isAdmin) return;
@@ -152,7 +79,7 @@ const StageManager = () => {
         if (typeof window === 'undefined') return;
 
         const handleTabReturn = () => {
-            fetchStagesWithStats(true);
+            mutate();
             setupRealtimeChannel();
         };
 
@@ -160,7 +87,7 @@ const StageManager = () => {
         return () => {
             window.removeEventListener(TAB_RETURN_EVENT, handleTabReturn);
         };
-    }, [isAdmin, fetchStagesWithStats, setupRealtimeChannel]);
+    }, [isAdmin, mutate, setupRealtimeChannel]);
 
     useEffect(() => {
         let cancelled = false;
@@ -232,7 +159,7 @@ const StageManager = () => {
     const activeStagesCount = useMemo(() => stages.filter((s) => s.status === 'active').length, [stages]);
 
     // Show error if not admin
-    if (!isAdmin && !loading) {
+    if (!isAdmin && !isLoading) {
         return (
             <AdminLayout
                 menuItems={ADMIN_MENU_ITEMS}
@@ -261,12 +188,12 @@ const StageManager = () => {
             onLogout={signOut}
         >
             {/* Error Message */}
-            {error && (
+            {errorMessage && (
                 <div className="mb-6 rounded-xl border border-red-500/20 bg-red-500/10 p-4 flex items-center gap-3">
                     <span className="material-symbols-outlined text-red-500">error</span>
                     <div>
                         <p className="text-sm font-medium text-red-500">Error loading stages</p>
-                        <p className="text-xs text-red-400 mt-1">{error}</p>
+                        <p className="text-xs text-red-400 mt-1">{errorMessage}</p>
                     </div>
                 </div>
             )}
@@ -299,7 +226,7 @@ const StageManager = () => {
             </div>
 
             {/* Stage Grid */}
-            {loading ? (
+            {isLoading ? (
                 <div className="flex items-center justify-center h-64">
                     <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
                 </div>
@@ -376,7 +303,7 @@ const StageManager = () => {
             )}
 
             {/* Empty State */}
-            {!loading && filteredStages.length === 0 && (
+            {!isLoading && filteredStages.length === 0 && (
                 <div className="flex flex-col items-center justify-center h-64 text-center">
                     <span className="material-symbols-outlined text-6xl text-gray-600 mb-4">search_off</span>
                     <p className="text-gray-400">No stages found matching "{searchQuery}"</p>
