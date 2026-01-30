@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { slugify } from '../../utils/merchant';
+import ProductImageUpload, { ImagePreview } from './ProductImageUpload';
 
 export type CategoryOption = {
   id: number;
@@ -29,12 +30,22 @@ export type ProductDraft = {
   variants: ProductVariantDraft[];
 };
 
+export type ExistingImage = {
+  url: string;
+  is_primary: boolean;
+};
+
 type ProductFormModalProps = {
   isOpen: boolean;
   categories: CategoryOption[];
   initialValue?: ProductDraft | null;
+  existingImages?: ExistingImage[];
   onClose: () => void;
-  onSave: (payload: { draft: ProductDraft; imageFile: File | null }) => Promise<void> | void;
+  onSave: (payload: { 
+    draft: ProductDraft; 
+    newImages: File[];
+    removedImageUrls: string[];
+  }) => Promise<void> | void;
 };
 
 const emptyDraft = (): ProductDraft => ({
@@ -48,9 +59,10 @@ const emptyDraft = (): ProductDraft => ({
 });
 
 export default function ProductFormModal(props: ProductFormModalProps) {
-  const { isOpen, categories, initialValue, onClose, onSave } = props;
+  const { isOpen, categories, initialValue, existingImages = [], onClose, onSave } = props;
   const [draft, setDraft] = useState<ProductDraft>(emptyDraft);
-  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [images, setImages] = useState<ImagePreview[]>([]);
+  const [removedImageUrls, setRemovedImageUrls] = useState<string[]>([]);
   const [slugTouched, setSlugTouched] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -59,7 +71,8 @@ export default function ProductFormModal(props: ProductFormModalProps) {
     if (!isOpen) return;
     const next = initialValue ? { ...initialValue } : emptyDraft();
     setDraft(next);
-    setImageFile(null);
+    setImages([]);
+    setRemovedImageUrls([]);
     setSlugTouched(Boolean(initialValue?.slug));
     setError(null);
     setSaving(false);
@@ -80,6 +93,10 @@ export default function ProductFormModal(props: ProductFormModalProps) {
     if (!draft.sku.trim()) return 'Product SKU is required.';
     if (!draft.category_id) return 'Category is required.';
     if (!draft.variants.length) return 'At least one variant is required.';
+    
+    const totalImages = images.length + existingImages.length - removedImageUrls.length;
+    if (totalImages === 0) return 'At least one product image is required.';
+    
     for (const v of draft.variants) {
       if (!v.name.trim()) return 'Variant name is required.';
       if (!v.sku.trim()) return 'Variant SKU is required.';
@@ -99,7 +116,8 @@ export default function ProductFormModal(props: ProductFormModalProps) {
     setSaving(true);
     setError(null);
     try {
-      await onSave({ draft, imageFile });
+      const newImageFiles = images.map(img => img.file);
+      await onSave({ draft, newImages: newImageFiles, removedImageUrls });
       onClose();
     } catch (e) {
       const message = e instanceof Error ? e.message : 'Failed to save product';
@@ -109,14 +127,20 @@ export default function ProductFormModal(props: ProductFormModalProps) {
     }
   };
 
+  const handleRemoveExisting = (url: string) => {
+    setRemovedImageUrls(prev => [...prev, url]);
+  };
+
+  const activeExistingImages = existingImages.filter(img => !removedImageUrls.includes(img.url));
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center px-4 py-6">
       <div className="absolute inset-0 bg-black/60" onClick={() => !saving && onClose()}></div>
-      <div className="relative flex max-h-[90vh] w-full max-w-4xl flex-col rounded-xl border border-white/10 bg-surface-dark text-white shadow-2xl">
+      <div className="relative flex max-h-[90vh] w-full max-w-5xl flex-col rounded-xl border border-white/10 bg-surface-dark text-white shadow-2xl">
         <div className="flex shrink-0 items-start justify-between border-b border-white/10 px-6 py-5">
           <div>
             <h3 className="text-lg font-bold">{draft.id ? 'Edit Product' : 'Add Product'}</h3>
-            <p className="mt-1 text-sm text-gray-400">Create or update product details, variants, and image.</p>
+            <p className="mt-1 text-sm text-gray-400">Create or update product details, variants, and images.</p>
           </div>
           <button
             onClick={() => onClose()}
@@ -127,272 +151,259 @@ export default function ProductFormModal(props: ProductFormModalProps) {
           </button>
         </div>
 
-        <div className="grid min-h-0 flex-1 grid-cols-1 gap-6 overflow-y-auto p-6 lg:grid-cols-2">
-          <div className="flex flex-col gap-4">
+        <div className="min-h-0 flex-1 overflow-y-auto p-6">
+          <div className="space-y-6">
             {error && (
               <div className="rounded-xl border border-red-500/20 bg-red-500/10 p-4 text-sm text-red-200">
                 {error}
               </div>
             )}
 
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <label className="flex flex-col gap-1">
-                <span className="text-xs font-bold text-gray-400">Name</span>
-                <input
-                  value={draft.name}
-                  onChange={(e) => {
-                    const name = e.target.value;
-                    setDraft((prev) => {
-                      const nextSlug = slugTouched ? prev.slug : slugify(name);
-                      return { ...prev, name, slug: nextSlug };
-                    });
-                  }}
-                  className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary"
-                  placeholder="Product name"
-                />
-              </label>
-              <label className="flex flex-col gap-1">
-                <span className="text-xs font-bold text-gray-400">Slug</span>
-                <input
-                  value={draft.slug}
-                  onChange={(e) => {
-                    setSlugTouched(true);
-                    setDraft((prev) => ({ ...prev, slug: e.target.value }));
-                  }}
-                  className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary"
-                  placeholder="product-slug"
-                />
-              </label>
-            </div>
-
-            <label className="flex flex-col gap-1">
-              <span className="text-xs font-bold text-gray-400">Product SKU</span>
-              <input
-                value={draft.sku}
-                onChange={(e) => setDraft((prev) => ({ ...prev, sku: e.target.value.toUpperCase() }))}
-                className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary"
-                placeholder="PROD-001"
-              />
-            </label>
-
-            <label className="flex flex-col gap-1">
-              <span className="text-xs font-bold text-gray-400">Category</span>
-              <select
-                value={draft.category_id ?? ''}
-                onChange={(e) => setDraft((prev) => ({ ...prev, category_id: e.target.value ? Number(e.target.value) : null }))}
-                className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary"
-              >
-                <option value="">Select category</option>
-                {categoryOptions.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <label className="flex flex-col gap-1">
-              <span className="text-xs font-bold text-gray-400">Description</span>
-              <textarea
-                value={draft.description}
-                onChange={(e) => setDraft((prev) => ({ ...prev, description: e.target.value }))}
-                className="min-h-[96px] rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary"
-                placeholder="Optional description"
-              />
-            </label>
-
-            <div className="flex items-center justify-between rounded-xl border border-white/10 bg-white/5 px-4 py-3">
-              <div>
-                <p className="text-sm font-bold">Active</p>
-                <p className="text-xs text-gray-400">Inactive products won\u2019t show on Shop page.</p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setDraft((prev) => ({ ...prev, is_active: !prev.is_active }))}
-                className={`relative h-7 w-12 rounded-full transition-colors ${draft.is_active ? 'bg-primary' : 'bg-white/10'}`}
-              >
-                <span
-                  className={`absolute top-1 h-5 w-5 rounded-full bg-white transition-all ${draft.is_active ? 'left-6' : 'left-1'}`}
-                />
-              </button>
-            </div>
-
+            {/* IMAGE SECTION - NOW AT TOP */}
             <div className="rounded-xl border border-white/10 bg-white/5 p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-bold">Product Image</p>
-                  <p className="text-xs text-gray-400">JPG/PNG/WEBP, max 2MB.</p>
+              <ProductImageUpload
+                images={images}
+                existingImages={activeExistingImages}
+                maxImages={3}
+                onChange={setImages}
+                onRemoveExisting={handleRemoveExisting}
+              />
+            </div>
+
+            {/* PRODUCT DETAILS */}
+            <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+              <div className="flex flex-col gap-4">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <label className="flex flex-col gap-1">
+                    <span className="text-xs font-bold text-gray-400">Name</span>
+                    <input
+                      value={draft.name}
+                      onChange={(e) => {
+                        const name = e.target.value;
+                        setDraft((prev) => {
+                          const nextSlug = slugTouched ? prev.slug : slugify(name);
+                          return { ...prev, name, slug: nextSlug };
+                        });
+                      }}
+                      className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+                      placeholder="Product name"
+                    />
+                  </label>
+                  <label className="flex flex-col gap-1">
+                    <span className="text-xs font-bold text-gray-400">Slug</span>
+                    <input
+                      value={draft.slug}
+                      onChange={(e) => {
+                        setSlugTouched(true);
+                        setDraft((prev) => ({ ...prev, slug: e.target.value }));
+                      }}
+                      className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+                      placeholder="product-slug"
+                    />
+                  </label>
                 </div>
-                <label className="cursor-pointer rounded-lg bg-white/10 px-3 py-2 text-xs font-bold hover:bg-white/15">
-                  Choose File
+
+                <label className="flex flex-col gap-1">
+                  <span className="text-xs font-bold text-gray-400">Product SKU</span>
                   <input
-                    type="file"
-                    accept="image/png,image/jpeg,image/webp"
-                    className="hidden"
-                    onChange={(e) => setImageFile(e.target.files?.[0] ?? null)}
+                    value={draft.sku}
+                    onChange={(e) => setDraft((prev) => ({ ...prev, sku: e.target.value.toUpperCase() }))}
+                    className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+                    placeholder="PROD-001"
                   />
                 </label>
-              </div>
-              <div className="mt-3 flex items-center justify-between">
-                <p className="text-xs text-gray-400">{imageFile ? imageFile.name : 'No file selected'}</p>
-                {imageFile && (
+
+                <label className="flex flex-col gap-1">
+                  <span className="text-xs font-bold text-gray-400">Category</span>
+                  <select
+                    value={draft.category_id ?? ''}
+                    onChange={(e) => setDraft((prev) => ({ ...prev, category_id: e.target.value ? Number(e.target.value) : null }))}
+                    className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+                  >
+                    <option value="">Select category</option>
+                    {categoryOptions.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <label className="flex flex-col gap-1">
+                  <span className="text-xs font-bold text-gray-400">Description</span>
+                  <textarea
+                    value={draft.description}
+                    onChange={(e) => setDraft((prev) => ({ ...prev, description: e.target.value }))}
+                    className="min-h-[96px] rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+                    placeholder="Optional description"
+                  />
+                </label>
+
+                <div className="flex items-center justify-between rounded-xl border border-white/10 bg-white/5 px-4 py-3">
+                  <div>
+                    <p className="text-sm font-bold">Active</p>
+                    <p className="text-xs text-gray-400">Inactive products won't show on Shop page.</p>
+                  </div>
                   <button
                     type="button"
-                    onClick={() => setImageFile(null)}
-                    className="text-xs font-bold text-gray-300 hover:text-white"
+                    onClick={() => setDraft((prev) => ({ ...prev, is_active: !prev.is_active }))}
+                    className={`relative h-7 w-12 rounded-full transition-colors ${draft.is_active ? 'bg-primary' : 'bg-white/10'}`}
                   >
-                    Remove
+                    <span
+                      className={`absolute top-1 h-5 w-5 rounded-full bg-white transition-all ${draft.is_active ? 'left-6' : 'left-1'}`}
+                    />
                   </button>
-                )}
+                </div>
               </div>
-            </div>
-          </div>
 
-          <div className="rounded-xl border border-white/10 bg-white/5 p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-bold">Variants</p>
-                <p className="text-xs text-gray-400">Each variant must have a unique SKU.</p>
+              {/* VARIANTS SECTION */}
+              <div className="rounded-xl border border-white/10 bg-white/5 p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-bold">Variants</p>
+                    <p className="text-xs text-gray-400">Each variant must have a unique SKU.</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setDraft((prev) => ({
+                        ...prev,
+                        variants: [...prev.variants, { name: '', sku: '', price: '', stock: 0 }],
+                      }))
+                    }
+                    className="rounded-lg bg-primary px-3 py-2 text-xs font-bold text-white hover:bg-red-700"
+                  >
+                    Add Variant
+                  </button>
+                </div>
+
+                <div className="mt-4 max-h-[400px] overflow-y-auto overflow-x-auto">
+                  <table className="w-full text-left text-xs text-gray-300">
+                    <thead className="text-[10px] uppercase text-gray-400">
+                      <tr>
+                        <th className="py-2 pr-3">Name</th>
+                        <th className="py-2 pr-3">SKU</th>
+                        <th className="py-2 pr-3">Price</th>
+                        <th className="py-2 pr-3">Stock</th>
+                        <th className="py-2 pr-3">Size</th>
+                        <th className="py-2 pr-3">Color</th>
+                        <th className="py-2"></th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-white/10">
+                      {draft.variants.map((v, idx) => (
+                        <tr key={v.id ?? `new-${idx}`}>
+                          <td className="py-2 pr-3">
+                            <input
+                              value={v.name}
+                              onChange={(e) =>
+                                setDraft((prev) => {
+                                  const next = prev.variants.slice();
+                                  next[idx] = { ...next[idx], name: e.target.value };
+                                  return { ...prev, variants: next };
+                                })
+                              }
+                              className="w-36 rounded border border-white/10 bg-white/5 px-2 py-1 outline-none focus:border-primary"
+                            />
+                          </td>
+                          <td className="py-2 pr-3">
+                            <input
+                              value={v.sku}
+                              onChange={(e) =>
+                                setDraft((prev) => {
+                                  const next = prev.variants.slice();
+                                  next[idx] = { ...next[idx], sku: e.target.value.toUpperCase() };
+                                  return { ...prev, variants: next };
+                                })
+                              }
+                              className="w-32 rounded border border-white/10 bg-white/5 px-2 py-1 outline-none focus:border-primary"
+                            />
+                          </td>
+                          <td className="py-2 pr-3">
+                            <input
+                              type="number"
+                              min="0"
+                              step="1"
+                              value={v.price}
+                              onChange={(e) =>
+                                setDraft((prev) => {
+                                  const next = prev.variants.slice();
+                                  next[idx] = { ...next[idx], price: e.target.value };
+                                  return { ...prev, variants: next };
+                                })
+                              }
+                              className="w-24 rounded border border-white/10 bg-white/5 px-2 py-1 outline-none focus:border-primary"
+                              placeholder="50000"
+                            />
+                          </td>
+                          <td className="py-2 pr-3">
+                            <input
+                              value={String(v.stock)}
+                              onChange={(e) =>
+                                setDraft((prev) => {
+                                  const next = prev.variants.slice();
+                                  const stock = Number(e.target.value);
+                                  next[idx] = { ...next[idx], stock: Number.isFinite(stock) ? stock : 0 };
+                                  return { ...prev, variants: next };
+                                })
+                              }
+                              className="w-16 rounded border border-white/10 bg-white/5 px-2 py-1 outline-none focus:border-primary"
+                            />
+                          </td>
+                          <td className="py-2 pr-3">
+                            <input
+                              value={v.size ?? ''}
+                              onChange={(e) =>
+                                setDraft((prev) => {
+                                  const next = prev.variants.slice();
+                                  next[idx] = { ...next[idx], size: e.target.value };
+                                  return { ...prev, variants: next };
+                                })
+                              }
+                              className="w-16 rounded border border-white/10 bg-white/5 px-2 py-1 outline-none focus:border-primary"
+                            />
+                          </td>
+                          <td className="py-2 pr-3">
+                            <input
+                              value={v.color ?? ''}
+                              onChange={(e) =>
+                                setDraft((prev) => {
+                                  const next = prev.variants.slice();
+                                  next[idx] = { ...next[idx], color: e.target.value };
+                                  return { ...prev, variants: next };
+                                })
+                              }
+                              className="w-16 rounded border border-white/10 bg-white/5 px-2 py-1 outline-none focus:border-primary"
+                            />
+                          </td>
+                          <td className="py-2 text-right">
+                            <button
+                              type="button"
+                              disabled={saving || draft.variants.length <= 1}
+                              onClick={() =>
+                                setDraft((prev) => {
+                                  const next = prev.variants.slice();
+                                  next.splice(idx, 1);
+                                  return { ...prev, variants: next };
+                                })
+                              }
+                              className="rounded bg-white/10 px-2 py-1 text-[10px] font-bold hover:bg-white/15 disabled:opacity-40"
+                            >
+                              Remove
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
-              <button
-                type="button"
-                onClick={() =>
-                  setDraft((prev) => ({
-                    ...prev,
-                    variants: [...prev.variants, { name: '', sku: '', price: '', stock: 0 }],
-                  }))
-                }
-                className="rounded-lg bg-primary px-3 py-2 text-xs font-bold text-white hover:bg-red-700"
-              >
-                Add Variant
-              </button>
-            </div>
-
-            <div className="mt-4 max-h-[400px] overflow-y-auto overflow-x-auto">
-              <table className="w-full text-left text-xs text-gray-300">
-                <thead className="text-[10px] uppercase text-gray-400">
-                  <tr>
-                    <th className="py-2 pr-3">Name</th>
-                    <th className="py-2 pr-3">SKU</th>
-                    <th className="py-2 pr-3">Price</th>
-                    <th className="py-2 pr-3">Stock</th>
-                    <th className="py-2 pr-3">Size</th>
-                    <th className="py-2 pr-3">Color</th>
-                    <th className="py-2"></th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-white/10">
-                  {draft.variants.map((v, idx) => (
-                    <tr key={v.id ?? `new-${idx}`}>
-                      <td className="py-2 pr-3">
-                        <input
-                          value={v.name}
-                          onChange={(e) =>
-                            setDraft((prev) => {
-                              const next = prev.variants.slice();
-                              next[idx] = { ...next[idx], name: e.target.value };
-                              return { ...prev, variants: next };
-                            })
-                          }
-                          className="w-36 rounded border border-white/10 bg-white/5 px-2 py-1 outline-none focus:border-primary"
-                        />
-                      </td>
-                      <td className="py-2 pr-3">
-                        <input
-                          value={v.sku}
-                          onChange={(e) =>
-                            setDraft((prev) => {
-                              const next = prev.variants.slice();
-                              next[idx] = { ...next[idx], sku: e.target.value.toUpperCase() };
-                              return { ...prev, variants: next };
-                            })
-                          }
-                          className="w-32 rounded border border-white/10 bg-white/5 px-2 py-1 outline-none focus:border-primary"
-                        />
-                      </td>
-                      <td className="py-2 pr-3">
-                        <input
-                          type="number"
-                          min="0"
-                          step="1"
-                          value={v.price}
-                          onChange={(e) =>
-                            setDraft((prev) => {
-                              const next = prev.variants.slice();
-                              next[idx] = { ...next[idx], price: e.target.value };
-                              return { ...prev, variants: next };
-                            })
-                          }
-                          className="w-24 rounded border border-white/10 bg-white/5 px-2 py-1 outline-none focus:border-primary"
-                          placeholder="50000"
-                        />
-                      </td>
-                      <td className="py-2 pr-3">
-                        <input
-                          value={String(v.stock)}
-                          onChange={(e) =>
-                            setDraft((prev) => {
-                              const next = prev.variants.slice();
-                              const stock = Number(e.target.value);
-                              next[idx] = { ...next[idx], stock: Number.isFinite(stock) ? stock : 0 };
-                              return { ...prev, variants: next };
-                            })
-                          }
-                          className="w-16 rounded border border-white/10 bg-white/5 px-2 py-1 outline-none focus:border-primary"
-                        />
-                      </td>
-                      <td className="py-2 pr-3">
-                        <input
-                          value={v.size ?? ''}
-                          onChange={(e) =>
-                            setDraft((prev) => {
-                              const next = prev.variants.slice();
-                              next[idx] = { ...next[idx], size: e.target.value };
-                              return { ...prev, variants: next };
-                            })
-                          }
-                          className="w-16 rounded border border-white/10 bg-white/5 px-2 py-1 outline-none focus:border-primary"
-                        />
-                      </td>
-                      <td className="py-2 pr-3">
-                        <input
-                          value={v.color ?? ''}
-                          onChange={(e) =>
-                            setDraft((prev) => {
-                              const next = prev.variants.slice();
-                              next[idx] = { ...next[idx], color: e.target.value };
-                              return { ...prev, variants: next };
-                            })
-                          }
-                          className="w-16 rounded border border-white/10 bg-white/5 px-2 py-1 outline-none focus:border-primary"
-                        />
-                      </td>
-                      <td className="py-2 text-right">
-                        <button
-                          type="button"
-                          disabled={saving || draft.variants.length <= 1}
-                          onClick={() =>
-                            setDraft((prev) => {
-                              const next = prev.variants.slice();
-                              next.splice(idx, 1);
-                              return { ...prev, variants: next };
-                            })
-                          }
-                          className="rounded bg-white/10 px-2 py-1 text-[10px] font-bold hover:bg-white/15 disabled:opacity-40"
-                        >
-                          Remove
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
             </div>
           </div>
         </div>
 
         <div className="flex shrink-0 items-center justify-between border-t border-white/10 px-6 py-5">
-          <p className="text-xs text-gray-400">Saving will apply changes to products and variants.</p>
+          <p className="text-xs text-gray-400">Saving will apply changes to products, variants, and images.</p>
           <div className="flex items-center gap-3">
             <button
               onClick={() => onClose()}

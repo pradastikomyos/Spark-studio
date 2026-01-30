@@ -4,10 +4,9 @@ import { supabase } from '../../lib/supabase';
 import AdminLayout from '../../components/AdminLayout';
 import CategoryManager from '../../components/admin/CategoryManager';
 import QRScannerModal from '../../components/admin/QRScannerModal';
-import ProductFormModal, { type CategoryOption, type ProductDraft } from '../../components/admin/ProductFormModal';
+import ProductFormModal, { type CategoryOption, type ProductDraft, type ExistingImage } from '../../components/admin/ProductFormModal';
 import { ADMIN_MENU_ITEMS, ADMIN_MENU_SECTIONS } from '../../constants/adminMenu';
 import { getStockBadge, getStockBarColor } from '../../utils/statusHelpers';
-import { uploadProductImage } from '../../utils/uploadProductImage';
 import { formatCurrency } from '../../utils/formatters';
 import { useInventory, type ProductRow } from '../../hooks/useInventory';
 import TableRowSkeleton from '../../components/skeletons/TableRowSkeleton';
@@ -55,6 +54,7 @@ const StoreInventory = () => {
   const [productsRaw, setProductsRaw] = useState<ProductRow[]>([]);
   const [showProductForm, setShowProductForm] = useState(false);
   const [editingProductId, setEditingProductId] = useState<number | null>(null);
+  const [existingImages, setExistingImages] = useState<ExistingImage[]>([]);
   const [deletingProduct, setDeletingProduct] = useState<{ id: number; name: string } | null>(null);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -213,12 +213,22 @@ const StoreInventory = () => {
   const handleOpenCreate = () => {
     setSaveError(null);
     setEditingProductId(null);
+    setExistingImages([]);
     setShowProductForm(true);
   };
 
-  const handleOpenEdit = (productId: number) => {
+  const handleOpenEdit = async (productId: number) => {
     setSaveError(null);
     setEditingProductId(productId);
+    
+    // Fetch existing images
+    const { data } = await supabase
+      .from('product_images')
+      .select('image_url, is_primary')
+      .eq('product_id', productId)
+      .order('display_order');
+    
+    setExistingImages(data?.map(img => ({ url: img.image_url, is_primary: img.is_primary })) || []);
     setShowProductForm(true);
   };
 
@@ -245,8 +255,12 @@ const StoreInventory = () => {
     }
   };
 
-  const handleSaveProduct = async (payload: { draft: ProductDraft; imageFile: File | null }) => {
-    const { draft, imageFile } = payload;
+  const handleSaveProduct = async (payload: { 
+    draft: ProductDraft; 
+    newImages: File[];
+    removedImageUrls: string[];
+  }) => {
+    const { draft, newImages, removedImageUrls } = payload;
     setSaving(true);
     setSaveError(null);
 
@@ -311,13 +325,34 @@ const StoreInventory = () => {
         if (error) throw error;
       }
 
-      const uploadedImageUrl = imageFile ? await uploadProductImage(imageFile, String(productId), { maxSizeMb: 2 }) : null;
-      if (uploadedImageUrl) {
+      // Handle removed images
+      if (removedImageUrls.length > 0) {
         const { error } = await supabase
-          .from('products')
-          .update({ image_url: uploadedImageUrl })
-          .eq('id', productId);
+          .from('product_images')
+          .delete()
+          .eq('product_id', productId)
+          .in('image_url', removedImageUrls);
         if (error) throw error;
+      }
+
+      // Upload new images
+      if (newImages.length > 0) {
+        const { uploadProductImages, saveProductImages } = await import('../../utils/uploadProductImage');
+        
+        // Get current max display_order
+        const { data: existingImages } = await supabase
+          .from('product_images')
+          .select('display_order')
+          .eq('product_id', productId)
+          .order('display_order', { ascending: false })
+          .limit(1);
+        
+        const startOrder = existingImages && existingImages.length > 0 
+          ? existingImages[0].display_order + 1 
+          : 0;
+
+        const uploadedUrls = await uploadProductImages(newImages, productId, { maxSizeMb: 2 });
+        await saveProductImages(productId, uploadedUrls, startOrder);
       }
 
       const existingVariants = (productsRaw.find((p) => p.id === productId)?.product_variants || []).filter((v) => v.is_active !== false);
@@ -623,10 +658,12 @@ const StoreInventory = () => {
         isOpen={showProductForm}
         categories={categoryOptions}
         initialValue={editingProduct}
+        existingImages={existingImages}
         onClose={() => {
           if (saving) return;
           setShowProductForm(false);
           setEditingProductId(null);
+          setExistingImages([]);
         }}
         onSave={handleSaveProduct}
       />

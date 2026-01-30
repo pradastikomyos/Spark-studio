@@ -6,6 +6,16 @@ export type Json =
   | { [key: string]: Json | undefined }
   | Json[]
 
+export interface ProductImage {
+  id: number;
+  product_id: number;
+  image_url: string;
+  display_order: number;
+  is_primary: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
 export type Database = {
   public: {
     Tables: {
