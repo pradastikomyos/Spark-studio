@@ -1,6 +1,50 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Html5Qrcode } from 'html5-qrcode';
 
+// ============================================================================
+// iOS/Safari Detection Utilities
+// ============================================================================
+
+/**
+ * Detects if the current device is running iOS (iPhone/iPad)
+ * Note: All browsers on iOS use WebKit, so Chrome/Firefox on iOS behave like Safari
+ */
+const isIOS = (): boolean => {
+  if (typeof navigator === 'undefined') return false;
+
+  const ua = navigator.userAgent;
+  // Check for iPhone, iPad, iPod
+  const isAppleDevice = /iPad|iPhone|iPod/.test(ua);
+  // iPad on iOS 13+ reports as Mac, check for touch support
+  const isIPadOS = /Macintosh/.test(ua) && navigator.maxTouchPoints > 1;
+
+  return isAppleDevice || isIPadOS;
+};
+
+/**
+ * Detects if the browser is Safari (not Chrome/Firefox on Mac)
+ */
+const isSafari = (): boolean => {
+  if (typeof navigator === 'undefined') return false;
+
+  const ua = navigator.userAgent;
+  // Safari but not Chrome/Firefox
+  return /Safari/.test(ua) && !/Chrome/.test(ua) && !/Firefox/.test(ua);
+};
+
+/**
+ * Calculate responsive QR box size based on viewport and device
+ * iOS cameras are more sensitive to aspect ratio constraints
+ */
+const calculateResponsiveQrBox = (containerSize: number): { width: number; height: number } => {
+  // For iOS, use smaller qrbox to ensure camera view fits properly
+  const isAppleDevice = isIOS();
+  const sizeFactor = isAppleDevice ? 0.6 : 0.7; // iOS gets smaller box
+  const size = Math.min(Math.floor(containerSize * sizeFactor), 250);
+
+  return { width: size, height: size };
+};
+
 type QRScannerModalProps = {
   isOpen: boolean;
   onClose: () => void;
@@ -54,7 +98,7 @@ const QRScannerModal = ({
     if (closingRef.current) return;
     closingRef.current = true;
     setIsClosing(true);
-    
+
     // Smooth closing animation
     setTimeout(() => {
       onClose();
@@ -68,22 +112,49 @@ const QRScannerModal = ({
     if (!qr) return;
 
     try {
+      // Check if scanner is in a valid state before trying to stop
+      // Html5QrcodeScannerState: NOT_STARTED=0, SCANNING=2, PAUSED=3
       const state = qr.getState();
       if (state === 2) { // Html5QrcodeScannerState.SCANNING
         await qr.stop();
       }
     } catch (e) {
-      console.warn('Error stopping scanner:', e);
+      // Ignore errors during stop - scanner might already be stopped
+      console.warn('[QRScanner] Error stopping scanner:', e);
     }
 
     try {
       await qr.clear();
     } catch (e) {
-      console.warn('Error clearing scanner:', e);
+      // Ignore errors during clear - DOM might already be cleaned
+      console.warn('[QRScanner] Error clearing scanner:', e);
+    }
+
+    // Defensive DOM cleanup: ensure video elements are removed
+    // This prevents memory leaks on iOS Safari which can retain video streams
+    try {
+      const readerElement = document.getElementById(readerId);
+      if (readerElement) {
+        // Stop any lingering video tracks
+        const videos = readerElement.querySelectorAll('video');
+        videos.forEach((video) => {
+          const stream = video.srcObject as MediaStream | null;
+          if (stream) {
+            stream.getTracks().forEach((track) => {
+              track.stop();
+            });
+          }
+          video.srcObject = null;
+        });
+        // Clear the container
+        readerElement.innerHTML = '';
+      }
+    } catch (e) {
+      console.warn('[QRScanner] Error cleaning up DOM:', e);
     }
 
     qrRef.current = null;
-  }, []);
+  }, [readerId]);
 
   const startScanner = useCallback(async () => {
     setErrorMessage('');
@@ -109,9 +180,16 @@ const QRScannerModal = ({
     const { Html5Qrcode } = await import('html5-qrcode');
     qrRef.current = new Html5Qrcode(readerId);
     const qr = qrRef.current;
-    
-    // Lower FPS for smoother, less aggressive scanning
-    const config = { fps: 5, qrbox: { width: 250, height: 250 } };
+
+    // Calculate responsive qrbox based on container size
+    // iOS needs special handling for camera aspect ratio
+    const container = document.getElementById(readerId);
+    const containerWidth = container?.clientWidth || 280;
+    const qrbox = calculateResponsiveQrBox(containerWidth);
+
+    // iOS cameras work better with lower FPS to reduce processing load
+    const fps = isIOS() ? 3 : 5;
+    const config = { fps, qrbox };
 
     const onScanSuccessHandler = async (decodedText: string) => {
       // Prevent duplicate scans with debounce
@@ -122,7 +200,7 @@ const QRScannerModal = ({
       ) {
         return;
       }
-      
+
       processingRef.current = true;
       lastScannedRef.current = decodedText;
       lastScannedTimeRef.current = now;
@@ -220,15 +298,26 @@ const QRScannerModal = ({
       return typeof name === 'string' ? name : undefined;
     };
 
+    // iOS Safari requires different camera constraints approach
+    const appleDevice = isIOS();
+    const safariOnMac = isSafari() && !appleDevice;
+
     try {
       const cameraId = await pickBackCameraId();
+
       if (cameraId) {
         await qr.start(cameraId, config, onScanSuccessHandler, onScanFailure);
+      } else if (appleDevice) {
+        // iOS: use 'environment' without 'exact' for better compatibility
+        // iOS WebKit is strict about facingMode constraints
+        await qr.start({ facingMode: 'environment' }, config, onScanSuccessHandler, onScanFailure);
       } else {
+        // Non-iOS: try exact first
         await qr.start({ facingMode: { exact: 'environment' } }, config, onScanSuccessHandler, onScanFailure);
       }
       setStatus('scanning');
     } catch (err: unknown) {
+      // Fallback: try without 'exact' constraint
       try {
         await qr.start({ facingMode: 'environment' }, config, onScanSuccessHandler, onScanFailure);
         setStatus('scanning');
@@ -243,19 +332,52 @@ const QRScannerModal = ({
 
         setStatus('error');
         const name = getErrorName(err2) || getErrorName(err);
+
         if (name === 'NotAllowedError') {
           setErrorMessage('Izin kamera ditolak');
-          setErrorDetails('Silakan izinkan akses kamera di pengaturan browser Anda, lalu klik "Coba Lagi".');
+          // iOS-specific guidance vs generic browser guidance
+          if (appleDevice) {
+            setErrorDetails(
+              'Di iPhone/iPad: Buka Settings → Safari → Camera → Izinkan. ' +
+              'Lalu kembali ke halaman ini dan klik "Coba Lagi".'
+            );
+          } else if (safariOnMac) {
+            setErrorDetails(
+              'Di Safari Mac: Klik Safari → Settings → Websites → Camera. ' +
+              'Pilih "Allow" untuk situs ini, lalu klik "Coba Lagi".'
+            );
+          } else {
+            setErrorDetails(
+              'Silakan izinkan akses kamera di pengaturan browser Anda, lalu klik "Coba Lagi".'
+            );
+          }
         } else if (name === 'NotFoundError' || name === 'DevicesNotFoundError') {
           setErrorMessage('Kamera tidak ditemukan');
           setErrorDetails('Tidak ada kamera yang terdeteksi pada perangkat Anda.');
+        } else if (name === 'NotReadableError' || name === 'TrackStartError') {
+          // This happens on iOS when camera is in use by another app
+          setErrorMessage('Kamera sedang digunakan');
+          setErrorDetails(
+            appleDevice
+              ? 'Tutup aplikasi lain yang menggunakan kamera, lalu klik "Coba Lagi".'
+              : 'Pastikan tidak ada aplikasi lain yang menggunakan kamera.'
+          );
+        } else if (name === 'OverconstrainedError') {
+          // iOS camera doesn't support the requested constraints
+          setErrorMessage('Kamera tidak kompatibel');
+          setErrorDetails('Kamera perangkat Anda tidak mendukung konfigurasi yang diminta. Coba gunakan kamera lain.');
         } else {
           setErrorMessage('Gagal memulai pemindai');
-          setErrorDetails('Terjadi kesalahan saat memulai pemindai. Coba refresh halaman atau gunakan browser lain.');
+          setErrorDetails(
+            appleDevice
+              ? 'Coba tutup Safari, buka ulang, dan scan lagi. Jika masih error, restart perangkat.'
+              : 'Terjadi kesalahan saat memulai pemindai. Coba refresh halaman atau gunakan browser lain.'
+          );
         }
       }
     }
-    }, [autoResumeAfterMs, autoResumeOnError, closeOnSuccess, closeDelayMs, closeOnError, closeOnErrorDelayMs, onScan, handleClose, readerId, stopScanner]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoResumeAfterMs, autoResumeOnError, closeOnSuccess, closeDelayMs, closeOnError, closeOnErrorDelayMs, onScan, handleClose, readerId, stopScanner]);
 
   useEffect(() => {
     isOpenRef.current = isOpen;
@@ -290,6 +412,64 @@ const QRScannerModal = ({
     }
   }, [isOpen, stopScanner]);
 
+  // ============================================================================
+  // Phase 2: Visibility Change Handling for iOS Tab Freezing
+  // ============================================================================
+  // iOS Safari aggressively freezes background tabs, killing camera streams.
+  // When user switches to another app (e.g., payment app) and returns,
+  // the camera stream is dead. This handler restarts it automatically.
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        // Tab is going to background - stop scanner to release camera
+        // This prevents iOS from killing the tab due to camera resource usage
+        console.log('[QRScanner] Tab hidden, stopping scanner');
+        stopScanner().catch((e) => {
+          console.warn('[QRScanner] Error stopping scanner on hide:', e);
+        });
+        setStatus('idle');
+      } else if (document.visibilityState === 'visible') {
+        // Tab is coming back to foreground - restart scanner
+        // Small delay to let iOS Safari stabilize after app switch
+        console.log('[QRScanner] Tab visible, restarting scanner');
+        const delay = isIOS() ? 500 : 200; // iOS needs more time to stabilize
+
+        setTimeout(() => {
+          if (!isOpenRef.current || processingRef.current) return;
+
+          startScanner().catch((err) => {
+            console.error('[QRScanner] Failed to restart scanner after visibility change:', err);
+            setStatus('error');
+            setErrorMessage('Gagal memulai ulang pemindai');
+            setErrorDetails(
+              isIOS()
+                ? 'Kamera perlu dimulai ulang setelah Anda kembali. Klik "Coba Lagi".'
+                : 'Terjadi kesalahan. Klik "Coba Lagi" untuk mencoba lagi.'
+            );
+          });
+        }, delay);
+      }
+    };
+
+    // Also handle page unload for Safari which doesn't always fire visibilitychange
+    const handlePageHide = () => {
+      console.log('[QRScanner] Page hide, stopping scanner');
+      stopScanner().catch(() => {
+        // ignore
+      });
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('pagehide', handlePageHide);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('pagehide', handlePageHide);
+    };
+  }, [isOpen, startScanner, stopScanner]);
+
   useEffect(() => {
     return () => {
       processingRef.current = false;
@@ -303,11 +483,11 @@ const QRScannerModal = ({
   if (!isOpen) return null;
 
   return (
-    <div 
+    <div
       className={`fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 transition-opacity duration-300 ${isClosing ? 'opacity-0' : 'opacity-100'}`}
       onClick={handleClose}
     >
-      <div 
+      <div
         className={`bg-white dark:bg-[#1a0f0f] rounded-2xl shadow-2xl max-w-md w-full p-6 border border-gray-200 dark:border-white/10 transition-all duration-300 ${isClosing ? 'scale-95 opacity-0' : 'scale-100 opacity-100'}`}
         onClick={(e) => e.stopPropagation()}
       >

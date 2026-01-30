@@ -9,7 +9,7 @@ version=1.0
 
 [window]
 width=1280
-height=747
+height=793
 splitter_state=AAAA/wAAAAEAAAACAAADAAAAAPwB/////wEAAAACAA==
 
 [files]
@@ -35,6 +35,39 @@ tsconfig.tsbuildinfo
 tsc_error.txt
 vercel.json
 vite.config.ts
+.trae\documents\arsitektur-teknis-responsive-admin-mobile.md
+.trae\documents\Audit Pelanggaran Vercel React Best Practices.md
+.trae\documents\Auto-Polling Payment Status Implementation.md
+.trae\documents\Database FK Constraints Fix - Enterprise Grade.md
+.trae\documents\desain-halaman-responsive-admin-mobile.md
+.trae\documents\Edge Functions Update Summary.md
+.trae\documents\Feature Booking Urgency Warning System.md
+.trae\documents\Final Migration Status - Production Ready.md
+.trae\documents\Fix Admin Pending Orders Tidak Muncul.md
+.trae\documents\Fix Auto-Refresh Booking Slots.md
+.trae\documents\Fix Flexible Session Booking Logic.md
+.trae\documents\Fix JWT 401 Error - Root Cause Analysis.md
+.trae\documents\Fix Past Time Slot Booking Edge Case.md
+.trae\documents\Fix Proactive Session Management.md
+.trae\documents\Fix Session Expired 401 Error.md
+.trae\documents\Fix Session Token 401 Error - Root Cause Analysis.md
+.trae\documents\Fix Signup Auto-Login Session Conflict.md
+.trae\documents\Fix Webhook 401 Error - Critical Production Bug.md
+.trae\documents\Implementasi i18n (react-i18next) + ekstraksi teks Auth.md
+.trae\documents\Implementasi Merchant Feature Integration.md
+.trae\documents\Laravel Cleanup Complete - Zero Technical Debt.md
+.trae\documents\Migration Status - Handoff to Codex.md
+.trae\documents\Option 1 Aman_ ErrorBoundary + Lanjut Admin Stage Pages.md
+.trae\documents\Perbaiki Burger Menu Hilang di _admin_store.md
+.trae\documents\Phase 3 Testing Guide.md
+.trae\documents\prd-perbaikan-responsive-admin-mobile.md
+.trae\documents\Product Schema Refactor - Complete.md
+.trae\documents\Selesaikan Migrasi Admin ProductOrders ke SWR.md
+.trae\documents\Session 401 Error - Deep Dive Analysis.md
+.trae\documents\Time-Slot-Validation-Strategy.md
+.trae\documents\UUID Migration Plan.md
+.trae\rules\project_rules.md
+.trae\rules\reactpractices.md
 react-best-practices\AGENTS.md
 react-best-practices\metadata.json
 react-best-practices\README.md
@@ -93,37 +126,73 @@ react-best-practices\rules\server-serialization.md
 react-best-practices\rules\_sections.md
 react-best-practices\rules\_template.md
 src\App.tsx
+src\i18n.ts
 src\index.css
 src\main.tsx
 src\vite-env.d.ts
 src\components\AboutSection.tsx
 src\components\AdminLayout.tsx
 src\components\DarkModeToggle.tsx
+src\components\ErrorBoundary.test.tsx
+src\components\ErrorBoundary.tsx
 src\components\FeaturedCollections.tsx
 src\components\Footer.tsx
 src\components\Hero.tsx
+src\components\LanguageSwitcher.tsx
 src\components\Logo.tsx
 src\components\Navbar.tsx
 src\components\Newsletter.tsx
+src\components\PageTransition.property.test.tsx
+src\components\PageTransition.test.tsx
+src\components\PageTransition.tsx
 src\components\ProtectedRoute.tsx
 src\components\PublicLayout.tsx
 src\components\TicketCard.tsx
 src\components\TicketSection.tsx
+src\components\Toast.property.test.tsx
+src\components\Toast.test.tsx
+src\components\Toast.tsx
 src\components\admin\AvailabilityGenerator.tsx
 src\components\admin\CategoryManager.tsx
 src\components\admin\ProductFormModal.tsx
+src\components\admin\ProductImageUpload.tsx
 src\components\admin\PurchasedTicketsTable.tsx
 src\components\admin\QRScannerModal.tsx
+src\components\skeletons\DashboardStatSkeleton.tsx
+src\components\skeletons\index.ts
+src\components\skeletons\ProductCardSkeleton.tsx
+src\components\skeletons\Skeletons.property.test.tsx
+src\components\skeletons\TableRowSkeleton.tsx
+src\components\skeletons\TicketCardSkeleton.tsx
 src\constants\adminMenu.ts
 src\contexts\AuthContext.test.tsx
 src\contexts\AuthContext.tsx
 src\contexts\CartContext.tsx
 src\contexts\cartStore.ts
 src\hooks\useCartCount.ts
+src\hooks\useCategories.ts
 src\hooks\useDarkMode.ts
+src\hooks\useDashboardStats.ts
+src\hooks\useInventory.ts
+src\hooks\useMyOrders.ts
+src\hooks\useMyTickets.ts
+src\hooks\useProduct.ts
+src\hooks\useProductOrders.ts
+src\hooks\useProducts.ts
 src\hooks\useSessionRefresh.ts
+src\hooks\useStageAnalytics.ts
+src\hooks\useStageQRCodes.ts
+src\hooks\useStages.ts
+src\hooks\useTicketAvailability.ts
 src\hooks\useTicketCount.ts
+src\hooks\useTickets.ts
+src\hooks\useTicketsManagement.ts
+src\lib\fetchers.test.ts
+src\lib\fetchers.ts
 src\lib\supabase.ts
+src\lib\swr.ts
+src\locales\en.json
+src\locales\id.json
 src\pages\BookingPage.tsx
 src\pages\BookingSuccessPage.tsx
 src\pages\CartPage.tsx
@@ -143,6 +212,7 @@ src\pages\ProductDetailPage.tsx
 src\pages\ProductOrderSuccessPage.tsx
 src\pages\Shop.tsx
 src\pages\SignUp.tsx
+src\pages\SkeletonShowcase.tsx
 src\pages\StageScanPage.tsx
 src\pages\admin\Dashboard.tsx
 src\pages\admin\OrderTicket.tsx
@@ -160,6 +230,7 @@ src\test\Logging.test.ts
 src\test\mocks.ts
 src\test\setup.ts
 src\types\database.types.ts
+src\types\i18next.d.ts
 src\types\index.ts
 src\utils\auth.ts
 src\utils\bookingStateManager.test.ts
@@ -187,3 +258,4 @@ supabase\migrations\20260127_migrate_user_fk_to_uuid.sql
 supabase\migrations\20260128110450_fix_fk_constraints_and_rls.sql
 supabase\migrations\20260128120000_cleanup_laravel_legacy_tables.sql
 supabase\migrations\20260129_refactor_product_schema.sql
+supabase\migrations\20260130035520_add_product_multi_images.sql
