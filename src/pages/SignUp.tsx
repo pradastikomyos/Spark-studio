@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import Logo from '../components/Logo';
 import { useAuth } from '../contexts/AuthContext';
 import { isAdmin } from '../utils/auth';
@@ -17,6 +18,7 @@ const SignUp = ({ isDark }: SignUpProps) => {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
+  const { t } = useTranslation();
   
   const { signUp } = useAuth();
   const navigate = useNavigate();
@@ -26,12 +28,12 @@ const SignUp = ({ isDark }: SignUpProps) => {
     setError('');
     
     if (password !== confirmPassword) {
-      setError('Passwords do not match');
+      setError(t('auth.signup.errors.passwordsDoNotMatch'));
       return;
     }
 
     if (password.length < 6) {
-      setError('Password must be at least 6 characters');
+      setError(t('auth.signup.errors.passwordMinLength', { min: 6 }));
       return;
     }
 
@@ -76,10 +78,10 @@ const SignUp = ({ isDark }: SignUpProps) => {
           {/* Welcome Text */}
           <div className="text-center mb-8">
             <h1 className="font-display text-3xl md:text-4xl text-text-light dark:text-text-dark mb-2">
-              Create Account
+              {t('auth.signup.title')}
             </h1>
             <p className="text-subtext-light dark:text-subtext-dark">
-              Join Spark Studio community
+              {t('auth.signup.subtitle')}
             </p>
           </div>
 
@@ -95,7 +97,7 @@ const SignUp = ({ isDark }: SignUpProps) => {
             {/* Success Message */}
             {success && (
               <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 text-green-600 dark:text-green-400 px-4 py-3 rounded-sm text-sm">
-                Account created successfully! Logging you in...
+                {t('auth.signup.successLoggingIn')}
               </div>
             )}
 
@@ -105,7 +107,7 @@ const SignUp = ({ isDark }: SignUpProps) => {
                 htmlFor="name"
                 className="block text-sm font-medium text-text-light dark:text-text-dark mb-2"
               >
-                Full Name
+                {t('auth.fields.name.label')}
               </label>
               <input
                 id="name"
@@ -113,7 +115,7 @@ const SignUp = ({ isDark }: SignUpProps) => {
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 className="w-full px-4 py-3 bg-white dark:bg-surface-dark border border-gray-200 dark:border-gray-700 rounded-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all text-text-light dark:text-text-dark"
-                placeholder="John Doe"
+                placeholder={t('auth.fields.name.placeholder')}
                 required
               />
             </div>
@@ -124,7 +126,7 @@ const SignUp = ({ isDark }: SignUpProps) => {
                 htmlFor="email"
                 className="block text-sm font-medium text-text-light dark:text-text-dark mb-2"
               >
-                Email Address
+                {t('auth.fields.email.label')}
               </label>
               <input
                 id="email"
@@ -132,7 +134,7 @@ const SignUp = ({ isDark }: SignUpProps) => {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className="w-full px-4 py-3 bg-white dark:bg-surface-dark border border-gray-200 dark:border-gray-700 rounded-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all text-text-light dark:text-text-dark"
-                placeholder="your@email.com"
+                placeholder={t('auth.fields.email.placeholder')}
                 required
               />
             </div>
@@ -143,7 +145,7 @@ const SignUp = ({ isDark }: SignUpProps) => {
                 htmlFor="password"
                 className="block text-sm font-medium text-text-light dark:text-text-dark mb-2"
               >
-                Password
+                {t('auth.fields.password.label')}
               </label>
               <input
                 id="password"
@@ -151,7 +153,7 @@ const SignUp = ({ isDark }: SignUpProps) => {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 className="w-full px-4 py-3 bg-white dark:bg-surface-dark border border-gray-200 dark:border-gray-700 rounded-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all text-text-light dark:text-text-dark"
-                placeholder="At least 6 characters"
+                placeholder={t('auth.signup.passwordPlaceholder')}
                 required
               />
             </div>
@@ -162,7 +164,7 @@ const SignUp = ({ isDark }: SignUpProps) => {
                 htmlFor="confirmPassword"
                 className="block text-sm font-medium text-text-light dark:text-text-dark mb-2"
               >
-                Confirm Password
+                {t('auth.fields.confirmPassword.label')}
               </label>
               <input
                 id="confirmPassword"
@@ -170,7 +172,7 @@ const SignUp = ({ isDark }: SignUpProps) => {
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 className="w-full px-4 py-3 bg-white dark:bg-surface-dark border border-gray-200 dark:border-gray-700 rounded-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all text-text-light dark:text-text-dark"
-                placeholder="Confirm your password"
+                placeholder={t('auth.fields.confirmPassword.placeholder')}
                 required
               />
             </div>
@@ -181,15 +183,15 @@ const SignUp = ({ isDark }: SignUpProps) => {
               disabled={loading || success}
               className="w-full bg-primary hover:bg-black text-white py-3 rounded-sm font-medium transition-colors shadow-lg shadow-primary/20 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {loading ? 'Creating Account...' : 'Sign Up'}
+              {loading ? t('auth.signup.loading') : t('auth.signup.submit')}
             </button>
           </form>
 
           {/* Sign In Link */}
           <p className="text-center mt-8 text-sm text-subtext-light dark:text-subtext-dark">
-            Already have an account?{' '}
+            {t('auth.signup.haveAccount')}{' '}
             <Link to="/login" className="text-primary hover:text-primary-dark font-medium transition-colors">
-              Sign in
+              {t('auth.signup.signInLink')}
             </Link>
           </p>
         </div>
@@ -200,10 +202,10 @@ const SignUp = ({ isDark }: SignUpProps) => {
         <div className="absolute inset-0 flex items-center justify-center p-12">
           <div className="text-center space-y-6">
             <h2 className="font-display text-5xl text-text-light dark:text-text-dark">
-              Welcome to <span className="text-primary">Spark</span>
+              {t('auth.signup.branding.welcomeTo')}{' '}<span className="text-primary">Spark</span>
             </h2>
             <p className="text-xl text-subtext-light dark:text-subtext-dark max-w-md mx-auto">
-              Create your account and unlock exclusive access to events, shop collections, and join our creative community.
+              {t('auth.signup.branding.description')}
             </p>
           </div>
         </div>

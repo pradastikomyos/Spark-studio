@@ -1,5 +1,7 @@
 import { Link, useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import Logo from './Logo';
+import LanguageSwitcher from './LanguageSwitcher';
 import { useAuth } from '../contexts/AuthContext';
 import { useTicketCount } from '../hooks/useTicketCount';
 import { useCart } from '../contexts/cartStore';
@@ -10,6 +12,7 @@ interface NavbarProps {
 }
 
 const Navbar = ({ isDark, onToggleDarkMode }: NavbarProps) => {
+  const { t } = useTranslation();
   const { user, signOut, isAdmin, loggingOut } = useAuth();
   const { count: ticketCount } = useTicketCount();
   const { totalQuantity } = useCart();
@@ -35,28 +38,28 @@ const Navbar = ({ isDark, onToggleDarkMode }: NavbarProps) => {
               to="/"
               className="text-xs uppercase tracking-widest font-medium hover:text-primary transition-colors relative after:content-[''] after:absolute after:-bottom-1 after:left-0 after:w-0 after:h-px after:bg-primary hover:after:w-full after:transition-all"
             >
-              Home
+              {t('nav.home')}
             </Link>
             <Link
               to="/on-stage"
               className="text-xs uppercase tracking-widest font-medium hover:text-primary transition-colors relative after:content-[''] after:absolute after:-bottom-1 after:left-0 after:w-0 after:h-px after:bg-primary hover:after:w-full after:transition-all"
             >
-              On Stage
+              {t('nav.onStage')}
             </Link>
             <Link
               to="/events"
               className="text-xs uppercase tracking-widest font-medium hover:text-primary transition-colors relative after:content-[''] after:absolute after:-bottom-1 after:left-0 after:w-0 after:h-px after:bg-primary hover:after:w-full after:transition-all"
             >
-              Events
+              {t('nav.events')}
             </Link>
             <Link
               to="/shop"
               className="text-xs uppercase tracking-widest font-medium hover:text-primary transition-colors relative after:content-[''] after:absolute after:-bottom-1 after:left-0 after:w-0 after:h-px after:bg-primary hover:after:w-full after:transition-all"
             >
-              Shop
+              {t('nav.shop')}
             </Link>
             <a className="text-xs uppercase tracking-widest font-bold text-primary hover:text-primary-dark transition-colors border border-primary/20 px-4 py-2 rounded-full hover:bg-primary hover:text-white" href="#">
-              Spark Club
+              {t('nav.sparkClub')}
             </a>
           </div>
           <div className="flex items-center space-x-6 text-gray-500 dark:text-gray-400">
@@ -71,14 +74,14 @@ const Navbar = ({ isDark, onToggleDarkMode }: NavbarProps) => {
                     className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary/10 text-primary hover:bg-primary hover:text-white transition-all duration-200 border border-primary/20 hover:border-primary"
                   >
                     <span className="material-symbols-outlined text-[18px]">dashboard</span>
-                    <span className="text-xs font-bold uppercase tracking-wider hidden lg:block">Dashboard</span>
+                    <span className="text-xs font-bold uppercase tracking-wider hidden lg:block">{t('nav.dashboard')}</span>
                   </Link>
                 )}
                 <button 
                   onClick={handleSignOut} 
                   disabled={loggingOut}
                   className={`hover:text-primary transition-colors ${loggingOut ? 'opacity-50 cursor-not-allowed' : ''}`} 
-                  title="Sign Out"
+                  title={t('auth.signOut')}
                 >
                   <span className={`material-symbols-outlined text-[20px] ${loggingOut ? 'animate-spin' : ''}`}>
                     {loggingOut ? 'progress_activity' : 'logout'}
@@ -86,7 +89,7 @@ const Navbar = ({ isDark, onToggleDarkMode }: NavbarProps) => {
                 </button>
               </>
             ) : (
-              <Link to="/login" className="hover:text-primary transition-colors" title="Sign In">
+              <Link to="/login" className="hover:text-primary transition-colors" title={t('auth.signIn')}>
                 <span className="material-symbols-outlined text-[20px]">person</span>
               </Link>
             )}
@@ -112,6 +115,7 @@ const Navbar = ({ isDark, onToggleDarkMode }: NavbarProps) => {
             <button className="hover:text-primary transition-colors" title="Search">
               <span className="material-symbols-outlined text-[20px]">search</span>
             </button>
+            <LanguageSwitcher />
             <button
               onClick={onToggleDarkMode}
               className="hover:text-primary transition-colors"

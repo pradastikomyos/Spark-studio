@@ -1,0 +1,82 @@
+{
+  "nav": {
+    "home": "Home",
+    "onStage": "On Stage",
+    "events": "Events",
+    "shop": "Shop",
+    "sparkClub": "Spark Club",
+    "dashboard": "Dashboard"
+  },
+  "auth": {
+    "signIn": "Sign In",
+    "signOut": "Sign Out",
+    "fields": {
+      "name": {
+        "label": "Full Name",
+        "placeholder": "John Doe"
+      },
+      "email": {
+        "label": "Email Address",
+        "placeholder": "your@email.com"
+      },
+      "password": {
+        "label": "Password"
+      },
+      "confirmPassword": {
+        "label": "Confirm Password",
+        "placeholder": "Confirm your password"
+      }
+    },
+    "login": {
+      "title": "Welcome Back",
+      "subtitle": "Sign in to continue to Spark Studio",
+      "passwordPlaceholder": "Enter your password",
+      "aria": {
+        "showPassword": "Show password",
+        "hidePassword": "Hide password"
+      },
+      "rememberMe": "Remember me",
+      "forgotPassword": "Forgot Password?",
+      "loading": "Signing in...",
+      "orContinueWith": "Or continue with",
+      "providers": {
+        "google": "Google",
+        "github": "GitHub"
+      },
+      "noAccount": "Don't have an account?",
+      "signUpLink": "Sign up",
+      "branding": {
+        "joinThe": "Join the",
+        "description": "Experience exclusive events, shop curated collections, and be part of our creative community.",
+        "stats": {
+          "events": "Events",
+          "members": "Members",
+          "artists": "Artists"
+        }
+      }
+    },
+    "signup": {
+      "title": "Create Account",
+      "subtitle": "Join Spark Studio community",
+      "successLoggingIn": "Account created successfully! Logging you in...",
+      "passwordPlaceholder": "At least 6 characters",
+      "loading": "Creating Account...",
+      "submit": "Sign Up",
+      "haveAccount": "Already have an account?",
+      "signInLink": "Sign in",
+      "errors": {
+        "passwordsDoNotMatch": "Passwords do not match",
+        "passwordMinLength": "Password must be at least {{min}} characters"
+      },
+      "branding": {
+        "welcomeTo": "Welcome to",
+        "description": "Create your account and unlock exclusive access to events, shop collections, and join our creative community."
+      }
+    }
+  },
+  "language": {
+    "switch": "Switch language",
+    "en": "English",
+    "id": "Indonesian"
+  }
+}

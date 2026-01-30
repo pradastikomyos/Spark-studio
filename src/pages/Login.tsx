@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import Logo from '../components/Logo';
 import { useAuth } from '../contexts/AuthContext';
 import { isAdmin } from '../utils/auth';
@@ -16,6 +17,7 @@ const Login = ({ isDark }: LoginProps) => {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const { t } = useTranslation();
   
   const { signIn } = useAuth();
   const navigate = useNavigate();
@@ -56,10 +58,10 @@ const Login = ({ isDark }: LoginProps) => {
           {/* Welcome Text */}
           <div className="text-center mb-8">
             <h1 className="font-display text-3xl md:text-4xl text-text-light dark:text-text-dark mb-2">
-              Welcome Back
+              {t('auth.login.title')}
             </h1>
             <p className="text-subtext-light dark:text-subtext-dark">
-              Sign in to continue to Spark Studio
+              {t('auth.login.subtitle')}
             </p>
           </div>
 
@@ -78,7 +80,7 @@ const Login = ({ isDark }: LoginProps) => {
                 htmlFor="email"
                 className="block text-sm font-medium text-text-light dark:text-text-dark mb-2"
               >
-                Email Address
+                {t('auth.fields.email.label')}
               </label>
               <input
                 id="email"
@@ -86,7 +88,7 @@ const Login = ({ isDark }: LoginProps) => {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className="w-full px-4 py-3 bg-white dark:bg-surface-dark border border-gray-200 dark:border-gray-700 rounded-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all text-text-light dark:text-text-dark"
-                placeholder="your@email.com"
+                placeholder={t('auth.fields.email.placeholder')}
                 required
               />
             </div>
@@ -97,7 +99,7 @@ const Login = ({ isDark }: LoginProps) => {
                 htmlFor="password"
                 className="block text-sm font-medium text-text-light dark:text-text-dark mb-2"
               >
-                Password
+                {t('auth.fields.password.label')}
               </label>
               <div className="relative">
                 <input
@@ -106,14 +108,14 @@ const Login = ({ isDark }: LoginProps) => {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   className="w-full px-4 py-3 pr-12 bg-white dark:bg-surface-dark border border-gray-200 dark:border-gray-700 rounded-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all text-text-light dark:text-text-dark"
-                  placeholder="Enter your password"
+                  placeholder={t('auth.login.passwordPlaceholder')}
                   required
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
-                  aria-label={showPassword ? "Hide password" : "Show password"}
+                  aria-label={showPassword ? t('auth.login.aria.hidePassword') : t('auth.login.aria.showPassword')}
                 >
                   {showPassword ? (
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
@@ -139,14 +141,14 @@ const Login = ({ isDark }: LoginProps) => {
                   className="w-4 h-4 text-primary border-gray-300 rounded focus:ring-primary"
                 />
                 <span className="ml-2 text-sm text-text-light dark:text-text-dark">
-                  Remember me
+                  {t('auth.login.rememberMe')}
                 </span>
               </label>
               <Link
                 to="/forgot-password"
                 className="text-sm text-primary hover:text-primary-dark transition-colors"
               >
-                Forgot Password?
+                {t('auth.login.forgotPassword')}
               </Link>
             </div>
 
@@ -156,7 +158,7 @@ const Login = ({ isDark }: LoginProps) => {
               disabled={loading}
               className="w-full bg-primary hover:bg-black text-white py-3 rounded-sm font-medium transition-colors shadow-lg shadow-primary/20 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {loading ? 'Signing in...' : 'Sign In'}
+              {loading ? t('auth.login.loading') : t('auth.signIn')}
             </button>
           </form>
 
@@ -167,7 +169,7 @@ const Login = ({ isDark }: LoginProps) => {
             </div>
             <div className="relative flex justify-center text-sm">
               <span className="px-4 bg-white dark:bg-background-dark text-subtext-light dark:text-subtext-dark">
-                Or continue with
+                {t('auth.login.orContinueWith')}
               </span>
             </div>
           </div>
@@ -193,21 +195,21 @@ const Login = ({ isDark }: LoginProps) => {
                   d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
                 />
               </svg>
-              <span className="text-sm font-medium text-text-light dark:text-text-dark">Google</span>
+              <span className="text-sm font-medium text-text-light dark:text-text-dark">{t('auth.login.providers.google')}</span>
             </button>
             <button className="flex items-center justify-center px-4 py-3 border border-gray-200 dark:border-gray-700 rounded-sm hover:bg-gray-50 dark:hover:bg-surface-dark transition-colors">
               <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 24 24">
                 <path d="M12 2C6.477 2 2 6.477 2 12c0 4.42 2.865 8.17 6.839 9.49.5.092.682-.217.682-.482 0-.237-.008-.866-.013-1.7-2.782.603-3.369-1.34-3.369-1.34-.454-1.156-1.11-1.463-1.11-1.463-.908-.62.069-.608.069-.608 1.003.07 1.531 1.03 1.531 1.03.892 1.529 2.341 1.087 2.91.831.092-.646.35-1.086.636-1.336-2.22-.253-4.555-1.11-4.555-4.943 0-1.091.39-1.984 1.029-2.683-.103-.253-.446-1.27.098-2.647 0 0 .84-.269 2.75 1.025A9.578 9.578 0 0112 6.836c.85.004 1.705.114 2.504.336 1.909-1.294 2.747-1.025 2.747-1.025.546 1.377.203 2.394.1 2.647.64.699 1.028 1.592 1.028 2.683 0 3.842-2.339 4.687-4.566 4.935.359.309.678.919.678 1.852 0 1.336-.012 2.415-.012 2.743 0 .267.18.578.688.48C19.138 20.167 22 16.418 22 12c0-5.523-4.477-10-10-10z" />
               </svg>
-              <span className="text-sm font-medium text-text-light dark:text-text-dark">GitHub</span>
+              <span className="text-sm font-medium text-text-light dark:text-text-dark">{t('auth.login.providers.github')}</span>
             </button>
           </div>
 
           {/* Sign Up Link */}
           <p className="text-center mt-8 text-sm text-subtext-light dark:text-subtext-dark">
-            Don't have an account?{' '}
+            {t('auth.login.noAccount')}{' '}
             <Link to="/signup" className="text-primary hover:text-primary-dark font-medium transition-colors">
-              Sign up
+              {t('auth.login.signUpLink')}
             </Link>
           </p>
         </div>
@@ -218,23 +220,23 @@ const Login = ({ isDark }: LoginProps) => {
         <div className="absolute inset-0 flex items-center justify-center p-12">
           <div className="text-center space-y-6">
             <h2 className="font-display text-5xl text-text-light dark:text-text-dark">
-              Join the <span className="text-primary">Spark</span>
+              {t('auth.login.branding.joinThe')}{' '}<span className="text-primary">Spark</span>
             </h2>
             <p className="text-xl text-subtext-light dark:text-subtext-dark max-w-md mx-auto">
-              Experience exclusive events, shop curated collections, and be part of our creative community.
+              {t('auth.login.branding.description')}
             </p>
             <div className="flex justify-center gap-8 pt-8">
               <div className="text-center">
                 <div className="text-4xl font-bold text-primary">500+</div>
-                <div className="text-sm text-subtext-light dark:text-subtext-dark mt-1">Events</div>
+                <div className="text-sm text-subtext-light dark:text-subtext-dark mt-1">{t('auth.login.branding.stats.events')}</div>
               </div>
               <div className="text-center">
                 <div className="text-4xl font-bold text-primary">10K+</div>
-                <div className="text-sm text-subtext-light dark:text-subtext-dark mt-1">Members</div>
+                <div className="text-sm text-subtext-light dark:text-subtext-dark mt-1">{t('auth.login.branding.stats.members')}</div>
               </div>
               <div className="text-center">
                 <div className="text-4xl font-bold text-primary">50+</div>
-                <div className="text-sm text-subtext-light dark:text-subtext-dark mt-1">Artists</div>
+                <div className="text-sm text-subtext-light dark:text-subtext-dark mt-1">{t('auth.login.branding.stats.artists')}</div>
               </div>
             </div>
           </div>
