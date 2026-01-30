@@ -5,6 +5,7 @@ import LanguageSwitcher from './LanguageSwitcher';
 import { useAuth } from '../contexts/AuthContext';
 import { useTicketCount } from '../hooks/useTicketCount';
 import { useCart } from '../contexts/cartStore';
+import { getUserDisplayName } from '../utils/auth';
 
 interface NavbarProps {
   isDark: boolean;
@@ -66,21 +67,21 @@ const Navbar = ({ isDark, onToggleDarkMode }: NavbarProps) => {
             {user ? (
               <>
                 <div className="text-xs text-text-light dark:text-text-dark hidden md:block">
-                  {user.email}
+                  {getUserDisplayName(user)}
                 </div>
                 {isAdmin && (
-                  <Link 
-                    to="/admin/dashboard" 
+                  <Link
+                    to="/admin/dashboard"
                     className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary/10 text-primary hover:bg-primary hover:text-white transition-all duration-200 border border-primary/20 hover:border-primary"
                   >
                     <span className="material-symbols-outlined text-[18px]">dashboard</span>
                     <span className="text-xs font-bold uppercase tracking-wider hidden lg:block">{t('nav.dashboard')}</span>
                   </Link>
                 )}
-                <button 
-                  onClick={handleSignOut} 
+                <button
+                  onClick={handleSignOut}
                   disabled={loggingOut}
-                  className={`hover:text-primary transition-colors ${loggingOut ? 'opacity-50 cursor-not-allowed' : ''}`} 
+                  className={`hover:text-primary transition-colors ${loggingOut ? 'opacity-50 cursor-not-allowed' : ''}`}
                   title={t('auth.signOut')}
                 >
                   <span className={`material-symbols-outlined text-[20px] ${loggingOut ? 'animate-spin' : ''}`}>

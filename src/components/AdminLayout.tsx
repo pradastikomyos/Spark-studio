@@ -1,6 +1,7 @@
 import { useState, useEffect, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { getUserDisplayName } from '../utils/auth';
 
 export type AdminMenuSection = {
   id: string;
@@ -68,7 +69,7 @@ const AdminLayout = ({
 
   const handleLogout = async () => {
     if (isLoggingOut) return; // Prevent double-click
-    
+
     try {
       setIsLoggingOut(true);
       await onLogout();
@@ -141,11 +142,10 @@ const AdminLayout = ({
                   setActiveMenu(item.id);
                   if (item.path) navigate(item.path);
                 }}
-                className={`flex items-center gap-3 rounded-lg px-3 py-2.5 transition-colors min-w-0 ${
-                  activeMenu === item.id
-                    ? 'bg-white/5 text-white border border-white/5'
-                    : 'text-gray-400 hover:bg-white/5 hover:text-white'
-                }`}
+                className={`flex items-center gap-3 rounded-lg px-3 py-2.5 transition-colors min-w-0 ${activeMenu === item.id
+                  ? 'bg-white/5 text-white border border-white/5'
+                  : 'text-gray-400 hover:bg-white/5 hover:text-white'
+                  }`}
               >
                 <span
                   className={`material-symbols-outlined text-xl flex-shrink-0 ${activeMenu === item.id ? 'text-primary' : ''}`}
@@ -178,11 +178,10 @@ const AdminLayout = ({
                           setActiveMenu(item.id);
                           if (item.path) navigate(item.path);
                         }}
-                        className={`flex items-center gap-3 rounded-lg px-3 py-2 transition-colors min-w-0 ${
-                          activeMenu === item.id
-                            ? 'text-white'
-                            : 'text-gray-400 hover:bg-white/5 hover:text-white'
-                        } ${item.highlight ? 'text-white' : ''}`}
+                        className={`flex items-center gap-3 rounded-lg px-3 py-2 transition-colors min-w-0 ${activeMenu === item.id
+                          ? 'text-white'
+                          : 'text-gray-400 hover:bg-white/5 hover:text-white'
+                          } ${item.highlight ? 'text-white' : ''}`}
                       >
                         <span className={`material-symbols-outlined text-xl flex-shrink-0 ${item.highlight ? 'text-white' : ''}`}>
                           {item.icon}
@@ -215,7 +214,7 @@ const AdminLayout = ({
             </div>
             <div className="flex-1 overflow-hidden min-w-0">
               <p className="truncate text-sm font-medium text-white">{isLoggingOut ? 'Logging out...' : 'Admin User'}</p>
-              <p className="truncate text-xs text-gray-500">{user?.email || 'admin@spark.com'}</p>
+              <p className="truncate text-xs text-gray-500">{getUserDisplayName(user)}</p>
             </div>
             <span className={`material-symbols-outlined text-gray-500 group-hover:text-white flex-shrink-0 ${isLoggingOut ? 'animate-spin' : ''}`}>
               {isLoggingOut ? 'progress_activity' : 'logout'}

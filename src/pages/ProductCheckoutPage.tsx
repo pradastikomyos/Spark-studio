@@ -30,8 +30,13 @@ export default function ProductCheckoutPage() {
 
   useEffect(() => {
     if (!user) return;
-    const base = user.email ? user.email.split('@')[0] : '';
-    if (base) setCustomerName(base);
+    // Priority: registered name from metadata > email prefix
+    if (user.user_metadata?.name) {
+      setCustomerName(user.user_metadata.name);
+    } else {
+      const base = user.email ? user.email.split('@')[0] : '';
+      if (base) setCustomerName(base);
+    }
   }, [user]);
 
   useEffect(() => {

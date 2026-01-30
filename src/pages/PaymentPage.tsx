@@ -58,7 +58,10 @@ export default function PaymentPage() {
 
   useEffect(() => {
     // Pre-fill customer name from auth if available
-    if (user?.email) {
+    // Priority: registered name from metadata > email prefix
+    if (user?.user_metadata?.name) {
+      setCustomerName(user.user_metadata.name);
+    } else if (user?.email) {
       setCustomerName(user.email.split('@')[0] || '');
     }
   }, [user]);
@@ -122,9 +125,9 @@ export default function PaymentPage() {
       // getUser() validates JWT with server and auto-refreshes if needed
       // getSession() only reads from localStorage without validation (can be stale!)
       console.log('[PaymentPage] Validating session with getUser()...');
-      
+
       const { data: { user: validatedUser }, error: userError } = await supabase.auth.getUser();
-      
+
       if (userError || !validatedUser) {
         console.error('[PaymentPage] Session validation failed:', userError);
         alert('Your session has expired. We\'ve saved your booking details—please log in again to complete your payment.');
@@ -135,7 +138,7 @@ export default function PaymentPage() {
 
       // After getUser() validates, getSession() will have fresh token
       const { data: { session: currentSession } } = await supabase.auth.getSession();
-      
+
       if (!currentSession) {
         console.error('[PaymentPage] No session after validation');
         alert('Your session has expired. We\'ve saved your booking details—please log in again to complete your payment.');
