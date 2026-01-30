@@ -32,13 +32,19 @@ type ProductVariantRow = {
   reserved_stock?: unknown;
 };
 
+type ProductImageRow = {
+  image_url: string;
+  is_primary: boolean;
+  display_order: number;
+};
+
 type ProductRow = {
   id: unknown;
   name?: unknown;
   description?: unknown;
-  image_url?: unknown;
   categories?: { slug?: unknown } | null;
   product_variants?: unknown;
+  product_images?: ProductImageRow[];
 };
 
 const toNumber = (value: unknown, fallback: number = 0) => {
@@ -59,9 +65,13 @@ function transformProduct(row: ProductRow): Product {
   let defaultVariantName: string | undefined;
   let defaultVariantPrice = Number.POSITIVE_INFINITY;
 
-  // Use product image if available
-  const productImage = typeof row.image_url === 'string' ? row.image_url : null;
-  if (productImage) image = productImage;
+  // Get primary image from product_images table
+  const sortedImages = (row.product_images || [])
+    .sort((a, b) => {
+      if (a.is_primary !== b.is_primary) return a.is_primary ? -1 : 1;
+      return a.display_order - b.display_order;
+    });
+  if (sortedImages[0]?.image_url) image = sortedImages[0].image_url;
 
   // Process variants to find minimum price and default variant
   for (const v of variants) {
@@ -139,10 +149,10 @@ export function useProducts() {
           id,
           name,
           description,
-          image_url,
           is_active,
           deleted_at,
           categories(name, slug),
+          product_images(image_url, is_primary, display_order),
           product_variants(id, name, price, attributes, is_active, stock, reserved_stock)
         `
         )

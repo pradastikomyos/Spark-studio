@@ -119,7 +119,15 @@ const StoreInventory = () => {
       let stockAvailable = 0;
       let priceMin = Number.POSITIVE_INFINITY;
       let priceMax = 0;
-      let imageUrl: string | null = row.image_url ?? null;
+
+      // Get primary image from product_images table
+      const sortedImages = (row.product_images || [])
+        .sort((a, b) => {
+          // Primary images first, then by display_order
+          if (a.is_primary !== b.is_primary) return a.is_primary ? -1 : 1;
+          return a.display_order - b.display_order;
+        });
+      let imageUrl: string | null = sortedImages[0]?.image_url ?? null;
 
       for (const v of variants) {
         const stock = Math.max(toNumber(v.stock, 0) - toNumber(v.reserved_stock, 0), 0);
@@ -220,14 +228,14 @@ const StoreInventory = () => {
   const handleOpenEdit = async (productId: number) => {
     setSaveError(null);
     setEditingProductId(productId);
-    
+
     // Fetch existing images
     const { data } = await supabase
       .from('product_images')
       .select('image_url, is_primary')
       .eq('product_id', productId)
       .order('display_order');
-    
+
     setExistingImages(data?.map(img => ({ url: img.image_url, is_primary: img.is_primary })) || []);
     setShowProductForm(true);
   };
@@ -255,8 +263,8 @@ const StoreInventory = () => {
     }
   };
 
-  const handleSaveProduct = async (payload: { 
-    draft: ProductDraft; 
+  const handleSaveProduct = async (payload: {
+    draft: ProductDraft;
     newImages: File[];
     removedImageUrls: string[];
   }) => {
@@ -271,25 +279,25 @@ const StoreInventory = () => {
         const optimisticProducts = productsRaw.map((product) =>
           product.id === stableProductId
             ? {
-                ...product,
-                name: draft.name,
-                slug: draft.slug,
-                description: draft.description || null,
-                category_id: draft.category_id,
-                sku: draft.sku,
-                is_active: draft.is_active,
-                product_variants: draft.variants.map((variant) => ({
-                  id: variant.id ?? 0,
-                  product_id: stableProductId,
-                  name: variant.name,
-                  sku: variant.sku,
-                  price: variant.price ? Number(variant.price) : null,
-                  stock: variant.stock,
-                  reserved_stock: 0,
-                  attributes: null,
-                  is_active: true,
-                })),
-              }
+              ...product,
+              name: draft.name,
+              slug: draft.slug,
+              description: draft.description || null,
+              category_id: draft.category_id,
+              sku: draft.sku,
+              is_active: draft.is_active,
+              product_variants: draft.variants.map((variant) => ({
+                id: variant.id ?? 0,
+                product_id: stableProductId,
+                name: variant.name,
+                sku: variant.sku,
+                price: variant.price ? Number(variant.price) : null,
+                stock: variant.stock,
+                reserved_stock: 0,
+                attributes: null,
+                is_active: true,
+              })),
+            }
             : product
         );
         mutate({ products: optimisticProducts, categories: inventoryCategories }, { revalidate: false, rollbackOnError: true });
@@ -338,7 +346,7 @@ const StoreInventory = () => {
       // Upload new images
       if (newImages.length > 0) {
         const { uploadProductImages, saveProductImages } = await import('../../utils/uploadProductImage');
-        
+
         // Get current max display_order
         const { data: existingImages } = await supabase
           .from('product_images')
@@ -346,9 +354,9 @@ const StoreInventory = () => {
           .eq('product_id', productId)
           .order('display_order', { ascending: false })
           .limit(1);
-        
-        const startOrder = existingImages && existingImages.length > 0 
-          ? existingImages[0].display_order + 1 
+
+        const startOrder = existingImages && existingImages.length > 0
+          ? existingImages[0].display_order + 1
           : 0;
 
         const uploadedUrls = await uploadProductImages(newImages, productId, { maxSizeMb: 2 });
@@ -571,9 +579,8 @@ const StoreInventory = () => {
             {filteredProducts.map((product) => (
               <div
                 key={product.id}
-                className={`group flex flex-col rounded-xl border border-gray-200 dark:border-white/10 bg-white dark:bg-[#1a0f0f] overflow-hidden shadow-sm hover:shadow-md transition-all duration-200 hover:border-primary/30 ${
-                  product.stock_status === 'out' ? 'opacity-75 hover:opacity-100' : ''
-                }`}
+                className={`group flex flex-col rounded-xl border border-gray-200 dark:border-white/10 bg-white dark:bg-[#1a0f0f] overflow-hidden shadow-sm hover:shadow-md transition-all duration-200 hover:border-primary/30 ${product.stock_status === 'out' ? 'opacity-75 hover:opacity-100' : ''
+                  }`}
               >
                 <div className="aspect-[4/3] w-full bg-gray-100 dark:bg-white/5 relative overflow-hidden">
                   {product.image_url ? (
@@ -702,8 +709,8 @@ const StoreInventory = () => {
         onUpdate={() => mutate()}
       />
 
-      <QRScannerModal 
-        isOpen={showScanner} 
+      <QRScannerModal
+        isOpen={showScanner}
         onClose={() => setShowScanner(false)}
         title="Scan Pickup Code"
         onScan={(decodedText) => {

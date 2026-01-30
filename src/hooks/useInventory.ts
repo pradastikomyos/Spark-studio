@@ -14,18 +14,24 @@ type ProductVariantRow = {
   is_active: boolean | null;
 };
 
+export type ProductImageRow = {
+  image_url: string;
+  is_primary: boolean;
+  display_order: number;
+};
+
 export type ProductRow = {
   id: number;
   name: string;
   slug: string;
   description: string | null;
-  image_url?: string | null;
   category_id: number | null;
   sku: string;
   is_active: boolean;
   deleted_at: string | null;
   categories?: { id: number; name: string; slug: string; is_active: boolean | null } | null;
   product_variants?: ProductVariantRow[] | null;
+  product_images?: ProductImageRow[] | null;
 };
 
 export type CategoryRow = {
@@ -48,12 +54,12 @@ export function useInventory() {
               name,
               slug,
               description,
-              image_url,
               category_id,
               sku,
               is_active,
               deleted_at,
               categories(id, name, slug, is_active),
+              product_images(image_url, is_primary, display_order),
               product_variants(
                 id,
                 product_id,
