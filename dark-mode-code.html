@@ -1,13 +1,23 @@
-<!DOCTYPE html>
-<html class="scroll-smooth" lang="en"><head>
-<meta charset="utf-8"/>
-<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
-<title>Spark Photo Studio - Premium Photography Experience</title>
-<script src="https://cdn.tailwindcss.com?plugins=forms,typography,container-queries"></script>
-<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&amp;family=Inter:wght@200;300;400;500;600&amp;display=swap" rel="stylesheet"/>
-<link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet"/>
-<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
-<script>
+<!doctype html>
+<html class="scroll-smooth" lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+    <title>Spark Photo Studio - Premium Photography Experience</title>
+    <script src="https://cdn.tailwindcss.com?plugins=forms,typography,container-queries"></script>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&amp;family=Inter:wght@200;300;400;500;600&amp;display=swap"
+      rel="stylesheet"
+    />
+    <link
+      href="https://fonts.googleapis.com/icon?family=Material+Icons"
+      rel="stylesheet"
+    />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap"
+      rel="stylesheet"
+    />
+    <script>
       tailwind.config = {
         darkMode: "class",
         theme: {
@@ -29,349 +39,724 @@
               sans: ["'Inter'", "sans-serif"],
             },
             letterSpacing: {
-              widest: '0.15em',
-            }
+              widest: "0.15em",
+            },
           },
         },
       };
     </script>
-<style>
-    .hide-scrollbar::-webkit-scrollbar {
+    <style>
+      .hide-scrollbar::-webkit-scrollbar {
         display: none;
-    }
-    .hide-scrollbar {
+      }
+      .hide-scrollbar {
         -ms-overflow-style: none;
         scrollbar-width: none;
-    }
-    .text-stroke {
-        -webkit-text-stroke: 1px rgba(255,255,255,0.2);
-    }
-    .text-stroke-dark {
-        -webkit-text-stroke: 1px rgba(0,0,0,0.1);
-    }
-</style>
-</head>
-<body class="bg-background-light dark:bg-background-dark text-text-light dark:text-text-dark font-sans transition-colors duration-500 antialiased selection:bg-primary selection:text-white">
-<nav class="fixed top-0 w-full z-50 bg-background-light/95 dark:bg-background-dark/95 backdrop-blur-md border-b border-gray-100 dark:border-white/10 transition-all duration-300">
-<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-<div class="flex justify-between items-center h-24">
-<div class="flex-shrink-0 flex items-center relative group cursor-pointer">
-<div class="relative flex items-center">
-<span class="font-display text-4xl font-bold tracking-tighter italic pr-1">SPARK</span>
-<div class="absolute -top-3 left-[45%] text-primary animate-pulse">
-<svg fill="currentColor" height="24" viewBox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg">
-<path d="M12 2L14.5 9.5L22 12L14.5 14.5L12 22L9.5 14.5L2 12L9.5 9.5L12 2Z"></path>
-</svg>
-</div>
-<div class="absolute -bottom-1 left-0 w-full h-[2px] bg-primary scale-x-0 group-hover:scale-x-100 transition-transform duration-500 origin-left"></div>
-</div>
-</div>
-<div class="hidden md:flex items-center space-x-10">
-<a class="text-xs uppercase tracking-widest font-medium hover:text-primary transition-colors relative after:content-[''] after:absolute after:-bottom-1 after:left-0 after:w-0 after:h-px after:bg-primary hover:after:w-full after:transition-all" href="#">On Stage</a>
-<a class="text-xs uppercase tracking-widest font-medium hover:text-primary transition-colors relative after:content-[''] after:absolute after:-bottom-1 after:left-0 after:w-0 after:h-px after:bg-primary hover:after:w-full after:transition-all" href="#">Events</a>
-<a class="text-xs uppercase tracking-widest font-medium hover:text-primary transition-colors relative after:content-[''] after:absolute after:-bottom-1 after:left-0 after:w-0 after:h-px after:bg-primary hover:after:w-full after:transition-all" href="#">Fashion</a>
-<a class="text-xs uppercase tracking-widest font-medium hover:text-primary transition-colors relative after:content-[''] after:absolute after:-bottom-1 after:left-0 after:w-0 after:h-px after:bg-primary hover:after:w-full after:transition-all" href="#">Beauty</a>
-<a class="text-xs uppercase tracking-widest font-bold text-primary hover:text-primary-dark transition-colors border border-primary/20 px-4 py-2 rounded-full hover:bg-primary hover:text-white" href="#">Spark Club</a>
-</div>
-<div class="flex items-center space-x-6 text-gray-500 dark:text-gray-400">
-<button class="hover:text-primary transition-colors"><span class="material-symbols-outlined text-[20px]">person</span></button>
-<button class="hover:text-primary transition-colors"><span class="material-symbols-outlined text-[20px]">shopping_bag</span></button>
-<button class="hover:text-primary transition-colors"><span class="material-symbols-outlined text-[20px]">search</span></button>
-</div>
-</div>
-</div>
-</nav>
-<header class="relative w-full h-screen min-h-[700px] bg-background-dark overflow-hidden group">
-<div class="absolute inset-0 z-0">
-<img alt="Dramatic photography studio portrait with high contrast lighting" class="w-full h-full object-cover opacity-80 scale-100 group-hover:scale-105 transition-transform duration-[2s] ease-in-out" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBXsDj0az3zzKzPuGWFNVkv93Z05vEWEttTgUqh4SS7iW-kLSNN2_0jvc-v4pho8kz2OqrqnpiQWh4vBzn87isw1yCP1VE1HXsHHOHubRuhCY6LmQpM3KdjfATKhPb2413xZu1naHDWVkwgWTK9sWUI-jwpMrYUO-6Uad1Qcq7NStqNGjpzbzTLH7nXSLD8e_CIiD6qurTg-eVxRwpK34LWyWrNCYPlMJqhFEbs2rUPPUn2uOz-B8JOZCi3FsjDK7b_ExLsUFMJyrA"/>
-<div class="absolute inset-0 bg-gradient-to-b from-black/60 via-black/20 to-background-dark"></div>
-</div>
-<div class="relative z-10 h-full flex flex-col items-center justify-center text-center px-4 pt-20">
-<div class="mb-6 animate-fade-in-up">
-<span class="inline-block py-1 px-3 border border-white/30 rounded-full text-[10px] uppercase tracking-widest text-white backdrop-blur-sm">Premium Studio Experience</span>
-</div>
-<h1 class="font-display text-7xl md:text-9xl text-white font-medium mb-2 tracking-tight leading-[0.9]">
-            Capturing <br/>
-<span class="italic font-light text-primary relative inline-block">
-                Soul
-                <svg class="absolute -top-6 -right-8 w-12 h-12 text-white opacity-80" fill="currentColor" viewBox="0 0 24 24">
-<path d="M12 2L14.5 9.5L22 12L14.5 14.5L12 22L9.5 14.5L2 12L9.5 9.5L12 2Z"></path>
-</svg>
-</span>
-</h1>
-<p class="text-gray-300 text-lg md:text-xl max-w-xl font-light mb-10 leading-relaxed mt-6">
-            Where artistry meets precision. Spark Photo Studio crafts visual narratives that resonate with elegance and timeless emotion.
+      }
+      .text-stroke {
+        -webkit-text-stroke: 1px rgba(255, 255, 255, 0.2);
+      }
+      .text-stroke-dark {
+        -webkit-text-stroke: 1px rgba(0, 0, 0, 0.1);
+      }
+    </style>
+  </head>
+  <body
+    class="bg-background-light dark:bg-background-dark text-text-light dark:text-text-dark font-sans transition-colors duration-500 antialiased selection:bg-primary selection:text-white"
+  >
+    <nav
+      class="fixed top-0 w-full z-50 bg-background-light/95 dark:bg-background-dark/95 backdrop-blur-md border-b border-gray-100 dark:border-white/10 transition-all duration-300"
+    >
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="flex justify-between items-center h-24">
+          <div
+            class="flex-shrink-0 flex items-center relative group cursor-pointer"
+          >
+            <div class="relative flex items-center">
+              <span
+                class="font-display text-4xl font-bold tracking-tighter italic pr-1"
+                >SPARK</span
+              >
+              <div
+                class="absolute -top-3 left-[45%] text-primary animate-pulse"
+              >
+                <svg
+                  fill="currentColor"
+                  height="24"
+                  viewBox="0 0 24 24"
+                  width="24"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    d="M12 2L14.5 9.5L22 12L14.5 14.5L12 22L9.5 14.5L2 12L9.5 9.5L12 2Z"
+                  ></path>
+                </svg>
+              </div>
+              <div
+                class="absolute -bottom-1 left-0 w-full h-[2px] bg-primary scale-x-0 group-hover:scale-x-100 transition-transform duration-500 origin-left"
+              ></div>
+            </div>
+          </div>
+          <div class="hidden md:flex items-center space-x-10">
+            <a
+              class="text-xs uppercase tracking-widest font-medium hover:text-primary transition-colors relative after:content-[''] after:absolute after:-bottom-1 after:left-0 after:w-0 after:h-px after:bg-primary hover:after:w-full after:transition-all"
+              href="#"
+              >On Stage</a
+            >
+            <a
+              class="text-xs uppercase tracking-widest font-medium hover:text-primary transition-colors relative after:content-[''] after:absolute after:-bottom-1 after:left-0 after:w-0 after:h-px after:bg-primary hover:after:w-full after:transition-all"
+              href="#"
+              >Events</a
+            >
+            <a
+              class="text-xs uppercase tracking-widest font-medium hover:text-primary transition-colors relative after:content-[''] after:absolute after:-bottom-1 after:left-0 after:w-0 after:h-px after:bg-primary hover:after:w-full after:transition-all"
+              href="#"
+              >Fashion</a
+            >
+            <a
+              class="text-xs uppercase tracking-widest font-medium hover:text-primary transition-colors relative after:content-[''] after:absolute after:-bottom-1 after:left-0 after:w-0 after:h-px after:bg-primary hover:after:w-full after:transition-all"
+              href="#"
+              >Beauty</a
+            >
+            <a
+              class="text-xs uppercase tracking-widest font-bold text-primary hover:text-primary-dark transition-colors border border-primary/20 px-4 py-2 rounded-full hover:bg-primary hover:text-white"
+              href="#"
+              >Spark Club</a
+            >
+          </div>
+          <div
+            class="flex items-center space-x-6 text-gray-500 dark:text-gray-400"
+          >
+            <button class="hover:text-primary transition-colors">
+              <span class="material-symbols-outlined text-[20px]">person</span>
+            </button>
+            <button class="hover:text-primary transition-colors">
+              <span class="material-symbols-outlined text-[20px]"
+                >shopping_bag</span
+              >
+            </button>
+            <button class="hover:text-primary transition-colors">
+              <span class="material-symbols-outlined text-[20px]">search</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </nav>
+    <header
+      class="relative w-full h-screen min-h-[700px] bg-background-dark overflow-hidden group"
+    >
+      <div class="absolute inset-0 z-0">
+        <img
+          alt="Dramatic photography studio portrait with high contrast lighting"
+          class="w-full h-full object-cover opacity-80 scale-100 group-hover:scale-105 transition-transform duration-[2s] ease-in-out"
+          src="https://lh3.googleusercontent.com/aida-public/AB6AXuBXsDj0az3zzKzPuGWFNVkv93Z05vEWEttTgUqh4SS7iW-kLSNN2_0jvc-v4pho8kz2OqrqnpiQWh4vBzn87isw1yCP1VE1HXsHHOHubRuhCY6LmQpM3KdjfATKhPb2413xZu1naHDWVkwgWTK9sWUI-jwpMrYUO-6Uad1Qcq7NStqNGjpzbzTLH7nXSLD8e_CIiD6qurTg-eVxRwpK34LWyWrNCYPlMJqhFEbs2rUPPUn2uOz-B8JOZCi3FsjDK7b_ExLsUFMJyrA"
+        />
+        <div
+          class="absolute inset-0 bg-gradient-to-b from-black/60 via-black/20 to-background-dark"
+        ></div>
+      </div>
+      <div
+        class="relative z-10 h-full flex flex-col items-center justify-center text-center px-4 pt-20"
+      >
+        <div class="mb-6 animate-fade-in-up">
+          <span
+            class="inline-block py-1 px-3 border border-white/30 rounded-full text-[10px] uppercase tracking-widest text-white backdrop-blur-sm"
+            >Premium Studio Experience</span
+          >
+        </div>
+        <h1
+          class="font-display text-7xl md:text-9xl text-white font-medium mb-2 tracking-tight leading-[0.9]"
+        >
+          Capturing <br />
+          <span class="italic font-light text-primary relative inline-block">
+            Soul
+            <svg
+              class="absolute -top-6 -right-8 w-12 h-12 text-white opacity-80"
+              fill="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                d="M12 2L14.5 9.5L22 12L14.5 14.5L12 22L9.5 14.5L2 12L9.5 9.5L12 2Z"
+              ></path>
+            </svg>
+          </span>
+        </h1>
+        <p
+          class="text-gray-300 text-lg md:text-xl max-w-xl font-light mb-10 leading-relaxed mt-6"
+        >
+          Where artistry meets precision. Spark Photo Studio crafts visual
+          narratives that resonate with elegance and timeless emotion.
         </p>
-<div class="flex flex-col sm:flex-row gap-6">
-<a class="bg-primary hover:bg-primary-dark text-white px-10 py-4 rounded-sm text-xs uppercase tracking-widest font-bold transition-all transform hover:-translate-y-1 shadow-lg shadow-primary/30" href="#tickets">
-                Book Session
-            </a>
-<a class="bg-transparent border border-white/30 hover:border-white text-white hover:bg-white hover:text-black px-10 py-4 rounded-sm text-xs uppercase tracking-widest font-bold transition-all backdrop-blur-sm" href="#">
-                Explore Gallery
-            </a>
-</div>
-</div>
-<div class="absolute bottom-10 left-1/2 -translate-x-1/2 flex flex-col items-center animate-bounce opacity-50">
-<span class="text-[10px] uppercase tracking-widest text-white mb-2">Scroll</span>
-<span class="material-symbols-outlined text-white">keyboard_arrow_down</span>
-</div>
-</header>
-<main class="bg-background-light dark:bg-background-dark">
-<section class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-24 relative" id="tickets">
-<div class="absolute top-10 right-10 text-primary/5 dark:text-primary/10 select-none pointer-events-none">
-<svg fill="currentColor" height="200" viewBox="0 0 24 24" width="200">
-<path d="M12 2L14.5 9.5L22 12L14.5 14.5L12 22L9.5 14.5L2 12L9.5 9.5L12 2Z"></path>
-</svg>
-</div>
-<div class="flex flex-col md:flex-row justify-between items-end mb-16">
-<div class="max-w-2xl">
-<h2 class="font-display text-5xl md:text-6xl font-medium text-text-light dark:text-white mb-4">
-                    Entrance <span class="italic text-primary">Access</span>
-</h2>
-<p class="text-subtext-light dark:text-subtext-dark text-lg font-light leading-relaxed">
-                    Exclusive access to our professional stages. Limited availability for daily sessions.
-                </p>
-</div>
-<div class="mt-6 md:mt-0">
-<a class="inline-flex items-center text-sm font-semibold text-primary hover:text-text-light dark:hover:text-white transition-colors uppercase tracking-widest group" href="#">
-                    View Full Calendar 
-                    <span class="material-symbols-outlined ml-2 group-hover:translate-x-1 transition-transform text-sm">arrow_forward</span>
-</a>
-</div>
-</div>
-<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-<div class="group relative bg-surface-light dark:bg-surface-dark border border-gray-100 dark:border-white/5 p-8 hover:border-primary/50 transition-colors duration-300">
-<div class="absolute top-0 left-0 w-full h-1 bg-primary transform scale-x-0 group-hover:scale-x-100 transition-transform duration-300"></div>
-<div class="flex justify-between items-start mb-6">
-<div>
-<span class="block text-xs font-bold text-subtext-light dark:text-subtext-dark uppercase tracking-wider mb-1">Jan</span>
-<span class="block text-4xl font-display font-bold text-text-light dark:text-white">17</span>
-</div>
-<span class="px-2 py-1 bg-primary text-white text-[10px] font-bold uppercase tracking-wide">Today</span>
-</div>
-<h3 class="font-display text-xl text-text-light dark:text-white mb-2 group-hover:text-primary transition-colors">All Access Pass</h3>
-<p class="text-sm text-subtext-light dark:text-subtext-dark mb-8 font-light">Includes lighting equipment &amp; stage props.</p>
-<button class="w-full py-3 border border-gray-200 dark:border-white/10 text-xs font-bold uppercase tracking-widest hover:bg-primary hover:border-primary hover:text-white transition-all duration-300 flex justify-center items-center gap-2">
-                    Book Now
-                </button>
-</div>
-<div class="group relative bg-surface-light dark:bg-surface-dark border border-gray-100 dark:border-white/5 p-8 hover:border-primary/50 transition-colors duration-300">
-<div class="absolute top-0 left-0 w-full h-1 bg-primary transform scale-x-0 group-hover:scale-x-100 transition-transform duration-300"></div>
-<div class="flex justify-between items-start mb-6">
-<div>
-<span class="block text-xs font-bold text-subtext-light dark:text-subtext-dark uppercase tracking-wider mb-1">Jan</span>
-<span class="block text-4xl font-display font-bold text-text-light dark:text-white">18</span>
-</div>
-</div>
-<h3 class="font-display text-xl text-text-light dark:text-white mb-2 group-hover:text-primary transition-colors">All Access Pass</h3>
-<p class="text-sm text-subtext-light dark:text-subtext-dark mb-8 font-light">Includes lighting equipment &amp; stage props.</p>
-<button class="w-full py-3 border border-gray-200 dark:border-white/10 text-xs font-bold uppercase tracking-widest hover:bg-primary hover:border-primary hover:text-white transition-all duration-300 flex justify-center items-center gap-2">
-                    Book Now
-                </button>
-</div>
-<div class="group relative bg-surface-light dark:bg-surface-dark border border-gray-100 dark:border-white/5 p-8 hover:border-primary/50 transition-colors duration-300">
-<div class="absolute top-0 left-0 w-full h-1 bg-primary transform scale-x-0 group-hover:scale-x-100 transition-transform duration-300"></div>
-<div class="flex justify-between items-start mb-6">
-<div>
-<span class="block text-xs font-bold text-subtext-light dark:text-subtext-dark uppercase tracking-wider mb-1">Jan</span>
-<span class="block text-4xl font-display font-bold text-text-light dark:text-white">19</span>
-</div>
-</div>
-<h3 class="font-display text-xl text-text-light dark:text-white mb-2 group-hover:text-primary transition-colors">All Access Pass</h3>
-<p class="text-sm text-subtext-light dark:text-subtext-dark mb-8 font-light">Includes lighting equipment &amp; stage props.</p>
-<button class="w-full py-3 border border-gray-200 dark:border-white/10 text-xs font-bold uppercase tracking-widest hover:bg-primary hover:border-primary hover:text-white transition-all duration-300 flex justify-center items-center gap-2">
-                    Book Now
-                </button>
-</div>
-<div class="group relative bg-surface-light dark:bg-surface-dark border border-gray-100 dark:border-white/5 p-8 hover:border-primary/50 transition-colors duration-300">
-<div class="absolute top-0 left-0 w-full h-1 bg-primary transform scale-x-0 group-hover:scale-x-100 transition-transform duration-300"></div>
-<div class="flex justify-between items-start mb-6">
-<div>
-<span class="block text-xs font-bold text-subtext-light dark:text-subtext-dark uppercase tracking-wider mb-1">Jan</span>
-<span class="block text-4xl font-display font-bold text-text-light dark:text-white">20</span>
-</div>
-</div>
-<h3 class="font-display text-xl text-text-light dark:text-white mb-2 group-hover:text-primary transition-colors">All Access Pass</h3>
-<p class="text-sm text-subtext-light dark:text-subtext-dark mb-8 font-light">Includes lighting equipment &amp; stage props.</p>
-<button class="w-full py-3 border border-gray-200 dark:border-white/10 text-xs font-bold uppercase tracking-widest hover:bg-primary hover:border-primary hover:text-white transition-all duration-300 flex justify-center items-center gap-2">
-                    Book Now
-                </button>
-</div>
-</div>
-</section>
-<section class="border-t border-gray-100 dark:border-white/5 py-24 bg-surface-light/30 dark:bg-black">
-<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-<div class="grid grid-cols-1 lg:grid-cols-12 gap-16">
-<div class="lg:col-span-7 space-y-12">
-<div>
-<span class="text-primary text-xs font-bold uppercase tracking-widest mb-2 block">Studio Philosophy</span>
-<h2 class="font-display text-4xl font-medium text-text-light dark:text-white mb-6">The Art of <span class="italic font-light">Light &amp; Shadow</span></h2>
-<p class="text-subtext-light dark:text-subtext-dark leading-loose font-light text-lg">
-                            SPARK is more than a studio; it is an immersive theatrical experience that takes audiences on a journey through a fantastical world. We believe that every photograph is a frozen moment of magic, a collaborative art form between the subject and the lens.
-                        </p>
-</div>
-<div class="grid grid-cols-1 sm:grid-cols-2 gap-8 pt-8 border-t border-gray-200 dark:border-white/10">
-<div class="flex gap-4 items-start">
-<div class="p-2 bg-primary/10 rounded-full text-primary">
-<span class="material-symbols-outlined">schedule</span>
-</div>
-<div>
-<h4 class="font-bold text-text-light dark:text-white mb-1">Session Duration</h4>
-<p class="text-sm text-subtext-light dark:text-subtext-dark">Typically 2 hours and 45 minutes, allowing ample time for wardrobe changes and set adjustments.</p>
-</div>
-</div>
-<div class="flex gap-4 items-start">
-<div class="p-2 bg-primary/10 rounded-full text-primary">
-<span class="material-symbols-outlined">shutter_speed</span>
-</div>
-<div>
-<h4 class="font-bold text-text-light dark:text-white mb-1">Professional Gear</h4>
-<p class="text-sm text-subtext-light dark:text-subtext-dark">Access to state-of-the-art Profoto lighting and Hasselblad camera systems.</p>
-</div>
-</div>
-</div>
-</div>
-<div class="lg:col-span-5">
-<div class="bg-white dark:bg-surface-dark p-10 shadow-2xl shadow-black/5 dark:shadow-black/20 sticky top-32 border-l-4 border-primary">
-<h3 class="font-display text-2xl font-medium text-text-light dark:text-white mb-8 flex items-center gap-3">
-<span class="material-symbols-outlined text-primary">confirmation_number</span>
-                            Official Booking
-                        </h3>
-<ul class="space-y-6 mb-8">
-<li class="flex items-center gap-4">
-<span class="material-symbols-outlined text-green-500 text-xl">verified</span>
-<span class="text-sm font-medium text-text-light dark:text-gray-300">100% Satisfaction Guaranteed</span>
-</li>
-<li class="flex items-center gap-4">
-<span class="material-symbols-outlined text-green-500 text-xl">group</span>
-<span class="text-sm font-medium text-text-light dark:text-gray-300">Private Group Sessions Available</span>
-</li>
-<li class="flex items-center gap-4">
-<span class="material-symbols-outlined text-green-500 text-xl">event_available</span>
-<span class="text-sm font-medium text-text-light dark:text-gray-300">Flexible Rescheduling Policy</span>
-</li>
-</ul>
-<button class="w-full bg-text-light dark:bg-white text-white dark:text-black py-4 font-bold text-xs uppercase tracking-widest hover:bg-primary hover:text-white dark:hover:bg-primary dark:hover:text-white transition-all shadow-lg">
-                            Check Availability
-                        </button>
-</div>
-</div>
-</div>
-</div>
-</section>
-<section class="py-24 bg-background-light dark:bg-background-dark">
-<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-<div class="flex flex-col items-center text-center mb-16">
-<span class="text-primary text-xs font-bold uppercase tracking-widest mb-3">Portfolio</span>
-<h2 class="font-display text-4xl md:text-5xl font-medium text-text-light dark:text-white">Curated <span class="italic text-gray-400">Collections</span></h2>
-</div>
-<div class="grid grid-cols-1 md:grid-cols-2 gap-8">
-<div class="group relative h-[500px] overflow-hidden cursor-pointer">
-<img alt="High fashion model in artistic pose" class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110 grayscale group-hover:grayscale-0" src="https://lh3.googleusercontent.com/aida-public/AB6AXuA588h4jJ4oHsovcFrCVzPKpp_UEjMxSSaafs_xzNqq498XDUCQpkVffgJCVjBFT85Msi-UXYkt5KQ8ZcHb6fzvA8mtRH7-hX0l8f1xMsXecfiYvU83maNSDjKeTD0W5bbAOX6LQyDRPar2Jpzg31Y5y9IwBfo7TkmpZbNGwcViuL7c7dOk0sa29H3Io-qLVN_XkNZwg_tVz3gP2wvtVBkmz-H-HRqYu8-JLTHlXNR3wZM_jcd8DttsIZO2CVe4K7GQadHKa6EfjYA"/>
-<div class="absolute inset-0 bg-black/20 group-hover:bg-black/40 transition-colors"></div>
-<div class="absolute inset-0 flex flex-col items-center justify-center p-8 border-[12px] border-transparent group-hover:border-white/10 transition-all duration-500">
-<h3 class="font-display text-5xl text-white font-medium mb-2 translate-y-4 group-hover:translate-y-0 transition-transform duration-500">Fashion</h3>
-<div class="w-12 h-1 bg-primary mb-4 opacity-0 group-hover:opacity-100 transition-opacity delay-100 duration-500"></div>
-<p class="text-white text-xs uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-opacity delay-200 duration-500">View Editorial</p>
-</div>
-</div>
-<div class="group relative h-[500px] overflow-hidden cursor-pointer">
-<img alt="Close up beauty portrait" class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110 grayscale group-hover:grayscale-0" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCkJ5TljbcL9JErzdImZpHysbVXEAVI6KflXWpPCI9Bl6k0ajJt___aOnK4LFmj6UfRmrolcZFtgA2hqaWEw7N58b9DfHSOSSvzQz9Qld-YEePxFI-i7tFQnCs17and8i1b9mxb70Dn7WAaQT1HMG8AHXeq9Tdrb1XKGBLB5AWXu9lccyaLz9HSMeO-JT0eTAKii9eqrjAx64mn1XBl0YkrRe8yhzdMVdiBmy97UQzlQFjsQiLXmTMWruIXzBdZgT4D4oZq9cmXgfg"/>
-<div class="absolute inset-0 bg-black/20 group-hover:bg-black/40 transition-colors"></div>
-<div class="absolute inset-0 flex flex-col items-center justify-center p-8 border-[12px] border-transparent group-hover:border-white/10 transition-all duration-500">
-<h3 class="font-display text-5xl text-white font-medium mb-2 translate-y-4 group-hover:translate-y-0 transition-transform duration-500">Beauty</h3>
-<div class="w-12 h-1 bg-primary mb-4 opacity-0 group-hover:opacity-100 transition-opacity delay-100 duration-500"></div>
-<p class="text-white text-xs uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-opacity delay-200 duration-500">View Portraits</p>
-</div>
-</div>
-</div>
-</div>
-</section>
-<section class="py-24 bg-surface-light dark:bg-surface-dark border-t border-gray-200 dark:border-white/5">
-<div class="max-w-4xl mx-auto px-4 text-center">
-<span class="inline-block p-3 bg-primary/10 rounded-full text-primary mb-6">
-<span class="material-symbols-outlined text-3xl">mark_email_unread</span>
-</span>
-<h2 class="font-display text-4xl font-medium text-text-light dark:text-white mb-4">Join the Inner Circle</h2>
-<p class="text-subtext-light dark:text-subtext-dark mb-10 max-w-xl mx-auto font-light">
-                Receive exclusive invitations to gallery openings, workshops, and early bird booking access.
+        <div class="flex flex-col sm:flex-row gap-6">
+          <a
+            class="bg-primary hover:bg-primary-dark text-white px-10 py-4 rounded-sm text-xs uppercase tracking-widest font-bold transition-all transform hover:-translate-y-1 shadow-lg shadow-primary/30"
+            href="#tickets"
+          >
+            Book Session
+          </a>
+          <a
+            class="bg-transparent border border-white/30 hover:border-white text-white hover:bg-white hover:text-black px-10 py-4 rounded-sm text-xs uppercase tracking-widest font-bold transition-all backdrop-blur-sm"
+            href="#"
+          >
+            Explore Gallery
+          </a>
+        </div>
+      </div>
+      <div
+        class="absolute bottom-10 left-1/2 -translate-x-1/2 flex flex-col items-center animate-bounce opacity-50"
+      >
+        <span class="text-[10px] uppercase tracking-widest text-white mb-2"
+          >Scroll</span
+        >
+        <span class="material-symbols-outlined text-white"
+          >keyboard_arrow_down</span
+        >
+      </div>
+    </header>
+    <main class="bg-background-light dark:bg-background-dark">
+      <section
+        class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-24 relative"
+        id="tickets"
+      >
+        <div
+          class="absolute top-10 right-10 text-primary/5 dark:text-primary/10 select-none pointer-events-none"
+        >
+          <svg fill="currentColor" height="200" viewBox="0 0 24 24" width="200">
+            <path
+              d="M12 2L14.5 9.5L22 12L14.5 14.5L12 22L9.5 14.5L2 12L9.5 9.5L12 2Z"
+            ></path>
+          </svg>
+        </div>
+        <div class="flex flex-col md:flex-row justify-between items-end mb-16">
+          <div class="max-w-2xl">
+            <h2
+              class="font-display text-5xl md:text-6xl font-medium text-text-light dark:text-white mb-4"
+            >
+              Entrance <span class="italic text-primary">Access</span>
+            </h2>
+            <p
+              class="text-subtext-light dark:text-subtext-dark text-lg font-light leading-relaxed"
+            >
+              Exclusive access to our professional stages. Limited availability
+              for daily sessions.
             </p>
-<form class="flex flex-col sm:flex-row gap-4 max-w-lg mx-auto">
-<input class="flex-grow px-6 py-4 bg-white dark:bg-black border border-gray-200 dark:border-gray-800 text-text-light dark:text-white placeholder-gray-400 focus:outline-none focus:border-primary transition-colors text-sm" placeholder="Email Address" required="" type="email"/>
-<button class="px-8 py-4 bg-primary text-white font-bold text-xs uppercase tracking-widest hover:bg-primary-dark transition-colors shadow-lg shadow-primary/20" type="submit">
-                    Subscribe
-                </button>
-</form>
-</div>
-</section>
-</main>
-<footer class="bg-black text-white pt-20 pb-10 border-t border-gray-900">
-<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-<div class="grid grid-cols-1 md:grid-cols-4 gap-12 mb-16">
-<div class="col-span-1 md:col-span-1">
-<div class="flex items-center mb-6">
-<span class="font-display text-3xl font-bold italic tracking-tighter">SPARK</span>
-<svg class="ml-1 mb-2 text-primary w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-<path d="M12 2L14.5 9.5L22 12L14.5 14.5L12 22L9.5 14.5L2 12L9.5 9.5L12 2Z"></path>
-</svg>
-</div>
-<p class="text-gray-500 text-sm leading-loose">
-                    Premium photography studio capturing life's most precious moments with artistic flair and professional excellence.
+          </div>
+          <div class="mt-6 md:mt-0">
+            <a
+              class="inline-flex items-center text-sm font-semibold text-primary hover:text-text-light dark:hover:text-white transition-colors uppercase tracking-widest group"
+              href="#"
+            >
+              View Full Calendar
+              <span
+                class="material-symbols-outlined ml-2 group-hover:translate-x-1 transition-transform text-sm"
+                >arrow_forward</span
+              >
+            </a>
+          </div>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div
+            class="group relative bg-surface-light dark:bg-surface-dark border border-gray-100 dark:border-white/5 p-8 hover:border-primary/50 transition-colors duration-300"
+          >
+            <div
+              class="absolute top-0 left-0 w-full h-1 bg-primary transform scale-x-0 group-hover:scale-x-100 transition-transform duration-300"
+            ></div>
+            <div class="flex justify-between items-start mb-6">
+              <div>
+                <span
+                  class="block text-xs font-bold text-subtext-light dark:text-subtext-dark uppercase tracking-wider mb-1"
+                  >Jan</span
+                >
+                <span
+                  class="block text-4xl font-display font-bold text-text-light dark:text-white"
+                  >17</span
+                >
+              </div>
+              <span
+                class="px-2 py-1 bg-primary text-white text-[10px] font-bold uppercase tracking-wide"
+                >Today</span
+              >
+            </div>
+            <h3
+              class="font-display text-xl text-text-light dark:text-white mb-2 group-hover:text-primary transition-colors"
+            >
+              All Access Pass
+            </h3>
+            <p
+              class="text-sm text-subtext-light dark:text-subtext-dark mb-8 font-light"
+            >
+              Includes lighting equipment &amp; stage props.
+            </p>
+            <button
+              class="w-full py-3 border border-gray-200 dark:border-white/10 text-xs font-bold uppercase tracking-widest hover:bg-primary hover:border-primary hover:text-white transition-all duration-300 flex justify-center items-center gap-2"
+            >
+              Book Now
+            </button>
+          </div>
+          <div
+            class="group relative bg-surface-light dark:bg-surface-dark border border-gray-100 dark:border-white/5 p-8 hover:border-primary/50 transition-colors duration-300"
+          >
+            <div
+              class="absolute top-0 left-0 w-full h-1 bg-primary transform scale-x-0 group-hover:scale-x-100 transition-transform duration-300"
+            ></div>
+            <div class="flex justify-between items-start mb-6">
+              <div>
+                <span
+                  class="block text-xs font-bold text-subtext-light dark:text-subtext-dark uppercase tracking-wider mb-1"
+                  >Jan</span
+                >
+                <span
+                  class="block text-4xl font-display font-bold text-text-light dark:text-white"
+                  >18</span
+                >
+              </div>
+            </div>
+            <h3
+              class="font-display text-xl text-text-light dark:text-white mb-2 group-hover:text-primary transition-colors"
+            >
+              All Access Pass
+            </h3>
+            <p
+              class="text-sm text-subtext-light dark:text-subtext-dark mb-8 font-light"
+            >
+              Includes lighting equipment &amp; stage props.
+            </p>
+            <button
+              class="w-full py-3 border border-gray-200 dark:border-white/10 text-xs font-bold uppercase tracking-widest hover:bg-primary hover:border-primary hover:text-white transition-all duration-300 flex justify-center items-center gap-2"
+            >
+              Book Now
+            </button>
+          </div>
+          <div
+            class="group relative bg-surface-light dark:bg-surface-dark border border-gray-100 dark:border-white/5 p-8 hover:border-primary/50 transition-colors duration-300"
+          >
+            <div
+              class="absolute top-0 left-0 w-full h-1 bg-primary transform scale-x-0 group-hover:scale-x-100 transition-transform duration-300"
+            ></div>
+            <div class="flex justify-between items-start mb-6">
+              <div>
+                <span
+                  class="block text-xs font-bold text-subtext-light dark:text-subtext-dark uppercase tracking-wider mb-1"
+                  >Jan</span
+                >
+                <span
+                  class="block text-4xl font-display font-bold text-text-light dark:text-white"
+                  >19</span
+                >
+              </div>
+            </div>
+            <h3
+              class="font-display text-xl text-text-light dark:text-white mb-2 group-hover:text-primary transition-colors"
+            >
+              All Access Pass
+            </h3>
+            <p
+              class="text-sm text-subtext-light dark:text-subtext-dark mb-8 font-light"
+            >
+              Includes lighting equipment &amp; stage props.
+            </p>
+            <button
+              class="w-full py-3 border border-gray-200 dark:border-white/10 text-xs font-bold uppercase tracking-widest hover:bg-primary hover:border-primary hover:text-white transition-all duration-300 flex justify-center items-center gap-2"
+            >
+              Book Now
+            </button>
+          </div>
+          <div
+            class="group relative bg-surface-light dark:bg-surface-dark border border-gray-100 dark:border-white/5 p-8 hover:border-primary/50 transition-colors duration-300"
+          >
+            <div
+              class="absolute top-0 left-0 w-full h-1 bg-primary transform scale-x-0 group-hover:scale-x-100 transition-transform duration-300"
+            ></div>
+            <div class="flex justify-between items-start mb-6">
+              <div>
+                <span
+                  class="block text-xs font-bold text-subtext-light dark:text-subtext-dark uppercase tracking-wider mb-1"
+                  >Jan</span
+                >
+                <span
+                  class="block text-4xl font-display font-bold text-text-light dark:text-white"
+                  >20</span
+                >
+              </div>
+            </div>
+            <h3
+              class="font-display text-xl text-text-light dark:text-white mb-2 group-hover:text-primary transition-colors"
+            >
+              All Access Pass
+            </h3>
+            <p
+              class="text-sm text-subtext-light dark:text-subtext-dark mb-8 font-light"
+            >
+              Includes lighting equipment &amp; stage props.
+            </p>
+            <button
+              class="w-full py-3 border border-gray-200 dark:border-white/10 text-xs font-bold uppercase tracking-widest hover:bg-primary hover:border-primary hover:text-white transition-all duration-300 flex justify-center items-center gap-2"
+            >
+              Book Now
+            </button>
+          </div>
+        </div>
+      </section>
+      <section
+        class="border-t border-gray-100 dark:border-white/5 py-24 bg-surface-light/30 dark:bg-black"
+      >
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div class="grid grid-cols-1 lg:grid-cols-12 gap-16">
+            <div class="lg:col-span-7 space-y-12">
+              <div>
+                <span
+                  class="text-primary text-xs font-bold uppercase tracking-widest mb-2 block"
+                  >Studio Philosophy</span
+                >
+                <h2
+                  class="font-display text-4xl font-medium text-text-light dark:text-white mb-6"
+                >
+                  The Art of
+                  <span class="italic font-light">Light &amp; Shadow</span>
+                </h2>
+                <p
+                  class="text-subtext-light dark:text-subtext-dark leading-loose font-light text-lg"
+                >
+                  SPARK is more than a studio; it is an immersive theatrical
+                  experience that takes audiences on a journey through a
+                  fantastical world. We believe that every photograph is a
+                  frozen moment of magic, a collaborative art form between the
+                  subject and the lens.
                 </p>
-</div>
-<div class="col-span-1">
-<h3 class="font-bold text-xs uppercase tracking-widest mb-6 text-white border-b border-gray-800 pb-2 inline-block">Explore</h3>
-<ul class="space-y-4 text-sm text-gray-400">
-<li><a class="hover:text-primary transition-colors" href="#">Home</a></li>
-<li><a class="hover:text-primary transition-colors" href="#">Portfolio</a></li>
-<li><a class="hover:text-primary transition-colors" href="#">Services</a></li>
-<li><a class="hover:text-primary transition-colors" href="#">Bookings</a></li>
-</ul>
-</div>
-<div class="col-span-1">
-<h3 class="font-bold text-xs uppercase tracking-widest mb-6 text-white border-b border-gray-800 pb-2 inline-block">Legal</h3>
-<ul class="space-y-4 text-sm text-gray-400">
-<li><a class="hover:text-primary transition-colors" href="#">Privacy Policy</a></li>
-<li><a class="hover:text-primary transition-colors" href="#">Terms of Service</a></li>
-</ul>
-</div>
-<div class="col-span-1">
-<h3 class="font-bold text-xs uppercase tracking-widest mb-6 text-white border-b border-gray-800 pb-2 inline-block">Connect</h3>
-<div class="flex space-x-4">
-<a class="w-10 h-10 border border-gray-700 rounded-full flex items-center justify-center hover:bg-primary hover:border-primary transition-all group" href="#">
-<span class="text-xs group-hover:text-white">IG</span>
-</a>
-<a class="w-10 h-10 border border-gray-700 rounded-full flex items-center justify-center hover:bg-primary hover:border-primary transition-all group" href="#">
-<span class="text-xs group-hover:text-white">TW</span>
-</a>
-<a class="w-10 h-10 border border-gray-700 rounded-full flex items-center justify-center hover:bg-primary hover:border-primary transition-all group" href="#">
-<span class="text-xs group-hover:text-white">LN</span>
-</a>
-</div>
-</div>
-</div>
-<div class="border-t border-gray-900 pt-8 flex flex-col md:flex-row justify-between items-center text-xs text-gray-600 uppercase tracking-wider">
-<p>© 2026 Spark Photo Studio. All rights reserved.</p>
-<p class="mt-2 md:mt-0">Designed with Elegance</p>
-</div>
-</div>
-</footer>
-<script>
-    // Force dark mode for premium feel as requested "Use a sophisticated dark mode or high-contrast white theme"
-    // The user requested "sophisticated dark mode OR high-contrast white theme". 
-    // Given the "premium studio" context, defaulting to dark mode for the first impression is often stronger, 
-    // but let's respect system pref but lean towards dark.
-    // Actually, looking at the request again "Use a sophisticated dark mode or high-contrast white theme."
-    // I will enable dark mode by default if no preference is set to give that "Premium" look immediately.
-    if (localStorage.theme === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
-        document.documentElement.classList.add('dark')
-    } else {
+              </div>
+              <div
+                class="grid grid-cols-1 sm:grid-cols-2 gap-8 pt-8 border-t border-gray-200 dark:border-white/10"
+              >
+                <div class="flex gap-4 items-start">
+                  <div class="p-2 bg-primary/10 rounded-full text-primary">
+                    <span class="material-symbols-outlined">schedule</span>
+                  </div>
+                  <div>
+                    <h4 class="font-bold text-text-light dark:text-white mb-1">
+                      Session Duration
+                    </h4>
+                    <p
+                      class="text-sm text-subtext-light dark:text-subtext-dark"
+                    >
+                      Typically 2 hours and 45 minutes, allowing ample time for
+                      wardrobe changes and set adjustments.
+                    </p>
+                  </div>
+                </div>
+                <div class="flex gap-4 items-start">
+                  <div class="p-2 bg-primary/10 rounded-full text-primary">
+                    <span class="material-symbols-outlined">shutter_speed</span>
+                  </div>
+                  <div>
+                    <h4 class="font-bold text-text-light dark:text-white mb-1">
+                      Professional Gear
+                    </h4>
+                    <p
+                      class="text-sm text-subtext-light dark:text-subtext-dark"
+                    >
+                      Access to state-of-the-art Profoto lighting and Hasselblad
+                      camera systems.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="lg:col-span-5">
+              <div
+                class="bg-white dark:bg-surface-dark p-10 shadow-2xl shadow-black/5 dark:shadow-black/20 sticky top-32 border-l-4 border-primary"
+              >
+                <h3
+                  class="font-display text-2xl font-medium text-text-light dark:text-white mb-8 flex items-center gap-3"
+                >
+                  <span class="material-symbols-outlined text-primary"
+                    >confirmation_number</span
+                  >
+                  Official Booking
+                </h3>
+                <ul class="space-y-6 mb-8">
+                  <li class="flex items-center gap-4">
+                    <span
+                      class="material-symbols-outlined text-green-500 text-xl"
+                      >verified</span
+                    >
+                    <span
+                      class="text-sm font-medium text-text-light dark:text-gray-300"
+                      >100% Satisfaction Guaranteed</span
+                    >
+                  </li>
+                  <li class="flex items-center gap-4">
+                    <span
+                      class="material-symbols-outlined text-green-500 text-xl"
+                      >group</span
+                    >
+                    <span
+                      class="text-sm font-medium text-text-light dark:text-gray-300"
+                      >Private Group Sessions Available</span
+                    >
+                  </li>
+                  <li class="flex items-center gap-4">
+                    <span
+                      class="material-symbols-outlined text-green-500 text-xl"
+                      >event_available</span
+                    >
+                    <span
+                      class="text-sm font-medium text-text-light dark:text-gray-300"
+                      >Flexible Rescheduling Policy</span
+                    >
+                  </li>
+                </ul>
+                <button
+                  class="w-full bg-text-light dark:bg-white text-white dark:text-black py-4 font-bold text-xs uppercase tracking-widest hover:bg-primary hover:text-white dark:hover:bg-primary dark:hover:text-white transition-all shadow-lg"
+                >
+                  Check Availability
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+      <section class="py-24 bg-background-light dark:bg-background-dark">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div class="flex flex-col items-center text-center mb-16">
+            <span
+              class="text-primary text-xs font-bold uppercase tracking-widest mb-3"
+              >Portfolio</span
+            >
+            <h2
+              class="font-display text-4xl md:text-5xl font-medium text-text-light dark:text-white"
+            >
+              Curated <span class="italic text-gray-400">Collections</span>
+            </h2>
+          </div>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div
+              class="group relative h-[500px] overflow-hidden cursor-pointer"
+            >
+              <img
+                alt="High fashion model in artistic pose"
+                class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110 grayscale group-hover:grayscale-0"
+                src="https://lh3.googleusercontent.com/aida-public/AB6AXuA588h4jJ4oHsovcFrCVzPKpp_UEjMxSSaafs_xzNqq498XDUCQpkVffgJCVjBFT85Msi-UXYkt5KQ8ZcHb6fzvA8mtRH7-hX0l8f1xMsXecfiYvU83maNSDjKeTD0W5bbAOX6LQyDRPar2Jpzg31Y5y9IwBfo7TkmpZbNGwcViuL7c7dOk0sa29H3Io-qLVN_XkNZwg_tVz3gP2wvtVBkmz-H-HRqYu8-JLTHlXNR3wZM_jcd8DttsIZO2CVe4K7GQadHKa6EfjYA"
+              />
+              <div
+                class="absolute inset-0 bg-black/20 group-hover:bg-black/40 transition-colors"
+              ></div>
+              <div
+                class="absolute inset-0 flex flex-col items-center justify-center p-8 border-[12px] border-transparent group-hover:border-white/10 transition-all duration-500"
+              >
+                <h3
+                  class="font-display text-5xl text-white font-medium mb-2 translate-y-4 group-hover:translate-y-0 transition-transform duration-500"
+                >
+                  Fashion
+                </h3>
+                <div
+                  class="w-12 h-1 bg-primary mb-4 opacity-0 group-hover:opacity-100 transition-opacity delay-100 duration-500"
+                ></div>
+                <p
+                  class="text-white text-xs uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-opacity delay-200 duration-500"
+                >
+                  View Editorial
+                </p>
+              </div>
+            </div>
+            <div
+              class="group relative h-[500px] overflow-hidden cursor-pointer"
+            >
+              <img
+                alt="Close up beauty portrait"
+                class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110 grayscale group-hover:grayscale-0"
+                src="https://lh3.googleusercontent.com/aida-public/AB6AXuCkJ5TljbcL9JErzdImZpHysbVXEAVI6KflXWpPCI9Bl6k0ajJt___aOnK4LFmj6UfRmrolcZFtgA2hqaWEw7N58b9DfHSOSSvzQz9Qld-YEePxFI-i7tFQnCs17and8i1b9mxb70Dn7WAaQT1HMG8AHXeq9Tdrb1XKGBLB5AWXu9lccyaLz9HSMeO-JT0eTAKii9eqrjAx64mn1XBl0YkrRe8yhzdMVdiBmy97UQzlQFjsQiLXmTMWruIXzBdZgT4D4oZq9cmXgfg"
+              />
+              <div
+                class="absolute inset-0 bg-black/20 group-hover:bg-black/40 transition-colors"
+              ></div>
+              <div
+                class="absolute inset-0 flex flex-col items-center justify-center p-8 border-[12px] border-transparent group-hover:border-white/10 transition-all duration-500"
+              >
+                <h3
+                  class="font-display text-5xl text-white font-medium mb-2 translate-y-4 group-hover:translate-y-0 transition-transform duration-500"
+                >
+                  Beauty
+                </h3>
+                <div
+                  class="w-12 h-1 bg-primary mb-4 opacity-0 group-hover:opacity-100 transition-opacity delay-100 duration-500"
+                ></div>
+                <p
+                  class="text-white text-xs uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-opacity delay-200 duration-500"
+                >
+                  View Portraits
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+      <section
+        class="py-24 bg-surface-light dark:bg-surface-dark border-t border-gray-200 dark:border-white/5"
+      >
+        <div class="max-w-4xl mx-auto px-4 text-center">
+          <span
+            class="inline-block p-3 bg-primary/10 rounded-full text-primary mb-6"
+          >
+            <span class="material-symbols-outlined text-3xl"
+              >mark_email_unread</span
+            >
+          </span>
+          <h2
+            class="font-display text-4xl font-medium text-text-light dark:text-white mb-4"
+          >
+            Join the Inner Circle
+          </h2>
+          <p
+            class="text-subtext-light dark:text-subtext-dark mb-10 max-w-xl mx-auto font-light"
+          >
+            Receive exclusive invitations to gallery openings, workshops, and
+            early bird booking access.
+          </p>
+          <form class="flex flex-col sm:flex-row gap-4 max-w-lg mx-auto">
+            <input
+              class="flex-grow px-6 py-4 bg-white dark:bg-black border border-gray-200 dark:border-gray-800 text-text-light dark:text-white placeholder-gray-400 focus:outline-none focus:border-primary transition-colors text-sm"
+              placeholder="Email Address"
+              required=""
+              type="email"
+            />
+            <button
+              class="px-8 py-4 bg-primary text-white font-bold text-xs uppercase tracking-widest hover:bg-primary-dark transition-colors shadow-lg shadow-primary/20"
+              type="submit"
+            >
+              Subscribe
+            </button>
+          </form>
+        </div>
+      </section>
+    </main>
+    <footer class="bg-black text-white pt-20 pb-10 border-t border-gray-900">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-12 mb-16">
+          <div class="col-span-1 md:col-span-1">
+            <div class="flex items-center mb-6">
+              <span
+                class="font-display text-3xl font-bold italic tracking-tighter"
+                >SPARK</span
+              >
+              <svg
+                class="ml-1 mb-2 text-primary w-4 h-4"
+                fill="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  d="M12 2L14.5 9.5L22 12L14.5 14.5L12 22L9.5 14.5L2 12L9.5 9.5L12 2Z"
+                ></path>
+              </svg>
+            </div>
+            <p class="text-gray-500 text-sm leading-loose">
+              Premium photography studio capturing life's most precious moments
+              with artistic flair and professional excellence.
+            </p>
+          </div>
+          <div class="col-span-1">
+            <h3
+              class="font-bold text-xs uppercase tracking-widest mb-6 text-white border-b border-gray-800 pb-2 inline-block"
+            >
+              Explore
+            </h3>
+            <ul class="space-y-4 text-sm text-gray-400">
+              <li>
+                <a class="hover:text-primary transition-colors" href="#"
+                  >Home</a
+                >
+              </li>
+              <li>
+                <a class="hover:text-primary transition-colors" href="#"
+                  >Portfolio</a
+                >
+              </li>
+              <li>
+                <a class="hover:text-primary transition-colors" href="#"
+                  >Services</a
+                >
+              </li>
+              <li>
+                <a class="hover:text-primary transition-colors" href="#"
+                  >Bookings</a
+                >
+              </li>
+            </ul>
+          </div>
+          <div class="col-span-1">
+            <h3
+              class="font-bold text-xs uppercase tracking-widest mb-6 text-white border-b border-gray-800 pb-2 inline-block"
+            >
+              Legal
+            </h3>
+            <ul class="space-y-4 text-sm text-gray-400">
+              <li>
+                <a class="hover:text-primary transition-colors" href="#"
+                  >Privacy Policy</a
+                >
+              </li>
+              <li>
+                <a class="hover:text-primary transition-colors" href="#"
+                  >Terms of Service</a
+                >
+              </li>
+            </ul>
+          </div>
+          <div class="col-span-1">
+            <h3
+              class="font-bold text-xs uppercase tracking-widest mb-6 text-white border-b border-gray-800 pb-2 inline-block"
+            >
+              Connect
+            </h3>
+            <div class="flex space-x-4">
+              <a
+                class="w-10 h-10 border border-gray-700 rounded-full flex items-center justify-center hover:bg-primary hover:border-primary transition-all group"
+                href="#"
+              >
+                <span class="text-xs group-hover:text-white">IG</span>
+              </a>
+              <a
+                class="w-10 h-10 border border-gray-700 rounded-full flex items-center justify-center hover:bg-primary hover:border-primary transition-all group"
+                href="#"
+              >
+                <span class="text-xs group-hover:text-white">TW</span>
+              </a>
+              <a
+                class="w-10 h-10 border border-gray-700 rounded-full flex items-center justify-center hover:bg-primary hover:border-primary transition-all group"
+                href="#"
+              >
+                <span class="text-xs group-hover:text-white">LN</span>
+              </a>
+            </div>
+          </div>
+        </div>
+        <div
+          class="border-t border-gray-900 pt-8 flex flex-col md:flex-row justify-between items-center text-xs text-gray-600 uppercase tracking-wider"
+        >
+          <p>© 2026 Spark Photo Studio. All rights reserved.</p>
+          <p class="mt-2 md:mt-0">Designed with Elegance</p>
+        </div>
+      </div>
+    </footer>
+    <script>
+      // Force dark mode for premium feel as requested "Use a sophisticated dark mode or high-contrast white theme"
+      // The user requested "sophisticated dark mode OR high-contrast white theme".
+      // Given the "premium studio" context, defaulting to dark mode for the first impression is often stronger,
+      // but let's respect system pref but lean towards dark.
+      // Actually, looking at the request again "Use a sophisticated dark mode or high-contrast white theme."
+      // I will enable dark mode by default if no preference is set to give that "Premium" look immediately.
+      if (
+        localStorage.theme === "dark" ||
+        (!("theme" in localStorage) &&
+          window.matchMedia("(prefers-color-scheme: dark)").matches)
+      ) {
+        document.documentElement.classList.add("dark");
+      } else {
         // Default to dark for this design as it fits "luxury studio" better, unless user explicitly wanted light.
         // But to be safe with standard web practices, I'll respect the code structure which supports both.
-        // Let's add a toggle or just let the system decide. 
+        // Let's add a toggle or just let the system decide.
         // For the purpose of the "premium aesthetic" in the preview, I will add 'dark' class to html tag for the screenshot look.
-        document.documentElement.classList.add('dark');
-    }
-</script>
-
-</body></html>
+        document.documentElement.classList.add("dark");
+      }
+    </script>
+  </body>
+</html>
