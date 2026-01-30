@@ -33,11 +33,11 @@ const Shop = () => {
     return products.filter((p) => p.categorySlug === activeCategory);
   }, [products, activeCategory]);
 
-  const features = [
-    { icon: 'check', text: 'Premium Organic Materials' },
-    { icon: 'check', text: 'Ethically Manufactured' },
-    { icon: 'check', text: 'Designed in-house by Spark Artists' },
-  ];
+  // const features = [
+  //   { icon: 'check', text: 'Premium Organic Materials' },
+  //   { icon: 'check', text: 'Ethically Manufactured' },
+  //   { icon: 'check', text: 'Designed in-house by Spark Artists' },
+  // ];
 
   const handleAddToCart = (product: typeof products[0]) => {
     if (!product.defaultVariantId || !product.defaultVariantName) return;
