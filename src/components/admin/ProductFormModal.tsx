@@ -2,6 +2,17 @@ import { useEffect, useMemo, useState } from 'react';
 import { slugify } from '../../utils/merchant';
 import ProductImageUpload, { ImagePreview } from './ProductImageUpload';
 
+// Currency formatting utilities
+const formatCurrency = (value: string | number): string => {
+  const numValue = typeof value === 'string' ? value.replace(/\D/g, '') : String(value);
+  if (!numValue) return '';
+  return Number(numValue).toLocaleString('id-ID');
+};
+
+const parseCurrency = (formatted: string): string => {
+  return formatted.replace(/\D/g, '');
+};
+
 export type CategoryOption = {
   id: number;
   name: string;
@@ -321,19 +332,19 @@ export default function ProductFormModal(props: ProductFormModalProps) {
                           </td>
                           <td className="py-2 pr-3">
                             <input
-                              type="number"
-                              min="0"
-                              step="1"
-                              value={v.price}
-                              onChange={(e) =>
+                              type="text"
+                              inputMode="numeric"
+                              value={formatCurrency(v.price)}
+                              onChange={(e) => {
+                                const rawValue = parseCurrency(e.target.value);
                                 setDraft((prev) => {
                                   const next = prev.variants.slice();
-                                  next[idx] = { ...next[idx], price: e.target.value };
+                                  next[idx] = { ...next[idx], price: rawValue };
                                   return { ...prev, variants: next };
-                                })
-                              }
-                              className="w-24 rounded border border-white/10 bg-white/5 px-2 py-1 outline-none focus:border-primary"
-                              placeholder="50000"
+                                });
+                              }}
+                              className="w-28 rounded border border-white/10 bg-white/5 px-2 py-1 outline-none focus:border-primary"
+                              placeholder="50.000"
                             />
                           </td>
                           <td className="py-2 pr-3">
