@@ -91,6 +91,10 @@ const QRScannerModal = ({
   const [errorDetails, setErrorDetails] = useState<string>('');
   const [isClosing, setIsClosing] = useState(false);
 
+  // Manual input fallback state
+  const [manualCode, setManualCode] = useState('');
+  const [manualSubmitting, setManualSubmitting] = useState(false);
+
   // Debounce time to prevent duplicate scans (ms)
   const SCAN_DEBOUNCE_MS = 2000;
 
@@ -104,8 +108,59 @@ const QRScannerModal = ({
       onClose();
       setIsClosing(false);
       closingRef.current = false;
+      setManualCode(''); // Reset manual input on close
     }, 300);
   }, [onClose]);
+
+  // Handle manual code submission (fallback when camera fails)
+  const handleManualSubmit = useCallback(async (e: React.FormEvent) => {
+    e.preventDefault();
+    const code = manualCode.trim();
+    if (!code || manualSubmitting || processingRef.current) return;
+
+    setManualSubmitting(true);
+    processingRef.current = true;
+    setStatus('processing');
+
+    try {
+      await onScan?.(code);
+      setStatus('success');
+      setManualCode('');
+      setErrorMessage('');
+      setErrorDetails('');
+
+      // Auto-close on success if configured
+      if (closeOnSuccess) {
+        setTimeout(() => {
+          processingRef.current = false;
+          handleClose();
+        }, closeDelayMs);
+      } else {
+        setTimeout(() => {
+          processingRef.current = false;
+          setStatus('scanning');
+        }, autoResumeAfterMs);
+      }
+    } catch (err) {
+      setStatus('error');
+      const error = err instanceof Error ? err : new Error('Gagal memproses');
+      setErrorMessage(error.message);
+
+      if (closeOnError) {
+        setTimeout(() => {
+          processingRef.current = false;
+          handleClose();
+        }, closeOnErrorDelayMs);
+      } else {
+        setTimeout(() => {
+          processingRef.current = false;
+          setStatus('scanning');
+        }, autoResumeAfterMs);
+      }
+    } finally {
+      setManualSubmitting(false);
+    }
+  }, [manualCode, manualSubmitting, onScan, closeOnSuccess, closeDelayMs, closeOnError, closeOnErrorDelayMs, autoResumeAfterMs, handleClose]);
 
   const stopScanner = useCallback(async () => {
     const qr = qrRef.current;
@@ -577,7 +632,38 @@ const QRScannerModal = ({
           )}
         </div>
 
-        <div className="flex gap-2">
+        {/* Manual Input Fallback - Safety Net for Camera Issues */}
+        <div className="pt-4 border-t border-gray-100 dark:border-white/10">
+          <p className="text-xs text-center text-gray-500 dark:text-gray-400 mb-3">
+            📝 Kamera bermasalah? Input kode manual:
+          </p>
+          <form onSubmit={handleManualSubmit} className="flex gap-2">
+            <input
+              type="text"
+              value={manualCode}
+              onChange={(e) => setManualCode(e.target.value.toUpperCase())}
+              placeholder="Contoh: TKT-ABC-123"
+              disabled={manualSubmitting || status === 'processing'}
+              className="flex-1 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-black/20 px-3 py-2.5 text-sm font-mono uppercase focus:ring-2 focus:ring-primary outline-none disabled:opacity-50 text-neutral-900 dark:text-white placeholder:text-gray-400"
+            />
+            <button
+              type="submit"
+              disabled={!manualCode.trim() || manualSubmitting || status === 'processing'}
+              className="bg-primary text-white px-5 py-2.5 rounded-lg text-sm font-bold disabled:opacity-50 hover:bg-red-700 transition-colors flex items-center gap-1"
+            >
+              {manualSubmitting ? (
+                <span className="material-symbols-outlined text-lg animate-spin">progress_activity</span>
+              ) : (
+                <>
+                  <span className="material-symbols-outlined text-lg">check</span>
+                  Cek
+                </>
+              )}
+            </button>
+          </form>
+        </div>
+
+        <div className="flex gap-2 mt-4">
           <button
             onClick={handleClose}
             className="flex-1 bg-neutral-200 dark:bg-neutral-800 hover:bg-neutral-300 dark:hover:bg-neutral-700 text-neutral-900 dark:text-white py-3 rounded-lg font-bold transition-colors"
