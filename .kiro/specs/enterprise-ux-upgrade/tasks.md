@@ -252,30 +252,30 @@ This implementation plan converts the enterprise UX upgrade design into a series
   - _Requirements: 1.1, 1.4, 1.5, 2.3, 3.1, 5.1_
   - ✅ **COMPLETE** - Codex
 
-- [ ] 17. Phase 2: Migrate StageAnalytics page to SWR
+- [x] 17. Phase 2: Migrate StageAnalytics page to SWR
   - Create `src/hooks/useStageAnalytics.ts` with SWR hook
   - Replace useEffect in `src/pages/admin/StageAnalytics.tsx` with SWR hook
   - Add DashboardStatSkeleton during loading
   - Add error handling with toast notifications
   - _Requirements: 1.1, 1.4, 1.5, 2.4, 3.1_
-  - ⏳ **REMAINING** - Low complexity (copy-paste pattern from Dashboard)
+  - ✅ **COMPLETE** - Codex (SWR + skeletons + toast handling)
 
-- [ ] 18. Phase 2: Migrate StageManager page to SWR
+- [x] 18. Phase 2: Migrate StageManager page to SWR
   - Create `src/hooks/useStages.ts` with SWR hook
   - Replace useEffect in `src/pages/admin/StageManager.tsx` with useStages hook
   - Add TableRowSkeleton during loading
   - Add error handling with toast notifications
   - Add optimistic stage updates (create, edit, delete)
   - _Requirements: 1.1, 1.4, 1.5, 2.3, 3.1, 5.1_
-  - ⏳ **REMAINING** - Low complexity (copy-paste pattern from ProductOrders)
+  - ✅ **COMPLETE** - Codex (SWR + realtime + optimistic updates)
 
-- [ ] 19. Phase 2: Migrate StageBulkQR page to SWR
+- [x] 19. Phase 2: Migrate StageBulkQR page to SWR
   - Create `src/hooks/useStageQRCodes.ts` with SWR hook
   - Replace useEffect in `src/pages/admin/StageBulkQR.tsx` with SWR hook
   - Add skeleton loading state
   - Add error handling with toast notifications
   - _Requirements: 1.1, 1.4, 1.5, 2.1, 3.1_
-  - ⏳ **REMAINING** - Low complexity (copy-paste pattern from StoreInventory)
+  - ✅ **COMPLETE** - Codex (SWR + TableRowSkeleton + toast)
 
 - [ ] 20. Checkpoint - Verify Phase 2 completion
   - Ensure all Phase 2 tests pass
@@ -321,13 +321,13 @@ This implementation plan converts the enterprise UX upgrade design into a series
   - _Requirements: 1.1, 1.4, 1.5, 2.1, 3.1, 4.3_
   - ⏳ **REMAINING** - Trivial (simple validation hook)
 
-- [ ] 25. Add Error Boundaries to all pages
+- [x] 25. Add Error Boundaries to all pages
   - Wrap all customer pages with ErrorBoundary
   - Wrap all admin pages with ErrorBoundary
   - Wrap App component with top-level ErrorBoundary
   - Test error isolation by triggering errors in individual components
   - _Requirements: 12.1, 12.2, 12.3, 12.4, 12.5, 12.6_
-  - ⏳ **REMAINING** - Trivial (mechanical wrapping, 30 min)
+  - ✅ **COMPLETE** - ErrorBoundary integrated in App.tsx (global + per-route wrapper)
 
 - [ ] 26. Add ToastProvider to App component
   - Wrap App component with ToastProvider

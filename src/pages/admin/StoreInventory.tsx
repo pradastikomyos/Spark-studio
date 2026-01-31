@@ -273,6 +273,33 @@ const StoreInventory = () => {
     setSaveError(null);
 
     try {
+      const normalizeSku = (value: string) =>
+        value
+          .replace(/\u00a0/g, ' ')
+          .replace(/[\u200b-\u200d\uFEFF]/g, '')
+          .replace(/[\u2010-\u2015\u2212]/g, '-')
+          .trim()
+          .toUpperCase();
+      const normalizeSlug = (value: string) =>
+        value
+          .replace(/\u00a0/g, ' ')
+          .replace(/[\u200b-\u200d\uFEFF]/g, '')
+          .trim()
+          .toLowerCase();
+
+      const normalizedDraft: ProductDraft = {
+        ...draft,
+        name: draft.name.trim(),
+        slug: normalizeSlug(draft.slug),
+        sku: normalizeSku(draft.sku),
+        variants: draft.variants.map((v) => ({
+          ...v,
+          name: v.name.trim(),
+          sku: normalizeSku(v.sku),
+          price: typeof v.price === 'string' ? v.price.trim() : String(v.price ?? '').trim(),
+        })),
+      };
+
       let productId = draft.id ?? null;
       if (productId != null) {
         const stableProductId = productId;
@@ -280,13 +307,13 @@ const StoreInventory = () => {
           product.id === stableProductId
             ? {
               ...product,
-              name: draft.name,
-              slug: draft.slug,
-              description: draft.description || null,
-              category_id: draft.category_id,
-              sku: draft.sku,
-              is_active: draft.is_active,
-              product_variants: draft.variants.map((variant) => ({
+              name: normalizedDraft.name,
+              slug: normalizedDraft.slug,
+              description: normalizedDraft.description || null,
+              category_id: normalizedDraft.category_id,
+              sku: normalizedDraft.sku,
+              is_active: normalizedDraft.is_active,
+              product_variants: normalizedDraft.variants.map((variant) => ({
                 id: variant.id ?? 0,
                 product_id: stableProductId,
                 name: variant.name,
@@ -305,33 +332,32 @@ const StoreInventory = () => {
 
       if (!productId) {
         // Check for duplicate SKU or slug before insert
-        const { data: existingProducts } = await supabase
-          .from('products')
-          .select('id, slug, sku')
-          .or(`slug.eq.${draft.slug},sku.eq.${draft.sku}`)
-          .is('deleted_at', null);
+        const [slugDup, skuDup] = await Promise.all([
+          supabase.from('products').select('id, slug').eq('slug', normalizedDraft.slug).is('deleted_at', null).maybeSingle(),
+          supabase.from('products').select('id, sku').eq('sku', normalizedDraft.sku).is('deleted_at', null).maybeSingle(),
+        ]);
 
-        if (existingProducts && existingProducts.length > 0) {
-          const duplicateSlug = existingProducts.find(p => p.slug === draft.slug);
-          const duplicateSku = existingProducts.find(p => p.sku === draft.sku);
+        if (slugDup.error && slugDup.error.code !== 'PGRST116') throw slugDup.error;
+        if (skuDup.error && skuDup.error.code !== 'PGRST116') throw skuDup.error;
 
-          if (duplicateSlug) {
-            throw new Error(`⚠️ Product with slug "${draft.slug}" already exists. Please use a different product name or edit the slug manually.`);
-          }
-          if (duplicateSku) {
-            throw new Error(`⚠️ Product with SKU "${draft.sku}" already exists. Please use a different SKU.`);
-          }
+        if (slugDup.data) {
+          throw new Error(
+            `⚠️ Product with slug "${normalizedDraft.slug}" already exists. Please use a different product name or edit the slug manually.`
+          );
+        }
+        if (skuDup.data) {
+          throw new Error(`⚠️ Product with SKU "${normalizedDraft.sku}" already exists. Please use a different SKU.`);
         }
 
         const { data, error } = await supabase
           .from('products')
           .insert({
-            name: draft.name,
-            slug: draft.slug,
-            description: draft.description || null,
-            category_id: draft.category_id,
-            sku: draft.sku,
-            is_active: draft.is_active,
+            name: normalizedDraft.name,
+            slug: normalizedDraft.slug,
+            description: normalizedDraft.description || null,
+            category_id: normalizedDraft.category_id,
+            sku: normalizedDraft.sku,
+            is_active: normalizedDraft.is_active,
           })
           .select('id')
           .single();
@@ -355,12 +381,12 @@ const StoreInventory = () => {
         const { error } = await supabase
           .from('products')
           .update({
-            name: draft.name,
-            slug: draft.slug,
-            description: draft.description || null,
-            category_id: draft.category_id,
-            sku: draft.sku,
-            is_active: draft.is_active,
+            name: normalizedDraft.name,
+            slug: normalizedDraft.slug,
+            description: normalizedDraft.description || null,
+            category_id: normalizedDraft.category_id,
+            sku: normalizedDraft.sku,
+            is_active: normalizedDraft.is_active,
           })
           .eq('id', productId);
         if (error) throw error;
@@ -397,15 +423,27 @@ const StoreInventory = () => {
       }
 
       const existingVariants = (productsRaw.find((p) => p.id === productId)?.product_variants || []).filter((v) => v.is_active !== false);
-      const incomingIds = new Set<number>(draft.variants.flatMap((v) => (v.id ? [v.id] : [])));
-      const removedIds = existingVariants.map((v) => v.id).filter((id) => !incomingIds.has(id));
+      const toValidId = (value: unknown): number | null => {
+        const n = typeof value === 'number' ? value : typeof value === 'string' ? Number(value) : NaN;
+        return Number.isFinite(n) && n > 0 ? n : null;
+      };
+      const incomingIds = new Set<number>(
+        normalizedDraft.variants.flatMap((v) => {
+          const id = toValidId(v.id);
+          return id != null ? [id] : [];
+        })
+      );
+      const existingIds = existingVariants
+        .map((v) => toValidId((v as unknown as { id?: unknown }).id))
+        .filter((id): id is number => id != null);
+      const removedIds = existingIds.filter((id) => !incomingIds.has(id));
 
       if (removedIds.length > 0) {
         const { error } = await supabase.from('product_variants').update({ is_active: false }).in('id', removedIds);
         if (error) throw error;
       }
 
-      const updates = draft.variants.filter((v) => v.id);
+      const updates = normalizedDraft.variants.filter((v) => toValidId(v.id) != null);
       for (const v of updates) {
         const nextAttributes: Record<string, unknown> = {};
         if (v.size) nextAttributes.size = v.size;
@@ -421,11 +459,11 @@ const StoreInventory = () => {
             is_active: true,
             attributes: Object.keys(nextAttributes).length ? nextAttributes : null,
           })
-          .eq('id', v.id as number);
+          .eq('id', toValidId(v.id) as number);
         if (error) throw error;
       }
 
-      const inserts = draft.variants.filter((v) => !v.id);
+      const inserts = normalizedDraft.variants.filter((v) => toValidId(v.id) == null);
       if (inserts.length > 0) {
         const rows = inserts.map((v) => {
           const attributes: Record<string, unknown> = {};
@@ -452,9 +490,32 @@ const StoreInventory = () => {
       setEditingProductId(null);
       await mutate();
     } catch (e) {
-      const message = e instanceof Error ? e.message : 'Failed to save product';
+      const formatError = (err: unknown): string => {
+        if (err instanceof Error && err.message) return err.message;
+        if (typeof err === 'string') return err;
+        if (err && typeof err === 'object') {
+          const maybe = err as { message?: unknown; details?: unknown; hint?: unknown; code?: unknown };
+          const parts = [maybe.message, maybe.details, maybe.hint]
+            .filter((v): v is string => typeof v === 'string' && v.trim().length > 0)
+            .slice(0, 2);
+          if (parts.length) return parts.join(' • ');
+          if (typeof maybe.code === 'string' && maybe.code.trim().length > 0) return `Error code: ${maybe.code}`;
+        }
+        return 'Failed to save product';
+      };
+
+      const message = formatError(e);
+      if (
+        message.toLowerCase().includes('failed to parse') ||
+        message.toLowerCase().includes('invalid input syntax') ||
+        message.toLowerCase().includes('schema cache')
+      ) {
+        showToast('error', `${message}. Jika baru deploy/update, coba hard refresh (Cmd+Shift+R) lalu ulangi.`);
+      } else {
+        showToast('error', message);
+      }
       setSaveError(message);
-      showToast('error', message);
+      console.error('Save product failed', { error: e });
       throw e;
     } finally {
       setSaving(false);
