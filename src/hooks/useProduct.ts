@@ -10,11 +10,18 @@ type Variant = {
   imageUrl?: string;
 };
 
+type ProductImageRow = {
+  image_url: string;
+  is_primary: boolean;
+  display_order: number;
+};
+
 export type ProductDetail = {
   id: number;
   name: string;
   description: string;
   imageUrl?: string;
+  imageUrls: string[];
   variants: Variant[];
 };
 
@@ -37,6 +44,7 @@ export function useProduct(productId: string | undefined) {
           name,
           description,
           image_url,
+          product_images(image_url, is_primary, display_order),
           product_variants(id, name, price, attributes, is_active, stock, reserved_stock)
         `
         )
@@ -50,7 +58,16 @@ export function useProduct(productId: string | undefined) {
         throw err;
       }
 
-      const productImage = (data as { image_url?: string | null }).image_url ?? null;
+      const legacyProductImage = (data as { image_url?: string | null }).image_url ?? null;
+      const productImages = ((data as { product_images?: unknown[] }).product_images || []) as ProductImageRow[];
+      const sortedProductImages = productImages
+        .slice()
+        .sort((a, b) => {
+          if (a.is_primary !== b.is_primary) return a.is_primary ? -1 : 1;
+          return a.display_order - b.display_order;
+        });
+      const imageUrls = sortedProductImages.map((img) => img.image_url).filter(Boolean);
+      const primaryImageUrl = imageUrls[0] ?? legacyProductImage ?? undefined;
       const variants = ((data as { product_variants?: unknown[] }).product_variants || []) as {
         id: number;
         name: string;
@@ -72,7 +89,7 @@ export function useProduct(productId: string | undefined) {
             name: String(v.name),
             price: Number.isFinite(price) ? price : 0,
             available,
-            imageUrl: imageUrl ?? productImage ?? undefined,
+            imageUrl: imageUrl ?? primaryImageUrl,
           };
         });
 
@@ -80,7 +97,8 @@ export function useProduct(productId: string | undefined) {
         id: Number((data as { id: number | string }).id),
         name: String((data as { name: string }).name),
         description: String((data as { description?: string | null }).description ?? ''),
-        imageUrl: productImage ?? undefined,
+        imageUrl: primaryImageUrl,
+        imageUrls,
         variants: mappedVariants,
       };
     },

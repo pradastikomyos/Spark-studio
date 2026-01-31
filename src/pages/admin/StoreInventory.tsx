@@ -11,6 +11,8 @@ import { formatCurrency } from '../../utils/formatters';
 import { useInventory, type ProductRow } from '../../hooks/useInventory';
 import TableRowSkeleton from '../../components/skeletons/TableRowSkeleton';
 import { useToast } from '../../components/Toast';
+import { useSessionRefresh } from '../../hooks/useSessionRefresh';
+import { ensureFreshToken } from '../../utils/auth';
 
 type InventoryProduct = {
   id: number;
@@ -43,9 +45,13 @@ const computeStockStatus = (stock: number): InventoryProduct['stock_status'] => 
   return 'good';
 };
 
+const TAB_RETURN_EVENT = 'tab-returned-from-idle';
+const ADMIN_PRODUCT_DRAFT_KEY = 'admin-product-form:draft:v1';
+
 const StoreInventory = () => {
-  const { signOut } = useAuth();
+  const { signOut, session } = useAuth();
   const { showToast } = useToast();
+  useSessionRefresh();
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
   const [stockFilter, setStockFilter] = useState('');
@@ -81,6 +87,35 @@ const StoreInventory = () => {
       showToast('error', error instanceof Error ? error.message : 'Failed to load inventory');
     }
   }, [error, showToast]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      const raw = sessionStorage.getItem(ADMIN_PRODUCT_DRAFT_KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as { mode?: string; savedAt?: number };
+      const ageMs = typeof parsed.savedAt === 'number' ? Date.now() - parsed.savedAt : Number.POSITIVE_INFINITY;
+      if (parsed.mode === 'create' && ageMs < 12 * 60 * 60 * 1000) {
+        setEditingProductId(null);
+        setExistingImages([]);
+        setShowProductForm(true);
+      }
+    } catch {
+      return;
+    }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const handleTabReturn = async () => {
+      await ensureFreshToken(session);
+      mutate();
+    };
+    window.addEventListener(TAB_RETURN_EVENT, handleTabReturn);
+    return () => {
+      window.removeEventListener(TAB_RETURN_EVENT, handleTabReturn);
+    };
+  }, [mutate, session]);
 
   const handleVerify = (code?: string) => {
     const value = (code ?? orderCode).trim();
@@ -247,6 +282,8 @@ const StoreInventory = () => {
     const optimisticProducts = productsRaw.filter((product) => product.id !== deletingProduct.id);
     mutate({ products: optimisticProducts, categories: inventoryCategories }, { revalidate: false, rollbackOnError: true });
     try {
+      const token = await ensureFreshToken(session);
+      if (!token) throw new Error('Session expired. Please refresh and log in again.');
       const { error } = await supabase
         .from('products')
         .update({ deleted_at: new Date().toISOString() })
@@ -273,6 +310,9 @@ const StoreInventory = () => {
     setSaveError(null);
 
     try {
+      const token = await ensureFreshToken(session);
+      if (!token) throw new Error('Session expired. Please refresh and log in again.');
+
       const normalizeSku = (value: string) =>
         value
           .replace(/\u00a0/g, ' ')
@@ -488,6 +528,7 @@ const StoreInventory = () => {
 
       setShowProductForm(false);
       setEditingProductId(null);
+      if (typeof window !== 'undefined') sessionStorage.removeItem(ADMIN_PRODUCT_DRAFT_KEY);
       await mutate();
     } catch (e) {
       const formatError = (err: unknown): string => {

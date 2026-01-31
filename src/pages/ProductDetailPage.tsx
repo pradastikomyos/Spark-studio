@@ -6,6 +6,7 @@ import { useProduct, type ProductDetail } from '../hooks/useProduct';
 import { useToast } from '../components/Toast';
 import { PageTransition } from '../components/PageTransition';
 import { LazyMotion, m } from 'framer-motion';
+import { ProductImageCarousel } from '../components/ProductImageCarousel';
 
 export default function ProductDetailPage() {
   const { productId } = useParams();
@@ -13,15 +14,18 @@ export default function ProductDetailPage() {
   const { showToast } = useToast();
   const { data: product, error, isLoading, mutate } = useProduct(productId);
   const [selectedVariantId, setSelectedVariantId] = useState<number | null>(null);
+  const [imageIndex, setImageIndex] = useState(0);
   const loading = isLoading;
 
   useEffect(() => {
     if (!product) {
       setSelectedVariantId(null);
+      setImageIndex(0);
       return;
     }
     const firstAvailable = product.variants.find((v) => v.available > 0) ?? product.variants[0] ?? null;
     setSelectedVariantId(firstAvailable ? firstAvailable.id : null);
+    setImageIndex(0);
   }, [product]);
 
   const selectedVariant = useMemo(() => {
@@ -42,11 +46,13 @@ export default function ProductDetailPage() {
     };
     mutate(optimistic, { revalidate: false, rollbackOnError: true });
     try {
+      const fallbackImages = product.imageUrls.length ? product.imageUrls : product.imageUrl ? [product.imageUrl] : [];
+      const imageFromCarousel = fallbackImages[imageIndex] ?? null;
       addItem(
         {
           productId: product.id,
           productName: product.name,
-          productImageUrl: selectedVariant.imageUrl ?? product.imageUrl,
+          productImageUrl: selectedVariant.imageUrl ?? imageFromCarousel ?? product.imageUrl,
           variantId: selectedVariant.id,
           variantName: selectedVariant.name,
           unitPrice: selectedVariant.price,
@@ -94,15 +100,11 @@ export default function ProductDetailPage() {
             </div>
           ) : product ? (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
-              <div className="rounded-2xl overflow-hidden bg-gray-100 dark:bg-surface-dark border border-gray-200 dark:border-gray-800">
-                {product.imageUrl ? (
-                  <img src={product.imageUrl} alt={product.name} className="w-full h-full object-cover" />
-                ) : (
-                  <div className="aspect-[4/5] w-full flex items-center justify-center text-gray-300 dark:text-gray-600">
-                    <span className="material-symbols-outlined text-6xl">inventory_2</span>
-                  </div>
-                )}
-              </div>
+              <ProductImageCarousel
+                images={product.imageUrls.length ? product.imageUrls : product.imageUrl ? [product.imageUrl] : []}
+                alt={product.name}
+                onIndexChange={setImageIndex}
+              />
               <div className="flex flex-col gap-6">
                 <div>
                   <h2 className="font-display text-3xl text-text-light dark:text-text-dark">{product.name}</h2>

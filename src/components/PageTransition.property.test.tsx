@@ -35,11 +35,13 @@ describe('PageTransition - Property-Based Tests', () => {
   it('Property 12: should render any content with motion wrapper', () => {
     fc.assert(
       fc.property(
-        fc.string({ minLength: 3, maxLength: 100 }).filter(s => s.trim().length >= 3 && s === s.trim()),
+        fc.string({ minLength: 3, maxLength: 100 }),
         fc.integer({ min: 1, max: 10 }),
         (text, childCount) => {
           const children = Array.from({ length: childCount }, (_, i) => (
-            <div key={i}>{text}-{i}</div>
+            <div key={`child-${i}`} data-testid={`child-${i}`}>
+              {text}-{i}
+            </div>
           ));
 
           const { container, unmount } = render(
@@ -49,9 +51,11 @@ describe('PageTransition - Property-Based Tests', () => {
           );
 
           // Verify all children are rendered
-          children.forEach((_, i) => {
-            expect(screen.getByText(`${text}-${i}`)).toBeInTheDocument();
-          });
+          for (let i = 0; i < childCount; i += 1) {
+            const el = screen.getByTestId(`child-${i}`);
+            expect(el).toBeInTheDocument();
+            expect(el.textContent).toBe(`${text}-${i}`);
+          }
 
           // Verify motion wrapper exists
           expect(container.firstChild).toBeInTheDocument();

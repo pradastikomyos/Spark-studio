@@ -69,6 +69,8 @@ const emptyDraft = (): ProductDraft => ({
   variants: [{ name: 'Default', sku: '', price: '', stock: 0 }],
 });
 
+const ADMIN_PRODUCT_DRAFT_KEY = 'admin-product-form:draft:v1';
+
 export default function ProductFormModal(props: ProductFormModalProps) {
   const { isOpen, categories, initialValue, existingImages = [], onClose, onSave } = props;
   const [draft, setDraft] = useState<ProductDraft>(emptyDraft);
@@ -88,6 +90,43 @@ export default function ProductFormModal(props: ProductFormModalProps) {
     setError(null);
     setSaving(false);
   }, [isOpen, initialValue]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    if (initialValue?.id) return;
+    if (typeof window === 'undefined') return;
+    try {
+      const raw = sessionStorage.getItem(ADMIN_PRODUCT_DRAFT_KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as { mode?: string; draft?: ProductDraft; removedImageUrls?: string[] };
+      if (parsed.mode !== 'create' || !parsed.draft) return;
+      setDraft(parsed.draft);
+      setRemovedImageUrls(Array.isArray(parsed.removedImageUrls) ? parsed.removedImageUrls : []);
+      setSlugTouched(Boolean(parsed.draft.slug));
+      setError('Draft dipulihkan setelah refresh. Catatan: gambar yang belum di-upload harus dipilih ulang.');
+    } catch {
+      return;
+    }
+  }, [isOpen, initialValue?.id]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    if (initialValue?.id) return;
+    if (typeof window === 'undefined') return;
+    try {
+      sessionStorage.setItem(
+        ADMIN_PRODUCT_DRAFT_KEY,
+        JSON.stringify({
+          mode: 'create',
+          savedAt: Date.now(),
+          draft,
+          removedImageUrls,
+        })
+      );
+    } catch {
+      return;
+    }
+  }, [draft, removedImageUrls, initialValue?.id, isOpen]);
 
   const categoryOptions = useMemo(() => {
     return categories
@@ -128,7 +167,20 @@ export default function ProductFormModal(props: ProductFormModalProps) {
     setError(null);
     try {
       const newImageFiles = images.map(img => img.file);
-      await onSave({ draft, newImages: newImageFiles, removedImageUrls });
+      const timeoutMs = 90_000;
+      await Promise.race([
+        Promise.resolve(onSave({ draft, newImages: newImageFiles, removedImageUrls })),
+        new Promise<void>((_, reject) => {
+          window.setTimeout(() => {
+            reject(
+              new Error(
+                'Proses penyimpanan terlalu lama (timeout). Cek koneksi, lalu refresh halaman. Draft teks sudah tersimpan; gambar yang belum ter-upload perlu dipilih ulang.'
+              )
+            );
+          }, timeoutMs);
+        }),
+      ]);
+      if (typeof window !== 'undefined') sessionStorage.removeItem(ADMIN_PRODUCT_DRAFT_KEY);
       onClose();
     } catch (e) {
       const message = e instanceof Error ? e.message : 'Failed to save product';
@@ -146,7 +198,14 @@ export default function ProductFormModal(props: ProductFormModalProps) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center px-4 py-6">
-      <div className="absolute inset-0 bg-black/60" onClick={() => !saving && onClose()}></div>
+      <div
+        className="absolute inset-0 bg-black/60"
+        onClick={() => {
+          if (saving) return;
+          if (typeof window !== 'undefined') sessionStorage.removeItem(ADMIN_PRODUCT_DRAFT_KEY);
+          onClose();
+        }}
+      ></div>
       <div className="relative flex max-h-[90vh] w-full max-w-5xl flex-col rounded-xl border border-white/10 bg-surface-dark text-white shadow-2xl">
         <div className="flex shrink-0 items-start justify-between border-b border-white/10 px-6 py-5">
           <div>
@@ -154,7 +213,10 @@ export default function ProductFormModal(props: ProductFormModalProps) {
             <p className="mt-1 text-sm text-gray-400">Create or update product details, variants, and images.</p>
           </div>
           <button
-            onClick={() => onClose()}
+            onClick={() => {
+              if (typeof window !== 'undefined') sessionStorage.removeItem(ADMIN_PRODUCT_DRAFT_KEY);
+              onClose();
+            }}
             disabled={saving}
             className="rounded-lg bg-white/5 px-3 py-2 text-sm font-bold hover:bg-white/10 disabled:opacity-50"
           >
