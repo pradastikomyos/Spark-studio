@@ -1,6 +1,6 @@
 import useSWR from 'swr';
 import { supabase } from '../lib/supabase';
-import { toLocalDateString } from '../utils/formatters';
+import { toLocalDateString } from '../utils/timezone';
 import { APIError } from '../lib/fetchers';
 
 export interface Availability {

@@ -71,9 +71,7 @@ export function toWIBISOString(date: Date): string {
  * Use this for date comparisons
  */
 export function todayWIB(): Date {
-  const now = nowWIB();
-  now.setHours(0, 0, 0, 0);
-  return now;
+  return createWIBDate(toLocalDateString(nowWIB()));
 }
 
 /**
@@ -109,10 +107,7 @@ export function toLocalDateString(date: Date): string {
  * Check if a date is today in WIB timezone
  */
 export function isTodayWIB(date: Date): boolean {
-  const today = todayWIB();
-  const checkDate = new Date(date);
-  checkDate.setHours(0, 0, 0, 0);
-  return checkDate.getTime() === today.getTime();
+  return toLocalDateString(date) === toLocalDateString(nowWIB());
 }
 
 /**
@@ -173,10 +168,8 @@ export function formatDateTimeWIB(date: Date): string {
  * Used for comparing time slots with current time
  */
 export function parseTimeSlotToday(timeSlot: string, referenceDate?: Date): Date {
-  const [hours, minutes] = timeSlot.split(':').map(Number);
-  const date = referenceDate ? new Date(referenceDate) : todayWIB();
-  date.setHours(hours, minutes, 0, 0);
-  return date;
+  const dateString = toLocalDateString(referenceDate ? new Date(referenceDate) : nowWIB());
+  return createWIBDate(dateString, timeSlot);
 }
 
 /**

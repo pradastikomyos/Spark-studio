@@ -1,11 +1,14 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { formatCurrency, toLocalDateString } from '../utils/formatters';
+import { formatCurrency } from '../utils/formatters';
 import {
+  createWIBDate,
+  addDays,
   todayWIB,
   nowWIB,
   isTimeSlotBookable,
   getMinutesUntilSessionEnd,
+  toLocalDateString,
 } from '../utils/timezone';
 import { useTickets } from '../hooks/useTickets';
 import { useTicketAvailability } from '../hooks/useTicketAvailability';
@@ -36,8 +39,7 @@ export default function BookingPage() {
 
   useEffect(() => {
     if (!ticket) return;
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    const today = todayWIB();
     setSelectedDate(today);
     setCurrentDate(today);
   }, [ticket]);
@@ -82,13 +84,25 @@ export default function BookingPage() {
     const daysInMonth = lastDay.getDate();
     const startingDayOfWeek = firstDay.getDay();
 
-    const availableFrom = new Date(ticket.available_from);
-    const availableUntil = new Date(ticket.available_until);
-    const today = todayWIB(); // Use WIB timezone
+    const extractDateOnly = (value: string) => value.split('T')[0].split(' ')[0];
+    const ticketFromDate = extractDateOnly(ticket.available_from);
+    const ticketUntilDate = extractDateOnly(ticket.available_until);
+
+    const maxAvailabilityDate = availabilities.reduce<string>(
+      (max, avail) => (avail.date > max ? avail.date : max),
+      ''
+    );
+
+    const effectiveUntilDate = maxAvailabilityDate && maxAvailabilityDate > ticketUntilDate
+      ? maxAvailabilityDate
+      : ticketUntilDate;
+
+    const availableFrom = createWIBDate(ticketFromDate);
+    const availableUntil = createWIBDate(effectiveUntilDate, '23:59:59');
+    const today = todayWIB();
 
     // Rolling 30-day booking window
-    const maxBookingDate = new Date(today);
-    maxBookingDate.setDate(today.getDate() + 30);
+    const maxBookingDate = addDays(today, 30);
 
     const days = [];
 
@@ -103,7 +117,7 @@ export default function BookingPage() {
       date.setHours(0, 0, 0, 0);
 
       // Check if date is today
-      const isToday = date.getTime() === today.getTime();
+      const isToday = toLocalDateString(date) === toLocalDateString(today);
 
       // Check if within 30-day rolling window
       const isWithinBookingWindow = date >= today && date <= maxBookingDate;
@@ -135,7 +149,7 @@ export default function BookingPage() {
     if (!selectedDate) return [];
 
     const dateString = toLocalDateString(selectedDate);
-    const isToday = selectedDate.toDateString() === todayWIB().toDateString();
+    const isToday = dateString === toLocalDateString(todayWIB());
 
     const filtered = availabilities.filter((avail) => {
       const matchesDate = avail.date === dateString;

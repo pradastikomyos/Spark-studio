@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import TicketCard from './TicketCard';
 import { TicketData } from '../types';
+import { addDays, createWIBDate, todayWIB, toLocalDateString } from '../utils/timezone';
 
 interface TicketWithDate {
   ticket: TicketData;
@@ -33,28 +34,59 @@ const TicketSection = () => {
 
         if (data && data.length > 0) {
           const ticket = data[0];
-          const today = new Date();
-          today.setHours(0, 0, 0, 0);
+          const today = todayWIB();
+          const todayDateString = toLocalDateString(today);
 
-          // Generate next 4 available dates starting from today
-          const availableFrom = new Date(ticket.available_from);
-          const availableUntil = new Date(ticket.available_until);
-          
-          const startDate = today >= availableFrom ? today : availableFrom;
-          const ticketDates: TicketWithDate[] = [];
+          const lookaheadEndDateString = toLocalDateString(addDays(today, 14));
 
-          const currentDate = new Date(startDate);
-          let count = 0;
+          const { data: availabilityRows, error: availabilityError } = await supabase
+            .from('ticket_availabilities')
+            .select('date,total_capacity,reserved_capacity,sold_capacity')
+            .eq('ticket_id', ticket.id)
+            .gte('date', todayDateString)
+            .lte('date', lookaheadEndDateString)
+            .order('date', { ascending: true });
 
-          while (count < 4 && currentDate <= availableUntil) {
-            const isToday = currentDate.toDateString() === today.toDateString();
-            ticketDates.push({
-              ticket,
-              date: new Date(currentDate),
-              isToday,
-            });
-            currentDate.setDate(currentDate.getDate() + 1);
-            count++;
+          if (availabilityError) {
+            console.error('Error fetching ticket availability:', availabilityError);
+          }
+
+          const availableDateStrings = new Set<string>();
+
+          (availabilityRows || []).forEach((row) => {
+            const availableCapacity = row.total_capacity - row.reserved_capacity - row.sold_capacity;
+            if (availableCapacity > 0) availableDateStrings.add(row.date);
+          });
+
+          const sortedAvailableDateStrings = Array.from(availableDateStrings).sort().slice(0, 4);
+
+          let ticketDates: TicketWithDate[] = sortedAvailableDateStrings.map((dateString) => ({
+            ticket,
+            date: createWIBDate(dateString),
+            isToday: dateString === todayDateString,
+          }));
+
+          if (ticketDates.length === 0) {
+            const extractDateOnly = (value: string) => value.split('T')[0].split(' ')[0];
+            const ticketFromDate = extractDateOnly(ticket.available_from);
+            const ticketUntilDate = extractDateOnly(ticket.available_until);
+
+            const startDate = createWIBDate(ticketFromDate);
+            const endDate = createWIBDate(ticketUntilDate);
+
+            const currentDate = today >= startDate ? new Date(today) : new Date(startDate);
+            let count = 0;
+
+            while (count < 4 && currentDate <= endDate) {
+              const dateString = toLocalDateString(currentDate);
+              ticketDates.push({
+                ticket,
+                date: createWIBDate(dateString),
+                isToday: dateString === todayDateString,
+              });
+              currentDate.setDate(currentDate.getDate() + 1);
+              count++;
+            }
           }
 
           setTicketsWithDates(ticketDates);
@@ -72,6 +104,9 @@ const TicketSection = () => {
     const subscription = supabase
       .channel('tickets_changes')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'tickets' }, () => {
+        fetchTickets();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'ticket_availabilities' }, () => {
         fetchTickets();
       })
       .subscribe();

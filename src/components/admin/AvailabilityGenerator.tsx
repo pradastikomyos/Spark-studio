@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { supabase } from '../../lib/supabase';
-import { toLocalDateString } from '../../utils/formatters';
+import { toLocalDateString } from '../../utils/timezone';
 
 interface AvailabilityGeneratorProps {
     onSuccess?: () => void;
@@ -80,6 +80,17 @@ export default function AvailabilityGenerator({ onSuccess }: AvailabilityGenerat
 
                 if (insertError) throw insertError;
             }
+
+            const { error: ticketUpdateError } = await supabase
+                .from('tickets')
+                .update({
+                    available_from: `${startDate} 00:00:00`,
+                    available_until: `${endDate} 00:00:00`,
+                    updated_at: new Date().toISOString(),
+                })
+                .eq('id', 1);
+
+            if (ticketUpdateError) throw ticketUpdateError;
 
             setNotification({
                 type: 'success',
