@@ -99,7 +99,7 @@ export default function ProductImageUpload(props: ProductImageUploadProps) {
         <input
           ref={fileInputRef}
           type="file"
-          accept="image/png,image/jpeg,image/webp"
+          accept="image/png,image/jpeg,image/webp,.png,.jpg,.jpeg,.webp"
           multiple
           className="hidden"
           onChange={handleFileSelect}

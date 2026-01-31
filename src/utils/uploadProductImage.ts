@@ -7,9 +7,16 @@ type UploadProductImageOptions = {
 
 export async function uploadProductImage(file: File, productId: string, options: UploadProductImageOptions = {}): Promise<string> {
   const maxSizeMb = options.maxSizeMb ?? 2;
-  const allowedTypes = new Set(['image/jpeg', 'image/png', 'image/webp']);
-
-  if (!allowedTypes.has(file.type)) {
+  
+  // Cross-platform MIME type validation
+  // Windows may return empty string for file.type, so we also check file extension
+  const allowedTypes = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/jpg']);
+  const fileName = file.name.toLowerCase();
+  const hasValidExtension = /\.(jpe?g|png|webp)$/i.test(fileName);
+  const hasValidMimeType = Boolean(file.type) && allowedTypes.has(file.type);
+  
+  // Accept if either MIME type OR extension is valid (defensive for Windows)
+  if (!hasValidMimeType && !hasValidExtension) {
     throw new Error('Unsupported image type. Please upload a JPG, PNG, or WEBP file.');
   }
 
@@ -17,7 +24,21 @@ export async function uploadProductImage(file: File, productId: string, options:
     throw new Error(`Image is too large. Max size is ${maxSizeMb}MB.`);
   }
 
-  const ext = file.type === 'image/png' ? 'png' : file.type === 'image/webp' ? 'webp' : 'jpg';
+  // Determine extension from MIME type first, fallback to filename extension
+  let ext = 'jpg';
+  if (file.type === 'image/png') {
+    ext = 'png';
+  } else if (file.type === 'image/webp') {
+    ext = 'webp';
+  } else if (file.type === 'image/jpeg' || file.type === 'image/jpg') {
+    ext = 'jpg';
+  } else if (hasValidExtension) {
+    // Fallback: extract from filename (for Windows where file.type might be empty)
+    const match = fileName.match(/\.(jpe?g|png|webp)$/i);
+    if (match) {
+      ext = match[1].toLowerCase() === 'jpeg' ? 'jpg' : match[1].toLowerCase();
+    }
+  }
   const uuid =
     globalThis.crypto && 'randomUUID' in globalThis.crypto && typeof globalThis.crypto.randomUUID === 'function'
       ? globalThis.crypto.randomUUID()
@@ -25,11 +46,24 @@ export async function uploadProductImage(file: File, productId: string, options:
 
   const objectPath = `${productId}/${uuid}.${ext}`;
 
-  const { error: uploadError } = await supabase.storage.from('product-images').upload(objectPath, file, {
-    contentType: file.type,
+  let contentType: string | undefined;
+  if (hasValidMimeType) {
+    contentType = file.type === 'image/jpg' ? 'image/jpeg' : file.type;
+  } else if (ext === 'png') {
+    contentType = 'image/png';
+  } else if (ext === 'webp') {
+    contentType = 'image/webp';
+  } else if (ext === 'jpg') {
+    contentType = 'image/jpeg';
+  }
+
+  const uploadOptions: { contentType?: string; cacheControl: string; upsert: boolean } = {
     cacheControl: '3600',
     upsert: false,
-  });
+  };
+  if (contentType) uploadOptions.contentType = contentType;
+
+  const { error: uploadError } = await supabase.storage.from('product-images').upload(objectPath, file, uploadOptions);
 
   if (uploadError) {
     const message = uploadError.message || 'Failed to upload image';
