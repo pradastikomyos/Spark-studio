@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import QRCode from 'react-qr-code';
+import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import { formatCurrency } from '../utils/formatters';
 import OrderSuccessSkeleton from '../components/skeletons/OrderSuccessSkeleton';
@@ -39,6 +40,9 @@ export default function ProductOrderSuccessPage() {
   const [refreshing, setRefreshing] = useState(false);
 
   const pickupCode = order?.pickup_code ?? null;
+  const { session } = useAuth();
+  const [showManualButton, setShowManualButton] = useState(false);
+  const [autoSyncInProgress, setAutoSyncInProgress] = useState(false);
 
   const fetchOrder = useCallback(async () => {
     if (!orderNumber) return;
@@ -74,18 +78,74 @@ export default function ProductOrderSuccessPage() {
     setItems(mapped);
   }, [orderNumber]);
 
-  const handleRefresh = useCallback(async () => {
-    if (!orderNumber || refreshing) return;
-    try {
+  const handleSyncStatus = useCallback(async (isAutoSync = false) => {
+    if (!orderNumber) return;
+
+    // Prevent concurrent auto-sync calls
+    if (isAutoSync && autoSyncInProgress) return;
+
+    if (isAutoSync) {
+      setAutoSyncInProgress(true);
+    } else {
       setRefreshing(true);
-      setError(null);
-      await fetchOrder();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to refresh order');
-    } finally {
-      setRefreshing(false);
     }
-  }, [orderNumber, refreshing, fetchOrder]);
+
+    setError(null);
+
+    try {
+      const token = session?.access_token;
+      if (!token) {
+        if (!isAutoSync) setError('Not authenticated');
+        return;
+      }
+
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/sync-midtrans-product-status`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+          },
+          body: JSON.stringify({ order_number: orderNumber }),
+        }
+      );
+
+      const data = await response.json().catch(() => null);
+
+      if (!response.ok) {
+        if (!isAutoSync) setError(data?.error || 'Failed to sync status');
+        return;
+      }
+
+      if (data?.order) {
+        // Only update if status changed or data is newer
+        setOrder((prev) => {
+          if (!prev) return data.order;
+          // Simple merge or replacement
+          return { ...prev, ...data.order };
+        });
+
+        // If status changed to paid, fetch details to get pickup code and items
+        // We use the response status to check
+        if (data.order.payment_status === 'paid') {
+          setShowManualButton(false);
+          // Re-fetch everything to ensure we have consistent state (items, etc.)
+          await fetchOrder();
+        }
+      }
+    } catch (e) {
+      if (!isAutoSync) setError(e instanceof Error ? e.message : 'Failed to sync status');
+    } finally {
+      if (isAutoSync) {
+        setAutoSyncInProgress(false);
+      } else {
+        setRefreshing(false);
+      }
+    }
+  }, [orderNumber, session, autoSyncInProgress, fetchOrder]);
+
+
 
   useEffect(() => {
     let cancelled = false;
@@ -107,21 +167,32 @@ export default function ProductOrderSuccessPage() {
     };
   }, [orderNumber, fetchOrder]);
 
+
+
+  // Active Sync / Aggressive Polling
   useEffect(() => {
     if (!orderNumber) return;
-    if (pickupCode) return;
-    let remaining = 20;
-    const interval = setInterval(async () => {
-      try {
-        remaining -= 1;
-        await fetchOrder();
-      } catch {
-        return;
-      }
-      if (remaining <= 0) clearInterval(interval);
-    }, 1500);
-    return () => clearInterval(interval);
-  }, [orderNumber, pickupCode, fetchOrder]);
+    // Don't poll if already paid/picked up
+    if (pickupCode || order?.payment_status === 'paid') return;
+
+    // Initial sync on mount (or when orderNumber changes)
+    handleSyncStatus(true);
+
+    // Poll every 2 seconds
+    const interval = setInterval(() => {
+      handleSyncStatus(true);
+    }, 2000);
+
+    // Show manual button after 20 seconds
+    const timeout = setTimeout(() => {
+      setShowManualButton(true);
+    }, 20000);
+
+    return () => {
+      clearInterval(interval);
+      clearTimeout(timeout);
+    };
+  }, [orderNumber, pickupCode, order?.payment_status, handleSyncStatus]);
 
   const totalItems = useMemo(() => items.reduce((sum, i) => sum + i.quantity, 0), [items]);
   const formatPickupExpiry = (value: string) =>
@@ -154,7 +225,7 @@ export default function ProductOrderSuccessPage() {
 
         {error && <div className="mb-6 rounded-xl border border-red-500/20 bg-red-500/10 p-4 text-sm text-red-700">{error}</div>}
 
-        {loading && !order ? (
+        {loading || !order || (!pickupCode && order?.payment_status !== 'paid' && !showManualButton) ? (
           <OrderSuccessSkeleton />
         ) : (
           <>
@@ -177,17 +248,22 @@ export default function ProductOrderSuccessPage() {
                         </div>
                       </div>
                     ) : (
-                      <div className="rounded-xl border border-gray-200 bg-white p-6">
-                        <p className="text-sm text-gray-600">Waiting for payment confirmation...</p>
-                        <p className="mt-2 text-xs text-gray-500">
-                          If this takes too long, refresh this page in a moment.
+                      <div className="rounded-xl border border-gray-200 bg-white p-6 animate-fade-in">
+                        <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                          <p className="text-sm text-yellow-700 flex items-center gap-2">
+                            <span className="material-symbols-outlined text-base">info</span>
+                            Payment verification is taking longer.
+                          </p>
+                        </div>
+                        <p className="mt-2 text-xs text-gray-500 mb-4">
+                          Your payment might be confirmed but delayed. Click below to check status manually.
                         </p>
                         <button
-                          onClick={handleRefresh}
-                          disabled={refreshing}
-                          className="mt-4 w-full border border-gray-200 py-3 uppercase tracking-widest text-xs font-bold text-gray-700 hover:bg-gray-100:bg-white/5 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                          onClick={() => handleSyncStatus(false)}
+                          disabled={refreshing || autoSyncInProgress}
+                          className="w-full bg-[#D32F2F] text-white py-3 uppercase tracking-widest text-xs font-bold hover:bg-[#B71C1C] transition-colors disabled:opacity-60 shadow-lg shadow-red-900/10"
                         >
-                          {refreshing ? 'Refreshing...' : 'Refresh Status'}
+                          {refreshing || autoSyncInProgress ? 'Checking...' : 'Check Status Manually'}
                         </button>
                       </div>
                     )}
