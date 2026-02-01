@@ -72,11 +72,10 @@ export default function BookingSuccessPage() {
   const [orderData, setOrderData] = useState<OrderState | null>(null);
   const [syncing, setSyncing] = useState(false);
   const [syncError, setSyncError] = useState<string | null>(null);
-  
+
   // Auto-polling state
   const [showManualButton, setShowManualButton] = useState(false);
   const [autoSyncInProgress, setAutoSyncInProgress] = useState(false);
-  const [isProcessing, setIsProcessing] = useState(false); // Simplified: just show spinner
 
   // Get order number from state or URL params
   const orderNumber = state?.orderNumber || searchParams.get('order_id') || '';
@@ -159,23 +158,23 @@ export default function BookingSuccessPage() {
           setLoading(false);
           return;
         }
-        
+
         // Fetch order items separately
         const { data: orderItems, error: itemsError } = await supabase
           .from('order_items')
           .select('*')
           .eq('order_id', order.id);
-        
+
         if (itemsError) {
           console.error('Error fetching order items:', itemsError);
         }
-        
+
         // Combine data
         const orderWithItems: OrderData = {
           ...(order as OrderRow),
           order_items: (orderItems as OrderItem[] | null) || [],
         };
-        
+
         setOrderData(orderWithItems);
 
         // Fetch purchased tickets for this order
@@ -229,26 +228,26 @@ export default function BookingSuccessPage() {
 
     const channel = orderNumber
       ? supabase
-          .channel(`orders:${orderNumber}`)
-          .on(
-            'postgres_changes',
-            {
-              event: 'UPDATE',
-              schema: 'public',
-              table: 'orders',
-              filter: `order_number=eq.${orderNumber}`,
-            },
-            async (payload) => {
-              const next = (payload as unknown as { new?: OrderRow }).new;
-              if (next) {
-                setOrderData(next);
-                if (next.status === 'paid') {
-                  await fetchOrderAndTickets();
-                }
+        .channel(`orders:${orderNumber}`)
+        .on(
+          'postgres_changes',
+          {
+            event: 'UPDATE',
+            schema: 'public',
+            table: 'orders',
+            filter: `order_number=eq.${orderNumber}`,
+          },
+          async (payload) => {
+            const next = (payload as unknown as { new?: OrderRow }).new;
+            if (next) {
+              setOrderData(next);
+              if (next.status === 'paid') {
+                await fetchOrderAndTickets();
               }
             }
-          )
-          .subscribe()
+          }
+        )
+        .subscribe()
       : null;
 
     // If pending, poll for updates (fallback)
@@ -281,60 +280,49 @@ export default function BookingSuccessPage() {
       }, 5000);
     }
 
-    // AUTO-POLLING: Smart sync for webhook failures
-    // Wait 5s for webhook, then poll sync API every 3s (max 10 times)
-    let initialWaitTimer: NodeJS.Timeout | null = null;
+    // AUTO-POLLING: Active Sync (Agresif)
+    // Langsung tembak ke Midtrans via Edge Function, jangan tunggu webhook.
     let autoSyncInterval: NodeJS.Timeout | null = null;
     let showButtonTimer: NodeJS.Timeout | null = null;
-    
+
     // Compute status inside effect to avoid stale closures
     const currentStatus = orderData?.status || (initialIsPending ? 'pending' : null);
-    
+
     if (orderNumber && currentStatus === 'pending') {
-      console.log('[Auto-Sync] Order pending - Starting smart polling...');
-      console.log(`[Auto-Sync] Order: ${orderNumber}, Status: ${currentStatus}`);
-      console.log('[Auto-Sync] Waiting 5 seconds for webhook...');
-      
-      // Show processing state
-      setIsProcessing(true);
-      
-      // Show manual button after 30 seconds
+      console.log(`[Auto-Sync] Order ${orderNumber} is pending. Starting IMMEDIATE sync...`);
+
+      // 2. Tembak Sync PERTAMA KALI (Instan saat mount)
+      // Ini kunci agar QR muncul < 2 detik
+      handleSyncStatus(true);
+
+      // 3. Setup Polling Interval (Agresif tiap 2 detik)
+      // Jaga-jaga jika hitungan pertama Midtrans belum siap/network lag
+      let attemptCount = 0;
+      autoSyncInterval = setInterval(async () => {
+        attemptCount++;
+        console.log(`[Auto-Sync] Attempt ${attemptCount}/15`);
+
+        if (attemptCount >= 15) {
+          console.log('[Auto-Sync] Max attempts reached - Showing manual button');
+          setShowManualButton(true);
+          if (autoSyncInterval) clearInterval(autoSyncInterval);
+          return;
+        }
+
+        // Trigger sync ulang
+        await handleSyncStatus(true);
+      }, 2000); // 2 detik (lebih agresif)
+
+      // 4. Safety net button (muncul setelah 20 detik jika macet total)
       showButtonTimer = setTimeout(() => {
-        console.log('[Auto-Sync] 30 seconds elapsed - Showing manual button');
+        console.log('[Auto-Sync] 20 seconds elapsed - Showing manual button');
         setShowManualButton(true);
-      }, 30000);
-      
-      // Wait 5 seconds for webhook to fire
-      initialWaitTimer = setTimeout(() => {
-        console.log('[Auto-Sync] Webhook timeout - Starting active polling every 3s');
-        
-        // Track attempts locally to avoid stale closure issues
-        let attemptCount = 0;
-        
-        // Start polling sync API every 3 seconds
-        autoSyncInterval = setInterval(async () => {
-          attemptCount++;
-          console.log(`[Auto-Sync] Attempt ${attemptCount}/10`);
-          
-          // Check if we've reached max attempts
-          if (attemptCount >= 10) {
-            console.log('[Auto-Sync] Max attempts reached (10/10) - Showing manual button');
-            setShowManualButton(true);
-            setIsProcessing(false);
-            if (autoSyncInterval) clearInterval(autoSyncInterval);
-            return;
-          }
-          
-          // Trigger sync
-          await handleSyncStatus(true);
-        }, 3000); // 3 seconds
-      }, 5000); // 5 seconds initial wait
+      }, 20000);
     }
 
     return () => {
       if (channel) supabase.removeChannel(channel);
       if (pollInterval) clearInterval(pollInterval);
-      if (initialWaitTimer) clearTimeout(initialWaitTimer);
       if (autoSyncInterval) clearInterval(autoSyncInterval);
       if (showButtonTimer) clearTimeout(showButtonTimer);
     };
@@ -342,22 +330,22 @@ export default function BookingSuccessPage() {
 
   const handleSyncStatus = async (isAutoSync = false) => {
     if (!orderNumber) return;
-    
+
     // Prevent concurrent auto-sync calls
     if (isAutoSync && autoSyncInProgress) {
       console.log('[Auto-Sync] Skipping - sync already in progress');
       return;
     }
-    
+
     if (isAutoSync) {
       setAutoSyncInProgress(true);
       console.log('[Auto-Sync] Checking payment status...');
     } else {
       setSyncing(true);
     }
-    
+
     setSyncError(null);
-    
+
     try {
       // CRITICAL: Use session from AuthContext (validated), not from supabase.auth.getSession() (localStorage)
       const token = session?.access_token;
@@ -389,11 +377,10 @@ export default function BookingSuccessPage() {
       }
 
       setOrderData(data?.order || orderData);
-      
+
       // If successful and status is paid, stop auto-polling
       if (data?.order?.status === 'paid') {
         setShowManualButton(false);
-        setIsProcessing(false);
         if (isAutoSync) {
           console.log('[Auto-Sync] Success - Payment confirmed!');
         }
@@ -447,7 +434,13 @@ export default function BookingSuccessPage() {
   const { icon: statusIcon, title: statusTitle, description: statusDescription } =
     getOrderStatusPresentation(effectiveStatus);
 
-  if (loading) {
+  // Show skeleton while:
+  // 1. Initial data is loading, OR
+  // 2. Order status is still pending (waiting for payment confirmation)
+  // This creates a seamless: Skeleton → QR Code experience (no intermediate loading page)
+  const showSkeleton = loading || (effectiveStatus === 'pending' && !showManualButton);
+
+  if (showSkeleton) {
     return <BookingSuccessSkeleton />;
   }
 
@@ -457,9 +450,8 @@ export default function BookingSuccessPage() {
         <div className="layout-content-container flex flex-col max-w-[800px] flex-1">
           {/* Celebration Section */}
           <div className="text-center mb-8">
-            <div className={`inline-flex items-center justify-center p-3 mb-4 rounded-full ${
-              effectiveStatus === 'pending' ? 'bg-yellow-100 text-yellow-600' : 'bg-primary/10 text-primary'
-            }`}>
+            <div className={`inline-flex items-center justify-center p-3 mb-4 rounded-full ${effectiveStatus === 'pending' ? 'bg-yellow-100 text-yellow-600' : 'bg-primary/10 text-primary'
+              }`}>
               <span className="material-symbols-outlined text-4xl">
                 {statusIcon}
               </span>
@@ -510,13 +502,12 @@ export default function BookingSuccessPage() {
                         Official Studio Pass
                       </p>
                       <h2 className="text-2xl font-bold font-display">{ticket.ticket.name}</h2>
-                      <span className={`inline-block mt-2 px-3 py-1 rounded-full text-xs font-bold uppercase ${
-                        ticket.status === 'active' 
-                          ? 'bg-green-100 text-green-700' 
-                          : ticket.status === 'used' 
+                      <span className={`inline-block mt-2 px-3 py-1 rounded-full text-xs font-bold uppercase ${ticket.status === 'active'
+                        ? 'bg-green-100 text-green-700'
+                        : ticket.status === 'used'
                           ? 'bg-gray-100 text-gray-700'
                           : 'bg-red-100 text-red-700'
-                      }`}>
+                        }`}>
                         {ticket.status}
                       </span>
                     </div>
@@ -552,14 +543,14 @@ export default function BookingSuccessPage() {
                 {/* Ticket Footer */}
                 <div className="bg-slate-50 p-6 border-t border-[#f4e7e7]#3d2020] flex flex-wrap items-center justify-between gap-4">
                   <div className="flex gap-4">
-                    <button 
+                    <button
                       onClick={handlePrint}
                       className="flex items-center gap-2 text-[#9c4949] hover:text-primary transition-colors text-sm font-medium"
                     >
                       <span className="material-symbols-outlined text-lg">print</span>
                       Print
                     </button>
-                    <button 
+                    <button
                       onClick={handleEmail}
                       className="flex items-center gap-2 text-[#9c4949] hover:text-primary transition-colors text-sm font-medium"
                     >
@@ -568,12 +559,10 @@ export default function BookingSuccessPage() {
                     </button>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className={`size-2 rounded-full ${
-                      ticket.status === 'active' ? 'bg-green-500' : 'bg-gray-400'
-                    }`}></span>
-                    <span className={`text-sm font-bold uppercase ${
-                      ticket.status === 'active' ? 'text-green-600' : 'text-gray-600'
-                    }`}>
+                    <span className={`size-2 rounded-full ${ticket.status === 'active' ? 'bg-green-500' : 'bg-gray-400'
+                      }`}></span>
+                    <span className={`text-sm font-bold uppercase ${ticket.status === 'active' ? 'text-green-600' : 'text-gray-600'
+                      }`}>
                       {ticket.status === 'active' ? 'Valid' : ticket.status}
                     </span>
                   </div>
@@ -586,36 +575,37 @@ export default function BookingSuccessPage() {
               <div className="h-2 bg-primary"></div>
               <div className="p-8 md:p-12 text-center">
                 {effectiveStatus === 'pending' ? (
-                  <>
-                    <span className="material-symbols-outlined text-6xl text-yellow-500 mb-4">hourglass_empty</span>
-                    <h2 className="text-xl font-bold mb-2">Waiting for Payment</h2>
-                    <p className="text-gray-500">
-                      Your tickets will appear here once payment is confirmed.
-                    </p>
-                    <p className="text-sm text-gray-400 mt-4">
-                      Order: {orderNumber}
-                    </p>
-                    
-                    {/* Clean spinner - no countdown, no counter */}
-                    {isProcessing && !showManualButton && (
-                      <div className="mt-6 flex flex-col items-center gap-3">
-                        <div className="flex items-center gap-3">
-                          <span className="material-symbols-outlined text-3xl text-primary animate-spin">sync</span>
-                          <span className="text-base font-medium text-gray-700">
-                            Confirming your payment...
-                          </span>
-                        </div>
-                        <p className="text-sm text-gray-400">This usually takes a few seconds</p>
+                  <div className="flex flex-col items-center justify-center py-4">
+                    {/* Magic/Spark Animation Container */}
+                    <div className="relative mb-6">
+                      <div className="absolute inset-0 bg-primary/30 blur-2xl rounded-full animate-pulse"></div>
+                      <div className="relative bg-white p-5 rounded-full border-2 border-primary/20 shadow-xl shadow-primary/20">
+                        <span className="material-symbols-outlined text-5xl text-primary animate-spin" style={{ animationDuration: '2s' }}>
+                          auto_awesome
+                        </span>
                       </div>
-                    )}
-                    
-                    {/* Manual button - only shown after 30 seconds */}
+                    </div>
+
+                    {/* Experience Text */}
+                    <h2 className="text-2xl font-display font-bold text-neutral-900 mb-2">
+                      Summoning Your Pass...
+                    </h2>
+                    <p className="text-gray-500 font-medium animate-pulse">
+                      Finalizing your magical journey to the stage.
+                    </p>
+
+                    {/* Technical details hidden/subtle */}
+                    <p className="text-xs text-gray-400 mt-8 font-mono">
+                      Order Ref: {orderNumber}
+                    </p>
+
+                    {/* Manual button - only shown after 20 seconds if still pending */}
                     {showManualButton && (
-                      <div className="mt-6">
+                      <div className="mt-6 animate-fade-in">
                         <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
                           <p className="text-sm text-yellow-700">
                             <span className="material-symbols-outlined text-base align-middle mr-1">info</span>
-                            Payment verification is taking longer than expected. Please check status manually.
+                            Payment verification is taking longer than expected.
                           </p>
                         </div>
                         <button
@@ -623,7 +613,7 @@ export default function BookingSuccessPage() {
                           disabled={syncing || autoSyncInProgress}
                           className="h-11 px-5 rounded-xl bg-[#D32F2F] text-white font-bold hover:bg-[#B71C1C] disabled:opacity-60 transition-all"
                         >
-                          {syncing || autoSyncInProgress ? 'Checking...' : 'Check Status'}
+                          {syncing || autoSyncInProgress ? 'Checking...' : 'Check Status Manually'}
                         </button>
                         {syncError && (
                           <p className="text-sm text-red-600 mt-3">
@@ -632,7 +622,7 @@ export default function BookingSuccessPage() {
                         )}
                       </div>
                     )}
-                  </>
+                  </div>
                 ) : (
                   <>
                     <span className="material-symbols-outlined text-6xl text-gray-400 mb-4">confirmation_number</span>
@@ -649,14 +639,14 @@ export default function BookingSuccessPage() {
           {/* Action Buttons */}
           {tickets.length > 0 && (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-10 px-4">
-              <button 
+              <button
                 onClick={handleDownloadPDF}
                 className="flex items-center justify-center gap-2 min-w-[180px] h-14 rounded-xl bg-[#D32F2F] text-white font-bold text-lg hover:bg-[#B71C1C] transition-all shadow-xl shadow-primary/30"
               >
                 <span className="material-symbols-outlined">download</span>
                 Download All Tickets
               </button>
-              <button 
+              <button
                 onClick={() => navigate('/my-tickets')}
                 className="flex items-center justify-center gap-2 min-w-[180px] h-14 rounded-xl bg-white border-2 border-primary text-primary font-bold text-lg hover:bg-primary/5 transition-all"
               >

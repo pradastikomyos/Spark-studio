@@ -43,3 +43,6 @@ backup_*.sql
 
 # Supabase deployment artifacts (local only)
 supabase/.temp/
+fullcode.txt
+.aicodeprep-gui
+.aicodeprep-gui
