@@ -4,7 +4,6 @@ import { getMidtransEnv, getSupabaseEnv } from '../_shared/env.ts'
 import { createServiceClient, getUserFromAuthHeader } from '../_shared/supabase.ts'
 import { getMidtransBasicAuthHeader, getStatusBaseUrl } from '../_shared/midtrans.ts'
 import {
-  incrementSoldCapacityOptimistic,
   mapMidtransStatus,
   normalizeAvailabilityTimeSlot,
   normalizeSelectedTimeSlots,
@@ -71,6 +70,8 @@ serve(async (req) => {
       })
     }
 
+    const previousStatus = String((order as { status?: unknown }).status || '').toLowerCase()
+
     const baseUrl = getStatusBaseUrl(midtransIsProduction)
     const authString = getMidtransBasicAuthHeader(midtransServerKey)
     const statusResponse = await fetch(`${baseUrl}/v2/${encodeURIComponent(orderNumber)}/status`, {
@@ -110,6 +111,28 @@ serve(async (req) => {
       })
     }
 
+    const shouldReleaseCapacity =
+      (newStatus === 'expired' || newStatus === 'failed' || newStatus === 'refunded') && previousStatus !== 'paid'
+    if (shouldReleaseCapacity && Array.isArray(updatedOrder.order_items)) {
+      for (const item of updatedOrder.order_items) {
+        const qty = Math.max(1, Math.floor(Number((item as { quantity?: unknown }).quantity ?? 0)))
+        const ticketId = Number((item as { ticket_id?: unknown }).ticket_id ?? 0)
+        const selectedDate = String((item as { selected_date?: unknown }).selected_date ?? '')
+        if (!ticketId || !selectedDate || qty <= 0) continue
+        const slots = normalizeSelectedTimeSlots((item as { selected_time_slots?: unknown }).selected_time_slots)
+        const normalizedSlots = slots.length > 0 ? slots : ['all-day']
+        for (const slot of normalizedSlots) {
+          const timeSlot = normalizeAvailabilityTimeSlot(String(slot))
+          await supabase.rpc('release_ticket_capacity', {
+            p_ticket_id: ticketId,
+            p_date: selectedDate,
+            p_time_slot: timeSlot,
+            p_quantity: qty,
+          })
+        }
+      }
+    }
+
     if (newStatus === 'paid' && Array.isArray(updatedOrder.order_items)) {
       for (const item of updatedOrder.order_items) {
         const { count: existingCount } = await supabase
@@ -141,12 +164,13 @@ serve(async (req) => {
           })
         }
 
-        for (const slot of slots) {
-          await incrementSoldCapacityOptimistic(supabase, {
-            ticketId: item.ticket_id,
-            date: item.selected_date,
-            timeSlot: normalizeAvailabilityTimeSlot(String(slot)),
-            delta: needed,
+        const normalizedSlots = slots.length > 0 ? slots : ['all-day']
+        for (const slot of normalizedSlots) {
+          await supabase.rpc('finalize_ticket_capacity', {
+            p_ticket_id: item.ticket_id,
+            p_date: item.selected_date,
+            p_time_slot: normalizeAvailabilityTimeSlot(String(slot)),
+            p_quantity: needed,
           })
         }
       }

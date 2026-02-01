@@ -1,5 +1,3 @@
-import { createClient } from './deps.ts'
-
 export function normalizeSelectedTimeSlots(value: unknown): string[] {
   if (Array.isArray(value)) return value.map(String)
   if (typeof value === 'string') {
@@ -20,7 +18,7 @@ export function normalizeAvailabilityTimeSlot(value: string): string | null {
 }
 
 export async function incrementSoldCapacityOptimistic(
-  supabase: ReturnType<typeof createClient>,
+  supabase: any,
   params: { ticketId: number; date: string; timeSlot: string | null; delta: number }
 ) {
   const { ticketId, date, timeSlot, delta } = params
@@ -32,13 +30,15 @@ export async function incrementSoldCapacityOptimistic(
       .select('id, sold_capacity, version')
       .eq('ticket_id', ticketId)
       .eq('date', date)
-      .eq('time_slot', timeSlot)
+      .eq('time_slot', timeSlot as unknown)
       .single()
 
     if (readError || !row) return
 
-    const nextSold = (row.sold_capacity ?? 0) + delta
-    const nextVersion = (row.version ?? 0) + 1
+    const currentSold = typeof (row as any).sold_capacity === 'number' ? (row as any).sold_capacity : Number((row as any).sold_capacity ?? 0)
+    const currentVersion = typeof (row as any).version === 'number' ? (row as any).version : Number((row as any).version ?? 0)
+    const nextSold = currentSold + delta
+    const nextVersion = currentVersion + 1
 
     const { data: updated, error: updateError } = await supabase
       .from('ticket_availabilities')
@@ -47,8 +47,8 @@ export async function incrementSoldCapacityOptimistic(
         version: nextVersion,
         updated_at: new Date().toISOString(),
       })
-      .eq('id', row.id)
-      .eq('version', row.version)
+      .eq('id', (row as any).id)
+      .eq('version', (row as any).version)
       .select('id')
 
     if (!updateError && updated && updated.length > 0) return

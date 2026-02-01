@@ -4,8 +4,7 @@ import { supabase } from '../../lib/supabase';
 import AdminLayout from '../../components/AdminLayout';
 import QRScannerModal from '../../components/admin/QRScannerModal';
 import { ADMIN_MENU_ITEMS, ADMIN_MENU_SECTIONS } from '../../constants/adminMenu';
-import { toLocalDateString } from '../../utils/formatters';
-import { getMinutesUntilSessionEnd, createWIBDate, addMinutes, SESSION_DURATION_MINUTES } from '../../utils/timezone';
+import { createWIBDate, addMinutes, nowWIB, SESSION_DURATION_MINUTES, toLocalDateString } from '../../utils/timezone';
 
 const OrderTicket = () => {
   const { signOut } = useAuth();
@@ -103,7 +102,7 @@ const OrderTicket = () => {
         }
 
         // Use local timezone for date comparison (not UTC!)
-        const todayLocal = toLocalDateString(new Date());
+        const todayLocal = toLocalDateString(nowWIB());
 
         if (ticketData.valid_date < todayLocal) {
           // Add T00:00:00 to parse as local time, not UTC
@@ -121,14 +120,15 @@ const OrderTicket = () => {
         // CRITICAL: Validate session time window
         // User can only scan during their booked session time (start to end)
         if (ticketData.time_slot) {
-          const now = new Date();
+          const now = nowWIB();
           const sessionStart = createWIBDate(todayLocal, ticketData.time_slot);
           const sessionEnd = addMinutes(sessionStart, SESSION_DURATION_MINUTES);
           
           // Check if current time is BEFORE session starts
           if (now < sessionStart) {
             const timeDisplay = ticketData.time_slot.substring(0, 5);
-            const sessionStartDisplay = sessionStart.toLocaleTimeString('id-ID', { 
+            const sessionStartDisplay = sessionStart.toLocaleTimeString('id-ID', {
+              timeZone: 'Asia/Jakarta',
               hour: '2-digit', 
               minute: '2-digit',
               hour12: false 
@@ -141,7 +141,8 @@ const OrderTicket = () => {
           // Check if current time is AFTER session ends
           if (now > sessionEnd) {
             const timeDisplay = ticketData.time_slot.substring(0, 5);
-            const sessionEndDisplay = sessionEnd.toLocaleTimeString('id-ID', { 
+            const sessionEndDisplay = sessionEnd.toLocaleTimeString('id-ID', {
+              timeZone: 'Asia/Jakarta',
               hour: '2-digit', 
               minute: '2-digit',
               hour12: false 

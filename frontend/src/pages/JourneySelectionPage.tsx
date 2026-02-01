@@ -4,7 +4,6 @@ import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import { formatCurrency } from '../utils/formatters';
 import {
-  createWIBDate,
   addDays,
   todayWIB,
   nowWIB,

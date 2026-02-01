@@ -1,7 +1,7 @@
 import { serve } from '../_shared/deps.ts'
 import { getMidtransBasicAuthHeader, getSnapUrl } from '../_shared/midtrans.ts'
 import { corsHeaders, handleCors } from '../_shared/http.ts'
-import { getMidtransEnv, getSupabaseEnv } from '../_shared/env.ts'
+import { getMidtransEnv, getPublicAppUrl, getSupabaseEnv } from '../_shared/env.ts'
 import { createServiceClient, getUserFromAuthHeader } from '../_shared/supabase.ts'
 
 type ProductItem = {
@@ -86,6 +86,13 @@ serve(async (req) => {
       })
     }
 
+    if (!payload.customerEmail?.trim()) {
+      return new Response(JSON.stringify({ error: 'Missing customer email' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
     const userId = user.id
 
     const normalizedItems: ProductItem[] = payload.items.map((i) => ({
@@ -102,7 +109,60 @@ serve(async (req) => {
       })
     }
 
-    const totalAmount = normalizedItems.reduce((sum, item) => sum + item.price * item.quantity, 0)
+    const aggregatedItemsByVariant = new Map<number, { productVariantId: number; name: string; quantity: number }>()
+    for (const item of normalizedItems) {
+      const existing = aggregatedItemsByVariant.get(item.productVariantId)
+      if (existing) {
+        existing.quantity += item.quantity
+      } else {
+        aggregatedItemsByVariant.set(item.productVariantId, {
+          productVariantId: item.productVariantId,
+          name: item.name,
+          quantity: item.quantity,
+        })
+      }
+    }
+
+    const aggregatedItems = Array.from(aggregatedItemsByVariant.values())
+    const variantIds = aggregatedItems.map((item) => item.productVariantId)
+
+    const { data: variantRows, error: variantsError } = await supabase
+      .from('product_variants')
+      .select('id, price, stock, reserved_stock, is_active')
+      .in('id', variantIds)
+
+    if (variantsError || !Array.isArray(variantRows)) {
+      return new Response(JSON.stringify({ error: 'Failed to load product variants' }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
+    const variantMap = new Map<number, { id: number; price: unknown; stock: unknown; reserved_stock: unknown; is_active: unknown }>()
+    for (const row of variantRows as Array<{ id: number; price: unknown; stock: unknown; reserved_stock: unknown; is_active: unknown }>) {
+      variantMap.set(Number(row.id), row)
+    }
+
+    const resolvedItems: Array<{ productVariantId: number; name: string; quantity: number; unitPrice: number }> = []
+    for (const item of aggregatedItems) {
+      const variant = variantMap.get(item.productVariantId)
+      if (!variant) {
+        return new Response(JSON.stringify({ error: `Variant not found: ${item.productVariantId}` }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        })
+      }
+      const unitPrice = toNumber((variant as { price: unknown }).price, 0)
+      if (unitPrice <= 0) {
+        return new Response(JSON.stringify({ error: `Invalid price for variant: ${item.productVariantId}` }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        })
+      }
+      resolvedItems.push({ ...item, unitPrice })
+    }
+
+    const totalAmount = resolvedItems.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0)
     const orderNumber = `PRD-${Date.now()}-${Math.random().toString(36).substring(2, 7).toUpperCase()}`
 
     const now = new Date()
@@ -110,17 +170,13 @@ serve(async (req) => {
     // Dynamic payment expiry based on stock scarcity
     // Industry standard: Scarce inventory requires faster payment
     let minStockLevel = Infinity
-    for (const item of normalizedItems) {
-      const { data: variantRow } = await supabase
-        .from('product_variants')
-        .select('stock, reserved_stock')
-        .eq('id', item.productVariantId)
-        .single()
-
-      if (variantRow) {
-        const available = (variantRow.stock ?? 0) - (variantRow.reserved_stock ?? 0)
-        minStockLevel = Math.min(minStockLevel, available)
-      }
+    for (const item of resolvedItems) {
+      const row = variantMap.get(item.productVariantId)
+      if (!row) continue
+      const stock = toNumber((row as { stock: unknown }).stock, 0)
+      const reserved = toNumber((row as { reserved_stock: unknown }).reserved_stock, 0)
+      const available = stock - reserved
+      minStockLevel = Math.min(minStockLevel, available)
     }
 
     // Formula: Low stock = shorter payment window to prevent inventory deadlock
@@ -140,21 +196,26 @@ serve(async (req) => {
 
     const reservedAdjustments: { variantId: number; quantity: number }[] = []
 
-    for (const item of normalizedItems) {
-      const { data: variantRow, error: variantReadError } = await supabase
-        .from('product_variants')
-        .select('id, stock, reserved_stock')
-        .eq('id', item.productVariantId)
-        .single()
-
-      if (variantReadError || !variantRow) {
-        return new Response(JSON.stringify({ error: 'Variant not found', details: variantReadError?.message }), {
+    for (const item of resolvedItems) {
+      const row = variantMap.get(item.productVariantId)
+      if (!row) {
+        return new Response(JSON.stringify({ error: 'Variant not found' }), {
           status: 400,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         })
       }
 
-      const available = (variantRow.stock ?? 0) - (variantRow.reserved_stock ?? 0)
+      const isActive = (row as { is_active: unknown }).is_active
+      if (isActive === false) {
+        return new Response(JSON.stringify({ error: `Variant inactive: ${item.productVariantId}` }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        })
+      }
+
+      const stock = toNumber((row as { stock: unknown }).stock, 0)
+      const reserved = toNumber((row as { reserved_stock: unknown }).reserved_stock, 0)
+      const available = stock - reserved
       if (available < item.quantity) {
         return new Response(JSON.stringify({ error: `Out of stock for ${item.name}` }), {
           status: 409,
@@ -164,7 +225,7 @@ serve(async (req) => {
 
       const { data: updated, error: reserveError } = await supabase
         .from('product_variants')
-        .update({ reserved_stock: (variantRow.reserved_stock ?? 0) + item.quantity, updated_at: new Date().toISOString() })
+        .update({ reserved_stock: reserved + item.quantity, updated_at: new Date().toISOString() })
         .eq('id', item.productVariantId)
         .select('id')
 
@@ -216,13 +277,13 @@ serve(async (req) => {
 
     const orderId = (order as unknown as { id: number }).id
 
-    const orderItems = normalizedItems.map((item) => ({
+    const orderItems = resolvedItems.map((item) => ({
       order_product_id: orderId,
       product_variant_id: item.productVariantId,
       quantity: item.quantity,
-      price: item.price,
+      price: item.unitPrice,
       discount_amount: 0,
-      subtotal: item.price * item.quantity,
+      subtotal: item.unitPrice * item.quantity,
       stock_type: 'ready',
       created_at: now.toISOString(),
       updated_at: now.toISOString(),
@@ -249,12 +310,20 @@ serve(async (req) => {
     const midtransUrl = getSnapUrl(midtransIsProduction)
     const authString = getMidtransBasicAuthHeader(midtransServerKey)
 
-    const itemDetails = normalizedItems.map((item) => ({
+    const itemDetails = resolvedItems.map((item) => ({
       id: `variant-${item.productVariantId}`,
-      price: item.price,
+      price: item.unitPrice,
       quantity: item.quantity,
       name: item.name,
     }))
+
+    const appUrl = getPublicAppUrl() ?? req.headers.get('origin') ?? ''
+    if (!appUrl) {
+      return new Response(JSON.stringify({ error: 'Missing app url' }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
 
     const midtransPayload = {
       transaction_details: {
@@ -272,7 +341,7 @@ serve(async (req) => {
         unit: 'minute',
       },
       callbacks: {
-        finish: `${req.headers.get('origin')}/order/product/success/${orderNumber}`,
+        finish: `${appUrl}/order/product/success/${orderNumber}`,
       },
     }
 

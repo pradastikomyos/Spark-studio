@@ -1,7 +1,7 @@
 import { serve } from '../_shared/deps.ts'
 import { getMidtransBasicAuthHeader, getSnapUrl } from '../_shared/midtrans.ts'
 import { corsHeaders, handleCors } from '../_shared/http.ts'
-import { getMidtransEnv, getSupabaseEnv } from '../_shared/env.ts'
+import { getMidtransEnv, getPublicAppUrl, getSupabaseEnv } from '../_shared/env.ts'
 import { createServiceClient, getUserFromAuthHeader } from '../_shared/supabase.ts'
 
 interface OrderItem {
@@ -18,6 +18,15 @@ interface CreateTokenRequest {
   customerName: string
   customerEmail: string
   customerPhone?: string
+}
+
+function toNumber(value: unknown, fallback: number) {
+  if (typeof value === 'number') return Number.isFinite(value) ? value : fallback
+  if (typeof value === 'string' && value.trim() !== '') {
+    const parsed = Number(value)
+    return Number.isFinite(parsed) ? parsed : fallback
+  }
+  return fallback
 }
 
 serve(async (req) => {
@@ -67,11 +76,18 @@ serve(async (req) => {
     // Create separate client with SERVICE ROLE KEY for database operations
     const supabase = createServiceClient(supabaseUrl, supabaseServiceKey)
 
-    // Parse request body
-    const { items, customerName, customerEmail, customerPhone }: CreateTokenRequest = await req.json()
+    const payload = (await req.json()) as CreateTokenRequest
+    const items = payload.items
 
     if (!items || items.length === 0) {
       return new Response(JSON.stringify({ error: 'No items provided' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
+    if (!payload.customerName?.trim() || !payload.customerEmail?.trim()) {
+      return new Response(JSON.stringify({ error: 'Missing customer info' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
@@ -137,15 +153,125 @@ serve(async (req) => {
 
     const userId = user.id
 
-    // Calculate total amount
-    const totalAmount = items.reduce((sum, item) => sum + (item.price * item.quantity), 0)
+    const normalizedItems = items.map((item) => ({
+      ticketId: toNumber(item.ticketId, 0),
+      date: String(item.date || ''),
+      timeSlot: String(item.timeSlot || ''),
+      quantity: Math.max(1, Math.floor(toNumber(item.quantity, 1))),
+    }))
+
+    if (
+      normalizedItems.some(
+        (i) =>
+          !i.ticketId ||
+          !/^\d{4}-\d{2}-\d{2}$/.test(i.date) ||
+          !(i.timeSlot === 'all-day' || /^\d{2}:\d{2}$/.test(i.timeSlot)) ||
+          i.quantity <= 0
+      )
+    ) {
+      return new Response(JSON.stringify({ error: 'Invalid items' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
+    const ticketIds = Array.from(new Set(normalizedItems.map((i) => i.ticketId)))
+    const { data: ticketRows, error: ticketsError } = await supabase
+      .from('tickets')
+      .select('id, name, price, is_active')
+      .in('id', ticketIds)
+
+    if (ticketsError || !Array.isArray(ticketRows)) {
+      return new Response(JSON.stringify({ error: 'Failed to load tickets' }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
+    const ticketMap = new Map<number, { id: number; name: string; price: unknown; is_active: unknown }>()
+    for (const row of ticketRows as Array<{ id: number; name: string; price: unknown; is_active: unknown }>) {
+      ticketMap.set(Number(row.id), row)
+    }
+
+    const resolvedItems: Array<{ ticketId: number; ticketName: string; unitPrice: number; quantity: number; date: string; timeSlot: string }> = []
+    for (const item of normalizedItems) {
+      const ticket = ticketMap.get(item.ticketId)
+      if (!ticket) {
+        return new Response(JSON.stringify({ error: `Ticket not found: ${item.ticketId}` }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        })
+      }
+      if ((ticket as { is_active: unknown }).is_active === false) {
+        return new Response(JSON.stringify({ error: `Ticket inactive: ${item.ticketId}` }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        })
+      }
+      const unitPrice = toNumber((ticket as { price: unknown }).price, 0)
+      if (unitPrice <= 0) {
+        return new Response(JSON.stringify({ error: `Invalid ticket price: ${item.ticketId}` }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        })
+      }
+      resolvedItems.push({
+        ticketId: item.ticketId,
+        ticketName: String((ticket as { name: unknown }).name || '').slice(0, 50),
+        unitPrice,
+        quantity: item.quantity,
+        date: item.date,
+        timeSlot: item.timeSlot,
+      })
+    }
+
+    const totalAmount = resolvedItems.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0)
+
+    const holdsBySlot = new Map<string, { ticketId: number; date: string; timeSlot: string | null; quantity: number }>()
+    for (const item of resolvedItems) {
+      const timeSlot = item.timeSlot === 'all-day' ? null : item.timeSlot
+      const key = `${item.ticketId}|${item.date}|${timeSlot ?? ''}`
+      const existing = holdsBySlot.get(key)
+      if (existing) {
+        existing.quantity += item.quantity
+      } else {
+        holdsBySlot.set(key, { ticketId: item.ticketId, date: item.date, timeSlot, quantity: item.quantity })
+      }
+    }
+
+    const reservedHolds: Array<{ ticketId: number; date: string; timeSlot: string | null; quantity: number }> = []
+    for (const hold of holdsBySlot.values()) {
+      const { data: reserved, error: reserveError } = await supabase.rpc('reserve_ticket_capacity', {
+        p_ticket_id: hold.ticketId,
+        p_date: hold.date,
+        p_time_slot: hold.timeSlot,
+        p_quantity: hold.quantity,
+      })
+
+      if (reserveError || reserved !== true) {
+        for (const previous of reservedHolds) {
+          await supabase.rpc('release_ticket_capacity', {
+            p_ticket_id: previous.ticketId,
+            p_date: previous.date,
+            p_time_slot: previous.timeSlot,
+            p_quantity: previous.quantity,
+          })
+        }
+
+        return new Response(JSON.stringify({ error: 'Slot sold out' }), {
+          status: 409,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        })
+      }
+
+      reservedHolds.push(hold)
+    }
 
     // Generate unique order number
     const orderNumber = `SPK-${Date.now()}-${Math.random().toString(36).substring(2, 7).toUpperCase()}`
 
     // Create order in database
-    const expiresAt = new Date()
-    expiresAt.setHours(expiresAt.getHours() + 24) // 24 hours expiry
+    const expiresAt = new Date(Date.now() + paymentExpiryMinutes * 60 * 1000)
 
     const { data: order, error: orderError } = await supabase
       .from('orders')
@@ -163,6 +289,14 @@ serve(async (req) => {
 
     if (orderError || !order) {
       console.error('Order creation error:', orderError)
+      for (const hold of reservedHolds) {
+        await supabase.rpc('release_ticket_capacity', {
+          p_ticket_id: hold.ticketId,
+          p_date: hold.date,
+          p_time_slot: hold.timeSlot,
+          p_quantity: hold.quantity,
+        })
+      }
       return new Response(JSON.stringify({ error: 'Failed to create order' }), {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -170,14 +304,14 @@ serve(async (req) => {
     }
 
     // Create order items
-    const orderItems = items.map(item => ({
+    const orderItems = resolvedItems.map(item => ({
       order_id: order.id,
       ticket_id: item.ticketId,
       selected_date: item.date,
       selected_time_slots: JSON.stringify([item.timeSlot]),
       quantity: item.quantity,
-      unit_price: item.price,
-      subtotal: item.price * item.quantity,
+      unit_price: item.unitPrice,
+      subtotal: item.unitPrice * item.quantity,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     }))
@@ -190,6 +324,14 @@ serve(async (req) => {
       console.error('Order items creation error:', itemsError)
       // Rollback order
       await supabase.from('orders').delete().eq('id', order.id)
+      for (const hold of reservedHolds) {
+        await supabase.rpc('release_ticket_capacity', {
+          p_ticket_id: hold.ticketId,
+          p_date: hold.date,
+          p_time_slot: hold.timeSlot,
+          p_quantity: hold.quantity,
+        })
+      }
       return new Response(JSON.stringify({ error: 'Failed to create order items' }), {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -200,12 +342,20 @@ serve(async (req) => {
     const midtransUrl = getSnapUrl(midtransIsProduction)
     const authString = getMidtransBasicAuthHeader(midtransServerKey)
 
-    const itemDetails = items.map(item => ({
+    const itemDetails = resolvedItems.map(item => ({
       id: `ticket-${item.ticketId}`,
-      price: item.price,
+      price: item.unitPrice,
       quantity: item.quantity,
-      name: item.ticketName.substring(0, 50), // Max 50 chars
+      name: item.ticketName.substring(0, 50),
     }))
+
+    const appUrl = getPublicAppUrl() ?? req.headers.get('origin') ?? ''
+    if (!appUrl) {
+      return new Response(JSON.stringify({ error: 'Missing app url' }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
 
     const midtransPayload = {
       transaction_details: {
@@ -214,16 +364,16 @@ serve(async (req) => {
       },
       item_details: itemDetails,
       customer_details: {
-        first_name: customerName,
-        email: customerEmail,
-        phone: customerPhone || '',
+        first_name: payload.customerName,
+        email: payload.customerEmail,
+        phone: payload.customerPhone || '',
       },
       custom_expiry: {
         expiry_duration: paymentExpiryMinutes,
         unit: 'minute',
       },
       callbacks: {
-        finish: `${req.headers.get('origin')}/booking-success?order_id=${orderNumber}`,
+        finish: `${appUrl}/booking-success?order_id=${orderNumber}`,
       },
     }
 
@@ -243,6 +393,14 @@ serve(async (req) => {
       // Rollback
       await supabase.from('order_items').delete().eq('order_id', order.id)
       await supabase.from('orders').delete().eq('id', order.id)
+      for (const hold of reservedHolds) {
+        await supabase.rpc('release_ticket_capacity', {
+          p_ticket_id: hold.ticketId,
+          p_date: hold.date,
+          p_time_slot: hold.timeSlot,
+          p_quantity: hold.quantity,
+        })
+      }
       return new Response(JSON.stringify({ error: 'Failed to create payment token', details: midtransData }), {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },

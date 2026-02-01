@@ -3,7 +3,7 @@ import { corsHeaders, handleCors } from '../_shared/http.ts'
 import { getMidtransEnv, getSupabaseEnv } from '../_shared/env.ts'
 import { createServiceClient } from '../_shared/supabase.ts'
 import { generateSignature } from '../_shared/midtrans.ts'
-import { incrementSoldCapacityOptimistic, mapMidtransStatus, normalizeAvailabilityTimeSlot, normalizeSelectedTimeSlots } from '../_shared/tickets.ts'
+import { mapMidtransStatus, normalizeAvailabilityTimeSlot, normalizeSelectedTimeSlots } from '../_shared/tickets.ts'
 
 // Generate unique ticket code
 function generateTicketCode(): string {
@@ -13,6 +13,15 @@ function generateTicketCode(): string {
     result += chars.charAt(Math.floor(Math.random() * chars.length))
   }
   return result + '-' + Date.now().toString(36).toUpperCase()
+}
+
+function toNumber(value: unknown, fallback: number) {
+  if (typeof value === 'number') return Number.isFinite(value) ? value : fallback
+  if (typeof value === 'string' && value.trim() !== '') {
+    const parsed = Number(value)
+    return Number.isFinite(parsed) ? parsed : fallback
+  }
+  return fallback
 }
 
 async function logWebhook(
@@ -55,20 +64,21 @@ serve(async (req) => {
     supabase = createServiceClient(supabaseUrl, supabaseServiceKey)
 
     notification = await req.json()
-    orderId = String((notification as { order_id?: string })?.order_id || '')
-    const transactionStatus = String(notification?.transaction_status || '')
-    const fraudStatus = notification?.fraud_status ?? null
+    const payloadAny = notification as any
+    orderId = String(payloadAny?.order_id || '')
+    const transactionStatus = String(payloadAny?.transaction_status || '')
+    const fraudStatus = payloadAny?.fraud_status ?? null
     const nowIso = new Date().toISOString()
 
-    const signatureKey = String(notification?.signature_key || '')
+    const signatureKey = String(payloadAny?.signature_key || '')
     const statusCode =
-      typeof notification?.status_code === 'number'
-        ? String(notification.status_code)
-        : String(notification?.status_code || '')
+      typeof payloadAny?.status_code === 'number'
+        ? String(payloadAny.status_code)
+        : String(payloadAny?.status_code || '')
     const grossAmount =
-      typeof notification?.gross_amount === 'number'
-        ? notification.gross_amount.toFixed(2)
-        : String(notification?.gross_amount || '')
+      typeof payloadAny?.gross_amount === 'number'
+        ? payloadAny.gross_amount.toFixed(2)
+        : String(payloadAny?.gross_amount || '')
 
     // Verify signature
     const expectedSignature = await generateSignature(
@@ -97,7 +107,7 @@ serve(async (req) => {
 
     const { data: productOrder } = await supabase
       .from('order_products')
-      .select('id, status, payment_status, pickup_code, pickup_status')
+      .select('id, status, payment_status, pickup_code, pickup_status, total')
       .eq('order_number', orderId)
       .single()
 
@@ -123,6 +133,10 @@ serve(async (req) => {
             : newStatus === 'failed'
               ? 'cancelled'
               : currentStatus || 'awaiting_payment'
+
+      const expectedTotal = toNumber((productOrder as { total?: unknown }).total, 0)
+      const paidTotal = toNumber(grossAmount, 0)
+      const amountMismatch = newStatus === 'paid' && expectedTotal > 0 && paidTotal > 0 && Math.abs(expectedTotal - paidTotal) > 0.01
 
       if (newStatus === 'paid' && currentPaymentStatus !== 'paid') {
         // Validate stock availability before creating order
@@ -170,8 +184,8 @@ serve(async (req) => {
         const pickupExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
 
         // If stock validation failed, flag order for manual review
-        const finalStatus = stockValidationFailed ? 'requires_review' : status
-        const finalPickupStatus = stockValidationFailed ? 'pending_review' : 'pending_pickup'
+        const finalStatus = stockValidationFailed || amountMismatch ? 'requires_review' : status
+        const finalPickupStatus = stockValidationFailed || amountMismatch ? 'pending_review' : 'pending_pickup'
 
         await supabase
           .from('order_products')
@@ -199,6 +213,21 @@ serve(async (req) => {
             },
             success: true,
             errorMessage: `Stock insufficient: ${stockIssues.join('; ')}`,
+            processedAt: nowIso,
+          })
+        }
+
+        if (amountMismatch) {
+          await logWebhook(supabase, {
+            orderNumber: orderId,
+            eventType: 'amount_mismatch_requires_review',
+            payload: {
+              expected_total: expectedTotal,
+              gross_amount: paidTotal,
+              notification,
+            },
+            success: true,
+            errorMessage: `Amount mismatch: expected ${expectedTotal}, got ${paidTotal}`,
             processedAt: nowIso,
           })
         }
@@ -284,6 +313,8 @@ serve(async (req) => {
       })
     }
 
+    const previousOrderStatus = String((order as { status?: unknown }).status || '').toLowerCase()
+
     const { error: updateError } = await supabase
       .from('orders')
       .update({
@@ -295,6 +326,31 @@ serve(async (req) => {
 
     if (updateError) {
       console.error('Failed to update order:', updateError)
+    }
+
+    const shouldReleaseCapacity =
+      (newStatus === 'expired' || newStatus === 'failed' || newStatus === 'refunded') && previousOrderStatus !== 'paid'
+    if (shouldReleaseCapacity) {
+      const orderItemsRows = (order as { order_items?: unknown }).order_items
+      if (Array.isArray(orderItemsRows)) {
+        for (const row of orderItemsRows) {
+          const qty = Math.max(1, Math.floor(Number((row as { quantity?: unknown }).quantity ?? 0)))
+          const ticketId = Number((row as { ticket_id?: unknown }).ticket_id ?? 0)
+          const selectedDate = String((row as { selected_date?: unknown }).selected_date ?? '')
+          if (!ticketId || !selectedDate || qty <= 0) continue
+          const slots = normalizeSelectedTimeSlots((row as { selected_time_slots?: unknown }).selected_time_slots)
+          const normalizedSlots = slots.length > 0 ? slots : ['all-day']
+          for (const slot of normalizedSlots) {
+            const timeSlot = normalizeAvailabilityTimeSlot(String(slot))
+            await supabase.rpc('release_ticket_capacity', {
+              p_ticket_id: ticketId,
+              p_date: selectedDate,
+              p_time_slot: timeSlot,
+              p_quantity: qty,
+            })
+          }
+        }
+      }
     }
 
     if (newStatus === 'paid') {
@@ -371,11 +427,11 @@ serve(async (req) => {
           // If slot expired and converted to all-day, increment all-day capacity instead
           for (const slot of slots) {
             const slotToIncrement = slotExpired ? null : normalizeAvailabilityTimeSlot(String(slot))
-            await incrementSoldCapacityOptimistic(supabase, {
-              ticketId: item.ticket_id,
-              date: item.selected_date,
-              timeSlot: slotToIncrement,
-              delta: needed,
+            await supabase.rpc('finalize_ticket_capacity', {
+              p_ticket_id: item.ticket_id,
+              p_date: item.selected_date,
+              p_time_slot: slotToIncrement,
+              p_quantity: needed,
             })
           }
         }

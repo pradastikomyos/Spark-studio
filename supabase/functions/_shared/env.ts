@@ -18,3 +18,13 @@ export function getMidtransEnv() {
     isProduction: (Deno.env.get('MIDTRANS_IS_PRODUCTION') ?? '').toLowerCase() === 'true',
   }
 }
+
+export function getPublicAppUrl(): string | null {
+  const value =
+    Deno.env.get('PUBLIC_APP_URL') ||
+    Deno.env.get('SITE_URL') ||
+    Deno.env.get('VITE_PUBLIC_APP_URL') ||
+    Deno.env.get('VITE_APP_URL')
+  if (!value) return null
+  return value.replace(/\/+$/, '')
+}
