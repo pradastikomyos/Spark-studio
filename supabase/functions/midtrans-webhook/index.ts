@@ -1,83 +1,9 @@
-import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-}
-
-function normalizeSelectedTimeSlots(value: unknown): string[] {
-  if (Array.isArray(value)) return value.map(String)
-  if (typeof value === 'string') {
-    try {
-      const parsed = JSON.parse(value)
-      if (Array.isArray(parsed)) return parsed.map(String)
-    } catch {
-      return [value]
-    }
-  }
-  return []
-}
-
-function normalizeAvailabilityTimeSlot(value: string): string | null {
-  if (!value) return null
-  if (value === 'all-day') return null
-  return value
-}
-
-async function incrementSoldCapacityOptimistic(
-  supabase: ReturnType<typeof createClient>,
-  params: { ticketId: number; date: string; timeSlot: string | null; delta: number }
-) {
-  const { ticketId, date, timeSlot, delta } = params
-  if (delta <= 0) return
-
-  for (let attempt = 0; attempt < 3; attempt++) {
-    const { data: row, error: readError } = await supabase
-      .from('ticket_availabilities')
-      .select('id, sold_capacity, version')
-      .eq('ticket_id', ticketId)
-      .eq('date', date)
-      .eq('time_slot', timeSlot)
-      .single()
-
-    if (readError || !row) return
-
-    const nextSold = (row.sold_capacity ?? 0) + delta
-    const nextVersion = (row.version ?? 0) + 1
-
-    const { data: updated, error: updateError } = await supabase
-      .from('ticket_availabilities')
-      .update({
-        sold_capacity: nextSold,
-        version: nextVersion,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', row.id)
-      .eq('version', row.version)
-      .select('id')
-
-    if (!updateError && updated && updated.length > 0) return
-  }
-}
-
-function mapMidtransStatus(transactionStatus: unknown, fraudStatus: unknown): string {
-  const tx = String(transactionStatus || '').toLowerCase()
-  const fraud = fraudStatus == null ? null : String(fraudStatus).toLowerCase()
-
-  if (tx === 'capture') {
-    if (fraud === 'accept' || fraud == null) return 'paid'
-    return 'pending'
-  }
-
-  if (tx === 'settlement') return 'paid'
-  if (tx === 'pending') return 'pending'
-  if (tx === 'expire' || tx === 'expired') return 'expired'
-  if (tx === 'refund' || tx === 'refunded' || tx === 'partial_refund') return 'refunded'
-  if (tx === 'deny' || tx === 'cancel' || tx === 'failure') return 'failed'
-
-  return 'pending'
-}
+import { serve } from '../_shared/deps.ts'
+import { corsHeaders, handleCors } from '../_shared/http.ts'
+import { getMidtransEnv, getSupabaseEnv } from '../_shared/env.ts'
+import { createServiceClient } from '../_shared/supabase.ts'
+import { generateSignature } from '../_shared/midtrans.ts'
+import { incrementSoldCapacityOptimistic, mapMidtransStatus, normalizeAvailabilityTimeSlot, normalizeSelectedTimeSlots } from '../_shared/tickets.ts'
 
 // Generate unique ticket code
 function generateTicketCode(): string {
@@ -90,7 +16,7 @@ function generateTicketCode(): string {
 }
 
 async function logWebhook(
-  supabase: ReturnType<typeof createClient>,
+  supabase: ReturnType<typeof createServiceClient>,
   params: {
     orderNumber: string
     eventType: string
@@ -115,20 +41,18 @@ async function logWebhook(
 }
 
 serve(async (req) => {
-  if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
-  }
+  const corsResponse = handleCors(req)
+  if (corsResponse) return corsResponse
 
-  let supabase: ReturnType<typeof createClient> | null = null
+  let supabase: ReturnType<typeof createServiceClient> | null = null
   let orderId = ''
   let notification: unknown = null
 
   try {
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-    const midtransServerKey = Deno.env.get('MIDTRANS_SERVER_KEY')!
+    const { url: supabaseUrl, serviceRoleKey: supabaseServiceKey } = getSupabaseEnv()
+    const { serverKey: midtransServerKey } = getMidtransEnv()
 
-    supabase = createClient(supabaseUrl, supabaseServiceKey)
+    supabase = createServiceClient(supabaseUrl, supabaseServiceKey)
 
     notification = await req.json()
     orderId = String((notification as { order_id?: string })?.order_id || '')
@@ -489,16 +413,3 @@ serve(async (req) => {
     })
   }
 })
-
-async function generateSignature(
-  orderId: string,
-  statusCode: string,
-  grossAmount: string,
-  serverKey: string
-): Promise<string> {
-  const data = orderId + statusCode + grossAmount + serverKey
-  const msgBuffer = new TextEncoder().encode(data)
-  const hashBuffer = await crypto.subtle.digest('SHA-512', msgBuffer)
-  const hashArray = Array.from(new Uint8Array(hashBuffer))
-  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('')
-}

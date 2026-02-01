@@ -2,11 +2,11 @@
 
 ## Introduction
 
-This specification defines the requirements for upgrading Spark Photo Studio from basic React patterns to enterprise-grade UX patterns. The current application uses raw useEffect for data fetching across 20+ files, resulting in a fragile user experience with no automatic retry, caching, or smooth transitions. This upgrade will implement modern data fetching with SWR, skeleton screens, smooth animations, and optimistic UI updates while maintaining existing Supabase integration and functionality.
+This specification defines the requirements for upgrading Spark Stage from basic React patterns to enterprise-grade UX patterns. The current application uses raw useEffect for data fetching across 20+ files, resulting in a fragile user experience with no automatic retry, caching, or smooth transitions. This upgrade will implement modern data fetching with SWR, skeleton screens, smooth animations, and optimistic UI updates while maintaining existing Supabase integration and functionality.
 
 ## Glossary
 
-- **System**: The Spark Photo Studio web application
+- **System**: The Spark Stage web application
 - **SWR**: Stale-While-Revalidate data fetching library
 - **Skeleton_Screen**: Placeholder UI that mimics the structure of content being loaded
 - **Optimistic_UI**: UI pattern that immediately reflects user actions before server confirmation

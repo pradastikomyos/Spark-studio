@@ -1,95 +1,22 @@
-import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-}
-
-function normalizeSelectedTimeSlots(value: unknown): string[] {
-  if (Array.isArray(value)) return value.map(String)
-  if (typeof value === 'string') {
-    try {
-      const parsed = JSON.parse(value)
-      if (Array.isArray(parsed)) return parsed.map(String)
-    } catch {
-      return [value]
-    }
-  }
-  return []
-}
-
-function normalizeAvailabilityTimeSlot(value: string): string | null {
-  if (!value) return null
-  if (value === 'all-day') return null
-  return value
-}
-
-async function incrementSoldCapacityOptimistic(
-  supabase: ReturnType<typeof createClient>,
-  params: { ticketId: number; date: string; timeSlot: string | null; delta: number }
-) {
-  const { ticketId, date, timeSlot, delta } = params
-  if (delta <= 0) return
-
-  for (let attempt = 0; attempt < 3; attempt++) {
-    const { data: row, error: readError } = await supabase
-      .from('ticket_availabilities')
-      .select('id, sold_capacity, version')
-      .eq('ticket_id', ticketId)
-      .eq('date', date)
-      .eq('time_slot', timeSlot)
-      .single()
-
-    if (readError || !row) return
-
-    const nextSold = (row.sold_capacity ?? 0) + delta
-    const nextVersion = (row.version ?? 0) + 1
-
-    const { data: updated, error: updateError } = await supabase
-      .from('ticket_availabilities')
-      .update({
-        sold_capacity: nextSold,
-        version: nextVersion,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', row.id)
-      .eq('version', row.version)
-      .select('id')
-
-    if (!updateError && updated && updated.length > 0) return
-  }
-}
-
-function mapMidtransStatus(transactionStatus: unknown, fraudStatus: unknown): string {
-  const tx = String(transactionStatus || '').toLowerCase()
-  const fraud = fraudStatus == null ? null : String(fraudStatus).toLowerCase()
-
-  if (tx === 'capture') {
-    if (fraud === 'accept' || fraud == null) return 'paid'
-    return 'pending'
-  }
-
-  if (tx === 'settlement') return 'paid'
-  if (tx === 'pending') return 'pending'
-  if (tx === 'expire' || tx === 'expired') return 'expired'
-  if (tx === 'refund' || tx === 'refunded' || tx === 'partial_refund') return 'refunded'
-  if (tx === 'deny' || tx === 'cancel' || tx === 'failure') return 'failed'
-
-  return 'pending'
-}
+import { serve } from '../_shared/deps.ts'
+import { corsHeaders, handleCors } from '../_shared/http.ts'
+import { getMidtransEnv, getSupabaseEnv } from '../_shared/env.ts'
+import { createServiceClient, getUserFromAuthHeader } from '../_shared/supabase.ts'
+import { getMidtransBasicAuthHeader, getStatusBaseUrl } from '../_shared/midtrans.ts'
+import {
+  incrementSoldCapacityOptimistic,
+  mapMidtransStatus,
+  normalizeAvailabilityTimeSlot,
+  normalizeSelectedTimeSlots,
+} from '../_shared/tickets.ts'
 
 serve(async (req) => {
-  if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
-  }
+  const corsResponse = handleCors(req)
+  if (corsResponse) return corsResponse
 
   try {
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!
-    const midtransServerKey = Deno.env.get('MIDTRANS_SERVER_KEY')!
-    const midtransIsProduction = Deno.env.get('MIDTRANS_IS_PRODUCTION') === 'true'
+    const { url: supabaseUrl, anonKey: supabaseAnonKey, serviceRoleKey: supabaseServiceKey } = getSupabaseEnv()
+    const { serverKey: midtransServerKey, isProduction: midtransIsProduction } = getMidtransEnv()
 
     const authHeader = req.headers.get('Authorization')
     if (!authHeader) {
@@ -99,20 +26,11 @@ serve(async (req) => {
       })
     }
 
-    // CRITICAL FIX: Use ANON KEY with Authorization header in client config
-    // According to Supabase docs: Pass Authorization header to client, then call getUser() without params
-    const supabaseAuth = createClient(
-      supabaseUrl,
-      supabaseAnonKey,
-      {
-        global: {
-          headers: { Authorization: authHeader },
-        },
-      }
-    )
-    
-    // Call getUser() WITHOUT token parameter - it will use the Authorization header
-    const { data: { user }, error: authError } = await supabaseAuth.auth.getUser()
+    const { user, error: authError } = await getUserFromAuthHeader({
+      url: supabaseUrl,
+      anonKey: supabaseAnonKey,
+      authHeader,
+    })
 
     if (authError || !user?.id) {
       return new Response(JSON.stringify({ error: 'Invalid token' }), {
@@ -122,7 +40,7 @@ serve(async (req) => {
     }
 
     // Use service role key for database operations
-    const supabase = createClient(supabaseUrl, supabaseServiceKey)
+    const supabase = createServiceClient(supabaseUrl, supabaseServiceKey)
 
     const body = await req.json().catch(() => ({}))
     const orderNumber = String(body?.order_number || '')
@@ -153,14 +71,14 @@ serve(async (req) => {
       })
     }
 
-    const baseUrl = midtransIsProduction ? 'https://api.midtrans.com' : 'https://api.sandbox.midtrans.com'
-    const authString = btoa(`${midtransServerKey}:`)
+    const baseUrl = getStatusBaseUrl(midtransIsProduction)
+    const authString = getMidtransBasicAuthHeader(midtransServerKey)
     const statusResponse = await fetch(`${baseUrl}/v2/${encodeURIComponent(orderNumber)}/status`, {
       method: 'GET',
       headers: {
         Accept: 'application/json',
         'Content-Type': 'application/json',
-        Authorization: `Basic ${authString}`,
+        Authorization: authString,
       },
     })
 

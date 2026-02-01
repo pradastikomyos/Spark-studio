@@ -1,6 +1,9 @@
-# Spark Photo Studio - React TypeScript App
+# Spark Stage
 
-A premium photography studio website built with React, TypeScript, Vite, and Tailwind CSS with sophisticated dark mode support.
+Aplikasi fullstack booking tiket + e-commerce.
+
+- Frontend: Vite + React + TypeScript + Tailwind CSS (deploy: Vercel)
+- Backend: Supabase Postgres + Supabase Edge Functions (deploy: Supabase)
 
 ## Features
 
@@ -19,63 +22,23 @@ A premium photography studio website built with React, TypeScript, Vite, and Tai
 
 ## Dark Mode
 
-The app includes a fully functional dark mode toggle:
-- Click the sun/moon icon in the navbar to switch themes
-- **Logo automatically switches** between light and dark versions
-- Theme preference is saved to localStorage
-- Defaults to dark mode for premium aesthetic
-- Smooth transitions between themes
-- All components are optimized for both light and dark modes
+UI mendukung dark mode dan menyimpan preferensi pengguna.
 
-## Logo System
-
-The app uses dynamic logo switching:
-- **Light Mode**: `src/logo/Light mode/light mode.png`
-- **Dark Mode**: `src/logo/dark mode/dark mode.png`
-- Logo component automatically switches based on theme
-- Optimized for retina displays
-- Smooth transitions between logo variants
-
-## Project Structure
+## Project Structure (current)
 
 ```
 spark-photo-studio/
-├── src/
-│   ├── components/
-│   │   ├── Navbar.tsx (with dark mode toggle & dynamic logo)
-│   │   ├── Hero.tsx
-│   │   ├── TicketCard.tsx
-│   │   ├── TicketSection.tsx
-│   │   ├── AboutSection.tsx
-│   │   ├── FeaturedCollections.tsx
-│   │   ├── Newsletter.tsx
-│   │   ├── Footer.tsx
-│   │   ├── Logo.tsx (reusable logo component)
-│   │   └── DarkModeToggle.tsx
-│   ├── pages/
-│   │   ├── Home.tsx (homepage)
-│   │   ├── OnStage.tsx (gallery page)
-│   │   ├── Shop.tsx (e-commerce page)
-│   │   └── Events.tsx (workshops & events page)
-│   ├── hooks/
-│   │   └── useDarkMode.ts
-│   ├── logo/
-│   │   ├── Light mode/
-│   │   │   └── light mode.png
-│   │   └── dark mode/
-│   │       └── dark mode.png
-│   ├── types/
-│   │   └── index.ts
-│   ├── App.tsx (router setup)
-│   ├── main.tsx
-│   ├── index.css
-│   └── vite-env.d.ts (type declarations for images)
-├── index.html
-├── tailwind.config.js
-├── postcss.config.js
-├── vite.config.ts
-├── tsconfig.json
-└── package.json
+├── frontend/                 # Vite app (React)
+│   ├── index.html
+│   └── src/
+├── supabase/                 # migrations + edge functions (Deno)
+│   ├── migrations/
+│   └── functions/
+├── docs/
+├── vite.config.ts            # Vite root diarahkan ke ./frontend
+├── vercel.json               # Deploy frontend di Vercel
+├── package.json
+└── .env.example
 ```
 
 ## Getting Started
@@ -135,6 +98,10 @@ VITE_MIDTRANS_IS_PRODUCTION=false
 
 See [MIDTRANS_INTEGRATION.md](file:///c:/Users/prada/Documents/Spark%20studio/MIDTRANS_INTEGRATION.md).
 
+## Backend (Supabase)
+
+Dokumentasi struktur backend dan checklist deploy ada di [backend.md](file:///c:/Users/prada/Documents/Spark%20studio/docs/backend.md).
+
 ### Development
 
 Start the development server:
@@ -176,12 +143,13 @@ npm run preview
    - Build Command: `npm run build` (auto-detected)
    - Output Directory: `dist` (auto-detected)
 
-5. Add Environment Variables in Vercel dashboard:
+5. Add Environment Variables in Vercel dashboard (frontend only):
    - `VITE_SUPABASE_URL`
    - `VITE_SUPABASE_ANON_KEY`
-   - `VITE_MIDTRANS_SERVER_KEY`
    - `VITE_MIDTRANS_CLIENT_KEY`
    - `VITE_MIDTRANS_IS_PRODUCTION`
+
+**Do not** set Midtrans Server Key as a frontend env. Server key hanya diset sebagai secrets untuk Supabase Edge Functions.
 
 6. Click "Deploy"
 
@@ -195,6 +163,21 @@ In your Vercel project settings:
 4. Save changes
 
 **Important**: Never commit your `.env` file to git. Use `.env.example` as a template.
+
+## Deployment to Supabase (Backend)
+
+Backend berjalan di Supabase:
+
+- Database schema/RLS via migrations: `supabase/migrations`
+- Logic server-side via Edge Functions (Deno): `supabase/functions`
+
+Secrets yang wajib diset di Supabase (bukan di Vercel):
+
+- `SUPABASE_SERVICE_ROLE_KEY`
+- `MIDTRANS_SERVER_KEY`
+- `MIDTRANS_IS_PRODUCTION`
+
+Deploy Edge Functions dapat dilakukan via Supabase CLI (remote deploy).
 
 ### Automatic Deployments
 
@@ -311,4 +294,4 @@ This design emphasizes:
 
 ## License
 
-© 2026 Spark Photo Studio. All rights reserved.
+© 2026 Spark Stage. All rights reserved.

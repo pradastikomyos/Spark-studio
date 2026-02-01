@@ -1,23 +1,17 @@
-import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-}
+import { serve } from '../_shared/deps.ts'
+import { corsHeaders, handleCors } from '../_shared/http.ts'
+import { getSupabaseEnv } from '../_shared/env.ts'
+import { createServiceClient, getUserFromAuthHeader } from '../_shared/supabase.ts'
 
 type RequestBody = {
   pickupCode: string
 }
 
 serve(async (req) => {
-  if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
-  }
+  const corsResponse = handleCors(req)
+  if (corsResponse) return corsResponse
 
-  const supabaseUrl = Deno.env.get('SUPABASE_URL')!
-  const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-  const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!
+  const { url: supabaseUrl, anonKey: supabaseAnonKey, serviceRoleKey: supabaseServiceKey } = getSupabaseEnv()
 
   try {
     const authHeader = req.headers.get('Authorization') ?? req.headers.get('authorization')
@@ -30,21 +24,11 @@ serve(async (req) => {
 
     // CRITICAL FIX: Use ANON KEY with Authorization header in client config
     // According to Supabase docs: Pass Authorization header to client, then call getUser() without params
-    const supabaseAuth = createClient(
-      supabaseUrl,
-      supabaseAnonKey,
-      {
-        global: {
-          headers: { Authorization: authHeader },
-        },
-      }
-    )
-    
-    // Call getUser() WITHOUT token parameter - it will use the Authorization header
-    const {
-      data: { user },
-      error: authError,
-    } = await supabaseAuth.auth.getUser()
+    const { user, error: authError } = await getUserFromAuthHeader({
+      url: supabaseUrl,
+      anonKey: supabaseAnonKey,
+      authHeader,
+    })
 
     if (authError || !user?.id || !user.email) {
       return new Response(JSON.stringify({ error: 'Invalid token', details: authError?.message ?? null }), {
@@ -54,7 +38,7 @@ serve(async (req) => {
     }
 
     // Use service role key for database operations
-    const supabaseService = createClient(supabaseUrl, supabaseServiceKey)
+    const supabaseService = createServiceClient(supabaseUrl, supabaseServiceKey)
 
     const { data: roleRows, error: roleError } = await supabaseService
       .from('user_role_assignments')
@@ -68,7 +52,13 @@ serve(async (req) => {
       })
     }
 
-    const isAdmin = Array.isArray(roleRows) && roleRows.some((r) => String((r as { role_name?: string }).role_name).toLowerCase() === 'admin')
+    const adminRoles = new Set(['admin', 'super_admin', 'super-admin'])
+    const isAdmin =
+      Array.isArray(roleRows) &&
+      roleRows.some((r) => {
+        const role = String((r as { role_name?: string }).role_name ?? '').toLowerCase()
+        return adminRoles.has(role)
+      })
     if (!isAdmin) {
       return new Response(JSON.stringify({ error: 'Forbidden' }), {
         status: 403,

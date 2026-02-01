@@ -38,7 +38,6 @@ Sumber: [App.tsx](file:///c:/Users/prada/Documents/Spark%20studio/src/App.tsx)
 - `/booking`
 - `/payment`
 - `/booking-success`
-- `/calendar`
 - `/cart`
 - `/my-tickets`
 

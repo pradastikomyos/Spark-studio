@@ -1,0 +1,131 @@
+{
+  "nav": {
+    "home": "Beranda",
+    "onStage": "ON STAGE",
+    "events": "EVENT",
+    "shop": "Toko",
+    "sparkClub": "SPARK CLUB",
+    "news": "NEWS",
+    "fashion": "FASHION",
+    "beauty": "BEAUTY",
+    "dashboard": "Dashboard",
+    "myTickets": "Tiket Saya",
+    "myOrders": "Pesanan Saya",
+    "cart": "Keranjang",
+    "search": "Cari"
+  },
+  "auth": {
+    "signIn": "Masuk",
+    "signOut": "Keluar",
+    "signOutConfirm": "Yakin ingin keluar?",
+    "cancel": "Batal",
+    "confirm": "Keluar",
+    "fields": {
+      "name": {
+        "label": "Nama Lengkap",
+        "placeholder": "John Doe"
+      },
+      "email": {
+        "label": "Alamat Email",
+        "placeholder": "nama@contoh.com"
+      },
+      "password": {
+        "label": "Kata Sandi"
+      },
+      "confirmPassword": {
+        "label": "Konfirmasi Kata Sandi",
+        "placeholder": "Ulangi kata sandi Anda"
+      }
+    },
+    "login": {
+      "title": "Selamat datang kembali",
+      "subtitle": "Masuk untuk melanjutkan ke Spark Stage",
+      "passwordPlaceholder": "Masukkan kata sandi Anda",
+      "aria": {
+        "showPassword": "Tampilkan kata sandi",
+        "hidePassword": "Sembunyikan kata sandi"
+      },
+      "rememberMe": "Ingat saya",
+      "forgotPassword": "Lupa kata sandi?",
+      "loading": "Sedang masuk...",
+      "orContinueWith": "Atau lanjutkan dengan",
+      "providers": {
+        "google": "Google",
+        "github": "GitHub"
+      },
+      "noAccount": "Belum punya akun?",
+      "signUpLink": "Daftar",
+      "branding": {
+        "joinThe": "Bergabung dengan",
+        "description": "Nikmati event eksklusif, belanja koleksi terkurasi, dan jadi bagian dari komunitas kreatif kami.",
+        "stats": {
+          "events": "Event",
+          "members": "Anggota",
+          "artists": "Seniman"
+        }
+      }
+    },
+    "signup": {
+      "title": "Buat akun",
+      "subtitle": "Bergabung dengan komunitas Spark Stage",
+      "successLoggingIn": "Akun berhasil dibuat! Sedang masuk...",
+      "passwordPlaceholder": "Minimal 6 karakter",
+      "loading": "Sedang membuat akun...",
+      "submit": "Daftar",
+      "haveAccount": "Sudah punya akun?",
+      "signInLink": "Masuk",
+      "errors": {
+        "passwordsDoNotMatch": "Kata sandi tidak cocok",
+        "passwordMinLength": "Kata sandi minimal {{min}} karakter"
+      },
+      "branding": {
+        "welcomeTo": "Selamat datang di",
+        "description": "Buat akun Anda untuk mendapatkan akses eksklusif ke event, koleksi terkurasi, dan komunitas kreatif kami."
+      }
+    }
+  },
+  "language": {
+    "switch": "Ganti bahasa",
+    "en": "Inggris",
+    "id": "Bahasa Indonesia"
+  },
+  "myTickets": {
+    "title": "Tiket Saya",
+    "subtitle": "Kelola dan akses sesi foto Anda",
+    "tabs": {
+      "upcoming": "Mendatang",
+      "history": "Riwayat"
+    },
+    "breadcrumb": {
+      "home": "Beranda",
+      "dashboard": "Dashboard",
+      "myTickets": "Tiket Saya"
+    },
+    "updating": "Memperbarui",
+    "entryPass": "Tiket Masuk",
+    "stagePass": "Tiket Stage",
+    "viewQR": "Lihat QR",
+    "ticketInactive": "Tiket Tidak Aktif",
+    "status": {
+      "used": "Tiket sudah terpakai/terscan",
+      "cancelled": "Tiket dibatalkan",
+      "expired": "Tiket kadaluarsa"
+    },
+    "empty": {
+      "upcoming": {
+        "title": "Tidak ada tiket mendatang",
+        "subtitle": "Pesan tiket untuk melihatnya di sini"
+      },
+      "history": {
+        "title": "Belum ada riwayat tiket",
+        "subtitle": "Tiket yang sudah lewat akan muncul di sini"
+      }
+    },
+    "expiryWarning": {
+      "title": "⚠️ Perhatian Penting",
+      "message": "Tiket hanya berlaku pada tanggal yang dijadwalkan. Tiket yang tidak digunakan akan otomatis kadaluarsa pada tengah malam dan tidak dapat digunakan keesokan harinya.",
+      "sessionEnded": "Sesi Berakhir - Tidak Dapat Digunakan"
+    },
+    "disclaimer": "Semua penjualan tiket bersifat final. Tidak ada pengembalian dana, penukaran, atau pembatalan. Tiket tidak dapat dipindahtangankan dan hanya berlaku untuk tanggal dan sesi yang dijadwalkan."
+  }
+}

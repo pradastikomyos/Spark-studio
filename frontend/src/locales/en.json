@@ -1,0 +1,131 @@
+{
+  "nav": {
+    "home": "Home",
+    "onStage": "ON STAGE",
+    "events": "EVENT",
+    "shop": "Shop",
+    "sparkClub": "SPARK CLUB",
+    "news": "NEWS",
+    "fashion": "FASHION",
+    "beauty": "BEAUTY",
+    "dashboard": "Dashboard",
+    "myTickets": "My Tickets",
+    "myOrders": "My Orders",
+    "cart": "Cart",
+    "search": "Search"
+  },
+  "auth": {
+    "signIn": "Sign In",
+    "signOut": "Sign Out",
+    "signOutConfirm": "Are you sure you want to sign out?",
+    "cancel": "Cancel",
+    "confirm": "Sign Out",
+    "fields": {
+      "name": {
+        "label": "Full Name",
+        "placeholder": "John Doe"
+      },
+      "email": {
+        "label": "Email Address",
+        "placeholder": "your@email.com"
+      },
+      "password": {
+        "label": "Password"
+      },
+      "confirmPassword": {
+        "label": "Confirm Password",
+        "placeholder": "Confirm your password"
+      }
+    },
+    "login": {
+      "title": "Welcome Back",
+      "subtitle": "Sign in to continue to Spark Stage",
+      "passwordPlaceholder": "Enter your password",
+      "aria": {
+        "showPassword": "Show password",
+        "hidePassword": "Hide password"
+      },
+      "rememberMe": "Remember me",
+      "forgotPassword": "Forgot Password?",
+      "loading": "Signing in...",
+      "orContinueWith": "Or continue with",
+      "providers": {
+        "google": "Google",
+        "github": "GitHub"
+      },
+      "noAccount": "Don't have an account?",
+      "signUpLink": "Sign up",
+      "branding": {
+        "joinThe": "Join the",
+        "description": "Experience exclusive events, shop curated collections, and be part of our creative community.",
+        "stats": {
+          "events": "Events",
+          "members": "Members",
+          "artists": "Artists"
+        }
+      }
+    },
+    "signup": {
+      "title": "Create Account",
+      "subtitle": "Join Spark Stage community",
+      "successLoggingIn": "Account created successfully! Logging you in...",
+      "passwordPlaceholder": "At least 6 characters",
+      "loading": "Creating Account...",
+      "submit": "Sign Up",
+      "haveAccount": "Already have an account?",
+      "signInLink": "Sign in",
+      "errors": {
+        "passwordsDoNotMatch": "Passwords do not match",
+        "passwordMinLength": "Password must be at least {{min}} characters"
+      },
+      "branding": {
+        "welcomeTo": "Welcome to",
+        "description": "Create your account and unlock exclusive access to events, shop collections, and join our creative community."
+      }
+    }
+  },
+  "language": {
+    "switch": "Switch language",
+    "en": "English",
+    "id": "Indonesian"
+  },
+  "myTickets": {
+    "title": "My Tickets",
+    "subtitle": "Manage and access your upcoming photo sessions",
+    "tabs": {
+      "upcoming": "Upcoming",
+      "history": "History"
+    },
+    "breadcrumb": {
+      "home": "Home",
+      "dashboard": "Dashboard",
+      "myTickets": "My Tickets"
+    },
+    "updating": "Updating",
+    "entryPass": "Entry Pass",
+    "stagePass": "Stage Pass",
+    "viewQR": "View QR",
+    "ticketInactive": "Ticket Inactive",
+    "status": {
+      "used": "Ticket already used/scanned",
+      "cancelled": "Ticket cancelled",
+      "expired": "Ticket expired"
+    },
+    "empty": {
+      "upcoming": {
+        "title": "No upcoming tickets",
+        "subtitle": "Book a ticket to see it here"
+      },
+      "history": {
+        "title": "No ticket history yet",
+        "subtitle": "Your past tickets will appear here"
+      }
+    },
+    "expiryWarning": {
+      "title": "⚠️ Important Notice",
+      "message": "Tickets are valid only on the scheduled date. Unused tickets will automatically expire at midnight and cannot be used the next day.",
+      "sessionEnded": "Session Ended - Cannot Be Used"
+    },
+    "disclaimer": "All ticket sales are final. No refunds, exchanges, or cancellations permitted. Tickets are non-transferable and valid only for the scheduled date and time slot."
+  }
+}

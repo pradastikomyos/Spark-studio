@@ -1,0 +1,11 @@
+# Expire Tickets Edge Function Configuration
+# 
+# This function automatically expires tickets that have passed their valid_date.
+# Scheduled to run daily at 00:05 WIB (17:05 UTC).
+
+# No JWT verification needed - this is a scheduled system function
+verify_jwt = false
+
+# Import map for Deno dependencies
+[import_map]
+imports = { "supabase": "jsr:@supabase/supabase-js@2" }

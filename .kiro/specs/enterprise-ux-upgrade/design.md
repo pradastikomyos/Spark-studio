@@ -2,7 +2,7 @@
 
 ## Overview
 
-This design outlines the migration of Spark Photo Studio from basic React patterns to enterprise-grade UX patterns. The upgrade replaces raw useEffect-based data fetching with SWR (Stale-While-Revalidate), implements skeleton screens for loading states, adds smooth animations with Framer Motion, and introduces optimistic UI updates. The design maintains backward compatibility with existing Supabase integration while significantly improving perceived and actual performance.
+This design outlines the migration of Spark Stage from basic React patterns to enterprise-grade UX patterns. The upgrade replaces raw useEffect-based data fetching with SWR (Stale-While-Revalidate), implements skeleton screens for loading states, adds smooth animations with Framer Motion, and introduces optimistic UI updates. The design maintains backward compatibility with existing Supabase integration while significantly improving perceived and actual performance.
 
 ### Key Design Decisions
 

@@ -1,6 +1,6 @@
 # Product Overview
 
-Spark Photo Studio is a premium photography studio booking and e-commerce platform. The application enables customers to book studio sessions, purchase tickets for events/workshops, and buy photography-related products.
+Spark Stage is a premium photography studio booking and e-commerce platform. The application enables customers to book studio sessions, purchase tickets for events/workshops, and buy photography-related products.
 
 ## Core Features
 
@@ -30,4 +30,4 @@ This model enables data-driven decisions about stage operations, staffing, and m
 
 ## Design Philosophy
 
-Premium, sophisticated aesthetic with dark mode as the default. Emphasis on elegance, high contrast, smooth transitions, and professional photography studio branding.
+Premium, sophisticated aesthetic with light mode as the default. Emphasis on elegance, clean design, smooth transitions, and professional photography studio branding.

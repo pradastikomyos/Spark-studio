@@ -51,14 +51,12 @@ supabase/
 ### State Management
 
 - **Global Auth**: `AuthContext` provider wraps entire app
-- **Theme**: `useDarkMode` hook with localStorage persistence
 - **Local State**: Component-level useState for UI state
 - **Server State**: Direct Supabase queries (no additional cache layer)
 
 ### Styling Approach
 
 - **Tailwind Utility Classes**: Primary styling method
-- **Dark Mode**: `dark:` prefix with class-based mode
 - **Custom Colors**: Defined in `tailwind.config.js`
 - **Responsive**: Mobile-first with Tailwind breakpoints
 

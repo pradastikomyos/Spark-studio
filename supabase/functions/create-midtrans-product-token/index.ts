@@ -1,10 +1,8 @@
-import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-}
+import { serve } from '../_shared/deps.ts'
+import { getMidtransBasicAuthHeader, getSnapUrl } from '../_shared/midtrans.ts'
+import { corsHeaders, handleCors } from '../_shared/http.ts'
+import { getMidtransEnv, getSupabaseEnv } from '../_shared/env.ts'
+import { createServiceClient, getUserFromAuthHeader } from '../_shared/supabase.ts'
 
 type ProductItem = {
   productVariantId: number
@@ -30,15 +28,11 @@ function toNumber(value: unknown, fallback: number) {
 }
 
 serve(async (req) => {
-  if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
-  }
+  const corsResponse = handleCors(req)
+  if (corsResponse) return corsResponse
 
-  const supabaseUrl = Deno.env.get('SUPABASE_URL')!
-  const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-  const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!
-  const midtransServerKey = Deno.env.get('MIDTRANS_SERVER_KEY')!
-  const midtransIsProduction = Deno.env.get('MIDTRANS_IS_PRODUCTION') === 'true'
+  const { url: supabaseUrl, anonKey: supabaseAnonKey, serviceRoleKey: supabaseServiceKey } = getSupabaseEnv()
+  const { serverKey: midtransServerKey, isProduction: midtransIsProduction } = getMidtransEnv()
 
   try {
     const authHeader = req.headers.get('Authorization')
@@ -52,21 +46,11 @@ serve(async (req) => {
     // CRITICAL FIX: Use ANON KEY with Authorization header in client config
     // According to Supabase docs: Pass Authorization header to client, then call getUser() without params
     // This ensures proper JWT validation with RLS context
-    const supabaseAuth = createClient(
-      supabaseUrl,
-      supabaseAnonKey,
-      {
-        global: {
-          headers: { Authorization: authHeader },
-        },
-      }
-    )
-    
-    // Call getUser() WITHOUT token parameter - it will use the Authorization header
-    const {
-      data: { user },
-      error: authError,
-    } = await supabaseAuth.auth.getUser()
+    const { user, error: authError } = await getUserFromAuthHeader({
+      url: supabaseUrl,
+      anonKey: supabaseAnonKey,
+      authHeader,
+    })
 
     if (authError || !user?.id) {
       console.error('Auth error:', authError)
@@ -85,7 +69,7 @@ serve(async (req) => {
     }
 
     // Create separate client with SERVICE ROLE KEY for database operations
-    const supabase = createClient(supabaseUrl, supabaseServiceKey)
+    const supabase = createServiceClient(supabaseUrl, supabaseServiceKey)
 
     const payload = (await req.json()) as CreateTokenRequest
     if (!payload.items || payload.items.length === 0) {
@@ -262,8 +246,8 @@ serve(async (req) => {
       })
     }
 
-    const midtransUrl = midtransIsProduction ? 'https://app.midtrans.com/snap/v1/transactions' : 'https://app.sandbox.midtrans.com/snap/v1/transactions'
-    const authString = btoa(`${midtransServerKey}:`)
+    const midtransUrl = getSnapUrl(midtransIsProduction)
+    const authString = getMidtransBasicAuthHeader(midtransServerKey)
 
     const itemDetails = normalizedItems.map((item) => ({
       id: `variant-${item.productVariantId}`,
@@ -296,7 +280,7 @@ serve(async (req) => {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Basic ${authString}`,
+        Authorization: authString,
       },
       body: JSON.stringify(midtransPayload),
     })
