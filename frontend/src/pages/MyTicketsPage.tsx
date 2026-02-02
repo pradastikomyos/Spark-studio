@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../contexts/AuthContext';
-import { todayWIB, createWIBDate, nowWIB, addMinutes, SESSION_DURATION_MINUTES } from '../utils/timezone';
+import { todayWIB, createWIBDate, nowWIB, addMinutes, SESSION_DURATION_MINUTES, formatTimeWIB } from '../utils/timezone';
 import { useMyTickets } from '../hooks/useMyTickets';
 import TicketCardSkeleton from '../components/skeletons/TicketCardSkeleton';
 import { PageTransition } from '../components/PageTransition';
@@ -57,6 +57,36 @@ export default function MyTicketsPage() {
     if (status === 'cancelled') return t('myTickets.status.cancelled');
     if (status === 'expired') return t('myTickets.status.expired');
     return `Status: ${status}`;
+  };
+
+  const formatTimeShort = (timeSlot: string | null) => {
+    if (!timeSlot) return null;
+    return timeSlot.substring(0, 5);
+  };
+
+  const getDayPartLabel = (timeSlot: string | null) => {
+    const start = formatTimeShort(timeSlot);
+    if (!start) return null;
+    const hour = Number(start.split(':')[0]);
+    if (!Number.isFinite(hour)) return null;
+    if (hour >= 5 && hour < 11) return 'PAGI';
+    if (hour >= 11 && hour < 15) return 'SIANG';
+    if (hour >= 15 && hour < 19) return 'SORE';
+    return 'MALAM';
+  };
+
+  const getSessionRange = (validDate: string, timeSlot: string | null) => {
+    if (!timeSlot) return null;
+    const start = createWIBDate(validDate, timeSlot);
+    const end = addMinutes(start, SESSION_DURATION_MINUTES);
+    return `${formatTimeWIB(start)}-${formatTimeWIB(end)}`;
+  };
+
+  const formatQueueCode = (timeSlot: string | null, queueNumber: number | null) => {
+    if (!timeSlot || queueNumber == null) return null;
+    const label = getDayPartLabel(timeSlot);
+    if (!label) return null;
+    return `${label}-${String(queueNumber).padStart(3, '0')}`;
   };
 
   // Check if session has ended (for same-day tickets)
@@ -186,7 +216,9 @@ export default function MyTicketsPage() {
           {displayTickets.length > 0 ? (
             displayTickets.map((ticket, index) => {
               const { month, day, dayOfWeek, isToday } = formatDate(ticket.valid_date);
-              const timeDisplay = ticket.time_slot || 'All Day';
+              const timeDisplay = formatTimeShort(ticket.time_slot) || 'All Day';
+              const sessionRange = getSessionRange(ticket.valid_date, ticket.time_slot);
+              const queueCode = formatQueueCode(ticket.time_slot, ticket.queue_number);
               const sessionEnded = isSessionEnded(ticket.valid_date, ticket.time_slot);
 
               return (
@@ -226,6 +258,20 @@ export default function MyTicketsPage() {
                         <span className="text-xs font-medium text-gray-500 font-mono tracking-wide">
                           #{ticket.ticket_code}
                         </span>
+                        {ticket.time_slot && (
+                          <>
+                            <span className="w-1 h-1 rounded-full bg-gray-300"></span>
+                            <span
+                              className={`inline-flex items-center px-2 py-1 rounded-full text-[11px] font-bold ${
+                                ticket.queue_overflow
+                                  ? 'bg-amber-100 text-amber-800'
+                                  : 'bg-primary/10 text-primary'
+                              }`}
+                            >
+                              {queueCode ?? 'Nomor disiapkan'}
+                            </span>
+                          </>
+                        )}
                         <span className="w-1 h-1 rounded-full bg-gray-300"></span>
                         <span className="text-xs font-bold text-gray-700">
                           {ticket.ticket.name}
@@ -238,12 +284,22 @@ export default function MyTicketsPage() {
                         <span className="text-gray-300">•</span>
                         <span>{timeDisplay}</span>
                       </div>
+                      {ticket.time_slot && sessionRange && (
+                        <div className="md:hidden text-[11px] font-semibold text-gray-600 tracking-wide mb-1">
+                          {sessionRange}
+                        </div>
+                      )}
 
                       {/* Date & Time - Desktop */}
                       <div className="hidden md:block">
                         <h3 className="text-xl font-serif font-bold text-neutral-950 mb-1">
                           {dayOfWeek}, {timeDisplay}
                         </h3>
+                        {ticket.time_slot && sessionRange && (
+                          <div className="text-[11px] font-semibold text-gray-600 tracking-wide -mt-0.5">
+                            {sessionRange}
+                          </div>
+                        )}
                       </div>
 
                       {/* Description/Location */}

@@ -10,6 +10,8 @@ export interface PurchasedTicket {
   ticket_id: number;
   valid_date: string;
   time_slot: string | null;
+  queue_number: number | null;
+  queue_overflow: boolean;
   status: string;
   created_at: string;
   ticket: {
@@ -25,6 +27,8 @@ type PurchasedTicketRow = {
   ticket_id: number;
   valid_date: string;
   time_slot: string | null;
+  queue_number: number | null;
+  queue_overflow: boolean | null;
   status: string;
   created_at: string;
   tickets: {
@@ -52,6 +56,8 @@ export function useMyTickets(userId: string | null | undefined) {
             ticket_id,
             valid_date,
             time_slot,
+            queue_number,
+            queue_overflow,
             status,
             created_at,
             tickets:ticket_id (
@@ -73,6 +79,8 @@ export function useMyTickets(userId: string | null | undefined) {
             ticket_id: ticket.ticket_id,
             valid_date: ticket.valid_date,
             time_slot: ticket.time_slot,
+            queue_number: ticket.queue_number ?? null,
+            queue_overflow: ticket.queue_overflow ?? false,
             status: ticket.status,
             created_at: ticket.created_at,
             ticket: {

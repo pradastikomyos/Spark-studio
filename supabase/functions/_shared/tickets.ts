@@ -17,8 +17,24 @@ export function normalizeAvailabilityTimeSlot(value: string): string | null {
   return value
 }
 
+type PostgrestQueryBuilder = {
+  select: (columns: string) => PostgrestQueryBuilder
+  update: (values: Record<string, unknown>) => PostgrestQueryBuilder
+  eq: (column: string, value: unknown) => PostgrestQueryBuilder
+  single: () => Promise<{ data: unknown; error: unknown }>
+}
+
+type SupabaseLikeClient = {
+  from: (table: string) => PostgrestQueryBuilder
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  if (typeof value !== 'object' || value === null) return null
+  return value as Record<string, unknown>
+}
+
 export async function incrementSoldCapacityOptimistic(
-  supabase: any,
+  supabase: SupabaseLikeClient,
   params: { ticketId: number; date: string; timeSlot: string | null; delta: number }
 ) {
   const { ticketId, date, timeSlot, delta } = params
@@ -34,9 +50,14 @@ export async function incrementSoldCapacityOptimistic(
       .single()
 
     if (readError || !row) return
+    const rowRecord = asRecord(row)
+    if (!rowRecord) return
 
-    const currentSold = typeof (row as any).sold_capacity === 'number' ? (row as any).sold_capacity : Number((row as any).sold_capacity ?? 0)
-    const currentVersion = typeof (row as any).version === 'number' ? (row as any).version : Number((row as any).version ?? 0)
+    const soldValue = rowRecord.sold_capacity
+    const versionValue = rowRecord.version
+    const idValue = rowRecord.id
+    const currentSold = typeof soldValue === 'number' ? soldValue : Number(soldValue ?? 0)
+    const currentVersion = typeof versionValue === 'number' ? versionValue : Number(versionValue ?? 0)
     const nextSold = currentSold + delta
     const nextVersion = currentVersion + 1
 
@@ -47,11 +68,11 @@ export async function incrementSoldCapacityOptimistic(
         version: nextVersion,
         updated_at: new Date().toISOString(),
       })
-      .eq('id', (row as any).id)
-      .eq('version', (row as any).version)
+      .eq('id', idValue)
+      .eq('version', versionValue)
       .select('id')
 
-    if (!updateError && updated && updated.length > 0) return
+    if (!updateError && Array.isArray(updated) && updated.length > 0) return
   }
 }
 

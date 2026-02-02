@@ -64,21 +64,24 @@ serve(async (req) => {
     supabase = createServiceClient(supabaseUrl, supabaseServiceKey)
 
     notification = await req.json()
-    const payloadAny = notification as any
-    orderId = String(payloadAny?.order_id || '')
-    const transactionStatus = String(payloadAny?.transaction_status || '')
-    const fraudStatus = payloadAny?.fraud_status ?? null
+    const payload =
+      typeof notification === 'object' && notification !== null
+        ? (notification as Record<string, unknown>)
+        : {}
+    orderId = String(payload.order_id || '')
+    const transactionStatus = String(payload.transaction_status || '')
+    const fraudStatus = payload.fraud_status ?? null
     const nowIso = new Date().toISOString()
 
-    const signatureKey = String(payloadAny?.signature_key || '')
+    const signatureKey = String(payload.signature_key || '')
     const statusCode =
-      typeof payloadAny?.status_code === 'number'
-        ? String(payloadAny.status_code)
-        : String(payloadAny?.status_code || '')
+      typeof payload.status_code === 'number'
+        ? String(payload.status_code)
+        : String(payload.status_code || '')
     const grossAmount =
-      typeof payloadAny?.gross_amount === 'number'
-        ? payloadAny.gross_amount.toFixed(2)
-        : String(payloadAny?.gross_amount || '')
+      typeof payload.gross_amount === 'number'
+        ? payload.gross_amount.toFixed(2)
+        : String(payload.gross_amount || '')
 
     // Verify signature
     const expectedSignature = await generateSignature(

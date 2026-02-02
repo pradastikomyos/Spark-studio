@@ -24,6 +24,8 @@ interface PurchasedTicket {
   ticket_code: string;
   valid_date: string;
   time_slot: string | null;
+  queue_number: number | null;
+  queue_overflow: boolean;
   status: string;
   ticket: {
     name: string;
@@ -36,6 +38,8 @@ interface PurchasedTicketRow {
   ticket_code: string;
   valid_date: string;
   time_slot: string | null;
+  queue_number?: number | null;
+  queue_overflow?: boolean | null;
   status: string;
   order_item_id?: number | null;
   tickets?: {
@@ -96,6 +100,8 @@ export default function BookingSuccessPage() {
               ticket_code,
               valid_date,
               time_slot,
+              queue_number,
+              queue_overflow,
               status,
               order_item_id,
               tickets:ticket_id (
@@ -121,6 +127,8 @@ export default function BookingSuccessPage() {
             ticket_code: purchasedTicket.ticket_code,
             valid_date: purchasedTicket.valid_date,
             time_slot: purchasedTicket.time_slot,
+            queue_number: (purchasedTicket as PurchasedTicketRow).queue_number ?? null,
+            queue_overflow: Boolean((purchasedTicket as PurchasedTicketRow).queue_overflow),
             status: purchasedTicket.status,
             ticket: {
               name: ticketMeta?.name || 'Ticket',
@@ -187,6 +195,8 @@ export default function BookingSuccessPage() {
               ticket_code,
               valid_date,
               time_slot,
+              queue_number,
+              queue_overflow,
               status,
               tickets:ticket_id (
                 name,
@@ -205,6 +215,8 @@ export default function BookingSuccessPage() {
                 ticket_code: t.ticket_code,
                 valid_date: t.valid_date,
                 time_slot: t.time_slot,
+                queue_number: t.queue_number ?? null,
+                queue_overflow: Boolean(t.queue_overflow),
                 status: t.status,
                 ticket: {
                   name: ticketMeta?.name || 'Ticket',
@@ -431,6 +443,51 @@ export default function BookingSuccessPage() {
     return timeString.substring(0, 5); // HH:MM
   };
 
+  const SESSION_DURATION_MINUTES = 150;
+
+  const parseTimeToMinutes = (timeString: string): number | null => {
+    const parts = timeString.split(':');
+    if (parts.length < 2) return null;
+    const hours = Number(parts[0]);
+    const minutes = Number(parts[1]);
+    if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return null;
+    if (hours < 0 || hours > 23 || minutes < 0 || minutes > 59) return null;
+    return hours * 60 + minutes;
+  };
+
+  const minutesToTime = (minutesTotal: number) => {
+    const safe = ((minutesTotal % (24 * 60)) + (24 * 60)) % (24 * 60);
+    const hours = Math.floor(safe / 60);
+    const minutes = safe % 60;
+    return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+  };
+
+  const getSessionRange = (timeString: string | null) => {
+    if (!timeString) return null;
+    const startMinutes = parseTimeToMinutes(timeString);
+    if (startMinutes == null) return null;
+    const endMinutes = startMinutes + SESSION_DURATION_MINUTES;
+    return `${minutesToTime(startMinutes)}-${minutesToTime(endMinutes)}`;
+  };
+
+  const getDayPartLabel = (timeString: string | null) => {
+    if (!timeString) return null;
+    const startMinutes = parseTimeToMinutes(timeString);
+    if (startMinutes == null) return null;
+    const hour = Math.floor(startMinutes / 60);
+    if (hour >= 5 && hour < 11) return 'PAGI';
+    if (hour >= 11 && hour < 15) return 'SIANG';
+    if (hour >= 15 && hour < 19) return 'SORE';
+    return 'MALAM';
+  };
+
+  const formatQueueCode = (timeString: string | null, queueNumber: number | null) => {
+    if (!timeString || queueNumber == null) return null;
+    const label = getDayPartLabel(timeString);
+    if (!label) return null;
+    return `${label}-${String(queueNumber).padStart(3, '0')}`;
+  };
+
   const { icon: statusIcon, title: statusTitle, description: statusDescription } =
     getOrderStatusPresentation(effectiveStatus);
 
@@ -524,7 +581,30 @@ export default function BookingSuccessPage() {
                       <div className="space-y-1">
                         <p className="text-[#9c4949] text-xs font-medium uppercase">Time Slot</p>
                         <p className="text-lg font-bold">{formatTime(ticket.time_slot)}</p>
+                        {ticket.time_slot && (
+                          <p className="text-xs font-semibold text-[#9c4949] tracking-wide">
+                            {getSessionRange(ticket.time_slot) ?? ''}
+                          </p>
+                        )}
                       </div>
+                      {ticket.time_slot && (
+                        <div className="space-y-1 text-right md:text-left">
+                          <p className="text-[#9c4949] text-xs font-medium uppercase">Nomor Masuk</p>
+                          <div className="flex items-baseline justify-end md:justify-start gap-3">
+                            <p className="text-3xl font-black font-mono text-[#1c0d0d]">
+                              {formatQueueCode(ticket.time_slot, ticket.queue_number) ?? '—'}
+                            </p>
+                            {ticket.queue_overflow && (
+                              <span className="inline-flex items-center px-2 py-1 rounded-full text-[11px] font-bold uppercase bg-amber-100 text-amber-800">
+                                Waitlist
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-[11px] font-semibold text-[#9c4949] tracking-wide">
+                            {getSessionRange(ticket.time_slot) ?? ''}
+                          </p>
+                        </div>
+                      )}
                       <div className="space-y-1 text-right md:text-left">
                         <p className="text-[#9c4949] text-xs font-medium uppercase">Type</p>
                         <p className="text-lg font-bold capitalize">{ticket.ticket.type}</p>
@@ -534,7 +614,7 @@ export default function BookingSuccessPage() {
                     <div className="flex items-center gap-3 bg-primary/5 p-4 rounded-lg border border-primary/10">
                       <span className="material-symbols-outlined text-primary">info</span>
                       <p className="text-sm text-[#1c0d0d]">
-                        Please present this QR code at the reception. Arrive 15 minutes before your slot.
+                        Please present this QR code at the reception. Arrive 15 minutes before your slot. Use your entry number to pick up a paper number at the gate.
                       </p>
                     </div>
                   </div>
