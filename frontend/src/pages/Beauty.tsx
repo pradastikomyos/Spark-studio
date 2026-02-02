@@ -90,9 +90,8 @@ const Beauty = () => {
                 {beautyBanners.map((slide, index) => (
                   <div
                     key={slide.id}
-                    className={`absolute inset-0 transition-opacity duration-1000 ${
-                      index === currentHeroSlide ? 'opacity-100' : 'opacity-0'
-                    }`}
+                    className={`absolute inset-0 transition-opacity duration-1000 ${index === currentHeroSlide ? 'opacity-100' : 'opacity-0'
+                      }`}
                   >
                     <img
                       src={slide.image_url}
@@ -141,9 +140,8 @@ const Beauty = () => {
                       <button
                         key={index}
                         onClick={() => setCurrentHeroSlide(index)}
-                        className={`w-2 h-2 rounded-full transition-all ${
-                          currentHeroSlide === index ? 'bg-primary w-8' : 'bg-white/50'
-                        }`}
+                        className={`w-2 h-2 rounded-full transition-all ${currentHeroSlide === index ? 'bg-primary w-8' : 'bg-white/50'
+                          }`}
                         aria-label={`Go to slide ${index + 1}`}
                       />
                     ))}
@@ -208,7 +206,7 @@ const Beauty = () => {
               <p className="text-gray-500">No cosmetic products available yet</p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-x-8 gap-y-16">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
               {cosmeticProducts.map((product) => (
                 <Link
                   key={product.id}
@@ -216,49 +214,56 @@ const Beauty = () => {
                   className="group cursor-pointer"
                   onMouseEnter={() => prefetchProduct(product.id)}
                 >
-                  <div className="relative overflow-hidden aspect-[3/4] rounded-sm bg-gray-50 mb-4">
-                    {product.image ? (
-                      <img
-                        alt={product.name}
-                        className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
-                        src={product.image}
-                        loading="lazy"
-                      />
-                    ) : (
-                      <div className="w-full h-full bg-gray-100 flex items-center justify-center text-gray-300">
-                        <span className="material-symbols-outlined text-6xl">{product.placeholder}</span>
-                      </div>
-                    )}
-                    <div className="absolute inset-0 bg-black/5 group-hover:bg-black/0 transition-colors duration-300"></div>
-                    <button
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        handleAddToCart(product);
-                      }}
-                      disabled={!product.defaultVariantId}
-                      className="absolute bottom-4 right-4 bg-[#ff4b86] text-white p-2 rounded-full opacity-0 translate-y-4 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-300 shadow-md hover:bg-[#e63d75] disabled:opacity-50 disabled:hover:bg-[#ff4b86] disabled:cursor-not-allowed"
-                    >
-                      <span className="material-symbols-outlined text-xl">add_shopping_cart</span>
-                    </button>
-                    {product.badge && (
-                      <span className="absolute top-4 left-4 bg-white text-primary px-2 py-1 text-[10px] uppercase tracking-widest font-bold shadow-sm">
-                        {product.badge}
-                      </span>
-                    )}
-                  </div>
-                  <div>
-                    <h3 className="font-display text-lg text-text-light mb-1 group-hover:text-primary transition-colors">
-                      {product.name}
-                    </h3>
-                    <p className="text-xs text-subtext-light mb-2">{product.description}</p>
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-bold text-primary">{formatCurrency(product.price)}</span>
-                      {product.originalPrice && (
-                        <span className="text-xs text-subtext-light line-through">
-                          {formatCurrency(product.originalPrice)}
+                  <div className="rounded-xl border-2 border-gray-100 hover:border-[#ff4b86] bg-white overflow-hidden transition-all duration-300 hover:shadow-lg hover:shadow-pink-100">
+                    {/* Product Image */}
+                    <div className="relative overflow-hidden aspect-square bg-gray-50">
+                      {product.image ? (
+                        <img
+                          alt={product.name}
+                          className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                          src={product.image}
+                          loading="lazy"
+                        />
+                      ) : (
+                        <div className="w-full h-full bg-gray-100 flex items-center justify-center text-gray-300">
+                          <span className="material-symbols-outlined text-5xl">{product.placeholder}</span>
+                        </div>
+                      )}
+                      {/* Quick Add Button */}
+                      <button
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          handleAddToCart(product);
+                        }}
+                        disabled={!product.defaultVariantId}
+                        className="absolute bottom-3 right-3 bg-[#ff4b86] text-white p-2.5 rounded-full opacity-0 scale-75 group-hover:opacity-100 group-hover:scale-100 transition-all duration-300 shadow-lg hover:bg-[#e63d75] disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <span className="material-symbols-outlined text-lg">add_shopping_cart</span>
+                      </button>
+                      {/* Badge */}
+                      {product.badge && (
+                        <span className="absolute top-3 left-3 bg-[#ff4b86] text-white px-2.5 py-1 text-[10px] uppercase tracking-wider font-bold rounded-full shadow-sm">
+                          {product.badge}
                         </span>
                       )}
+                    </div>
+                    {/* Product Info */}
+                    <div className="p-3">
+                      <h3 className="font-bold text-sm text-gray-900 mb-1 line-clamp-1 group-hover:text-[#ff4b86] transition-colors">
+                        {product.name}
+                      </h3>
+                      <p className="text-[11px] text-gray-400 mb-2 line-clamp-1 font-light">
+                        {product.description}
+                      </p>
+                      <div className="flex items-center gap-2">
+                        <span className="text-base font-black text-[#ff4b86]">{formatCurrency(product.price)}</span>
+                        {product.originalPrice && (
+                          <span className="text-xs text-gray-400 line-through font-light">
+                            {formatCurrency(product.originalPrice)}
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </Link>

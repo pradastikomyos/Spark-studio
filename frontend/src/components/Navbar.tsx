@@ -371,7 +371,7 @@ const Navbar = () => {
               <button
                 onClick={handleSignOutClick}
                 disabled={loggingOut}
-                className="w-full flex items-center justify-center gap-2 py-3.5 text-sm font-bold uppercase tracking-widest text-red-600 hover:bg-red-50 active:bg-red-100 rounded-lg transition-colors disabled:opacity-50"
+                className="w-full flex items-center justify-center gap-2 py-3.5 text-sm font-bold uppercase tracking-widest text-[#ff4b86] hover:bg-pink-50 active:bg-pink-100 rounded-lg transition-colors disabled:opacity-50"
                 type="button"
               >
                 <LogOut className="h-4 w-4" />
@@ -403,8 +403,8 @@ const Navbar = () => {
               onClick={(e) => e.stopPropagation()}
             >
               <div className="flex flex-col items-center gap-4 text-center">
-                <div className="flex-shrink-0 w-16 h-16 rounded-full bg-red-100 flex items-center justify-center">
-                  <LogOut className="h-8 w-8 text-red-600" />
+                <div className="flex-shrink-0 w-16 h-16 rounded-full bg-pink-100 flex items-center justify-center">
+                  <LogOut className="h-8 w-8 text-[#ff4b86]" />
                 </div>
                 <div>
                   <h3 className="text-xl font-black uppercase tracking-wider text-gray-900">{t('auth.signOut')}</h3>
@@ -422,7 +422,7 @@ const Navbar = () => {
                 <button
                   onClick={handleSignOutConfirm}
                   disabled={loggingOut}
-                  className="flex-1 px-4 py-3.5 text-sm font-bold uppercase tracking-wider text-white bg-primary hover:bg-primary-dark active:bg-red-800 rounded-xl transition-colors disabled:opacity-50 order-1 md:order-2"
+                  className="flex-1 px-4 py-3.5 text-sm font-bold uppercase tracking-wider text-white bg-[#ff4b86] hover:bg-[#e63d75] active:bg-[#cc2f64] rounded-xl transition-colors disabled:opacity-50 order-1 md:order-2"
                   type="button"
                 >
                   {t('auth.confirm')}

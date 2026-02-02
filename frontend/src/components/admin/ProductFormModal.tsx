@@ -52,8 +52,8 @@ type ProductFormModalProps = {
   initialValue?: ProductDraft | null;
   existingImages?: ExistingImage[];
   onClose: () => void;
-  onSave: (payload: { 
-    draft: ProductDraft; 
+  onSave: (payload: {
+    draft: ProductDraft;
     newImages: File[];
     removedImageUrls: string[];
   }) => Promise<void> | void;
@@ -143,10 +143,10 @@ export default function ProductFormModal(props: ProductFormModalProps) {
     if (!draft.sku.trim()) return 'Product SKU is required.';
     if (!draft.category_id) return 'Category is required.';
     if (!draft.variants.length) return 'At least one variant is required.';
-    
+
     const totalImages = images.length + existingImages.length - removedImageUrls.length;
     if (totalImages === 0) return 'At least one product image is required.';
-    
+
     for (const v of draft.variants) {
       if (!v.name.trim()) return 'Variant name is required.';
       if (!v.sku.trim()) return 'Variant SKU is required.';
@@ -344,7 +344,7 @@ export default function ProductFormModal(props: ProductFormModalProps) {
                         variants: [...prev.variants, { name: '', sku: '', price: '', stock: 0 }],
                       }))
                     }
-                    className="rounded-lg bg-primary px-3 py-2 text-xs font-bold text-white hover:bg-primary-dark"
+                    className="rounded-lg bg-[#ff4b86] px-3 py-2 text-xs font-bold text-white hover:bg-[#e63d75]"
                   >
                     Add Variant
                   </button>
@@ -488,7 +488,7 @@ export default function ProductFormModal(props: ProductFormModalProps) {
             <button
               onClick={handleSave}
               disabled={saving}
-              className="rounded-lg bg-primary px-5 py-2 text-sm font-bold text-white hover:bg-primary-dark disabled:opacity-50"
+              className="rounded-lg bg-[#ff4b86] px-5 py-2 text-sm font-bold text-white hover:bg-[#e63d75] disabled:opacity-50"
             >
               {saving ? 'Saving...' : 'Save'}
             </button>
