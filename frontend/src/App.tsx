@@ -18,6 +18,8 @@ const OnStage = lazy(() => import('./pages/OnStage'));
 const Fashion = lazy(() => import('./pages/Fashion'));
 const Beauty = lazy(() => import('./pages/Beauty'));
 const Events = lazy(() => import('./pages/Events'));
+const SparkClub = lazy(() => import('./pages/SparkClub'));
+const News = lazy(() => import('./pages/News'));
 const Login = lazy(() => import('./pages/Login'));
 const SignUp = lazy(() => import('./pages/SignUp'));
 const Dashboard = lazy(() => import('./pages/admin/Dashboard'));
@@ -317,6 +319,26 @@ function AppRoutes() {
               wrap(
                 <Suspense fallback={<RouteLoading />}>
                   <Events />
+                </Suspense>
+              )
+            }
+          />
+          <Route
+            path="spark-club"
+            element={
+              wrap(
+                <Suspense fallback={<RouteLoading />}>
+                  <SparkClub />
+                </Suspense>
+              )
+            }
+          />
+          <Route
+            path="news"
+            element={
+              wrap(
+                <Suspense fallback={<RouteLoading />}>
+                  <News />
                 </Suspense>
               )
             }

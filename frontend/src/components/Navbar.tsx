@@ -44,6 +44,7 @@ const Navbar = () => {
       if (category === 'beauty') return 'beauty';
       return 'shop';
     }
+    if (path.startsWith('/spark-club')) return 'spark-club';
     if (path.startsWith('/news')) return 'news';
     return '';
   })();
@@ -53,8 +54,8 @@ const Navbar = () => {
     { key: 'event', label: 'EVENT', to: '/events' },
     { key: 'fashion', label: 'FASHION', to: '/fashion' },
     { key: 'beauty', label: 'BEAUTY', to: '/beauty' },
-    { key: 'spark-club', label: 'SPARK CLUB', to: '#' },
-    { key: 'news', label: 'NEWS', to: '#' },
+    { key: 'spark-club', label: 'SPARK CLUB', to: '/spark-club' },
+    { key: 'news', label: 'NEWS', to: '/news' },
   ] as const;
 
   const activeIndex = Math.max(0, navItems.findIndex((i) => i.key === activeNavKey));
@@ -235,21 +236,6 @@ const Navbar = () => {
               {navItems.map((item, idx) => {
                 const isActive = idx === activeIndex;
                 
-                if (item.to === '#') {
-                  return (
-                    <a
-                      key={item.key}
-                      ref={(el) => (navItemsRef.current[idx] = el)}
-                      href="#"
-                      className={`text-sm font-semibold uppercase px-4 py-2 transition-colors ${
-                        isActive ? 'text-white' : 'text-gray-600 hover:text-gray-900'
-                      }`}
-                    >
-                      {item.label}
-                    </a>
-                  );
-                }
-
                 return (
                   <Link
                     key={item.key}
@@ -329,20 +315,20 @@ const Navbar = () => {
             >
               Beauty
             </Link>
-            <a
-              href="#"
+            <Link
+              to="/spark-club"
               onClick={closeMobileMenu}
               className="block text-sm uppercase tracking-widest font-bold text-gray-900 active:text-main-600 py-3 px-2 active:bg-gray-50 rounded-lg transition-colors"
             >
               {t('nav.sparkClub')}
-            </a>
-            <a 
-              href="#" 
+            </Link>
+            <Link 
+              to="/news" 
               onClick={closeMobileMenu} 
               className="block text-sm uppercase tracking-widest font-bold text-gray-900 active:text-main-600 py-3 px-2 active:bg-gray-50 rounded-lg transition-colors"
             >
               {t('nav.news')}
-            </a>
+            </Link>
           </div>
 
           <div className="border-t border-gray-100" />
