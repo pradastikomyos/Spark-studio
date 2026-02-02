@@ -104,7 +104,7 @@ const StageScanPage = () => {
                     <p className="text-gray-600 mb-6">{errorMessage}</p>
                     <button
                         onClick={() => navigate('/')}
-                        className="w-full py-3 px-4 bg-[#D32F2F] text-gray-900 font-bold rounded-lg hover:bg-[#B71C1C] transition-colors"
+                        className="w-full py-3 px-4 bg-[#ff4b86] text-gray-900 font-bold rounded-lg hover:bg-[#e63d75] transition-colors"
                     >
                         Back to Home
                     </button>
@@ -149,7 +149,7 @@ const StageScanPage = () => {
                 <div className="space-y-3">
                     <button
                         onClick={() => window.location.assign('/on-stage')}
-                        className="w-full py-3 px-4 bg-[#D32F2F] text-gray-900 font-bold rounded-lg hover:bg-[#B71C1C] transition-colors shadow-lg shadow-red-900/20"
+                        className="w-full py-3 px-4 bg-[#ff4b86] text-gray-900 font-bold rounded-lg hover:bg-[#e63d75] transition-colors shadow-lg shadow-red-900/20"
                     >
                         View All Stages
                     </button>

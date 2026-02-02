@@ -90,7 +90,7 @@ export default function ProductImageUpload(props: ProductImageUploadProps) {
           <button
             type="button"
             onClick={handleEmptySlotClick}
-            className="cursor-pointer rounded-lg bg-primary px-3 py-2 text-xs font-bold text-white hover:bg-red-700"
+            className="cursor-pointer rounded-lg bg-primary px-3 py-2 text-xs font-bold text-white hover:bg-primary-dark"
           >
             Add Image
           </button>

@@ -47,7 +47,7 @@ const Dashboard = () => {
       {/* Welcome Card */}
       <div className="rounded-xl border border-gray-200 bg-white p-4 md:p-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div className="flex items-center gap-4 min-w-0">
-          <div className="h-12 w-12 rounded-full bg-gray-900 flex items-center justify-center text-lg font-bold text-gray-900 flex-shrink-0">
+          <div className="h-12 w-12 rounded-full bg-gray-900 flex items-center justify-center text-lg font-bold text-white flex-shrink-0">
             {getUserInitials()}
           </div>
           <div className="min-w-0">
@@ -55,7 +55,7 @@ const Dashboard = () => {
             <p className="text-sm text-gray-500 truncate">Panel Admin Spark</p>
           </div>
         </div>
-        <button 
+        <button
           onClick={signOut}
           className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-bold hover:bg-gray-50 transition-colors w-full sm:w-auto justify-center"
         >
@@ -69,44 +69,44 @@ const Dashboard = () => {
           {isLoading
             ? Array.from({ length: 4 }).map((_, index) => <DashboardStatSkeleton key={`ticket-${index}`} />)
             : [
-                { label: 'Total tiket terjual', value: stats?.totalPurchasedTickets ?? 0 },
-                { label: 'Total sudah masuk', value: stats?.totalEntered ?? 0 },
-                { label: 'Total tidak datang', value: stats?.totalNoShow ?? 0 },
-                { label: 'Total sudah tukar hadiah', value: stats?.totalGiftsExchanged ?? 0 },
-              ].map((item, index) => (
-                <m.div
-                  key={item.label}
-                  initial={{ opacity: 0, y: 12 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.4, delay: index * 0.05 }}
-                  className="rounded-xl border border-gray-200 bg-white p-5"
-                >
-                  <p className="text-sm text-gray-500 mb-1">{item.label}</p>
-                  <p className="text-3xl font-black text-gray-900">{item.value}</p>
-                </m.div>
-              ))}
+              { label: 'Total tiket terjual', value: stats?.totalPurchasedTickets ?? 0 },
+              { label: 'Total sudah masuk', value: stats?.totalEntered ?? 0 },
+              { label: 'Total tidak datang', value: stats?.totalNoShow ?? 0 },
+              { label: 'Total sudah tukar hadiah', value: stats?.totalGiftsExchanged ?? 0 },
+            ].map((item, index) => (
+              <m.div
+                key={item.label}
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.4, delay: index * 0.05 }}
+                className="rounded-xl border border-gray-200 bg-white p-5"
+              >
+                <p className="text-sm text-gray-500 mb-1">{item.label}</p>
+                <p className="text-3xl font-black text-gray-900">{item.value}</p>
+              </m.div>
+            ))}
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           {isLoading
             ? Array.from({ length: 4 }).map((_, index) => <DashboardStatSkeleton key={`order-${index}`} />)
             : [
-                { label: 'Total Pesanan', value: stats?.totalOrders ?? 0 },
-                { label: 'Pesanan Pending', value: stats?.pendingOrders ?? 0 },
-                { label: 'Pesanan Lunas', value: stats?.paidOrders ?? 0 },
-                { label: 'Pesanan Diproses', value: stats?.processingOrders ?? 0 },
-              ].map((item, index) => (
-                <m.div
-                  key={item.label}
-                  initial={{ opacity: 0, y: 12 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.4, delay: index * 0.05 }}
-                  className="rounded-xl border border-gray-200 bg-white p-5"
-                >
-                  <p className="text-sm text-gray-500 mb-1">{item.label}</p>
-                  <p className="text-3xl font-black text-gray-900">{item.value}</p>
-                </m.div>
-              ))}
+              { label: 'Total Pesanan', value: stats?.totalOrders ?? 0 },
+              { label: 'Pesanan Pending', value: stats?.pendingOrders ?? 0 },
+              { label: 'Pesanan Lunas', value: stats?.paidOrders ?? 0 },
+              { label: 'Pesanan Diproses', value: stats?.processingOrders ?? 0 },
+            ].map((item, index) => (
+              <m.div
+                key={item.label}
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.4, delay: index * 0.05 }}
+                className="rounded-xl border border-gray-200 bg-white p-5"
+              >
+                <p className="text-sm text-gray-500 mb-1">{item.label}</p>
+                <p className="text-3xl font-black text-gray-900">{item.value}</p>
+              </m.div>
+            ))}
         </div>
       </LazyMotion>
 

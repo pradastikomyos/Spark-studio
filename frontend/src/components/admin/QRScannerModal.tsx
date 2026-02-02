@@ -622,7 +622,7 @@ const QRScannerModal = ({
               ) : (
                 <button
                   onClick={() => startScanner()}
-                  className="bg-primary hover:bg-red-700 text-white px-6 py-3 rounded-lg font-bold transition-colors mt-2 flex items-center gap-2"
+                  className="bg-primary hover:bg-primary-dark text-white px-6 py-3 rounded-lg font-bold transition-colors mt-2 flex items-center gap-2"
                 >
                   <span className="material-symbols-outlined text-xl">refresh</span>
                   Coba Lagi
@@ -649,7 +649,7 @@ const QRScannerModal = ({
             <button
               type="submit"
               disabled={!manualCode.trim() || manualSubmitting || status === 'processing'}
-              className="bg-primary text-white px-5 py-2.5 rounded-lg text-sm font-bold disabled:opacity-50 hover:bg-red-700 transition-colors flex items-center gap-1"
+              className="bg-primary text-white px-5 py-2.5 rounded-lg text-sm font-bold disabled:opacity-50 hover:bg-primary-dark transition-colors flex items-center gap-1"
             >
               {manualSubmitting ? (
                 <span className="material-symbols-outlined text-lg animate-spin">progress_activity</span>

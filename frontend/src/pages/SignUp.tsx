@@ -177,7 +177,7 @@ const SignUp = () => {
             <button
               type="submit"
               disabled={loading || success}
-              className="w-full bg-[#D32F2F] hover:bg-[#B71C1C] text-white py-3 rounded-sm font-medium transition-colors shadow-lg shadow-primary/20 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full bg-[#ff4b86] hover:bg-[#e63d75] text-white py-3 rounded-sm font-medium transition-colors shadow-lg shadow-primary/20 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {loading ? t('auth.signup.loading') : t('auth.signup.submit')}
             </button>

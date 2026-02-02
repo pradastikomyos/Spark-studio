@@ -164,7 +164,7 @@ export default function MyTicketsPage() {
                 <button
                   onClick={() => setActiveTab('upcoming')}
                   className={`px-4 py-1.5 text-sm font-bold rounded shadow-sm transition-colors ${activeTab === 'upcoming'
-                      ? 'bg-[#D32F2F] text-white'
+                      ? 'bg-[#ff4b86] text-white'
                       : 'text-gray-600 hover:bg-white:bg-rose-950'
                     }`}
                 >
@@ -173,7 +173,7 @@ export default function MyTicketsPage() {
                 <button
                   onClick={() => setActiveTab('history')}
                   className={`px-4 py-1.5 text-sm font-bold rounded shadow-sm transition-colors ${activeTab === 'history'
-                      ? 'bg-[#D32F2F] text-white'
+                      ? 'bg-[#ff4b86] text-white'
                       : 'text-gray-600 hover:bg-white:bg-rose-950'
                     }`}
                 >
@@ -232,7 +232,7 @@ export default function MyTicketsPage() {
                 >
                   {/* Today Indicator */}
                   {isToday && (
-                    <div className="absolute left-0 top-0 bottom-0 w-1 bg-[#D32F2F]"></div>
+                    <div className="absolute left-0 top-0 bottom-0 w-1 bg-[#ff4b86]"></div>
                   )}
 
                   <div className="flex items-start gap-6 w-full md:w-auto">
@@ -339,7 +339,7 @@ export default function MyTicketsPage() {
                       onClick={() => handleViewQR(ticket.ticket_code)}
                       className={`w-full md:w-auto text-sm font-bold px-6 py-3 rounded-lg transition-colors flex items-center justify-center gap-2 shadow-sm ${
                         ticket.status === 'active' && !sessionEnded
-                          ? 'bg-[#D32F2F] text-white hover:bg-[#B71C1C] shadow-primary/20'
+                          ? 'bg-[#ff4b86] text-white hover:bg-[#e63d75] shadow-primary/20'
                           : 'bg-gray-300 text-gray-600 cursor-not-allowed'
                       }`}
                       disabled={ticket.status !== 'active' || sessionEnded}

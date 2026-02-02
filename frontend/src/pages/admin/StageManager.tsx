@@ -218,7 +218,7 @@ const StageManager = () => {
                             onChange={(e) => setSearchQuery(e.target.value)}
                         />
                     </div>
-                    <button className="flex items-center gap-2 rounded-lg bg-neutral-900 px-4 py-2 text-sm font-bold text-gray-900 hover:bg-neutral-800 transition-colors shadow-md">
+                    <button className="flex items-center gap-2 rounded-lg bg-[#ff4b86] px-4 py-2 text-sm font-bold text-white hover:bg-[#ff6a9a] transition-colors shadow-md">
                         <span className="material-symbols-outlined text-lg">add</span>
                         New Stage
                     </button>
@@ -292,7 +292,7 @@ const StageManager = () => {
                             {/* Download Button */}
                             <button
                                 onClick={() => handleDownloadQR(stage)}
-                                className="flex w-full items-center justify-center gap-2 rounded bg-neutral-900 py-2 text-sm font-bold text-gray-900 hover:bg-neutral-800 transition-colors shadow-md"
+                                className="flex w-full items-center justify-center gap-2 rounded bg-[#ff4b86] py-2 text-sm font-bold text-white hover:bg-[#ff6a9a] transition-colors shadow-md"
                             >
                                 <span className="material-symbols-outlined text-lg">download</span>
                                 Unduh

@@ -6,16 +6,16 @@
   --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
   --font-serif: 'Bodoni Moda', serif;
 
-  --color-main-50: #fff1f2;
-  --color-main-100: #fce5e7;
-  --color-main-200: #f8b2b7;
-  --color-main-300: #f17f88;
-  --color-main-400: #ea4c58;
-  --color-main-500: #b30c18;
-  --color-main-600: #8f0913;
-  --color-main-700: #6b070e;
-  --color-main-800: #480509;
-  --color-main-900: #240205;
+  --color-main-50: #fff1f6;
+  --color-main-100: #ffe1ec;
+  --color-main-200: #ffc3d9;
+  --color-main-300: #ff94b8;
+  --color-main-400: #ff6a9a;
+  --color-main-500: #ff4b86;
+  --color-main-600: #e63d75;
+  --color-main-700: #cc2f64;
+  --color-main-800: #a32550;
+  --color-main-900: #7a1c3c;
 
   @keyframes slideDown {
     from {

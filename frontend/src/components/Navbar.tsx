@@ -113,7 +113,7 @@ const Navbar = () => {
                 {isAdmin && (
                   <Link
                     to="/admin/dashboard"
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold uppercase tracking-wider bg-neutral-900 text-white rounded-md hover:bg-neutral-800 transition-colors shadow-sm"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold uppercase tracking-wider bg-[#ff4b86] text-white rounded-md hover:bg-[#e63d75] transition-colors shadow-sm"
                     title="Admin Dashboard"
                   >
                     <span className="material-symbols-outlined text-sm">dashboard</span>
@@ -124,7 +124,7 @@ const Navbar = () => {
                 <button
                   onClick={handleSignOutClick}
                   disabled={loggingOut}
-                  className="text-gray-500 hover:text-red-600 transition-colors"
+                  className="text-gray-500 hover:text-primary transition-colors"
                   title={t('auth.signOut')}
                 >
                   <LogOut className="h-5 w-5" />
@@ -212,9 +212,9 @@ const Navbar = () => {
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="relative py-6">
             {/* Large star background behind active nav item */}
-            <div 
+            <div
               className="absolute transition-all duration-300 ease-out pointer-events-none"
-              style={{ 
+              style={{
                 left: `${starPosition}px`,
                 top: '50%',
                 transform: 'translate(-50%, -50%)',
@@ -224,9 +224,9 @@ const Navbar = () => {
               }}
             >
               <svg viewBox="0 0 100 100" className="w-full h-full">
-                <path 
-                  d="M50 6 L61 36 L94 36 L66 54 L76 84 L50 66 L24 84 L34 54 L6 36 L39 36 Z" 
-                  fill="#b30c18" 
+                <path
+                  d="M50 6 L61 36 L94 36 L66 54 L76 84 L50 66 L24 84 L34 54 L6 36 L39 36 Z"
+                  fill="#ff4b86"
                 />
               </svg>
             </div>
@@ -235,15 +235,14 @@ const Navbar = () => {
             <div className="flex justify-evenly items-center relative z-10">
               {navItems.map((item, idx) => {
                 const isActive = idx === activeIndex;
-                
+
                 return (
                   <Link
                     key={item.key}
                     ref={(el) => (navItemsRef.current[idx] = el)}
                     to={item.to}
-                    className={`text-sm font-semibold uppercase px-4 py-2 transition-colors ${
-                      isActive ? 'text-white' : 'text-gray-600 hover:text-gray-900'
-                    }`}
+                    className={`text-sm font-semibold uppercase px-4 py-2 transition-colors ${isActive ? 'text-white' : 'text-gray-600 hover:text-gray-900'
+                      }`}
                   >
                     {item.label}
                   </Link>
@@ -322,9 +321,9 @@ const Navbar = () => {
             >
               {t('nav.sparkClub')}
             </Link>
-            <Link 
-              to="/news" 
-              onClick={closeMobileMenu} 
+            <Link
+              to="/news"
+              onClick={closeMobileMenu}
               className="block text-sm uppercase tracking-widest font-bold text-gray-900 active:text-main-600 py-3 px-2 active:bg-gray-50 rounded-lg transition-colors"
             >
               {t('nav.news')}
@@ -423,7 +422,7 @@ const Navbar = () => {
                 <button
                   onClick={handleSignOutConfirm}
                   disabled={loggingOut}
-                  className="flex-1 px-4 py-3.5 text-sm font-bold uppercase tracking-wider text-white bg-red-600 hover:bg-red-700 active:bg-red-800 rounded-xl transition-colors disabled:opacity-50 order-1 md:order-2"
+                  className="flex-1 px-4 py-3.5 text-sm font-bold uppercase tracking-wider text-white bg-primary hover:bg-primary-dark active:bg-red-800 rounded-xl transition-colors disabled:opacity-50 order-1 md:order-2"
                   type="button"
                 >
                   {t('auth.confirm')}

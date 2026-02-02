@@ -691,7 +691,7 @@ export default function BookingSuccessPage() {
                         <button
                           onClick={() => handleSyncStatus(false)}
                           disabled={syncing || autoSyncInProgress}
-                          className="h-11 px-5 rounded-xl bg-[#D32F2F] text-white font-bold hover:bg-[#B71C1C] disabled:opacity-60 transition-all"
+                          className="h-11 px-5 rounded-xl bg-[#ff4b86] text-white font-bold hover:bg-[#e63d75] disabled:opacity-60 transition-all"
                         >
                           {syncing || autoSyncInProgress ? 'Checking...' : 'Check Status Manually'}
                         </button>
@@ -721,7 +721,7 @@ export default function BookingSuccessPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-10 px-4">
               <button
                 onClick={handleDownloadPDF}
-                className="flex items-center justify-center gap-2 min-w-[180px] h-14 rounded-xl bg-[#D32F2F] text-white font-bold text-lg hover:bg-[#B71C1C] transition-all shadow-xl shadow-primary/30"
+                className="flex items-center justify-center gap-2 min-w-[180px] h-14 rounded-xl bg-[#ff4b86] text-white font-bold text-lg hover:bg-[#e63d75] transition-all shadow-xl shadow-primary/30"
               >
                 <span className="material-symbols-outlined">download</span>
                 Download All Tickets

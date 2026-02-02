@@ -123,35 +123,35 @@ const OrderTicket = () => {
           const now = nowWIB();
           const sessionStart = createWIBDate(todayLocal, ticketData.time_slot);
           const sessionEnd = addMinutes(sessionStart, SESSION_DURATION_MINUTES);
-          
+
           // Check if current time is BEFORE session starts
           if (now < sessionStart) {
             const timeDisplay = ticketData.time_slot.substring(0, 5);
             const sessionStartDisplay = sessionStart.toLocaleTimeString('id-ID', {
               timeZone: 'Asia/Jakarta',
-              hour: '2-digit', 
+              hour: '2-digit',
               minute: '2-digit',
-              hour12: false 
+              hour12: false
             });
             const errMsg = `⏰ SESI BELUM DIMULAI. Sesi ${timeDisplay} dimulai jam ${sessionStartDisplay}.`;
             setLastScanResult({ type: 'error', message: errMsg });
             throw new Error(errMsg);
           }
-          
+
           // Check if current time is AFTER session ends
           if (now > sessionEnd) {
             const timeDisplay = ticketData.time_slot.substring(0, 5);
             const sessionEndDisplay = sessionEnd.toLocaleTimeString('id-ID', {
               timeZone: 'Asia/Jakarta',
-              hour: '2-digit', 
+              hour: '2-digit',
               minute: '2-digit',
-              hour12: false 
+              hour12: false
             });
             const errMsg = `⛔ SESI BERAKHIR. Sesi ${timeDisplay} berakhir jam ${sessionEndDisplay}.`;
             setLastScanResult({ type: 'error', message: errMsg });
             throw new Error(errMsg);
           }
-          
+
           // SUCCESS: Within session time window
           const minutesLeft = Math.floor((sessionEnd.getTime() - now.getTime()) / (60 * 1000));
           console.log(`[QR Scan] Valid scan within session. ${minutesLeft} minutes remaining.`);
@@ -241,8 +241,8 @@ const OrderTicket = () => {
         {lastScanResult && (
           <div
             className={`rounded-lg border px-4 md:px-6 py-4 mb-6 ${lastScanResult.type === 'success'
-                ? 'border-green-200 bg-green-50 text-green-800'
-                : 'border-red-200 bg-red-50 text-red-800'
+              ? 'border-green-200 bg-green-50 text-green-800'
+              : 'border-red-200 bg-red-50 text-red-800'
               }`}
           >
             <div className="flex items-start gap-3">
@@ -276,7 +276,7 @@ const OrderTicket = () => {
           <button
             onClick={() => setShowScanner(true)}
             disabled={validating}
-            className="flex items-center gap-2 px-6 py-3 bg-neutral-900 text-gray-900 text-sm font-bold rounded-lg shadow-md hover:bg-neutral-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex items-center gap-2 px-6 py-3 bg-[#ff4b86] text-white text-sm font-bold rounded-lg shadow-md hover:bg-[#ff6a9a] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <span className="material-symbols-outlined">qr_code_scanner</span>
             {validating ? 'Memvalidasi...' : 'Aktifkan Pemindai'}

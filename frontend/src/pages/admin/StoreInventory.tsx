@@ -600,7 +600,7 @@ const StoreInventory = () => {
           </button>
           <button
             onClick={handleOpenCreate}
-            className="flex items-center justify-center gap-2 rounded-lg bg-neutral-900 px-4 py-2.5 text-sm font-bold text-gray-900 hover:bg-neutral-800 transition-colors shadow-md"
+            className="flex items-center justify-center gap-2 rounded-lg bg-[#ff4b86] px-4 py-2.5 text-sm font-bold text-white hover:bg-[#ff6a9a] transition-colors shadow-md"
           >
             <span className="material-symbols-outlined text-[20px]">add</span>
             <span>Add Product</span>
@@ -637,7 +637,7 @@ const StoreInventory = () => {
                 />
                 <button
                   onClick={() => handleVerify()}
-                  className="rounded-lg bg-neutral-900 px-6 py-2.5 text-sm font-bold text-gray-900 hover:opacity-90 transition-opacity"
+                  className="rounded-lg bg-[#ff4b86] px-6 py-2.5 text-sm font-bold text-white hover:bg-[#ff6a9a] transition-opacity"
                 >
                   Verify
                 </button>
@@ -718,7 +718,7 @@ const StoreInventory = () => {
             </p>
             <button
               onClick={handleOpenCreate}
-              className="flex items-center gap-2 rounded-lg bg-neutral-900 px-6 py-3 text-sm font-bold text-gray-900 hover:bg-neutral-800 transition-colors shadow-md"
+              className="flex items-center gap-2 rounded-lg bg-[#ff4b86] px-6 py-3 text-sm font-bold text-white hover:bg-[#ff6a9a] transition-colors shadow-md"
             >
               <span className="material-symbols-outlined text-[20px]">add</span>
               <span>Add Your First Product</span>
@@ -759,7 +759,7 @@ const StoreInventory = () => {
                     </button>
                     <button
                       onClick={() => setDeletingProduct({ id: product.id, name: product.name })}
-                      className="rounded-lg bg-neutral-900/90 px-2 py-1 text-[10px] font-bold text-gray-900 hover:bg-neutral-900"
+                      className="rounded-lg bg-[#ff4b86]/90 px-2 py-1 text-[10px] font-bold text-white hover:bg-[#ff4b86]"
                     >
                       Delete
                     </button>
@@ -844,7 +844,7 @@ const StoreInventory = () => {
               <button
                 disabled={saving}
                 onClick={handleDelete}
-                className="rounded-lg bg-red-600 px-4 py-2 text-sm font-bold text-gray-900 hover:bg-red-700 disabled:opacity-50"
+                className="rounded-lg bg-primary px-4 py-2 text-sm font-bold text-gray-900 hover:bg-primary-dark disabled:opacity-50"
               >
                 {saving ? 'Deleting...' : 'Delete'}
               </button>

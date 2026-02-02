@@ -255,7 +255,7 @@ export default function ProductOrders() {
       headerActions={
         <button
           onClick={() => setScannerOpen(true)}
-          className="flex items-center justify-center gap-2 rounded-lg bg-neutral-900 px-3 md:px-4 py-2.5 text-sm font-bold text-gray-900 hover:bg-neutral-800 transition-colors shadow-md"
+          className="flex items-center justify-center gap-2 rounded-lg bg-[#ff4b86] px-3 md:px-4 py-2.5 text-sm font-bold text-white hover:bg-[#ff6a9a] transition-colors shadow-md"
         >
           <span className="material-symbols-outlined text-[20px]">qr_code_scanner</span>
           <span className="hidden sm:inline">Scan QR</span>
@@ -283,7 +283,7 @@ export default function ProductOrders() {
             </div>
             <button
               onClick={handleLookup}
-              className="rounded-lg bg-neutral-900 px-6 py-3 text-sm font-bold text-gray-900 hover:opacity-90 transition-opacity"
+              className="rounded-lg bg-[#ff4b86] px-6 py-3 text-sm font-bold text-white hover:bg-[#ff6a9a] transition-opacity"
             >
               Verifikasi
             </button>
@@ -301,8 +301,8 @@ export default function ProductOrders() {
                 <button
                   onClick={() => setActiveTab('pending')}
                   className={`px-3 py-1.5 text-xs font-bold rounded transition-colors ${activeTab === 'pending'
-                      ? 'bg-primary text-gray-900'
-                      : 'text-gray-600 hover:bg-white'
+                    ? 'bg-primary text-gray-900'
+                    : 'text-gray-600 hover:bg-white'
                     }`}
                 >
                   Pending ({pendingOrders.length})
@@ -310,8 +310,8 @@ export default function ProductOrders() {
                 <button
                   onClick={() => setActiveTab('today')}
                   className={`px-3 py-1.5 text-xs font-bold rounded transition-colors ${activeTab === 'today'
-                      ? 'bg-primary text-gray-900'
-                      : 'text-gray-600 hover:bg-white'
+                    ? 'bg-primary text-gray-900'
+                    : 'text-gray-600 hover:bg-white'
                     }`}
                 >
                   Hari Ini ({todays.length})
@@ -319,8 +319,8 @@ export default function ProductOrders() {
                 <button
                   onClick={() => setActiveTab('completed')}
                   className={`px-3 py-1.5 text-xs font-bold rounded transition-colors ${activeTab === 'completed'
-                      ? 'bg-primary text-gray-900'
-                      : 'text-gray-600 hover:bg-white'
+                    ? 'bg-primary text-gray-900'
+                    : 'text-gray-600 hover:bg-white'
                     }`}
                 >
                   Selesai ({completedOrders.length})
@@ -381,10 +381,10 @@ export default function ProductOrders() {
                   <div className="flex items-center gap-3">
                     <span className="text-xs font-bold text-gray-500">{formatCurrency(Number(o.total ?? 0))}</span>
                     <span className={`text-xs font-bold uppercase tracking-wide px-2 py-1 rounded ${o.pickup_status === 'pending_pickup'
-                        ? 'bg-yellow-100 text-yellow-700'
-                        : o.pickup_status === 'completed'
-                          ? 'bg-green-100 text-green-700'
-                          : 'bg-gray-100 text-gray-700'
+                      ? 'bg-yellow-100 text-yellow-700'
+                      : o.pickup_status === 'completed'
+                        ? 'bg-green-100 text-green-700'
+                        : 'bg-gray-100 text-gray-700'
                       }`}>
                       {o.pickup_status === 'pending_pickup' ? 'Pending' : o.pickup_status === 'completed' ? 'Selesai' : o.pickup_status ?? 'pending'}
                     </span>
@@ -446,7 +446,7 @@ export default function ProductOrders() {
               <button
                 onClick={handleCompletePickup}
                 disabled={submitting}
-                className="mt-6 w-full rounded-lg bg-neutral-900 px-6 py-3 text-sm font-bold text-gray-900 hover:bg-neutral-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="mt-6 w-full rounded-lg bg-[#ff4b86] px-6 py-3 text-sm font-bold text-white hover:bg-[#ff6a9a] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {submitting ? 'Memproses...' : 'Verifikasi Barang'}
               </button>

@@ -193,7 +193,7 @@ export default function AvailabilityGenerator({ onSuccess }: AvailabilityGenerat
             <button
                 onClick={generateAvailability}
                 disabled={generating || !startDate || !endDate}
-                className="w-full bg-primary hover:bg-red-700 text-white py-3 rounded-lg font-bold text-sm shadow-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                className="w-full bg-primary hover:bg-primary-dark text-white py-3 rounded-lg font-bold text-sm shadow-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
                 {generating ? (
                     <>

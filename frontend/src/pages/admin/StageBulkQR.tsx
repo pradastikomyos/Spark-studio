@@ -110,7 +110,7 @@ const StageBulkQR = () => {
                     <button
                         onClick={handleDownloadAll}
                         disabled={downloading || isLoading}
-                        className="flex items-center gap-2 rounded-lg bg-neutral-900 px-6 py-3 text-sm font-bold text-gray-900 hover:bg-neutral-800 transition-all shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="flex items-center gap-2 rounded-lg bg-[#ff4b86] px-6 py-3 text-sm font-bold text-white hover:bg-[#ff6a9a] transition-all shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                         {downloading ? (
                             <>
@@ -234,10 +234,10 @@ const StageBulkQR = () => {
                                             <td className="px-6 py-4">
                                                 <span
                                                     className={`inline-flex items-center rounded-md px-2 py-1 text-xs font-medium ring-1 ring-inset ${stage.status === 'active'
-                                                            ? 'bg-green-400/10 text-green-400 ring-green-400/20'
-                                                            : stage.status === 'maintenance'
-                                                                ? 'bg-yellow-400/10 text-yellow-400 ring-yellow-400/20'
-                                                                : 'bg-gray-400/10 text-gray-600 ring-gray-400/20'
+                                                        ? 'bg-green-400/10 text-green-400 ring-green-400/20'
+                                                        : stage.status === 'maintenance'
+                                                            ? 'bg-yellow-400/10 text-yellow-400 ring-yellow-400/20'
+                                                            : 'bg-gray-400/10 text-gray-600 ring-gray-400/20'
                                                         }`}
                                                 >
                                                     {stage.status.charAt(0).toUpperCase() + stage.status.slice(1)}

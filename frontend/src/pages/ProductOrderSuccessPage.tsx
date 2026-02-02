@@ -261,7 +261,7 @@ export default function ProductOrderSuccessPage() {
                         <button
                           onClick={() => handleSyncStatus(false)}
                           disabled={refreshing || autoSyncInProgress}
-                          className="w-full bg-[#D32F2F] text-white py-3 uppercase tracking-widest text-xs font-bold hover:bg-[#B71C1C] transition-colors disabled:opacity-60 shadow-lg shadow-red-900/10"
+                          className="w-full bg-[#ff4b86] text-white py-3 uppercase tracking-widest text-xs font-bold hover:bg-[#e63d75] transition-colors disabled:opacity-60 shadow-lg shadow-red-900/10"
                         >
                           {refreshing || autoSyncInProgress ? 'Checking...' : 'Check Status Manually'}
                         </button>
@@ -298,7 +298,7 @@ export default function ProductOrderSuccessPage() {
                   <div className="mt-4 space-y-3">
                     <Link
                       to="/my-orders"
-                      className="w-full flex items-center justify-center gap-2 bg-[#D32F2F] text-white py-3 uppercase tracking-widest text-xs font-bold hover:bg-[#B71C1C] transition-colors"
+                      className="w-full flex items-center justify-center gap-2 bg-[#ff4b86] text-white py-3 uppercase tracking-widest text-xs font-bold hover:bg-[#e63d75] transition-colors"
                     >
                       <span className="material-symbols-outlined text-base">receipt_long</span>
                       View All My Orders

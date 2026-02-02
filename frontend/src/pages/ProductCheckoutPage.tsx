@@ -202,7 +202,7 @@ export default function ProductCheckoutPage() {
               <button
                 onClick={handlePay}
                 disabled={loading || !canCheckout}
-                className="mt-6 w-full bg-[#D32F2F] text-white py-4 uppercase tracking-widest text-sm font-bold hover:bg-[#B71C1C] transition-colors shadow-lg shadow-red-900/20 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="mt-6 w-full bg-[#ff4b86] text-white py-4 uppercase tracking-widest text-sm font-bold hover:bg-[#e63d75] transition-colors shadow-lg shadow-red-900/20 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {!initialized ? 'Loading...' : loading ? 'Processing...' : 'Pay with Midtrans'}
               </button>

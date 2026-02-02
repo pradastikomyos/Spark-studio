@@ -251,7 +251,7 @@ const Fashion = () => {
                   refetchProducts();
                   refetchCategories();
                 }}
-                className="px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm font-medium"
+                className="px-6 py-2 bg-primary text-white rounded-lg hover:bg-primary-dark transition-colors text-sm font-medium"
               >
                 Retry
               </button>
@@ -295,7 +295,7 @@ const Fashion = () => {
                         handleAddToCart(product);
                       }}
                       disabled={!product.defaultVariantId}
-                      className="absolute bottom-4 right-4 bg-[#D32F2F] text-white p-2 rounded-full opacity-0 translate-y-4 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-300 shadow-md hover:bg-[#B71C1C] disabled:opacity-50 disabled:hover:bg-[#D32F2F] disabled:cursor-not-allowed"
+                      className="absolute bottom-4 right-4 bg-[#ff4b86] text-white p-2 rounded-full opacity-0 translate-y-4 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-300 shadow-md hover:bg-[#e63d75] disabled:opacity-50 disabled:hover:bg-[#ff4b86] disabled:cursor-not-allowed"
                     >
                       <span className="material-symbols-outlined text-xl">add_shopping_cart</span>
                     </button>
@@ -326,7 +326,7 @@ const Fashion = () => {
 
           {/* Load More Button */}
           <div className="flex justify-center mt-20">
-            <button className="px-8 py-3 border border-primary text-primary hover:bg-[#D32F2F] hover:text-white transition-colors duration-300 text-sm tracking-widest uppercase rounded-sm font-medium">
+            <button className="px-8 py-3 border border-primary text-primary hover:bg-[#ff4b86] hover:text-white transition-colors duration-300 text-sm tracking-widest uppercase rounded-sm font-medium">
               Load More Products
             </button>
           </div>
@@ -388,7 +388,7 @@ const Fashion = () => {
               type="email"
             />
             <button
-              className="bg-[#D32F2F] hover:bg-[#B71C1C] text-white px-8 py-3 rounded-sm font-medium transition-colors shadow-lg shadow-primary/20"
+              className="bg-[#ff4b86] hover:bg-[#e63d75] text-white px-8 py-3 rounded-sm font-medium transition-colors shadow-lg shadow-primary/20"
               type="submit"
             >
               Subscribe

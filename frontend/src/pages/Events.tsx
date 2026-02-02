@@ -264,7 +264,7 @@ const Events = () => {
                       <div
                         className="absolute inset-0 opacity-10"
                         style={{
-                          backgroundImage: 'radial-gradient(#D32F2F 1px, transparent 1px)',
+                          backgroundImage: 'radial-gradient(#ff4b86 1px, transparent 1px)',
                           backgroundSize: '20px 20px',
                         }}
                       ></div>
@@ -363,7 +363,7 @@ const Events = () => {
                 type="email"
               />
               <button
-                className="bg-gray-900#D32F2F] hover:bg-[#D32F2F]:bg-[#B71C1C] text-white px-8 py-4 rounded-full font-bold transition-all duration-300 shadow-lg shadow-gray-200/50 hover:shadow-primary/30"
+                className="bg-gray-900#ff4b86] hover:bg-[#ff4b86]:bg-[#e63d75] text-white px-8 py-4 rounded-full font-bold transition-all duration-300 shadow-lg shadow-gray-200/50 hover:shadow-primary/30"
                 type="submit"
               >
                 Subscribe

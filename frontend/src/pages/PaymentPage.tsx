@@ -436,7 +436,7 @@ export default function PaymentPage() {
               <button
                 onClick={handlePayWithMidtrans}
                 disabled={loading || !ticketId || !price || !snapLoaded}
-                className="w-full bg-[#D32F2F] hover:bg-[#B71C1C] disabled:bg-gray-400 disabled:cursor-not-allowed text-white font-bold py-4 rounded-xl shadow-lg shadow-primary/20 transition-all flex items-center justify-center gap-2"
+                className="w-full bg-[#ff4b86] hover:bg-[#e63d75] disabled:bg-gray-400 disabled:cursor-not-allowed text-white font-bold py-4 rounded-xl shadow-lg shadow-primary/20 transition-all flex items-center justify-center gap-2"
               >
                 {loading ? (
                   <>

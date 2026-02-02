@@ -337,7 +337,7 @@ export default function BookingPage() {
             <p className="text-gray-500 text-lg mb-4">{error instanceof Error ? error.message : error || 'Ticket not found'}</p>
             <button
               onClick={() => navigate('/')}
-              className="bg-[#D32F2F] text-white px-6 py-2 rounded-lg hover:bg-[#B71C1C] transition-colors"
+              className="bg-[#ff4b86] text-white px-6 py-2 rounded-lg hover:bg-[#e63d75] transition-colors"
             >
               Go Home
             </button>
@@ -674,7 +674,7 @@ export default function BookingPage() {
                     onClick={handleProceedToPayment}
                     disabled={!selectedDate || (!selectedTime && !isAllDayTicket)}
                     whileTap={{ scale: 0.98 }}
-                    className="w-full mt-8 bg-[#D32F2F] hover:bg-[#B71C1C] text-white py-5 rounded-lg font-black uppercase tracking-widest text-sm shadow-xl shadow-primary/30 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="w-full mt-8 bg-[#ff4b86] hover:bg-[#e63d75] text-white py-5 rounded-lg font-black uppercase tracking-widest text-sm shadow-xl shadow-primary/30 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     Proceed to Payment
                   </m.button>
@@ -751,7 +751,7 @@ export default function BookingPage() {
                       setShowUrgencyModal(false);
                       handleProceedToPayment();
                     }}
-                    className="flex-1 px-4 py-3 bg-red-600 hover:bg-red-700 text-white rounded-lg font-bold text-sm transition-all shadow-lg"
+                    className="flex-1 px-4 py-3 bg-primary hover:bg-primary-dark text-white rounded-lg font-bold text-sm transition-all shadow-lg"
                   >
                     I Understand, Continue
                   </button>

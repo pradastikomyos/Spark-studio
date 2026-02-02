@@ -231,7 +231,7 @@ export default function CategoryManager({ isOpen, onClose, onUpdate }: CategoryM
                 <button
                   onClick={handleSave}
                   disabled={loading}
-                  className="rounded-lg bg-primary px-4 py-2 text-xs font-bold text-white hover:bg-red-700 disabled:opacity-50"
+                  className="rounded-lg bg-primary px-4 py-2 text-xs font-bold text-white hover:bg-primary-dark disabled:opacity-50"
                 >
                   {loading ? 'Saving...' : editingId ? 'Update' : 'Create'}
                 </button>

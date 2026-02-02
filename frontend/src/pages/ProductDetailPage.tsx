@@ -155,7 +155,7 @@ export default function ProductDetailPage() {
                       disabled={!selectedVariant || selectedVariant.available <= 0}
                       whileHover={{ scale: 1.02 }}
                       whileTap={{ scale: 0.98 }}
-                      className="w-full bg-[#D32F2F] text-white py-4 rounded-lg uppercase tracking-widest text-sm font-bold hover:bg-[#B71C1C] active:bg-[#8B0000] transition-all duration-200 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-[#D32F2F]"
+                      className="w-full bg-[#ff4b86] text-white py-4 rounded-lg uppercase tracking-widest text-sm font-bold hover:bg-[#e63d75] active:bg-[#8B0000] transition-all duration-200 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-[#ff4b86]"
                     >
                       Add to Cart
                     </m.button>

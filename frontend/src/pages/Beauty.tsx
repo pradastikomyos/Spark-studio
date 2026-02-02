@@ -189,7 +189,7 @@ const Beauty = () => {
               </p>
               <button
                 onClick={() => refetchProducts()}
-                className="px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm font-medium"
+                className="px-6 py-2 bg-primary text-white rounded-lg hover:bg-primary-dark transition-colors text-sm font-medium"
               >
                 Retry
               </button>
@@ -237,7 +237,7 @@ const Beauty = () => {
                         handleAddToCart(product);
                       }}
                       disabled={!product.defaultVariantId}
-                      className="absolute bottom-4 right-4 bg-[#D32F2F] text-white p-2 rounded-full opacity-0 translate-y-4 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-300 shadow-md hover:bg-[#B71C1C] disabled:opacity-50 disabled:hover:bg-[#D32F2F] disabled:cursor-not-allowed"
+                      className="absolute bottom-4 right-4 bg-[#ff4b86] text-white p-2 rounded-full opacity-0 translate-y-4 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-300 shadow-md hover:bg-[#e63d75] disabled:opacity-50 disabled:hover:bg-[#ff4b86] disabled:cursor-not-allowed"
                     >
                       <span className="material-symbols-outlined text-xl">add_shopping_cart</span>
                     </button>

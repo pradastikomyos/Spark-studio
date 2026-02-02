@@ -36,14 +36,14 @@ const BannerManager = () => {
   const { signOut } = useAuth();
   const { showToast } = useToast();
   const queryClient = useQueryClient();
-  
+
   const [banners, setBanners] = useState<Banner[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editingBanner, setEditingBanner] = useState<Banner | null>(null);
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
-  
+
   const [formData, setFormData] = useState<BannerFormData>({
     title: '',
     subtitle: '',
@@ -94,7 +94,7 @@ const BannerManager = () => {
 
     try {
       setUploading(true);
-      
+
       const fileExt = file.name.split('.').pop();
       const fileName = `banner-${Date.now()}.${fileExt}`;
       const filePath = `banners/${fileName}`;
@@ -120,7 +120,7 @@ const BannerManager = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!formData.title.trim()) {
       showToast('error', 'Title is required');
       return;
@@ -170,7 +170,7 @@ const BannerManager = () => {
 
       // Invalidate banners cache
       queryClient.invalidateQueries({ queryKey: queryKeys.banners() });
-      
+
       // Reset form
       setShowForm(false);
       setEditingBanner(null);
@@ -183,7 +183,7 @@ const BannerManager = () => {
         display_order: 0,
         is_active: true,
       });
-      
+
       fetchBanners();
     } catch (err) {
       showToast('error', err instanceof Error ? err.message : 'Failed to save banner');
@@ -216,7 +216,7 @@ const BannerManager = () => {
         .eq('id', id);
 
       if (error) throw error;
-      
+
       showToast('success', 'Banner deleted successfully');
       queryClient.invalidateQueries({ queryKey: queryKeys.banners() });
       fetchBanners();
@@ -233,7 +233,7 @@ const BannerManager = () => {
         .eq('id', banner.id);
 
       if (error) throw error;
-      
+
       showToast('success', `Banner ${!banner.is_active ? 'activated' : 'deactivated'}`);
       queryClient.invalidateQueries({ queryKey: queryKeys.banners() });
       fetchBanners();
@@ -273,7 +273,7 @@ const BannerManager = () => {
             });
             setShowForm(true);
           }}
-          className="flex items-center gap-2 rounded-lg bg-neutral-900 px-4 py-2.5 text-sm font-bold text-gray-900 hover:bg-neutral-800 transition-colors shadow-md"
+          className="flex items-center gap-2 rounded-lg bg-[#ff4b86] px-4 py-2.5 text-sm font-bold text-white hover:bg-[#ff6a9a] transition-colors shadow-md"
         >
           <span className="material-symbols-outlined text-[20px]">add</span>
           Add Banner
@@ -290,7 +290,7 @@ const BannerManager = () => {
           {(['hero', 'stage', 'promo', 'events', 'fashion', 'beauty'] as BannerType[]).map(type => (
             <section key={type} className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
               <h3 className="text-lg font-bold text-gray-900 mb-4 capitalize">{type} Banners</h3>
-              
+
               {groupedBanners[type].length === 0 ? (
                 <p className="text-sm text-gray-500 text-center py-8">No {type} banners yet</p>
               ) : (
@@ -323,11 +323,10 @@ const BannerManager = () => {
                           </button>
                           <button
                             onClick={() => handleToggleActive(banner)}
-                            className={`flex-1 text-xs font-bold rounded px-3 py-1.5 ${
-                              banner.is_active
+                            className={`flex-1 text-xs font-bold rounded px-3 py-1.5 ${banner.is_active
                                 ? 'text-gray-600 border border-gray-300 hover:bg-gray-50'
                                 : 'text-gray-900 bg-green-600 hover:bg-green-700'
-                            }`}
+                              }`}
                           >
                             {banner.is_active ? 'Deactivate' : 'Activate'}
                           </button>
@@ -403,7 +402,7 @@ const BannerManager = () => {
 
               <div>
                 <label className="block text-sm font-bold text-gray-900 mb-2">Image *</label>
-                
+
                 {/* Image Guidelines */}
                 <div className="mb-3 rounded-lg bg-blue-50 border border-blue-200 p-3">
                   <div className="flex items-start gap-2">
@@ -456,7 +455,7 @@ const BannerManager = () => {
                   accept="image/*"
                   onChange={handleImageUpload}
                   disabled={uploading}
-                  className="w-full text-sm text-gray-600 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-bold file:bg-neutral-900 file:text-gray-900 hover:file:bg-neutral-800 file:cursor-pointer disabled:opacity-50"
+                  className="w-full text-sm text-gray-600 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-bold file:bg-[#ff4b86] file:text-white hover:file:bg-[#ff6a9a] file:cursor-pointer disabled:opacity-50"
                 />
                 {uploading && (
                   <div className="flex items-center gap-2 mt-2">
@@ -512,7 +511,7 @@ const BannerManager = () => {
                 <button
                   type="submit"
                   disabled={saving || uploading || !formData.image_url}
-                  className="flex-1 rounded-lg bg-neutral-900 px-4 py-2.5 text-sm font-bold text-gray-900 hover:bg-neutral-800 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="flex-1 rounded-lg bg-[#ff4b86] px-4 py-2.5 text-sm font-bold text-white hover:bg-[#ff6a9a] disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {saving ? 'Saving...' : editingBanner ? 'Update Banner' : 'Create Banner'}
                 </button>

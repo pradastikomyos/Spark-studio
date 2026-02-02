@@ -30,7 +30,7 @@ export default function CartPage() {
                 <p className="text-gray-500 text-lg mb-6">Your cart is empty</p>
                 <button
                   onClick={() => navigate('/shop')}
-                  className="bg-[#D32F2F] text-white px-8 py-3 uppercase tracking-widest text-sm hover:bg-[#B71C1C] transition-colors"
+                  className="bg-[#ff4b86] text-white px-8 py-3 uppercase tracking-widest text-sm hover:bg-[#e63d75] transition-colors"
                 >
                   Start Shopping
                 </button>
@@ -109,7 +109,7 @@ export default function CartPage() {
               <button
                 onClick={() => navigate('/checkout/product')}
                 disabled={items.length === 0}
-                className="w-full bg-[#D32F2F] text-white py-4 uppercase tracking-widest text-sm font-bold hover:bg-[#B71C1C] transition-colors shadow-lg shadow-red-900/20 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full bg-[#ff4b86] text-white py-4 uppercase tracking-widest text-sm font-bold hover:bg-[#e63d75] transition-colors shadow-lg shadow-red-900/20 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Checkout Securely
               </button>

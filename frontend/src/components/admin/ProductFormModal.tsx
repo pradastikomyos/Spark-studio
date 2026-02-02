@@ -344,7 +344,7 @@ export default function ProductFormModal(props: ProductFormModalProps) {
                         variants: [...prev.variants, { name: '', sku: '', price: '', stock: 0 }],
                       }))
                     }
-                    className="rounded-lg bg-primary px-3 py-2 text-xs font-bold text-white hover:bg-red-700"
+                    className="rounded-lg bg-primary px-3 py-2 text-xs font-bold text-white hover:bg-primary-dark"
                   >
                     Add Variant
                   </button>
@@ -488,7 +488,7 @@ export default function ProductFormModal(props: ProductFormModalProps) {
             <button
               onClick={handleSave}
               disabled={saving}
-              className="rounded-lg bg-primary px-5 py-2 text-sm font-bold text-white hover:bg-red-700 disabled:opacity-50"
+              className="rounded-lg bg-primary px-5 py-2 text-sm font-bold text-white hover:bg-primary-dark disabled:opacity-50"
             >
               {saving ? 'Saving...' : 'Save'}
             </button>
