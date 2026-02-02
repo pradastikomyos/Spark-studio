@@ -7,7 +7,7 @@ const OnStage = () => {
   const [currentSlide, setCurrentSlide] = useState(0);
   const [currentHeroSlide, setCurrentHeroSlide] = useState(0);
   const [isMobile, setIsMobile] = useState(false);
-  
+
   const touchStartX = useRef(0);
   const touchEndX = useRef(0);
   const heroTouchStartX = useRef(0);
@@ -66,7 +66,7 @@ const OnStage = () => {
   const handleHeroTouchEnd = () => {
     const swipeThreshold = 50;
     const diff = heroTouchStartX.current - heroTouchEndX.current;
-    
+
     if (Math.abs(diff) > swipeThreshold) {
       if (diff > 0) {
         nextHeroSlide();
@@ -74,7 +74,7 @@ const OnStage = () => {
         prevHeroSlide();
       }
     }
-    
+
     heroTouchStartX.current = 0;
     heroTouchEndX.current = 0;
   };
@@ -91,7 +91,7 @@ const OnStage = () => {
   const handleStageTouchEnd = () => {
     const swipeThreshold = 50;
     const diff = touchStartX.current - touchEndX.current;
-    
+
     if (Math.abs(diff) > swipeThreshold) {
       if (diff > 0) {
         nextSlide();
@@ -99,7 +99,7 @@ const OnStage = () => {
         prevSlide();
       }
     }
-    
+
     touchStartX.current = 0;
     touchEndX.current = 0;
   };
@@ -115,7 +115,7 @@ const OnStage = () => {
   return (
     <div className="bg-white min-h-screen">
       {/* Hero Section with Slider */}
-      <section 
+      <section
         className="relative h-[500px] md:h-[600px] overflow-hidden"
         onTouchStart={handleHeroTouchStart}
         onTouchMove={handleHeroTouchMove}
@@ -126,9 +126,8 @@ const OnStage = () => {
           {heroBanners.map((slide, index) => (
             <div
               key={slide.id}
-              className={`absolute inset-0 transition-opacity duration-1000 ${
-                index === currentHeroSlide ? 'opacity-100' : 'opacity-0'
-              }`}
+              className={`absolute inset-0 transition-opacity duration-1000 ${index === currentHeroSlide ? 'opacity-100' : 'opacity-0'
+                }`}
             >
               {/* Background Image */}
               <img
@@ -136,15 +135,15 @@ const OnStage = () => {
                 alt={slide.title}
                 className="w-full h-full object-cover"
               />
-              <div className="absolute inset-0 bg-black/50"></div>
+              <div className="absolute inset-0 bg-black/20"></div>
 
               {/* Hero Content */}
               <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-4">
-                <h1 className="text-white text-4xl md:text-6xl font-bold mb-4 animate-fade-in">
+                <h1 className="text-white text-2xl md:text-6xl font-bold mb-4 animate-fade-in">
                   {slide.title}
                 </h1>
                 {slide.subtitle && (
-                  <p className="text-white/90 text-lg md:text-xl animate-fade-in-delay">
+                  <p className="text-white/90 text-sm md:text-xl animate-fade-in-delay">
                     {slide.subtitle}
                   </p>
                 )}
@@ -175,9 +174,8 @@ const OnStage = () => {
             <button
               key={index}
               onClick={() => setCurrentHeroSlide(index)}
-              className={`w-2 h-2 rounded-full transition-all touch-manipulation ${
-                currentHeroSlide === index ? 'bg-white w-8' : 'bg-white/50'
-              }`}
+              className={`w-2 h-2 rounded-full transition-all touch-manipulation ${currentHeroSlide === index ? 'bg-white w-8' : 'bg-white/50'
+                }`}
               aria-label={`Go to slide ${index + 1}`}
             />
           ))}
@@ -210,7 +208,7 @@ const OnStage = () => {
           </button>
 
           {/* Carousel Container */}
-          <div 
+          <div
             className="overflow-hidden mx-8 md:mx-0"
             onTouchStart={handleStageTouchStart}
             onTouchMove={handleStageTouchMove}
@@ -218,8 +216,8 @@ const OnStage = () => {
           >
             <div
               className="flex transition-transform duration-500 ease-out"
-              style={{ 
-                transform: `translateX(-${currentSlide * (isMobile ? 100 : 100 / 3)}%)` 
+              style={{
+                transform: `translateX(-${currentSlide * (isMobile ? 100 : 100 / 3)}%)`
               }}
             >
               {stageBanners.map((stage) => (
@@ -269,9 +267,8 @@ const OnStage = () => {
             <button
               key={index}
               onClick={() => setCurrentSlide(index)}
-              className={`w-2 h-2 rounded-full transition-all touch-manipulation ${
-                currentSlide === index ? 'bg-main-600 w-8' : 'bg-gray-300'
-              }`}
+              className={`w-2 h-2 rounded-full transition-all touch-manipulation ${currentSlide === index ? 'bg-main-600 w-8' : 'bg-gray-300'
+                }`}
               aria-label={`Go to slide ${index + 1}`}
             />
           ))}
