@@ -36,6 +36,7 @@ react-best-practices/
 
 # AI assistant documentation (local only)
 .trae/
+.kiro/
 
 # Database backups (local only)
 backup_*.sql
@@ -46,3 +47,4 @@ supabase/.temp/
 fullcode.txt
 .aicodeprep-gui
 .aicodeprep-gui
+docs/TECHNICAL_AUDIT_REPORT.md
