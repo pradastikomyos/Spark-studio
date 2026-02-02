@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useBanners } from '../hooks/useBanners';
@@ -6,11 +6,25 @@ import { useBanners } from '../hooks/useBanners';
 const OnStage = () => {
   const [currentSlide, setCurrentSlide] = useState(0);
   const [currentHeroSlide, setCurrentHeroSlide] = useState(0);
+  const [isMobile, setIsMobile] = useState(false);
+  
+  const touchStartX = useRef(0);
+  const touchEndX = useRef(0);
+  const heroTouchStartX = useRef(0);
+  const heroTouchEndX = useRef(0);
 
   const { data: heroBanners = [], isLoading: heroLoading } = useBanners('hero');
   const { data: stageBanners = [], isLoading: stageLoading } = useBanners('stage');
 
   const loading = heroLoading || stageLoading;
+
+  // Detect mobile viewport
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < 768);
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   // Auto-advance hero slider every 5 seconds
   useEffect(() => {
@@ -21,12 +35,15 @@ const OnStage = () => {
     return () => clearInterval(timer);
   }, [heroBanners.length]);
 
+  // Calculate max slides based on viewport
+  const maxSlides = isMobile ? stageBanners.length : Math.max(1, stageBanners.length - 2);
+
   const nextSlide = () => {
-    setCurrentSlide((prev) => (prev + 1) % Math.max(1, stageBanners.length - 2));
+    setCurrentSlide((prev) => (prev + 1) % maxSlides);
   };
 
   const prevSlide = () => {
-    setCurrentSlide((prev) => (prev - 1 + Math.max(1, stageBanners.length - 2)) % Math.max(1, stageBanners.length - 2));
+    setCurrentSlide((prev) => (prev - 1 + maxSlides) % maxSlides);
   };
 
   const nextHeroSlide = () => {
@@ -35,6 +52,56 @@ const OnStage = () => {
 
   const prevHeroSlide = () => {
     setCurrentHeroSlide((prev) => (prev - 1 + heroBanners.length) % heroBanners.length);
+  };
+
+  // Touch handlers for hero carousel
+  const handleHeroTouchStart = (e: React.TouchEvent) => {
+    heroTouchStartX.current = e.touches[0].clientX;
+  };
+
+  const handleHeroTouchMove = (e: React.TouchEvent) => {
+    heroTouchEndX.current = e.touches[0].clientX;
+  };
+
+  const handleHeroTouchEnd = () => {
+    const swipeThreshold = 50;
+    const diff = heroTouchStartX.current - heroTouchEndX.current;
+    
+    if (Math.abs(diff) > swipeThreshold) {
+      if (diff > 0) {
+        nextHeroSlide();
+      } else {
+        prevHeroSlide();
+      }
+    }
+    
+    heroTouchStartX.current = 0;
+    heroTouchEndX.current = 0;
+  };
+
+  // Touch handlers for stage carousel
+  const handleStageTouchStart = (e: React.TouchEvent) => {
+    touchStartX.current = e.touches[0].clientX;
+  };
+
+  const handleStageTouchMove = (e: React.TouchEvent) => {
+    touchEndX.current = e.touches[0].clientX;
+  };
+
+  const handleStageTouchEnd = () => {
+    const swipeThreshold = 50;
+    const diff = touchStartX.current - touchEndX.current;
+    
+    if (Math.abs(diff) > swipeThreshold) {
+      if (diff > 0) {
+        nextSlide();
+      } else {
+        prevSlide();
+      }
+    }
+    
+    touchStartX.current = 0;
+    touchEndX.current = 0;
   };
 
   if (loading) {
@@ -48,7 +115,12 @@ const OnStage = () => {
   return (
     <div className="bg-white min-h-screen">
       {/* Hero Section with Slider */}
-      <section className="relative h-[500px] md:h-[600px] overflow-hidden">
+      <section 
+        className="relative h-[500px] md:h-[600px] overflow-hidden"
+        onTouchStart={handleHeroTouchStart}
+        onTouchMove={handleHeroTouchMove}
+        onTouchEnd={handleHeroTouchEnd}
+      >
         {/* Hero Slides */}
         <div className="relative h-full">
           {heroBanners.map((slide, index) => (
@@ -84,17 +156,17 @@ const OnStage = () => {
         {/* Hero Navigation Buttons */}
         <button
           onClick={prevHeroSlide}
-          className="absolute left-4 top-1/2 -translate-y-1/2 z-10 bg-white/20 hover:bg-white/30 backdrop-blur-sm text-white p-3 rounded-full transition-all"
+          className="absolute left-2 md:left-4 top-1/2 -translate-y-1/2 z-10 bg-white/20 hover:bg-white/30 active:bg-white/40 backdrop-blur-sm text-white p-2 md:p-3 rounded-full transition-all touch-manipulation"
           aria-label="Previous slide"
         >
-          <ChevronLeft className="w-6 h-6" />
+          <ChevronLeft className="w-5 h-5 md:w-6 md:h-6" />
         </button>
         <button
           onClick={nextHeroSlide}
-          className="absolute right-4 top-1/2 -translate-y-1/2 z-10 bg-white/20 hover:bg-white/30 backdrop-blur-sm text-white p-3 rounded-full transition-all"
+          className="absolute right-2 md:right-4 top-1/2 -translate-y-1/2 z-10 bg-white/20 hover:bg-white/30 active:bg-white/40 backdrop-blur-sm text-white p-2 md:p-3 rounded-full transition-all touch-manipulation"
           aria-label="Next slide"
         >
-          <ChevronRight className="w-6 h-6" />
+          <ChevronRight className="w-5 h-5 md:w-6 md:h-6" />
         </button>
 
         {/* Hero Indicators */}
@@ -103,7 +175,7 @@ const OnStage = () => {
             <button
               key={index}
               onClick={() => setCurrentHeroSlide(index)}
-              className={`w-2 h-2 rounded-full transition-all ${
+              className={`w-2 h-2 rounded-full transition-all touch-manipulation ${
                 currentHeroSlide === index ? 'bg-white w-8' : 'bg-white/50'
               }`}
               aria-label={`Go to slide ${index + 1}`}
@@ -131,17 +203,24 @@ const OnStage = () => {
           {/* Previous Button */}
           <button
             onClick={prevSlide}
-            className="absolute left-0 top-1/2 -translate-y-1/2 z-10 bg-main-600 hover:bg-main-700 text-white p-3 rounded-full shadow-lg transition-colors -ml-4"
+            className="absolute left-0 md:-left-4 top-1/2 -translate-y-1/2 z-10 bg-main-600 hover:bg-main-700 active:bg-main-800 text-white p-2 md:p-3 rounded-full shadow-lg transition-colors touch-manipulation"
             aria-label="Previous"
           >
-            <ChevronLeft className="w-6 h-6" />
+            <ChevronLeft className="w-5 h-5 md:w-6 md:h-6" />
           </button>
 
           {/* Carousel Container */}
-          <div className="overflow-hidden">
+          <div 
+            className="overflow-hidden mx-8 md:mx-0"
+            onTouchStart={handleStageTouchStart}
+            onTouchMove={handleStageTouchMove}
+            onTouchEnd={handleStageTouchEnd}
+          >
             <div
               className="flex transition-transform duration-500 ease-out"
-              style={{ transform: `translateX(-${currentSlide * (100 / 3)}%)` }}
+              style={{ 
+                transform: `translateX(-${currentSlide * (isMobile ? 100 : 100 / 3)}%)` 
+              }}
             >
               {stageBanners.map((stage) => (
                 <div
@@ -177,20 +256,20 @@ const OnStage = () => {
           {/* Next Button */}
           <button
             onClick={nextSlide}
-            className="absolute right-0 top-1/2 -translate-y-1/2 z-10 bg-main-600 hover:bg-main-700 text-white p-3 rounded-full shadow-lg transition-colors -mr-4"
+            className="absolute right-0 md:-right-4 top-1/2 -translate-y-1/2 z-10 bg-main-600 hover:bg-main-700 active:bg-main-800 text-white p-2 md:p-3 rounded-full shadow-lg transition-colors touch-manipulation"
             aria-label="Next"
           >
-            <ChevronRight className="w-6 h-6" />
+            <ChevronRight className="w-5 h-5 md:w-6 md:h-6" />
           </button>
         </div>
 
         {/* Carousel Indicators */}
         <div className="flex justify-center gap-2 mt-8">
-          {Array.from({ length: Math.max(1, stageBanners.length - 2) }).map((_, index) => (
+          {Array.from({ length: maxSlides }).map((_, index) => (
             <button
               key={index}
               onClick={() => setCurrentSlide(index)}
-              className={`w-2 h-2 rounded-full transition-all ${
+              className={`w-2 h-2 rounded-full transition-all touch-manipulation ${
                 currentSlide === index ? 'bg-main-600 w-8' : 'bg-gray-300'
               }`}
               aria-label={`Go to slide ${index + 1}`}
