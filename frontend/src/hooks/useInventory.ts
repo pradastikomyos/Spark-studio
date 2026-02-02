@@ -1,4 +1,5 @@
-import { useQuery } from '@tanstack/react-query';
+import { useEffect } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { APIError } from '../lib/fetchers';
 import { queryKeys } from '../lib/queryKeys';
@@ -43,7 +44,8 @@ export type CategoryRow = {
 };
 
 export function useInventory() {
-  return useQuery({
+  const queryClient = useQueryClient();
+  const query = useQuery({
     queryKey: queryKeys.inventory(),
     queryFn: async ({ signal }) => {
       try {
@@ -109,4 +111,28 @@ export function useInventory() {
     refetchOnReconnect: true,
     staleTime: 0,
   });
+
+  useEffect(() => {
+    const channel = supabase
+      .channel('inventory_changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'products' }, () => {
+        queryClient.invalidateQueries({ queryKey: queryKeys.inventory() });
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'product_variants' }, () => {
+        queryClient.invalidateQueries({ queryKey: queryKeys.inventory() });
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'product_images' }, () => {
+        queryClient.invalidateQueries({ queryKey: queryKeys.inventory() });
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'categories' }, () => {
+        queryClient.invalidateQueries({ queryKey: queryKeys.inventory() });
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [queryClient]);
+
+  return query;
 }

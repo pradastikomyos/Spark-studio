@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { slugify } from '../../utils/merchant';
 import ProductImageUpload, { ImagePreview } from './ProductImageUpload';
 
@@ -70,6 +70,7 @@ const emptyDraft = (): ProductDraft => ({
 });
 
 const ADMIN_PRODUCT_DRAFT_KEY = 'admin-product-form:draft:v1';
+const EMPTY_DRAFT_SNAPSHOT = JSON.stringify(emptyDraft());
 
 export default function ProductFormModal(props: ProductFormModalProps) {
   const { isOpen, categories, initialValue, existingImages = [], onClose, onSave } = props;
@@ -79,6 +80,8 @@ export default function ProductFormModal(props: ProductFormModalProps) {
   const [slugTouched, setSlugTouched] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isOnline, setIsOnline] = useState(true);
+  const initialDraftSnapshotRef = useRef<string>(EMPTY_DRAFT_SNAPSHOT);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -89,6 +92,7 @@ export default function ProductFormModal(props: ProductFormModalProps) {
     setSlugTouched(Boolean(initialValue?.slug));
     setError(null);
     setSaving(false);
+    initialDraftSnapshotRef.current = JSON.stringify(next);
   }, [isOpen, initialValue]);
 
   useEffect(() => {
@@ -128,6 +132,19 @@ export default function ProductFormModal(props: ProductFormModalProps) {
     }
   }, [draft, removedImageUrls, initialValue?.id, isOpen]);
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    setIsOnline(window.navigator.onLine);
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
   const categoryOptions = useMemo(() => {
     return categories
       .filter((c) => c.is_active !== false)
@@ -135,7 +152,31 @@ export default function ProductFormModal(props: ProductFormModalProps) {
       .sort((a, b) => a.name.localeCompare(b.name));
   }, [categories]);
 
-  if (!isOpen) return null;
+  const isDirty = useMemo(() => {
+    const currentSnapshot = JSON.stringify(draft);
+    if (initialValue?.id) {
+      return (
+        currentSnapshot !== initialDraftSnapshotRef.current ||
+        images.length > 0 ||
+        removedImageUrls.length > 0
+      );
+    }
+    return currentSnapshot !== EMPTY_DRAFT_SNAPSHOT || images.length > 0 || removedImageUrls.length > 0;
+  }, [draft, images.length, removedImageUrls.length, initialValue?.id]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    if (typeof window === 'undefined') return;
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      if (saving || !isDirty) return;
+      event.preventDefault();
+      event.returnValue = '';
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, [isOpen, isDirty, saving]);
 
   const validate = (): string | null => {
     if (!draft.name.trim()) return 'Name is required.';
@@ -167,7 +208,7 @@ export default function ProductFormModal(props: ProductFormModalProps) {
     setError(null);
     try {
       const newImageFiles = images.map(img => img.file);
-      const timeoutMs = 90_000;
+      const timeoutMs = 90_000 + newImageFiles.length * 30_000;
       await Promise.race([
         Promise.resolve(onSave({ draft, newImages: newImageFiles, removedImageUrls })),
         new Promise<void>((_, reject) => {
@@ -190,6 +231,20 @@ export default function ProductFormModal(props: ProductFormModalProps) {
     }
   };
 
+  const handleRequestClose = useCallback(() => {
+    if (saving) return;
+    if (isDirty && typeof window !== 'undefined') {
+      const confirmed = window.confirm('Perubahan belum tersimpan. Yakin ingin menutup form?');
+      if (!confirmed) return;
+    }
+    if (!initialValue?.id && typeof window !== 'undefined') {
+      sessionStorage.removeItem(ADMIN_PRODUCT_DRAFT_KEY);
+    }
+    onClose();
+  }, [saving, isDirty, initialValue?.id, onClose]);
+
+  if (!isOpen) return null;
+
   const handleRemoveExisting = (url: string) => {
     setRemovedImageUrls(prev => [...prev, url]);
   };
@@ -200,11 +255,7 @@ export default function ProductFormModal(props: ProductFormModalProps) {
     <div className="fixed inset-0 z-50 flex items-center justify-center px-4 py-6">
       <div
         className="absolute inset-0 bg-black/60"
-        onClick={() => {
-          if (saving) return;
-          if (typeof window !== 'undefined') sessionStorage.removeItem(ADMIN_PRODUCT_DRAFT_KEY);
-          onClose();
-        }}
+        onClick={handleRequestClose}
       ></div>
       <div className="relative flex max-h-[90vh] w-full max-w-5xl flex-col rounded-xl border border-gray-200 bg-white shadow-2xl">
         <div className="flex shrink-0 items-start justify-between border-b border-gray-200 px-6 py-5">
@@ -213,10 +264,7 @@ export default function ProductFormModal(props: ProductFormModalProps) {
             <p className="mt-1 text-sm text-gray-600">Create or update product details, variants, and images.</p>
           </div>
           <button
-            onClick={() => {
-              if (typeof window !== 'undefined') sessionStorage.removeItem(ADMIN_PRODUCT_DRAFT_KEY);
-              onClose();
-            }}
+            onClick={handleRequestClose}
             disabled={saving}
             className="rounded-lg bg-gray-50 px-3 py-2 text-sm font-bold hover:bg-gray-100 disabled:opacity-50"
           >
@@ -226,6 +274,11 @@ export default function ProductFormModal(props: ProductFormModalProps) {
 
         <div className="min-h-0 flex-1 overflow-y-auto p-6">
           <div className="space-y-6">
+            {!isOnline && (
+              <div className="rounded-xl border border-amber-300/40 bg-amber-100/60 p-3 text-xs text-amber-900">
+                Koneksi internet terputus. Perubahan tidak bisa disimpan sampai online kembali.
+              </div>
+            )}
             {error && (
               <div className="rounded-xl border border-red-500/20 bg-red-500/10 p-4 text-sm text-red-200">
                 {error}
@@ -479,7 +532,7 @@ export default function ProductFormModal(props: ProductFormModalProps) {
           <p className="text-xs text-gray-600">Saving will apply changes to products, variants, and images.</p>
           <div className="flex items-center gap-3">
             <button
-              onClick={() => onClose()}
+              onClick={handleRequestClose}
               disabled={saving}
               className="rounded-lg bg-gray-50 px-4 py-2 text-sm font-bold hover:bg-gray-100 disabled:opacity-50"
             >

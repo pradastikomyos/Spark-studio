@@ -3,6 +3,8 @@ import { bytesToMb } from './merchant';
 
 type UploadProductImageOptions = {
   maxSizeMb?: number;
+  retryAttempts?: number;
+  retryDelayMs?: number;
 };
 
 export async function uploadProductImage(file: File, productId: string, options: UploadProductImageOptions = {}): Promise<string> {
@@ -91,7 +93,24 @@ export async function uploadProductImages(
   productId: number,
   options: UploadProductImageOptions = {}
 ): Promise<string[]> {
-  const uploadPromises = files.map((file) => uploadProductImage(file, String(productId), options));
+  const maxAttempts = options.retryAttempts ?? 3;
+  const baseDelayMs = options.retryDelayMs ?? 1000;
+  const uploadWithRetry = async (file: File): Promise<string> => {
+    let lastError: unknown;
+    for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+      try {
+        return await uploadProductImage(file, String(productId), options);
+      } catch (error) {
+        lastError = error;
+        if (attempt >= maxAttempts - 1) break;
+        const delay = baseDelayMs * Math.pow(2, attempt);
+        await new Promise((resolve) => setTimeout(resolve, delay));
+      }
+    }
+    if (lastError instanceof Error) throw lastError;
+    throw new Error('Failed to upload image');
+  };
+  const uploadPromises = files.map((file) => uploadWithRetry(file));
   return Promise.all(uploadPromises);
 }
 
