@@ -70,7 +70,69 @@ const emptyDraft = (): ProductDraft => ({
 });
 
 const ADMIN_PRODUCT_DRAFT_KEY = 'admin-product-form:draft:v1';
+const ADMIN_PRODUCT_IMAGE_KEY = 'admin-product-form:images:v1';
+const IMAGE_DB_NAME = 'admin-product-form';
+const IMAGE_DB_STORE = 'imageDrafts';
 const EMPTY_DRAFT_SNAPSHOT = JSON.stringify(emptyDraft());
+
+type StoredImage = {
+  name: string;
+  type: string;
+  order: number;
+  buffer: ArrayBuffer;
+};
+
+const openImageDb = () =>
+  new Promise<IDBDatabase>((resolve, reject) => {
+    const request = indexedDB.open(IMAGE_DB_NAME, 1);
+    request.onupgradeneeded = () => {
+      const db = request.result;
+      if (!db.objectStoreNames.contains(IMAGE_DB_STORE)) {
+        db.createObjectStore(IMAGE_DB_STORE);
+      }
+    };
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+
+const readStoredImages = async (key: string): Promise<StoredImage[] | null> => {
+  const db = await openImageDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(IMAGE_DB_STORE, 'readonly');
+    const store = tx.objectStore(IMAGE_DB_STORE);
+    const req = store.get(key);
+    req.onsuccess = () => resolve((req.result as StoredImage[] | undefined) ?? null);
+    req.onerror = () => reject(req.error);
+    tx.oncomplete = () => db.close();
+    tx.onerror = () => db.close();
+  });
+};
+
+const writeStoredImages = async (key: string, images: StoredImage[]): Promise<void> => {
+  const db = await openImageDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(IMAGE_DB_STORE, 'readwrite');
+    const store = tx.objectStore(IMAGE_DB_STORE);
+    const req = store.put(images, key);
+    req.onsuccess = () => resolve();
+    req.onerror = () => reject(req.error);
+    tx.oncomplete = () => db.close();
+    tx.onerror = () => db.close();
+  });
+};
+
+const clearStoredImages = async (key: string): Promise<void> => {
+  const db = await openImageDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(IMAGE_DB_STORE, 'readwrite');
+    const store = tx.objectStore(IMAGE_DB_STORE);
+    const req = store.delete(key);
+    req.onsuccess = () => resolve();
+    req.onerror = () => reject(req.error);
+    tx.oncomplete = () => db.close();
+    tx.onerror = () => db.close();
+  });
+};
 
 export default function ProductFormModal(props: ProductFormModalProps) {
   const { isOpen, categories, initialValue, existingImages = [], onClose, onSave } = props;
@@ -82,6 +144,7 @@ export default function ProductFormModal(props: ProductFormModalProps) {
   const [error, setError] = useState<string | null>(null);
   const [isOnline, setIsOnline] = useState(true);
   const initialDraftSnapshotRef = useRef<string>(EMPTY_DRAFT_SNAPSHOT);
+  const restoringImagesRef = useRef(false);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -93,6 +156,7 @@ export default function ProductFormModal(props: ProductFormModalProps) {
     setError(null);
     setSaving(false);
     initialDraftSnapshotRef.current = JSON.stringify(next);
+    restoringImagesRef.current = false;
   }, [isOpen, initialValue]);
 
   useEffect(() => {
@@ -107,10 +171,39 @@ export default function ProductFormModal(props: ProductFormModalProps) {
       setDraft(parsed.draft);
       setRemovedImageUrls(Array.isArray(parsed.removedImageUrls) ? parsed.removedImageUrls : []);
       setSlugTouched(Boolean(parsed.draft.slug));
-      setError('Draft dipulihkan setelah refresh. Catatan: gambar yang belum di-upload harus dipilih ulang.');
+      setError('Draft dipulihkan setelah refresh.');
     } catch {
       return;
     }
+  }, [isOpen, initialValue?.id]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    if (initialValue?.id) return;
+    if (typeof window === 'undefined') return;
+    let active = true;
+    const run = async () => {
+      try {
+        const stored = await readStoredImages(ADMIN_PRODUCT_IMAGE_KEY);
+        if (!active || !stored || stored.length === 0) return;
+        restoringImagesRef.current = true;
+        const restored = stored
+          .slice()
+          .sort((a, b) => a.order - b.order)
+          .map((item, idx) => {
+            const file = new File([item.buffer], item.name, { type: item.type });
+            return { file, preview: URL.createObjectURL(file), order: idx };
+          });
+        setImages(restored);
+        setError('Draft dipulihkan termasuk gambar.');
+      } catch {
+        return;
+      }
+    };
+    run();
+    return () => {
+      active = false;
+    };
   }, [isOpen, initialValue?.id]);
 
   useEffect(() => {
@@ -131,6 +224,39 @@ export default function ProductFormModal(props: ProductFormModalProps) {
       return;
     }
   }, [draft, removedImageUrls, initialValue?.id, isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    if (initialValue?.id) return;
+    if (typeof window === 'undefined') return;
+    let active = true;
+    const persist = async () => {
+      try {
+        if (images.length === 0) {
+          await clearStoredImages(ADMIN_PRODUCT_IMAGE_KEY);
+          return;
+        }
+        const storedImages = await Promise.all(
+          images.map(async (img) => ({
+            name: img.file.name,
+            type: img.file.type,
+            order: img.order,
+            buffer: await img.file.arrayBuffer(),
+          }))
+        );
+        if (!active) return;
+        await writeStoredImages(ADMIN_PRODUCT_IMAGE_KEY, storedImages);
+      } catch {
+        return;
+      } finally {
+        if (restoringImagesRef.current) restoringImagesRef.current = false;
+      }
+    };
+    persist();
+    return () => {
+      active = false;
+    };
+  }, [images, initialValue?.id, isOpen]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -222,6 +348,7 @@ export default function ProductFormModal(props: ProductFormModalProps) {
         }),
       ]);
       if (typeof window !== 'undefined') sessionStorage.removeItem(ADMIN_PRODUCT_DRAFT_KEY);
+      if (!draft.id) await clearStoredImages(ADMIN_PRODUCT_IMAGE_KEY);
       onClose();
     } catch (e) {
       const message = e instanceof Error ? e.message : 'Failed to save product';
@@ -239,6 +366,7 @@ export default function ProductFormModal(props: ProductFormModalProps) {
     }
     if (!initialValue?.id && typeof window !== 'undefined') {
       sessionStorage.removeItem(ADMIN_PRODUCT_DRAFT_KEY);
+      clearStoredImages(ADMIN_PRODUCT_IMAGE_KEY);
     }
     onClose();
   }, [saving, isDirty, initialValue?.id, onClose]);
