@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import QRCode from 'react-qr-code';
+import confetti from 'canvas-confetti';
 import { supabase } from '../lib/supabase';
 import { getOrderStatusPresentation } from '../utils/midtransStatus';
 import { useAuth } from '../contexts/AuthContext';
@@ -80,12 +81,52 @@ export default function BookingSuccessPage() {
   // Auto-polling state
   const [showManualButton, setShowManualButton] = useState(false);
   const [autoSyncInProgress, setAutoSyncInProgress] = useState(false);
+  const confettiTriggeredRef = useRef(false);
 
   // Get order number from state or URL params
   const orderNumber = state?.orderNumber || searchParams.get('order_id') || '';
   const customerName = state?.customerName || 'Guest';
   const initialIsPending = state?.isPending || false;
   const effectiveStatus: string | null = orderData?.status || (initialIsPending ? 'pending' : null);
+
+  // Confetti celebration effect
+  const triggerConfetti = () => {
+    if (confettiTriggeredRef.current) return;
+    confettiTriggeredRef.current = true;
+
+    const duration = 3000;
+    const animationEnd = Date.now() + duration;
+    const defaults = { startVelocity: 30, spread: 360, ticks: 60, zIndex: 9999 };
+
+    const randomInRange = (min: number, max: number) => Math.random() * (max - min) + min;
+
+    const interval = window.setInterval(() => {
+      const timeLeft = animationEnd - Date.now();
+
+      if (timeLeft <= 0) {
+        clearInterval(interval);
+        return;
+      }
+
+      const particleCount = 50 * (timeLeft / duration);
+
+      // Left side burst
+      confetti({
+        ...defaults,
+        particleCount,
+        origin: { x: randomInRange(0.1, 0.3), y: Math.random() - 0.2 },
+        colors: ['#ff4b86', '#ff6b9d', '#ffa8c5', '#ffcce0'],
+      });
+
+      // Right side burst
+      confetti({
+        ...defaults,
+        particleCount,
+        origin: { x: randomInRange(0.7, 0.9), y: Math.random() - 0.2 },
+        colors: ['#ff4b86', '#ff6b9d', '#ffa8c5', '#ffcce0'],
+      });
+    }, 250);
+  };
 
   useEffect(() => {
     const fetchOrderAndTickets = async () => {
@@ -339,6 +380,17 @@ export default function BookingSuccessPage() {
       if (showButtonTimer) clearTimeout(showButtonTimer);
     };
   }, [orderNumber, state?.ticketCode, orderData?.status, initialIsPending]);
+
+  // Trigger confetti when tickets appear (paid status)
+  useEffect(() => {
+    if (tickets.length > 0 && effectiveStatus === 'paid' && !loading) {
+      // Small delay to ensure QR code is rendered
+      const timer = setTimeout(() => {
+        triggerConfetti();
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [tickets.length, effectiveStatus, loading]);
 
   const handleSyncStatus = async (isAutoSync = false) => {
     if (!orderNumber) return;
