@@ -22,6 +22,7 @@ const SparkClub = lazy(() => import('./pages/SparkClub'));
 const News = lazy(() => import('./pages/News'));
 const Login = lazy(() => import('./pages/Login'));
 const SignUp = lazy(() => import('./pages/SignUp'));
+const AuthCallback = lazy(() => import('./pages/AuthCallback'));
 const Dashboard = lazy(() => import('./pages/admin/Dashboard'));
 const TicketsManagement = lazy(() => import('./pages/admin/TicketsManagement'));
 const StoreInventory = lazy(() => import('./pages/admin/StoreInventory'));
@@ -107,6 +108,16 @@ function AppRoutes() {
             wrap(
               <Suspense fallback={<RouteLoading />}>
                 <SignUp />
+              </Suspense>
+            )
+          }
+        />
+        <Route
+          path="/auth/callback"
+          element={
+            wrap(
+              <Suspense fallback={<RouteLoading />}>
+                <AuthCallback />
               </Suspense>
             )
           }
