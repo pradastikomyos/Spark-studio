@@ -6,6 +6,23 @@ import { queryKeys } from '../../lib/queryKeys';
 import AdminLayout from '../../components/AdminLayout';
 import { ADMIN_MENU_ITEMS, ADMIN_MENU_SECTIONS } from '../../constants/adminMenu';
 import { useToast } from '../../components/Toast';
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  horizontalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 
 type BannerType = 'hero' | 'stage' | 'promo' | 'events' | 'fashion' | 'beauty';
 
@@ -32,6 +49,92 @@ interface BannerFormData {
   is_active: boolean;
 }
 
+// Sortable Banner Card Component
+interface SortableBannerCardProps {
+  banner: Banner;
+  onEdit: (banner: Banner) => void;
+  onToggleActive: (banner: Banner) => void;
+  onDelete: (id: number) => void;
+}
+
+function SortableBannerCard({ banner, onEdit, onToggleActive, onDelete }: SortableBannerCardProps) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: banner.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={`rounded-lg border-2 ${isDragging ? 'border-[#ff4b86] shadow-lg' : 'border-gray-200'} overflow-hidden bg-white`}
+    >
+      {/* Drag Handle */}
+      <div
+        {...attributes}
+        {...listeners}
+        className="bg-gray-50 border-b border-gray-200 px-4 py-2 cursor-grab active:cursor-grabbing flex items-center gap-2 hover:bg-gray-100 transition-colors"
+      >
+        <span className="material-symbols-outlined text-gray-600">drag_indicator</span>
+        <span className="text-xs font-bold text-gray-600">Drag to reorder</span>
+      </div>
+
+      <div className="relative aspect-video bg-gray-100">
+        <img
+          src={banner.image_url}
+          alt={banner.title}
+          className="w-full h-full object-cover"
+        />
+        {!banner.is_active && (
+          <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+            <span className="text-white font-bold text-sm">INACTIVE</span>
+          </div>
+        )}
+      </div>
+      <div className="p-4">
+        <h4 className="font-bold text-gray-900 truncate">{banner.title}</h4>
+        {banner.subtitle && (
+          <p className="text-sm text-gray-600 truncate mt-1">{banner.subtitle}</p>
+        )}
+        <div className="flex items-center gap-2 mt-3">
+          <button
+            onClick={() => onEdit(banner)}
+            className="flex-1 text-xs font-bold text-neutral-900 border border-gray-300 rounded px-3 py-1.5 hover:bg-gray-50"
+          >
+            Edit
+          </button>
+          <button
+            onClick={() => onToggleActive(banner)}
+            className={`flex-1 text-xs font-bold rounded px-3 py-1.5 ${
+              banner.is_active
+                ? 'text-gray-600 border border-gray-300 hover:bg-gray-50'
+                : 'text-white bg-green-600 hover:bg-green-700'
+            }`}
+          >
+            {banner.is_active ? 'Deactivate' : 'Activate'}
+          </button>
+          <button
+            onClick={() => onDelete(banner.id)}
+            className="text-xs font-bold text-red-600 border border-red-300 rounded px-3 py-1.5 hover:bg-red-50"
+          >
+            Delete
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 const BannerManager = () => {
   const { signOut } = useAuth();
   const { showToast } = useToast();
@@ -43,6 +146,18 @@ const BannerManager = () => {
   const [editingBanner, setEditingBanner] = useState<Banner | null>(null);
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
+  
+  // Drag-and-drop state for Stage Banners
+  const [stageBannersOrder, setStageBannersOrder] = useState<Banner[]>([]);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [applyingOrder, setApplyingOrder] = useState(false);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
 
   const [formData, setFormData] = useState<BannerFormData>({
     title: '',
@@ -65,6 +180,11 @@ const BannerManager = () => {
 
       if (error) throw error;
       setBanners(data || []);
+      
+      // Initialize stage banners order
+      const stageBanners = (data || []).filter(b => b.banner_type === 'stage');
+      setStageBannersOrder(stageBanners);
+      setHasUnsavedChanges(false);
     } catch (err) {
       showToast('error', err instanceof Error ? err.message : 'Failed to load banners');
     } finally {
@@ -242,9 +362,60 @@ const BannerManager = () => {
     }
   };
 
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+
+    if (over && active.id !== over.id) {
+      setStageBannersOrder((items) => {
+        const oldIndex = items.findIndex((item) => item.id === active.id);
+        const newIndex = items.findIndex((item) => item.id === over.id);
+        
+        const newOrder = arrayMove(items, oldIndex, newIndex);
+        setHasUnsavedChanges(true);
+        return newOrder;
+      });
+    }
+  };
+
+  const handleApplyOrder = async () => {
+    try {
+      setApplyingOrder(true);
+
+      // Update display_order for each banner
+      const updates = stageBannersOrder.map((banner, index) => 
+        supabase
+          .from('banners')
+          .update({ display_order: index })
+          .eq('id', banner.id)
+      );
+
+      const results = await Promise.all(updates);
+      
+      const hasError = results.some(result => result.error);
+      if (hasError) {
+        throw new Error('Failed to update some banners');
+      }
+
+      showToast('success', 'Stage banner order updated successfully');
+      queryClient.invalidateQueries({ queryKey: queryKeys.banners() });
+      setHasUnsavedChanges(false);
+      fetchBanners();
+    } catch (err) {
+      showToast('error', err instanceof Error ? err.message : 'Failed to update banner order');
+    } finally {
+      setApplyingOrder(false);
+    }
+  };
+
+  const handleCancelOrder = () => {
+    const stageBanners = banners.filter(b => b.banner_type === 'stage');
+    setStageBannersOrder(stageBanners);
+    setHasUnsavedChanges(false);
+  };
+
   const groupedBanners = {
     hero: banners.filter(b => b.banner_type === 'hero'),
-    stage: banners.filter(b => b.banner_type === 'stage'),
+    stage: stageBannersOrder, // Use the draggable order
     promo: banners.filter(b => b.banner_type === 'promo'),
     events: banners.filter(b => b.banner_type === 'events'),
     fashion: banners.filter(b => b.banner_type === 'fashion'),
@@ -289,11 +460,69 @@ const BannerManager = () => {
         <div className="space-y-8">
           {(['hero', 'stage', 'promo', 'events', 'fashion', 'beauty'] as BannerType[]).map(type => (
             <section key={type} className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
-              <h3 className="text-lg font-bold text-gray-900 mb-4 capitalize">{type} Banners</h3>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-bold text-gray-900 capitalize">{type} Banners</h3>
+                
+                {/* Show confirm/cancel buttons for Stage Banners when there are unsaved changes */}
+                {type === 'stage' && hasUnsavedChanges && (
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={handleCancelOrder}
+                      disabled={applyingOrder}
+                      className="flex items-center gap-1 text-xs font-bold text-gray-600 border border-gray-300 rounded px-3 py-1.5 hover:bg-gray-50 disabled:opacity-50"
+                    >
+                      <span className="material-symbols-outlined text-[16px]">close</span>
+                      Cancel
+                    </button>
+                    <button
+                      onClick={handleApplyOrder}
+                      disabled={applyingOrder}
+                      className="flex items-center gap-1 text-xs font-bold text-white bg-[#ff4b86] rounded px-3 py-1.5 hover:bg-[#ff6a9a] disabled:opacity-50"
+                    >
+                      {applyingOrder ? (
+                        <>
+                          <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white"></div>
+                          Applying...
+                        </>
+                      ) : (
+                        <>
+                          <span className="material-symbols-outlined text-[16px]">check</span>
+                          Confirm Order
+                        </>
+                      )}
+                    </button>
+                  </div>
+                )}
+              </div>
 
               {groupedBanners[type].length === 0 ? (
                 <p className="text-sm text-gray-500 text-center py-8">No {type} banners yet</p>
+              ) : type === 'stage' ? (
+                // Draggable Stage Banners
+                <DndContext
+                  sensors={sensors}
+                  collisionDetection={closestCenter}
+                  onDragEnd={handleDragEnd}
+                >
+                  <SortableContext
+                    items={groupedBanners[type].map(b => b.id)}
+                    strategy={horizontalListSortingStrategy}
+                  >
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {groupedBanners[type].map(banner => (
+                        <SortableBannerCard
+                          key={banner.id}
+                          banner={banner}
+                          onEdit={handleEdit}
+                          onToggleActive={handleToggleActive}
+                          onDelete={handleDelete}
+                        />
+                      ))}
+                    </div>
+                  </SortableContext>
+                </DndContext>
               ) : (
+                // Regular grid for other banner types
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {groupedBanners[type].map(banner => (
                     <div key={banner.id} className="rounded-lg border border-gray-200 overflow-hidden">
