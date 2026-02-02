@@ -50,6 +50,15 @@ const AdminLayout = ({
   const [expandedSections, setExpandedSections] = useState<string[]>(['tickets', 'store']);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+
+  // Detect mobile viewport
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < 768);
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   // Close sidebar on ESC key
   useEffect(() => {
@@ -62,10 +71,30 @@ const AdminLayout = ({
     return () => window.removeEventListener('keydown', handleEscape);
   }, [isSidebarOpen]);
 
-  // Close sidebar when route changes (mobile)
+  // Close sidebar when route changes (mobile only)
   useEffect(() => {
-    setIsSidebarOpen(false);
-  }, [activeMenu]);
+    if (isMobile) {
+      setIsSidebarOpen(false);
+    }
+  }, [activeMenu, isMobile]);
+
+  const handleMenuItemClick = (item: AdminMenuItem) => {
+    setActiveMenu(item.id);
+    if (item.path) navigate(item.path);
+    // Close sidebar on mobile after navigation
+    if (isMobile) {
+      setIsSidebarOpen(false);
+    }
+  };
+
+  const handleSectionItemClick = (item: AdminMenuItem) => {
+    setActiveMenu(item.id);
+    if (item.path) navigate(item.path);
+    // Close sidebar on mobile after navigation
+    if (isMobile) {
+      setIsSidebarOpen(false);
+    }
+  };
 
   const handleLogout = async () => {
     if (isLoggingOut) return; // Prevent double-click
@@ -137,10 +166,7 @@ const AdminLayout = ({
             {menuItems.map((item) => (
               <button
                 key={item.id}
-                onClick={() => {
-                  setActiveMenu(item.id);
-                  if (item.path) navigate(item.path);
-                }}
+                onClick={() => handleMenuItemClick(item)}
                 className={`flex items-center gap-3 rounded-lg px-3 py-2.5 transition-colors min-w-0 ${activeMenu === item.id
                   ? 'bg-white text-gray-900 border border-gray-200'
                   : 'text-gray-700 hover:bg-white hover:text-gray-900'
@@ -158,25 +184,23 @@ const AdminLayout = ({
 
             {menuSections.map((section) => (
               <div key={section.id}>
-                <div className="mt-4 px-3 mb-1 flex items-center justify-between min-w-0">
+                <button 
+                  onClick={() => toggleSection(section.id)}
+                  className="w-full mt-4 px-3 mb-1 flex items-center justify-between min-w-0 hover:bg-gray-50 rounded-lg py-1 transition-colors"
+                >
                   <span className="text-xs font-semibold uppercase tracking-wider text-gray-400 truncate">
                     {section.label}
                   </span>
-                  <button onClick={() => toggleSection(section.id)} className="flex-shrink-0">
-                    <span className="material-symbols-outlined text-base text-gray-400">
-                      {expandedSections.includes(section.id) ? 'expand_less' : 'expand_more'}
-                    </span>
-                  </button>
-                </div>
+                  <span className="material-symbols-outlined text-base text-gray-400 flex-shrink-0">
+                    {expandedSections.includes(section.id) ? 'expand_less' : 'expand_more'}
+                  </span>
+                </button>
                 {expandedSections.includes(section.id) && (
                   <div className="flex flex-col gap-0.5">
                     {section.items.map((item) => (
                       <button
                         key={item.id}
-                        onClick={() => {
-                          setActiveMenu(item.id);
-                          if (item.path) navigate(item.path);
-                        }}
+                        onClick={() => handleSectionItemClick(item)}
                         className={`flex items-center gap-3 rounded-lg px-3 py-2 transition-colors min-w-0 ${activeMenu === item.id
                           ? 'bg-white text-gray-900 border border-gray-200'
                           : 'text-gray-700 hover:bg-white hover:text-gray-900'
