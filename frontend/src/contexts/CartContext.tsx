@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useMemo, useReducer } from 'react';
+1→import { useCallback, useEffect, useMemo, useReducer, useRef } from 'react';
 import { CartContext, type CartContextValue, type CartItem } from './cartStore';
+3→import { useAuth } from './AuthContext';
 
 type CartState = {
   items: CartItem[];
@@ -12,7 +13,12 @@ type CartAction =
   | { type: 'remove'; variantId: number }
   | { type: 'clear' };
 
-const STORAGE_KEY = 'spark_cart_v1';
+const LEGACY_STORAGE_KEY = 'spark_cart_v1';
+const STORAGE_KEY_PREFIX = 'spark_cart_v1_';
+
+function getStorageKey(identity: string) {
+  return `${STORAGE_KEY_PREFIX}${identity}`;
+}
 
 function clampQuantity(value: number) {
   if (!Number.isFinite(value)) return 1;
@@ -58,40 +64,67 @@ function reducer(state: CartState, action: CartAction): CartState {
 
 export function CartProvider({ children }: { children: React.ReactNode }) {
   const [state, dispatch] = useReducer(reducer, { items: [] });
+  const { user, initialized } = useAuth();
+  const loadedIdentityRef = useRef<string | null>(null);
+  const identity = user?.id ?? 'guest';
 
   useEffect(() => {
     try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (!raw) return;
-      const parsed = JSON.parse(raw) as unknown;
-      const items = Array.isArray((parsed as { items?: unknown }).items) ? ((parsed as { items: unknown[] }).items as unknown[]) : [];
-      const normalized: CartItem[] = items
-        .map((i) => i as Partial<CartItem>)
-        .filter((i) => typeof i.variantId === 'number' && typeof i.productId === 'number')
-        .map((i) => ({
-          productId: Number(i.productId),
-          productName: String(i.productName ?? ''),
-          productImageUrl: typeof i.productImageUrl === 'string' ? i.productImageUrl : undefined,
-          variantId: Number(i.variantId),
-          variantName: String(i.variantName ?? ''),
-          unitPrice: Number(i.unitPrice ?? 0),
-          quantity: clampQuantity(Number(i.quantity ?? 1)),
-        }))
-        .filter((i) => i.productName && i.variantName && Number.isFinite(i.unitPrice) && i.unitPrice >= 0);
+      if (!initialized) return;
 
-      dispatch({ type: 'replace', items: normalized });
+      if (loadedIdentityRef.current === null) {
+        const legacyRaw = localStorage.getItem(LEGACY_STORAGE_KEY);
+        if (legacyRaw) {
+          if (!user) {
+            localStorage.setItem(getStorageKey('guest'), legacyRaw);
+          }
+          localStorage.removeItem(LEGACY_STORAGE_KEY);
+        }
+      }
+
+      if (loadedIdentityRef.current !== identity) {
+        const storageKey = getStorageKey(identity);
+        const raw = localStorage.getItem(storageKey);
+        if (!raw) {
+          dispatch({ type: 'replace', items: [] });
+        } else {
+          const parsed = JSON.parse(raw) as unknown;
+          const items = Array.isArray((parsed as { items?: unknown }).items)
+            ? ((parsed as { items: unknown[] }).items as unknown[])
+            : [];
+          const normalized: CartItem[] = items
+            .map((i) => i as Partial<CartItem>)
+            .filter((i) => typeof i.variantId === 'number' && typeof i.productId === 'number')
+            .map((i) => ({
+              productId: Number(i.productId),
+              productName: String(i.productName ?? ''),
+              productImageUrl: typeof i.productImageUrl === 'string' ? i.productImageUrl : undefined,
+              variantId: Number(i.variantId),
+              variantName: String(i.variantName ?? ''),
+              unitPrice: Number(i.unitPrice ?? 0),
+              quantity: clampQuantity(Number(i.quantity ?? 1)),
+            }))
+            .filter((i) => i.productName && i.variantName && Number.isFinite(i.unitPrice) && i.unitPrice >= 0);
+
+          dispatch({ type: 'replace', items: normalized });
+        }
+        loadedIdentityRef.current = identity;
+      }
     } catch {
       dispatch({ type: 'replace', items: [] });
+      loadedIdentityRef.current = identity;
     }
-  }, []);
+  }, [initialized, identity, user]);
 
   useEffect(() => {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({ items: state.items }));
+      if (!initialized) return;
+      const storageKey = getStorageKey(identity);
+      localStorage.setItem(storageKey, JSON.stringify({ items: state.items }));
     } catch {
       return;
     }
-  }, [state.items]);
+  }, [state.items, initialized, identity]);
 
   const totalQuantity = useMemo(() => state.items.reduce((sum, i) => sum + i.quantity, 0), [state.items]);
   const subtotal = useMemo(() => state.items.reduce((sum, i) => sum + i.unitPrice * i.quantity, 0), [state.items]);
