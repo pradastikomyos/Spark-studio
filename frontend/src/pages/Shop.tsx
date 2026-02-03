@@ -22,8 +22,8 @@ const Shop = () => {
 
     const { data: products = [], error: productsError, isLoading: productsLoading, refetch: refetchProducts } = useProducts();
     const { data: categories = [], error: categoriesError, isLoading: categoriesLoading, refetch: refetchCategories } = useCategories();
-    // Using fashion banners for now as main shop banners
-    const { data: shopBanners = [], isLoading: bannersLoading } = useBanners('fashion');
+    // Using shop banners
+    const { data: shopBanners = [], isLoading: bannersLoading } = useBanners('shop');
 
     // Combine loading and error states
     const loading = productsLoading || categoriesLoading || bannersLoading;

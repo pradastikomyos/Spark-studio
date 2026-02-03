@@ -19,5 +19,5 @@ export const queryKeys = {
   stageAnalytics: (timeFilter: string) => ['stage-analytics', timeFilter] as const,
   ticketsManagement: () => ['tickets-management'] as const,
 
-  banners: (type?: 'hero' | 'stage' | 'promo' | 'events' | 'fashion' | 'beauty') => ['banners', type ?? 'all'] as const,
+  banners: (type?: 'hero' | 'stage' | 'promo' | 'events' | 'shop') => ['banners', type ?? 'all'] as const,
 } as const

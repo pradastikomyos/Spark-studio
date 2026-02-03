@@ -25,7 +25,7 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 
-type BannerType = 'hero' | 'stage' | 'promo' | 'events' | 'fashion' | 'beauty';
+type BannerType = 'hero' | 'stage' | 'promo' | 'events' | 'shop';
 
 interface Banner {
   id: number;
@@ -120,11 +120,10 @@ function SortableBannerCard({ banner, onEdit, onToggleActive, onDelete }: Sortab
           </button>
           <button
             onClick={() => onToggleActive(banner)}
-            className={`flex-1 text-xs font-bold rounded px-3 py-1.5 ${
-              banner.is_active
-                ? 'text-gray-600 border border-gray-300 hover:bg-gray-50'
-                : 'text-white bg-green-600 hover:bg-green-700'
-            }`}
+            className={`flex-1 text-xs font-bold rounded px-3 py-1.5 ${banner.is_active
+              ? 'text-gray-600 border border-gray-300 hover:bg-gray-50'
+              : 'text-white bg-green-600 hover:bg-green-700'
+              }`}
           >
             {banner.is_active ? 'Deactivate' : 'Activate'}
           </button>
@@ -151,7 +150,7 @@ const BannerManager = () => {
   const [editingBanner, setEditingBanner] = useState<Banner | null>(null);
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
-  
+
   // Drag-and-drop state for Stage Banners
   const [stageBannersOrder, setStageBannersOrder] = useState<Banner[]>([]);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
@@ -185,7 +184,7 @@ const BannerManager = () => {
 
       if (error) throw error;
       setBanners(data || []);
-      
+
       // Initialize stage banners order
       const stageBanners = (data || []).filter(b => b.banner_type === 'stage');
       setStageBannersOrder(stageBanners);
@@ -396,7 +395,7 @@ const BannerManager = () => {
       setStageBannersOrder((items) => {
         const oldIndex = items.findIndex((item) => item.id === active.id);
         const newIndex = items.findIndex((item) => item.id === over.id);
-        
+
         const newOrder = arrayMove(items, oldIndex, newIndex);
         setHasUnsavedChanges(true);
         return newOrder;
@@ -409,7 +408,7 @@ const BannerManager = () => {
       setApplyingOrder(true);
 
       // Update display_order for each banner
-      const updates = stageBannersOrder.map((banner, index) => 
+      const updates = stageBannersOrder.map((banner, index) =>
         supabase
           .from('banners')
           .update({ display_order: index })
@@ -421,7 +420,7 @@ const BannerManager = () => {
         REQUEST_TIMEOUT_MS,
         'Request timeout. Please try again.'
       );
-      
+
       const hasError = results.some(result => result.error);
       if (hasError) {
         throw new Error('Failed to update some banners');
@@ -444,13 +443,14 @@ const BannerManager = () => {
     setHasUnsavedChanges(false);
   };
 
+
+
   const groupedBanners = {
     hero: banners.filter(b => b.banner_type === 'hero'),
     stage: stageBannersOrder, // Use the draggable order
     promo: banners.filter(b => b.banner_type === 'promo'),
     events: banners.filter(b => b.banner_type === 'events'),
-    fashion: banners.filter(b => b.banner_type === 'fashion'),
-    beauty: banners.filter(b => b.banner_type === 'beauty'),
+    shop: banners.filter(b => b.banner_type === 'shop'),
   };
 
   return (
@@ -459,7 +459,7 @@ const BannerManager = () => {
       menuSections={ADMIN_MENU_SECTIONS}
       defaultActiveMenuId="banner-manager"
       title="Banner Manager"
-      subtitle="Manage hero, stage, and promo banners"
+      subtitle="Manage hero, stage, shop, and event banners"
       headerActions={
         <button
           onClick={() => {
@@ -489,11 +489,11 @@ const BannerManager = () => {
         </div>
       ) : (
         <div className="space-y-8">
-          {(['hero', 'stage', 'promo', 'events', 'fashion', 'beauty'] as BannerType[]).map(type => (
+          {(['hero', 'stage', 'promo', 'events', 'shop'] as BannerType[]).map(type => (
             <section key={type} className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg font-bold text-gray-900 capitalize">{type} Banners</h3>
-                
+
                 {/* Show confirm/cancel buttons for Stage Banners when there are unsaved changes */}
                 {type === 'stage' && hasUnsavedChanges && (
                   <div className="flex items-center gap-2">
@@ -584,8 +584,8 @@ const BannerManager = () => {
                           <button
                             onClick={() => handleToggleActive(banner)}
                             className={`flex-1 text-xs font-bold rounded px-3 py-1.5 ${banner.is_active
-                                ? 'text-gray-600 border border-gray-300 hover:bg-gray-50'
-                                : 'text-gray-900 bg-green-600 hover:bg-green-700'
+                              ? 'text-gray-600 border border-gray-300 hover:bg-gray-50'
+                              : 'text-gray-900 bg-green-600 hover:bg-green-700'
                               }`}
                           >
                             {banner.is_active ? 'Deactivate' : 'Activate'}
@@ -655,8 +655,7 @@ const BannerManager = () => {
                   <option value="stage">Stage (Carousel)</option>
                   <option value="promo">Promo</option>
                   <option value="events">Events (Hero Slider)</option>
-                  <option value="fashion">Fashion (Hero Slider)</option>
-                  <option value="beauty">Beauty (Hero Slider)</option>
+                  <option value="shop">Shop (Hero Slider)</option>
                 </select>
               </div>
 
@@ -682,7 +681,7 @@ const BannerManager = () => {
                             <li>• Best for: Stage carousel cards</li>
                           </>
                         )}
-                        {(formData.banner_type === 'events' || formData.banner_type === 'fashion' || formData.banner_type === 'beauty') && (
+                        {(formData.banner_type === 'events' || formData.banner_type === 'shop') && (
                           <>
                             <li>• Resolution: <span className="font-semibold">1920 x 800px</span> (21:9 aspect ratio)</li>
                             <li>• Best for: Wide hero banners with text overlay</li>
