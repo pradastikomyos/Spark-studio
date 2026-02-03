@@ -5,10 +5,24 @@ type UploadProductImageOptions = {
   maxSizeMb?: number;
   retryAttempts?: number;
   retryDelayMs?: number;
+  timeoutMs?: number;
+};
+
+const withTimeout = async <T>(promise: Promise<T>, ms: number, message: string): Promise<T> => {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(message)), ms);
+  });
+  try {
+    return (await Promise.race([promise, timeout])) as T;
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
 };
 
 export async function uploadProductImage(file: File, productId: string, options: UploadProductImageOptions = {}): Promise<string> {
   const maxSizeMb = options.maxSizeMb ?? 2;
+  const timeoutMs = options.timeoutMs ?? 120000;
   
   // Cross-platform MIME type validation
   // Windows may return empty string for file.type, so we also check file extension
@@ -65,7 +79,12 @@ export async function uploadProductImage(file: File, productId: string, options:
   };
   if (contentType) uploadOptions.contentType = contentType;
 
-  const { error: uploadError } = await supabase.storage.from('product-images').upload(objectPath, file, uploadOptions);
+  const uploadPromise = supabase.storage.from('product-images').upload(objectPath, file, uploadOptions);
+  const { error: uploadError } = await withTimeout(
+    uploadPromise,
+    timeoutMs,
+    'Upload gambar terlalu lama (timeout). Coba lagi saat koneksi lebih stabil.'
+  );
 
   if (uploadError) {
     const message = uploadError.message || 'Failed to upload image';

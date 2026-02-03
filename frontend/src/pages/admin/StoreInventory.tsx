@@ -15,6 +15,7 @@ import TableRowSkeleton from '../../components/skeletons/TableRowSkeleton';
 import { useToast } from '../../components/Toast';
 import { useSessionRefresh } from '../../hooks/useSessionRefresh';
 import { ensureFreshToken } from '../../utils/auth';
+import { withTimeout } from '../../utils/queryHelpers';
 
 type InventoryProduct = {
   id: number;
@@ -49,6 +50,8 @@ const computeStockStatus = (stock: number): InventoryProduct['stock_status'] => 
 
 const TAB_RETURN_EVENT = 'tab-returned-from-idle';
 const ADMIN_PRODUCT_DRAFT_KEY = 'admin-product-form:draft:v1';
+const REQUEST_TIMEOUT_MS = 60000;
+const UPLOAD_TIMEOUT_MS = 120000;
 
 const StoreInventory = () => {
   const { signOut, session } = useAuth();
@@ -269,13 +272,15 @@ const StoreInventory = () => {
     setEditingProductId(productId);
 
     // Fetch existing images
-    const { data } = await supabase
-      .from('product_images')
-      .select('image_url, is_primary')
-      .eq('product_id', productId)
-      .order('display_order');
+    const { data } = await withTimeout(
+      supabase.from('product_images').select('image_url, is_primary').eq('product_id', productId).order('display_order'),
+      REQUEST_TIMEOUT_MS,
+      'Request timeout. Please try again.'
+    );
 
-    setExistingImages(data?.map(img => ({ url: img.image_url, is_primary: img.is_primary })) || []);
+    setExistingImages(
+      data?.map((img: { image_url: string; is_primary: boolean }) => ({ url: img.image_url, is_primary: img.is_primary })) || []
+    );
     setShowProductForm(true);
   };
 
@@ -290,10 +295,11 @@ const StoreInventory = () => {
     try {
       const token = await ensureFreshToken(session);
       if (!token) throw new Error('Session expired. Please refresh and log in again.');
-      const { error } = await supabase
-        .from('products')
-        .update({ deleted_at: new Date().toISOString() })
-        .eq('id', deletingProduct.id);
+      const { error } = await withTimeout(
+        supabase.from('products').update({ deleted_at: new Date().toISOString() }).eq('id', deletingProduct.id),
+        REQUEST_TIMEOUT_MS,
+        'Request timeout. Please try again.'
+      );
       if (error) throw error;
       setDeletingProduct(null);
       await refetch();
@@ -384,8 +390,26 @@ const StoreInventory = () => {
       if (!productId) {
         // Check for duplicate SKU or slug before insert
         const [slugDup, skuDup] = await Promise.all([
-          supabase.from('products').select('id, slug').eq('slug', normalizedDraft.slug).is('deleted_at', null).maybeSingle(),
-          supabase.from('products').select('id, sku').eq('sku', normalizedDraft.sku).is('deleted_at', null).maybeSingle(),
+          withTimeout(
+            supabase
+              .from('products')
+              .select('id, slug')
+              .eq('slug', normalizedDraft.slug)
+              .is('deleted_at', null)
+              .maybeSingle(),
+            REQUEST_TIMEOUT_MS,
+            'Request timeout. Please try again.'
+          ),
+          withTimeout(
+            supabase
+              .from('products')
+              .select('id, sku')
+              .eq('sku', normalizedDraft.sku)
+              .is('deleted_at', null)
+              .maybeSingle(),
+            REQUEST_TIMEOUT_MS,
+            'Request timeout. Please try again.'
+          ),
         ]);
 
         if (slugDup.error && slugDup.error.code !== 'PGRST116') throw slugDup.error;
@@ -400,18 +424,22 @@ const StoreInventory = () => {
           throw new Error(`⚠️ Product with SKU "${normalizedDraft.sku}" already exists. Please use a different SKU.`);
         }
 
-        const { data, error } = await supabase
-          .from('products')
-          .insert({
-            name: normalizedDraft.name,
-            slug: normalizedDraft.slug,
-            description: normalizedDraft.description || null,
-            category_id: normalizedDraft.category_id,
-            sku: normalizedDraft.sku,
-            is_active: normalizedDraft.is_active,
-          })
-          .select('id')
-          .single();
+        const { data, error } = await withTimeout(
+          supabase
+            .from('products')
+            .insert({
+              name: normalizedDraft.name,
+              slug: normalizedDraft.slug,
+              description: normalizedDraft.description || null,
+              category_id: normalizedDraft.category_id,
+              sku: normalizedDraft.sku,
+              is_active: normalizedDraft.is_active,
+            })
+            .select('id')
+            .single(),
+          REQUEST_TIMEOUT_MS,
+          'Request timeout. Please try again.'
+        );
 
         if (error) {
           // Parse error for better user messaging
@@ -429,27 +457,31 @@ const StoreInventory = () => {
         if (!data) throw new Error('Failed to create product');
         productId = Number(data.id);
       } else {
-        const { error } = await supabase
-          .from('products')
-          .update({
-            name: normalizedDraft.name,
-            slug: normalizedDraft.slug,
-            description: normalizedDraft.description || null,
-            category_id: normalizedDraft.category_id,
-            sku: normalizedDraft.sku,
-            is_active: normalizedDraft.is_active,
-          })
-          .eq('id', productId);
+        const { error } = await withTimeout(
+          supabase
+            .from('products')
+            .update({
+              name: normalizedDraft.name,
+              slug: normalizedDraft.slug,
+              description: normalizedDraft.description || null,
+              category_id: normalizedDraft.category_id,
+              sku: normalizedDraft.sku,
+              is_active: normalizedDraft.is_active,
+            })
+            .eq('id', productId),
+          REQUEST_TIMEOUT_MS,
+          'Request timeout. Please try again.'
+        );
         if (error) throw error;
       }
 
       // Handle removed images
       if (removedImageUrls.length > 0) {
-        const { error } = await supabase
-          .from('product_images')
-          .delete()
-          .eq('product_id', productId)
-          .in('image_url', removedImageUrls);
+        const { error } = await withTimeout(
+          supabase.from('product_images').delete().eq('product_id', productId).in('image_url', removedImageUrls),
+          REQUEST_TIMEOUT_MS,
+          'Request timeout. Please try again.'
+        );
         if (error) throw error;
       }
 
@@ -458,18 +490,25 @@ const StoreInventory = () => {
         const { uploadProductImages, saveProductImages } = await import('../../utils/uploadProductImage');
 
         // Get current max display_order
-        const { data: existingImages } = await supabase
-          .from('product_images')
-          .select('display_order')
-          .eq('product_id', productId)
-          .order('display_order', { ascending: false })
-          .limit(1);
+        const { data: existingImages } = await withTimeout(
+          supabase
+            .from('product_images')
+            .select('display_order')
+            .eq('product_id', productId)
+            .order('display_order', { ascending: false })
+            .limit(1),
+          REQUEST_TIMEOUT_MS,
+          'Request timeout. Please try again.'
+        );
 
         const startOrder = existingImages && existingImages.length > 0
           ? existingImages[0].display_order + 1
           : 0;
 
-        const uploadedUrls = await uploadProductImages(newImages, productId, { maxSizeMb: 2 });
+        const uploadedUrls = await uploadProductImages(newImages, productId, {
+          maxSizeMb: 2,
+          timeoutMs: UPLOAD_TIMEOUT_MS,
+        });
         await saveProductImages(productId, uploadedUrls, startOrder);
       }
 
@@ -490,7 +529,11 @@ const StoreInventory = () => {
       const removedIds = existingIds.filter((id) => !incomingIds.has(id));
 
       if (removedIds.length > 0) {
-        const { error } = await supabase.from('product_variants').update({ is_active: false }).in('id', removedIds);
+        const { error } = await withTimeout(
+          supabase.from('product_variants').update({ is_active: false }).in('id', removedIds),
+          REQUEST_TIMEOUT_MS,
+          'Request timeout. Please try again.'
+        );
         if (error) throw error;
       }
 
@@ -500,17 +543,21 @@ const StoreInventory = () => {
         if (v.size) nextAttributes.size = v.size;
         if (v.color) nextAttributes.color = v.color;
 
-        const { error } = await supabase
-          .from('product_variants')
-          .update({
-            name: v.name,
-            sku: v.sku,
-            price: v.price ? Number(v.price) : null,
-            stock: v.stock,
-            is_active: true,
-            attributes: Object.keys(nextAttributes).length ? nextAttributes : null,
-          })
-          .eq('id', toValidId(v.id) as number);
+        const { error } = await withTimeout(
+          supabase
+            .from('product_variants')
+            .update({
+              name: v.name,
+              sku: v.sku,
+              price: v.price ? Number(v.price) : null,
+              stock: v.stock,
+              is_active: true,
+              attributes: Object.keys(nextAttributes).length ? nextAttributes : null,
+            })
+            .eq('id', toValidId(v.id) as number),
+          REQUEST_TIMEOUT_MS,
+          'Request timeout. Please try again.'
+        );
         if (error) throw error;
       }
 
@@ -533,7 +580,11 @@ const StoreInventory = () => {
           };
         });
 
-        const { error } = await supabase.from('product_variants').insert(rows);
+        const { error } = await withTimeout(
+          supabase.from('product_variants').insert(rows),
+          REQUEST_TIMEOUT_MS,
+          'Request timeout. Please try again.'
+        );
         if (error) throw error;
       }
 

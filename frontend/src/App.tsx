@@ -6,7 +6,7 @@ import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 import { useSessionRefresh } from './hooks/useSessionRefresh';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { CartProvider } from './contexts/CartContext';
-import { ToastProvider } from './components/Toast';
+import { ToastProvider, useToast } from './components/Toast';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import ProtectedRoute from './components/ProtectedRoute';
 import PublicLayout from './components/PublicLayout';
@@ -79,7 +79,7 @@ function RouteLoading() {
 
 // Main app content - only rendered after auth is initialized
 const TAB_RETURN_EVENT = 'tab-returned-from-idle';
-const TAB_IDLE_THRESHOLD_MS = 2 * 60 * 1000;
+const TAB_IDLE_THRESHOLD_MS = 10 * 60 * 1000;
 
 function AppRoutes() {
   const location = useLocation();
@@ -466,6 +466,8 @@ function AppContent() {
   const hiddenAtRef = useRef<number | null>(null);
   const refreshInFlightRef = useRef(false);
   const lastActiveAtRef = useRef(Date.now());
+  const lastAutoRefreshAtRef = useRef<number | null>(null);
+  const { showToast } = useToast();
   
   // Enterprise-grade session refresh - auto-refresh before expiry
   useSessionRefresh();
@@ -490,11 +492,20 @@ function AppContent() {
         refreshInFlightRef.current = false;
         return;
       }
-      window.dispatchEvent(
-        new CustomEvent(TAB_RETURN_EVENT, {
-          detail: { idleDuration },
-        })
-      );
+      const isAdminRoute = window.location.pathname.startsWith('/admin');
+      if (isAdminRoute) {
+        queryClient.invalidateQueries();
+        const now = Date.now();
+        if (!lastAutoRefreshAtRef.current || now - lastAutoRefreshAtRef.current > 30 * 1000) {
+          showToast('info', 'Data admin disegarkan otomatis setelah tab aktif kembali.');
+          lastAutoRefreshAtRef.current = now;
+        }
+        window.dispatchEvent(
+          new CustomEvent(TAB_RETURN_EVENT, {
+            detail: { idleDuration },
+          })
+        );
+      }
       refreshInFlightRef.current = false;
     };
 
@@ -526,7 +537,7 @@ function AppContent() {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('focus', handleFocus);
     };
-  }, []);
+  }, [showToast]);
 
   return (
     <Router>

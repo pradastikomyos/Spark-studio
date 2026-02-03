@@ -10,12 +10,12 @@
  * @returns Promise that rejects if timeout is reached
  */
 export function withTimeout<T>(
-  promise: Promise<T>,
+  promise: PromiseLike<T>,
   timeoutMs: number = 10000,
   errorMessage: string = 'Query timeout'
 ): Promise<T> {
   return Promise.race([
-    promise,
+    Promise.resolve(promise),
     new Promise<T>((_, reject) =>
       setTimeout(() => reject(new Error(errorMessage)), timeoutMs)
     ),

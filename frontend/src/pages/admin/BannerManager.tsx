@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
@@ -6,6 +6,7 @@ import { queryKeys } from '../../lib/queryKeys';
 import AdminLayout from '../../components/AdminLayout';
 import { ADMIN_MENU_ITEMS, ADMIN_MENU_SECTIONS } from '../../constants/adminMenu';
 import { useToast } from '../../components/Toast';
+import { withTimeout } from '../../utils/queryHelpers';
 import {
   DndContext,
   closestCenter,
@@ -48,6 +49,10 @@ interface BannerFormData {
   display_order: number;
   is_active: boolean;
 }
+
+const REQUEST_TIMEOUT_MS = 60000;
+const UPLOAD_TIMEOUT_MS = 120000;
+const TAB_RETURN_EVENT = 'tab-returned-from-idle';
 
 // Sortable Banner Card Component
 interface SortableBannerCardProps {
@@ -169,14 +174,14 @@ const BannerManager = () => {
     is_active: true,
   });
 
-  const fetchBanners = async () => {
+  const fetchBanners = useCallback(async () => {
     try {
       setLoading(true);
-      const { data, error } = await supabase
-        .from('banners')
-        .select('*')
-        .order('banner_type', { ascending: true })
-        .order('display_order', { ascending: true });
+      const { data, error } = await withTimeout(
+        supabase.from('banners').select('*').order('banner_type', { ascending: true }).order('display_order', { ascending: true }),
+        REQUEST_TIMEOUT_MS,
+        'Request timeout. Please try again.'
+      );
 
       if (error) throw error;
       setBanners(data || []);
@@ -190,11 +195,23 @@ const BannerManager = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [showToast]);
 
   useEffect(() => {
     fetchBanners();
-  }, []);
+  }, [fetchBanners]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const handleTabReturn = () => {
+      if (hasUnsavedChanges || applyingOrder || saving || uploading) return;
+      fetchBanners();
+    };
+    window.addEventListener(TAB_RETURN_EVENT, handleTabReturn);
+    return () => {
+      window.removeEventListener(TAB_RETURN_EVENT, handleTabReturn);
+    };
+  }, [fetchBanners, hasUnsavedChanges, applyingOrder, saving, uploading]);
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -219,9 +236,11 @@ const BannerManager = () => {
       const fileName = `banner-${Date.now()}.${fileExt}`;
       const filePath = `banners/${fileName}`;
 
-      const { error: uploadError } = await supabase.storage
-        .from('banners')
-        .upload(filePath, file);
+      const { error: uploadError } = await withTimeout(
+        supabase.storage.from('banners').upload(filePath, file),
+        UPLOAD_TIMEOUT_MS,
+        'Upload gambar terlalu lama (timeout). Coba lagi saat koneksi lebih stabil.'
+      );
 
       if (uploadError) throw uploadError;
 
@@ -255,26 +274,29 @@ const BannerManager = () => {
       setSaving(true);
 
       if (editingBanner) {
-        const { error } = await supabase
-          .from('banners')
-          .update({
-            title: formData.title,
-            subtitle: formData.subtitle || null,
-            image_url: formData.image_url,
-            link_url: formData.link_url || null,
-            banner_type: formData.banner_type,
-            display_order: formData.display_order,
-            is_active: formData.is_active,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', editingBanner.id);
+        const { error } = await withTimeout(
+          supabase
+            .from('banners')
+            .update({
+              title: formData.title,
+              subtitle: formData.subtitle || null,
+              image_url: formData.image_url,
+              link_url: formData.link_url || null,
+              banner_type: formData.banner_type,
+              display_order: formData.display_order,
+              is_active: formData.is_active,
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', editingBanner.id),
+          REQUEST_TIMEOUT_MS,
+          'Request timeout. Please try again.'
+        );
 
         if (error) throw error;
         showToast('success', 'Banner updated successfully');
       } else {
-        const { error } = await supabase
-          .from('banners')
-          .insert({
+        const { error } = await withTimeout(
+          supabase.from('banners').insert({
             title: formData.title,
             subtitle: formData.subtitle || null,
             image_url: formData.image_url,
@@ -282,7 +304,10 @@ const BannerManager = () => {
             banner_type: formData.banner_type,
             display_order: formData.display_order,
             is_active: formData.is_active,
-          });
+          }),
+          REQUEST_TIMEOUT_MS,
+          'Request timeout. Please try again.'
+        );
 
         if (error) throw error;
         showToast('success', 'Banner created successfully');
@@ -330,10 +355,11 @@ const BannerManager = () => {
     if (!confirm('Are you sure you want to delete this banner?')) return;
 
     try {
-      const { error } = await supabase
-        .from('banners')
-        .delete()
-        .eq('id', id);
+      const { error } = await withTimeout(
+        supabase.from('banners').delete().eq('id', id),
+        REQUEST_TIMEOUT_MS,
+        'Request timeout. Please try again.'
+      );
 
       if (error) throw error;
 
@@ -347,10 +373,11 @@ const BannerManager = () => {
 
   const handleToggleActive = async (banner: Banner) => {
     try {
-      const { error } = await supabase
-        .from('banners')
-        .update({ is_active: !banner.is_active })
-        .eq('id', banner.id);
+      const { error } = await withTimeout(
+        supabase.from('banners').update({ is_active: !banner.is_active }).eq('id', banner.id),
+        REQUEST_TIMEOUT_MS,
+        'Request timeout. Please try again.'
+      );
 
       if (error) throw error;
 
@@ -389,7 +416,11 @@ const BannerManager = () => {
           .eq('id', banner.id)
       );
 
-      const results = await Promise.all(updates);
+      const results = await withTimeout(
+        Promise.all(updates),
+        REQUEST_TIMEOUT_MS,
+        'Request timeout. Please try again.'
+      );
       
       const hasError = results.some(result => result.error);
       if (hasError) {
