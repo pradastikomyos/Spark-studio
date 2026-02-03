@@ -38,7 +38,8 @@ const StageBulkQR = () => {
     }, [refetch]);
 
     const generateQRCodeUrl = (stageCode: string) => {
-        const scanUrl = `${window.location.origin}/scan/${stageCode}`;
+        const baseUrl = import.meta.env.VITE_APP_URL || window.location.origin;
+        const scanUrl = `${baseUrl}/scan/${stageCode}`;
         return `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(scanUrl)}`;
     };
 

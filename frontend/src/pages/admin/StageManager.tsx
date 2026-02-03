@@ -98,7 +98,8 @@ const StageManager = () => {
 
             const entries = await Promise.all(
                 missing.map(async (stage) => {
-                    const scanUrl = `${window.location.origin}/scan/${stage.code}`;
+                    const baseUrl = import.meta.env.VITE_APP_URL || window.location.origin;
+                    const scanUrl = `${baseUrl}/scan/${stage.code}`;
                     const dataUrl = await QRCode.toDataURL(scanUrl, { width: 300, margin: 1 });
                     return [stage.id, dataUrl] as const;
                 })
@@ -124,7 +125,8 @@ const StageManager = () => {
 
     const handleDownloadQR = async (stage: StageWithStats) => {
         const existing = qrByStageId[stage.id];
-        const dataUrl = existing ?? (await QRCode.toDataURL(`${window.location.origin}/scan/${stage.code}`, { width: 300, margin: 1 }));
+        const baseUrl = import.meta.env.VITE_APP_URL || window.location.origin;
+        const dataUrl = existing ?? (await QRCode.toDataURL(`${baseUrl}/scan/${stage.code}`, { width: 300, margin: 1 }));
 
         if (!existing) {
             setQrByStageId((prev) => ({ ...prev, [stage.id]: dataUrl }));
