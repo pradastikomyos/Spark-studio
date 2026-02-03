@@ -1,10 +1,12 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
 import AdminLayout from '../../components/AdminLayout';
 import QRScannerModal from '../../components/admin/QRScannerModal';
 import { ADMIN_MENU_ITEMS, ADMIN_MENU_SECTIONS } from '../../constants/adminMenu';
 import { createWIBDate, addMinutes, nowWIB, SESSION_DURATION_MINUTES, toLocalDateString } from '../../utils/timezone';
+
+const TAB_RETURN_EVENT = 'tab-returned-from-idle';
 
 const OrderTicket = () => {
   const { signOut } = useAuth();
@@ -216,6 +218,19 @@ const OrderTicket = () => {
     },
     [validating]
   );
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const handleTabReturn = () => {
+      if (validating) return;
+      setShowScanner(false);
+      setLastScanResult(null);
+    };
+    window.addEventListener(TAB_RETURN_EVENT, handleTabReturn);
+    return () => {
+      window.removeEventListener(TAB_RETURN_EVENT, handleTabReturn);
+    };
+  }, [validating]);
 
   return (
     <AdminLayout

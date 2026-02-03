@@ -6,6 +6,8 @@ import TableRowSkeleton from '../../components/skeletons/TableRowSkeleton';
 import { useToast } from '../../components/Toast';
 import { useStageQRCodes, type StageQRCode } from '../../hooks/useStageQRCodes';
 
+const TAB_RETURN_EVENT = 'tab-returned-from-idle';
+
 const StageBulkQR = () => {
     const { signOut } = useAuth();
     const { showToast } = useToast();
@@ -13,7 +15,7 @@ const StageBulkQR = () => {
     const [downloading, setDownloading] = useState(false);
     const lastToastErrorRef = useRef<string | null>(null);
 
-    const { data, error, isLoading } = useStageQRCodes();
+    const { data, error, isLoading, refetch } = useStageQRCodes();
     const stages = data ?? [];
 
     useEffect(() => {
@@ -23,6 +25,17 @@ const StageBulkQR = () => {
         lastToastErrorRef.current = message;
         showToast('error', message);
     }, [error, showToast]);
+
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+        const handleTabReturn = () => {
+            refetch();
+        };
+        window.addEventListener(TAB_RETURN_EVENT, handleTabReturn);
+        return () => {
+            window.removeEventListener(TAB_RETURN_EVENT, handleTabReturn);
+        };
+    }, [refetch]);
 
     const generateQRCodeUrl = (stageCode: string) => {
         const scanUrl = `${window.location.origin}/scan/${stageCode}`;
