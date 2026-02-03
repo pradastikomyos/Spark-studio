@@ -127,5 +127,51 @@
       "sessionEnded": "Session Ended - Cannot Be Used"
     },
     "disclaimer": "All ticket sales are final. No refunds, exchanges, or cancellations permitted. Tickets are non-transferable and valid only for the scheduled date and time slot."
+  },
+  "myOrders": {
+    "title": "My Orders",
+    "subtitle": "Track your product orders and pickup codes",
+    "tabs": {
+      "active": "Active",
+      "history": "History"
+    },
+    "breadcrumb": {
+      "home": "Home",
+      "dashboard": "Dashboard",
+      "myOrders": "My Orders"
+    },
+    "updating": "Updating",
+    "status": {
+      "pendingPayment": "Pending Payment",
+      "pickedUp": "Picked Up",
+      "expired": "Expired",
+      "cancelled": "Cancelled",
+      "readyForPickup": "Ready for Pickup"
+    },
+    "actions": {
+      "viewItems": "View Items",
+      "hideItems": "Hide Items",
+      "viewDetails": "View Full Details",
+      "refreshStatus": "Refresh Status",
+      "refreshing": "Refreshing...",
+      "browseShop": "Browse Shop"
+    },
+    "empty": {
+      "active": {
+        "title": "No active orders",
+        "subtitle": "Your paid orders ready for pickup will appear here"
+      },
+      "history": {
+        "title": "No order history yet",
+        "subtitle": "Your completed and past orders will appear here"
+      }
+    },
+    "errors": {
+      "notAuthenticated": "Not authenticated",
+      "syncFailed": "Failed to sync status"
+    },
+    "toast": {
+      "syncSuccess": "Order status updated"
+    }
   }
 }

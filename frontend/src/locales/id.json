@@ -127,5 +127,51 @@
       "sessionEnded": "Sesi Berakhir - Tidak Dapat Digunakan"
     },
     "disclaimer": "Semua penjualan tiket bersifat final. Tidak ada pengembalian dana, penukaran, atau pembatalan. Tiket tidak dapat dipindahtangankan dan hanya berlaku untuk tanggal dan sesi yang dijadwalkan."
+  },
+  "myOrders": {
+    "title": "Pesanan Saya",
+    "subtitle": "Lacak pesanan produk dan kode pengambilan",
+    "tabs": {
+      "active": "Aktif",
+      "history": "Riwayat"
+    },
+    "breadcrumb": {
+      "home": "Beranda",
+      "dashboard": "Dashboard",
+      "myOrders": "Pesanan Saya"
+    },
+    "updating": "Memperbarui",
+    "status": {
+      "pendingPayment": "Menunggu Pembayaran",
+      "pickedUp": "Sudah Diambil",
+      "expired": "Kadaluarsa",
+      "cancelled": "Dibatalkan",
+      "readyForPickup": "Siap Diambil"
+    },
+    "actions": {
+      "viewItems": "Lihat Item",
+      "hideItems": "Sembunyikan Item",
+      "viewDetails": "Lihat Detail Lengkap",
+      "refreshStatus": "Perbarui Status",
+      "refreshing": "Memeriksa...",
+      "browseShop": "Lihat Toko"
+    },
+    "empty": {
+      "active": {
+        "title": "Tidak ada pesanan aktif",
+        "subtitle": "Pesanan yang sudah dibayar dan siap diambil akan muncul di sini"
+      },
+      "history": {
+        "title": "Belum ada riwayat pesanan",
+        "subtitle": "Pesanan yang sudah selesai akan muncul di sini"
+      }
+    },
+    "errors": {
+      "notAuthenticated": "Belum masuk",
+      "syncFailed": "Gagal memperbarui status"
+    },
+    "toast": {
+      "syncSuccess": "Status pesanan berhasil diperbarui"
+    }
   }
 }
