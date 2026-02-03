@@ -1,6 +1,6 @@
-1→import { useCallback, useEffect, useMemo, useReducer, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useReducer, useRef } from 'react';
 import { CartContext, type CartContextValue, type CartItem } from './cartStore';
-3→import { useAuth } from './AuthContext';
+import { useAuth } from './AuthContext';
 
 type CartState = {
   items: CartItem[];
