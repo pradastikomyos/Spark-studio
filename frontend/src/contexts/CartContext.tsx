@@ -43,7 +43,7 @@ function reducer(state: CartState, action: CartAction): CartState {
     const nextQuantity = clampQuantity(action.quantity);
     const existing = state.items.find((i) => i.variantId === action.item.variantId);
     if (!existing) {
-      return { items: [...state.items, { ...action.item, quantity: nextQuantity }] };
+      return { items: [{ ...action.item, quantity: nextQuantity }, ...state.items] };
     }
 
     return {

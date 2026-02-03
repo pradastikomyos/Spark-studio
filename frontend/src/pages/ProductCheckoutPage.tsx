@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useCart } from '../contexts/cartStore';
 import { supabase } from '../lib/supabase';
@@ -13,8 +13,9 @@ type CreateProductTokenResponse = {
 
 export default function ProductCheckoutPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { user, session, initialized } = useAuth();
-  const { items, subtotal, clear } = useCart();
+  const { items: allItems, removeItem } = useCart();
 
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
@@ -38,6 +39,17 @@ export default function ProductCheckoutPage() {
       if (base) setCustomerName(base);
     }
   }, [user]);
+
+  // Filter items based on selection passed from CartPage
+  const items = useMemo(() => {
+    const selectedIds = location.state?.selectedVariantIds as number[] | undefined;
+    if (selectedIds && Array.isArray(selectedIds) && selectedIds.length > 0) {
+      return allItems.filter((i) => selectedIds.includes(i.variantId));
+    }
+    return allItems;
+  }, [allItems, location.state]);
+
+  const subtotal = useMemo(() => items.reduce((sum, i) => sum + i.unitPrice * i.quantity, 0), [items]);
 
   useEffect(() => {
     if (items.length === 0) navigate('/cart');
@@ -119,7 +131,8 @@ export default function ProductCheckoutPage() {
 
       window.snap.pay(payload.token, {
         onSuccess: () => {
-          clear();
+          // Only remove purchased items
+          orderItems.forEach(item => removeItem(item.product_variant_id));
           navigate(`/order/product/success/${orderNumber}`);
         },
         onPending: (result: SnapResult) => {

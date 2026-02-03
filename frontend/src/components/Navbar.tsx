@@ -31,19 +31,12 @@ const Navbar = () => {
 
   const activeNavKey = (() => {
     const path = location.pathname;
-    const params = new URLSearchParams(location.search);
-    const category = (params.get('category') || '').toLowerCase();
+
 
     if (path === '/') return 'on-stage';
     if (path.startsWith('/on-stage')) return 'on-stage';
     if (path.startsWith('/events')) return 'event';
-    if (path.startsWith('/fashion')) return 'fashion';
-    if (path.startsWith('/beauty')) return 'beauty';
-    if (path.startsWith('/shop')) {
-      if (category === 'fashion') return 'fashion';
-      if (category === 'beauty') return 'beauty';
-      return 'shop';
-    }
+    if (path.startsWith('/shop')) return 'shop';
     if (path.startsWith('/spark-club')) return 'spark-club';
     if (path.startsWith('/news')) return 'news';
     return '';
@@ -52,8 +45,7 @@ const Navbar = () => {
   const navItems = [
     { key: 'on-stage', label: 'ON STAGE', to: '/on-stage' },
     { key: 'event', label: 'EVENT', to: '/events' },
-    { key: 'fashion', label: 'FASHION', to: '/fashion' },
-    { key: 'beauty', label: 'BEAUTY', to: '/beauty' },
+    { key: 'shop', label: 'SHOP', to: '/shop' },
     { key: 'spark-club', label: 'SPARK CLUB', to: '/spark-club' },
     { key: 'news', label: 'NEWS', to: '/news' },
   ] as const;
@@ -97,13 +89,13 @@ const Navbar = () => {
             <LanguageSwitcher />
           </div>
 
-          <div className="w-full md:w-1/3 text-center">
-            <Link to="/" className="inline-flex items-center justify-center" onClick={closeMobileMenu} aria-label="Home">
-              <Logo className="text-3xl md:text-5xl" />
+          <div className="md:w-1/3 flex justify-start md:justify-center">
+            <Link to="/" className="inline-flex items-center" onClick={closeMobileMenu} aria-label="Home">
+              <Logo className="text-4xl md:text-5xl" />
             </Link>
           </div>
 
-          <div className="w-full md:w-1/3 flex items-center justify-end gap-4">
+          <div className="md:w-1/3 flex items-center justify-end gap-4">
             {user ? (
               <div className="hidden md:flex items-center gap-5">
                 <span className="text-sm font-medium text-gray-900">
@@ -301,18 +293,11 @@ const Navbar = () => {
               {t('nav.events')}
             </Link>
             <Link
-              to="/fashion"
+              to="/shop"
               onClick={closeMobileMenu}
               className="block text-sm uppercase tracking-widest font-bold text-gray-900 active:text-main-600 py-3 px-2 active:bg-gray-50 rounded-lg transition-colors"
             >
-              Fashion
-            </Link>
-            <Link
-              to="/beauty"
-              onClick={closeMobileMenu}
-              className="block text-sm uppercase tracking-widest font-bold text-gray-900 active:text-main-600 py-3 px-2 active:bg-gray-50 rounded-lg transition-colors"
-            >
-              Beauty
+              Shop
             </Link>
             <Link
               to="/spark-club"

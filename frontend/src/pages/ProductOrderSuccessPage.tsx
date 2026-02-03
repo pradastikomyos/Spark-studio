@@ -304,7 +304,7 @@ export default function ProductOrderSuccessPage() {
                       View All My Orders
                     </Link>
                     <Link
-                      to="/fashion"
+                      to="/shop"
                       className="w-full text-center border border-gray-200 py-3 uppercase tracking-widest text-xs font-bold text-gray-700 hover:bg-gray-100:bg-white/5 transition-colors"
                     >
                       Back to Shop

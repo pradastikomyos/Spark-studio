@@ -21,6 +21,7 @@ export type ProductDetail = {
   id: number;
   name: string;
   description: string;
+  categoryName?: string;
   imageUrl?: string;
   imageUrls: string[];
   variants: Variant[];
@@ -34,6 +35,7 @@ export async function fetchProductDetail(numericId: number, signal: AbortSignal)
           id,
           name,
           description,
+          categories(name),
           image_url,
           product_images(image_url, is_primary, display_order),
           product_variants(id, name, price, attributes, is_active, stock, reserved_stock)
@@ -85,10 +87,15 @@ export async function fetchProductDetail(numericId: number, signal: AbortSignal)
       };
     });
 
+  // Transform category data
+  const rawData = data as { categories?: { name?: string } | null };
+  const categoryName = rawData.categories?.name;
+
   return {
     id: Number((data as { id: number | string }).id),
     name: String((data as { name: string }).name),
     description: String((data as { description?: string | null }).description ?? ''),
+    categoryName,
     imageUrl: primaryImageUrl,
     imageUrls,
     variants: mappedVariants,

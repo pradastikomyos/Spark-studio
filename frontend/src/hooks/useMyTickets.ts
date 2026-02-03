@@ -69,7 +69,7 @@ export function useMyTickets(userId: string | null | undefined) {
           )
           .abortSignal(signal)
           .eq('user_id', userId)
-          .order('valid_date', { ascending: true })
+          .order('created_at', { ascending: false })
       ).then((rows) =>
         rows.map((ticket) => {
           const ticketMeta = Array.isArray(ticket.tickets) ? ticket.tickets[0] : ticket.tickets;

@@ -6,7 +6,7 @@ import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 import { useSessionRefresh } from './hooks/useSessionRefresh';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { CartProvider } from './contexts/CartContext';
-import { ToastProvider, useToast } from './components/Toast';
+import { ToastProvider } from './components/Toast';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import ProtectedRoute from './components/ProtectedRoute';
 import PublicLayout from './components/PublicLayout';
@@ -15,8 +15,7 @@ import { supabase } from './lib/supabase';
 import { queryClient } from './lib/queryClient';
 
 const OnStage = lazy(() => import('./pages/OnStage'));
-const Fashion = lazy(() => import('./pages/Fashion'));
-const Beauty = lazy(() => import('./pages/Beauty'));
+const Shop = lazy(() => import('./pages/Shop'));
 const Events = lazy(() => import('./pages/Events'));
 const SparkClub = lazy(() => import('./pages/SparkClub'));
 const News = lazy(() => import('./pages/News'));
@@ -79,14 +78,14 @@ function RouteLoading() {
 
 // Main app content - only rendered after auth is initialized
 const TAB_RETURN_EVENT = 'tab-returned-from-idle';
-const TAB_IDLE_THRESHOLD_MS = 10 * 60 * 1000;
+const TAB_IDLE_THRESHOLD_MS = 2 * 60 * 1000;
 
 function AppRoutes() {
   const location = useLocation();
   const wrap = (node: ReactNode) => {
     const path = location.pathname;
     const isSuccessPage = path === '/booking-success' || path.startsWith('/order/product/success/');
-    const shouldWrap = !isSuccessPage && (path.startsWith('/admin') || path === '/fashion' || path.startsWith('/fashion/') || path === '/beauty' || path.startsWith('/beauty/'));
+    const shouldWrap = !isSuccessPage && (path.startsWith('/admin') || path === '/shop' || path.startsWith('/shop/'));
     return shouldWrap ? <ErrorBoundary>{node}</ErrorBoundary> : node;
   };
   return (
@@ -285,37 +284,17 @@ function AppRoutes() {
             }
           />
           <Route
-            path="fashion"
+            path="shop"
             element={
               wrap(
                 <Suspense fallback={<RouteLoading />}>
-                  <Fashion />
+                  <Shop />
                 </Suspense>
               )
             }
           />
           <Route
-            path="beauty"
-            element={
-              wrap(
-                <Suspense fallback={<RouteLoading />}>
-                  <Beauty />
-                </Suspense>
-              )
-            }
-          />
-          <Route
-            path="fashion/product/:productId"
-            element={
-              wrap(
-                <Suspense fallback={<RouteLoading />}>
-                  <ProductDetailPage />
-                </Suspense>
-              )
-            }
-          />
-          <Route
-            path="beauty/product/:productId"
+            path="shop/product/:productId"
             element={
               wrap(
                 <Suspense fallback={<RouteLoading />}>
@@ -466,9 +445,7 @@ function AppContent() {
   const hiddenAtRef = useRef<number | null>(null);
   const refreshInFlightRef = useRef(false);
   const lastActiveAtRef = useRef(Date.now());
-  const lastAutoRefreshAtRef = useRef<number | null>(null);
-  const { showToast } = useToast();
-  
+
   // Enterprise-grade session refresh - auto-refresh before expiry
   useSessionRefresh();
 
@@ -492,20 +469,11 @@ function AppContent() {
         refreshInFlightRef.current = false;
         return;
       }
-      const isAdminRoute = window.location.pathname.startsWith('/admin');
-      if (isAdminRoute) {
-        queryClient.invalidateQueries();
-        const now = Date.now();
-        if (!lastAutoRefreshAtRef.current || now - lastAutoRefreshAtRef.current > 30 * 1000) {
-          showToast('info', 'Data admin disegarkan otomatis setelah tab aktif kembali.');
-          lastAutoRefreshAtRef.current = now;
-        }
-        window.dispatchEvent(
-          new CustomEvent(TAB_RETURN_EVENT, {
-            detail: { idleDuration },
-          })
-        );
-      }
+      window.dispatchEvent(
+        new CustomEvent(TAB_RETURN_EVENT, {
+          detail: { idleDuration },
+        })
+      );
       refreshInFlightRef.current = false;
     };
 
@@ -537,7 +505,7 @@ function AppContent() {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('focus', handleFocus);
     };
-  }, [showToast]);
+  }, []);
 
   return (
     <Router>
