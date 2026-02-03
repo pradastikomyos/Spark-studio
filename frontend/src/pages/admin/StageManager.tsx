@@ -7,7 +7,8 @@ import { queryKeys } from '../../lib/queryKeys';
 import AdminLayout from '../../components/AdminLayout';
 import { ADMIN_MENU_ITEMS, ADMIN_MENU_SECTIONS } from '../../constants/adminMenu';
 import { toLocalDateString } from '../../utils/formatters';
-import { useStages, type StageWithStats } from '../../hooks/useStages';
+import { useStages, useCreateStage, useUpdateStage, useDeleteStage, type StageWithStats, type StageRow } from '../../hooks/useStages';
+import StageFormModal from '../../components/admin/StageFormModal';
 
 const TAB_RETURN_EVENT = 'tab-returned-from-idle';
 
@@ -15,9 +16,14 @@ const StageManager = () => {
     const { signOut, isAdmin } = useAuth();
     const queryClient = useQueryClient();
     const { data: stages = [], error: stagesError, isLoading, refetch } = useStages({ enabled: isAdmin });
+    const createStage = useCreateStage();
+    const updateStage = useUpdateStage();
+    const deleteStage = useDeleteStage();
     const [searchQuery, setSearchQuery] = useState('');
     const [qrByStageId, setQrByStageId] = useState<Record<number, string>>({});
     const [zoomedStage, setZoomedStage] = useState<StageWithStats | null>(null);
+    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [editingStage, setEditingStage] = useState<StageRow | null>(null);
     const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
 
     const errorMessage = useMemo(() => {
@@ -159,6 +165,31 @@ const StageManager = () => {
         );
     }, [stages, searchQuery]);
 
+    const handleSaveStage = async (data: any) => {
+        try {
+            if (editingStage) {
+                await updateStage.mutateAsync({ id: editingStage.id, ...data });
+            } else {
+                await createStage.mutateAsync(data);
+            }
+            setIsModalOpen(false);
+            setEditingStage(null);
+        } catch (error) {
+            console.error('Failed to save stage:', error);
+            alert(error instanceof Error ? error.message : 'Failed to save stage');
+        }
+    };
+
+    const handleDeleteStage = async (stage: StageRow) => {
+        if (!window.confirm(`Are you sure you want to delete stage "${stage.name}"?`)) return;
+        try {
+            await deleteStage.mutateAsync(stage.id);
+        } catch (error) {
+            console.error('Failed to delete stage:', error);
+            alert(error instanceof Error ? error.message : 'Failed to delete stage');
+        }
+    };
+
     const activeStagesCount = useMemo(() => stages.filter((s) => s.status === 'active').length, [stages]);
 
     // Show error if not admin
@@ -221,7 +252,13 @@ const StageManager = () => {
                             onChange={(e) => setSearchQuery(e.target.value)}
                         />
                     </div>
-                    <button className="flex items-center gap-2 rounded-lg bg-[#ff4b86] px-4 py-2 text-sm font-bold text-white hover:bg-[#ff6a9a] transition-colors shadow-md">
+                    <button
+                        onClick={() => {
+                            setEditingStage(null);
+                            setIsModalOpen(true);
+                        }}
+                        className="flex items-center gap-2 rounded-lg bg-[#ff4b86] px-4 py-2 text-sm font-bold text-white hover:bg-[#ff6a9a] transition-colors shadow-md"
+                    >
                         <span className="material-symbols-outlined text-lg">add</span>
                         New Stage
                     </button>
@@ -295,14 +332,33 @@ const StageManager = () => {
                                 </div>
                             </div>
 
-                            {/* Download Button */}
-                            <button
-                                onClick={() => handleDownloadQR(stage)}
-                                className="flex w-full items-center justify-center gap-2 rounded bg-[#ff4b86] py-2 text-sm font-bold text-white hover:bg-[#ff6a9a] transition-colors shadow-md"
-                            >
-                                <span className="material-symbols-outlined text-lg">download</span>
-                                Unduh
-                            </button>
+                            {/* Actions */}
+                            <div className="flex gap-2">
+                                <button
+                                    onClick={() => handleDownloadQR(stage)}
+                                    className="flex-1 flex items-center justify-center gap-2 rounded bg-indigo-50 py-2 text-sm font-bold text-indigo-600 hover:bg-indigo-100 transition-colors"
+                                >
+                                    <span className="material-symbols-outlined text-lg">download</span>
+                                    QR
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        setEditingStage(stage);
+                                        setIsModalOpen(true);
+                                    }}
+                                    className="flex items-center justify-center px-3 rounded bg-gray-50 text-gray-600 hover:bg-gray-100 border border-gray-200"
+                                    title="Edit Stage"
+                                >
+                                    <span className="material-symbols-outlined text-lg">edit</span>
+                                </button>
+                                <button
+                                    onClick={() => handleDeleteStage(stage)}
+                                    className="flex items-center justify-center px-3 rounded bg-red-50 text-red-500 hover:bg-red-100 border border-red-100"
+                                    title="Delete Stage"
+                                >
+                                    <span className="material-symbols-outlined text-lg">delete</span>
+                                </button>
+                            </div>
                         </div>
                     ))}
                 </div>
@@ -386,6 +442,15 @@ const StageManager = () => {
                     </div>
                 </div>
             )}
+
+            {/* Modal */}
+            <StageFormModal
+                isOpen={isModalOpen}
+                onClose={() => setIsModalOpen(false)}
+                initialData={editingStage}
+                onSubmit={handleSaveStage}
+                isSubmitting={createStage.isPending || updateStage.isPending}
+            />
         </AdminLayout>
     );
 };

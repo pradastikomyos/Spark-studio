@@ -39,7 +39,7 @@ export default function CategoryManager({ isOpen, onClose, onUpdate }: CategoryM
         .from('categories')
         .select('*')
         .order('name', { ascending: true });
-      
+
       if (error) throw error;
       setCategories(data || []);
     } catch (e) {
@@ -99,7 +99,7 @@ export default function CategoryManager({ isOpen, onClose, onUpdate }: CategoryM
             updated_at: new Date().toISOString(),
           })
           .eq('id', draft.id);
-        
+
         if (error) throw error;
       } else {
         const { error } = await supabase
@@ -109,7 +109,7 @@ export default function CategoryManager({ isOpen, onClose, onUpdate }: CategoryM
             slug: draft.slug,
             is_active: draft.is_active,
           });
-        
+
         if (error) throw error;
       }
 
@@ -136,7 +136,7 @@ export default function CategoryManager({ isOpen, onClose, onUpdate }: CategoryM
         .from('categories')
         .delete()
         .eq('id', id);
-      
+
       if (error) throw error;
 
       await fetchCategories();
@@ -191,7 +191,7 @@ export default function CategoryManager({ isOpen, onClose, onUpdate }: CategoryM
                       slug: slugTouched ? prev.slug : slugify(name),
                     }));
                   }}
-                  className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+                  className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm outline-none focus:border-[#ff4b86] focus:ring-1 focus:ring-[#ff4b86]"
                   placeholder="Category name"
                 />
               </label>
@@ -203,7 +203,7 @@ export default function CategoryManager({ isOpen, onClose, onUpdate }: CategoryM
                     setSlugTouched(true);
                     setDraft((prev) => ({ ...prev, slug: e.target.value }));
                   }}
-                  className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+                  className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm outline-none focus:border-[#ff4b86] focus:ring-1 focus:ring-[#ff4b86]"
                   placeholder="category-slug"
                 />
               </label>
@@ -231,7 +231,7 @@ export default function CategoryManager({ isOpen, onClose, onUpdate }: CategoryM
                 <button
                   onClick={handleSave}
                   disabled={loading}
-                  className="rounded-lg bg-primary px-4 py-2 text-xs font-bold text-white hover:bg-primary-dark disabled:opacity-50"
+                  className="rounded-lg bg-[#ff4b86] px-4 py-2 text-xs font-bold text-white hover:bg-[#ff6a9a] disabled:opacity-50"
                 >
                   {loading ? 'Saving...' : editingId ? 'Update' : 'Create'}
                 </button>
@@ -269,11 +269,10 @@ export default function CategoryManager({ isOpen, onClose, onUpdate }: CategoryM
                       <td className="px-4 py-3 font-mono text-xs text-gray-600">{cat.slug}</td>
                       <td className="px-4 py-3">
                         <span
-                          className={`inline-block rounded-full px-2 py-0.5 text-xs font-bold ${
-                            cat.is_active
+                          className={`inline-block rounded-full px-2 py-0.5 text-xs font-bold ${cat.is_active
                               ? 'bg-green-500/20 text-green-300'
                               : 'bg-gray-500/20 text-gray-600'
-                          }`}
+                            }`}
                         >
                           {cat.is_active ? 'Active' : 'Inactive'}
                         </span>
@@ -289,7 +288,7 @@ export default function CategoryManager({ isOpen, onClose, onUpdate }: CategoryM
                         <button
                           onClick={() => handleDelete(cat.id)}
                           disabled={loading}
-                          className="rounded bg-primary/20 px-2 py-1 text-xs font-bold text-primary hover:bg-primary/30 disabled:opacity-50"
+                          className="rounded bg-[#ff4b86]/10 px-2 py-1 text-xs font-bold text-[#ff4b86] hover:bg-[#ff4b86]/20 disabled:opacity-50"
                         >
                           Delete
                         </button>

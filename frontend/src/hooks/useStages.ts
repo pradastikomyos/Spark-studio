@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { queryKeys } from '../lib/queryKeys';
 
@@ -73,8 +73,49 @@ export function useStages(options?: UseStagesOptions) {
         today_scans: statsMap.get(stage.id)?.today_scans ?? 0,
       }));
     },
-    refetchOnWindowFocus: true,
     refetchOnReconnect: true,
     staleTime: 5000,
+  });
+}
+
+export function useCreateStage() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (newStage: Omit<StageRow, 'id' | 'created_at' | 'updated_at' | 'qr_code_url'>) => {
+      const { data, error } = await supabase.from('stages').insert(newStage).select().single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.stages() });
+    },
+  });
+}
+
+export function useUpdateStage() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, ...updates }: Partial<StageRow> & { id: number }) => {
+      const { data, error } = await supabase.from('stages').update(updates).eq('id', id).select().single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.stages() });
+    },
+  });
+}
+
+export function useDeleteStage() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: number) => {
+      const { error } = await supabase.from('stages').delete().eq('id', id);
+      if (error) throw error;
+      return id;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.stages() });
+    },
   });
 }
