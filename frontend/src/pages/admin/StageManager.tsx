@@ -17,6 +17,7 @@ const StageManager = () => {
     const { data: stages = [], error: stagesError, isLoading, refetch } = useStages({ enabled: isAdmin });
     const [searchQuery, setSearchQuery] = useState('');
     const [qrByStageId, setQrByStageId] = useState<Record<number, string>>({});
+    const [zoomedStage, setZoomedStage] = useState<StageWithStats | null>(null);
     const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
 
     const errorMessage = useMemo(() => {
@@ -257,7 +258,10 @@ const StageManager = () => {
                             </div>
 
                             {/* QR Code */}
-                            <div className="mb-4 flex-1 flex flex-col items-center justify-center rounded-lg bg-white p-4">
+                            <div 
+                                className="mb-4 flex-1 flex flex-col items-center justify-center rounded-lg bg-white p-4 cursor-pointer hover:bg-gray-50 transition-colors"
+                                onClick={() => setZoomedStage(stage)}
+                            >
                                 {qrByStageId[stage.id] ? (
                                     <img
                                         alt={`QR Code for ${stage.name}`}
@@ -309,6 +313,77 @@ const StageManager = () => {
                 <div className="flex flex-col items-center justify-center h-64 text-center">
                     <span className="material-symbols-outlined text-6xl text-gray-600 mb-4">search_off</span>
                     <p className="text-gray-600">No stages found matching "{searchQuery}"</p>
+                </div>
+            )}
+
+            {/* QR Code Zoom Modal */}
+            {zoomedStage && (
+                <div 
+                    className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-200"
+                    onClick={() => setZoomedStage(null)}
+                >
+                    {/* Close Button - Top Right */}
+                    <button
+                        onClick={() => setZoomedStage(null)}
+                        className="absolute top-4 right-4 z-10 flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20 transition-colors backdrop-blur-sm"
+                        aria-label="Close"
+                    >
+                        <span className="material-symbols-outlined text-2xl">close</span>
+                    </button>
+
+                    {/* Modal Content */}
+                    <div 
+                        className="relative max-w-lg w-full bg-white rounded-2xl shadow-2xl p-6 md:p-8 animate-in zoom-in-95 duration-200"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        {/* Header */}
+                        <div className="mb-6 text-center">
+                            <h3 className="text-2xl font-bold text-gray-900 mb-1">
+                                {zoomedStage.name}
+                            </h3>
+                            <p className="text-sm text-gray-500 font-mono">{zoomedStage.code}</p>
+                        </div>
+
+                        {/* QR Code - Large */}
+                        <div className="flex justify-center mb-6">
+                            {qrByStageId[zoomedStage.id] ? (
+                                <img
+                                    alt={`QR Code for ${zoomedStage.name}`}
+                                    className="w-full max-w-sm h-auto object-contain"
+                                    src={qrByStageId[zoomedStage.id]}
+                                />
+                            ) : (
+                                <div className="flex h-64 w-64 items-center justify-center">
+                                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Stats */}
+                        <div className="grid grid-cols-2 gap-4 mb-6">
+                            <div className="rounded-lg bg-gray-50 border border-gray-200 p-4 text-center">
+                                <p className="text-xs uppercase tracking-wider text-gray-500 mb-1">Total Scans</p>
+                                <p className="text-2xl font-bold text-gray-900">
+                                    {zoomedStage.total_scans.toLocaleString()}
+                                </p>
+                            </div>
+                            <div className="rounded-lg bg-gray-50 border border-gray-200 p-4 text-center">
+                                <p className="text-xs uppercase tracking-wider text-gray-500 mb-1">Today</p>
+                                <p className={`text-2xl font-bold ${zoomedStage.today_scans > 0 ? 'text-primary' : 'text-green-500'}`}>
+                                    {zoomedStage.today_scans}
+                                </p>
+                            </div>
+                        </div>
+
+                        {/* Download Button */}
+                        <button
+                            onClick={() => handleDownloadQR(zoomedStage)}
+                            className="w-full flex items-center justify-center gap-2 rounded-lg bg-[#ff4b86] px-6 py-3 text-base font-bold text-white hover:bg-[#ff6a9a] transition-colors shadow-md"
+                        >
+                            <span className="material-symbols-outlined text-xl">download</span>
+                            Download QR Code
+                        </button>
+                    </div>
                 </div>
             )}
         </AdminLayout>
