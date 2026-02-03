@@ -73,13 +73,6 @@ const StageScanPage = () => {
         }
     }, [stageCode, fetchStageAndRecordScan]);
 
-    useEffect(() => {
-        if (scanStatus !== 'success') return;
-        const timer = window.setTimeout(() => {
-            window.location.assign('/on-stage');
-        }, 1200);
-        return () => window.clearTimeout(timer);
-    }, [scanStatus]);
 
     if (loading) {
         return (
