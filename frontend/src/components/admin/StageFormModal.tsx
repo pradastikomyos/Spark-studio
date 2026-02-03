@@ -73,60 +73,88 @@ export default function StageFormModal({
                 </div>
 
                 <form onSubmit={handleSubmit} className="p-6 space-y-4">
-                    <div>
-                        <label className="block text-xs font-bold uppercase tracking-widest text-gray-500 mb-1">
-                            Stage Name
-                        </label>
-                        <input
-                            type="text"
-                            required
-                            className="w-full bg-gray-50 border border-gray-200 rounded-lg px-4 py-2.5 text-gray-900 focus:ring-2 focus:ring-[#ff4b86]/20 focus:border-[#ff4b86] transition-all"
-                            placeholder="e.g. Boxing Ring"
-                            value={formData.name}
-                            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                        />
-                    </div>
-
-                    <div>
-                        <label className="block text-xs font-bold uppercase tracking-widest text-gray-500 mb-1">
-                            Stage Code
-                        </label>
-                        <input
-                            type="text"
-                            required
-                            className="w-full bg-gray-50 border border-gray-200 rounded-lg px-4 py-2.5 text-gray-900 focus:ring-2 focus:ring-[#ff4b86]/20 focus:border-[#ff4b86] transition-all font-mono text-sm"
-                            placeholder="e.g. STG-001-BOX"
-                            value={formData.code}
-                            onChange={(e) => setFormData({ ...formData, code: e.target.value.toUpperCase() })}
-                        />
-                        <p className="mt-1 text-xs text-gray-400">Used for QR generation. Changing this will invalidate existing QRs.</p>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-4">
                         <div>
                             <label className="block text-xs font-bold uppercase tracking-widest text-gray-500 mb-1">
-                                Status
-                            </label>
-                            <select
-                                className="w-full bg-gray-50 border border-gray-200 rounded-lg px-4 py-2.5 text-gray-900 focus:ring-2 focus:ring-[#ff4b86]/20 focus:border-[#ff4b86] transition-all"
-                                value={formData.status}
-                                onChange={(e) => setFormData({ ...formData, status: e.target.value as any })}
-                            >
-                                <option value="active">Active</option>
-                                <option value="maintenance">Maintenance</option>
-                                <option value="inactive">Inactive</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label className="block text-xs font-bold uppercase tracking-widest text-gray-500 mb-1">
-                                Max Occupancy
+                                Stage Name
                             </label>
                             <input
-                                type="number"
-                                min="0"
+                                type="text"
+                                required
                                 className="w-full bg-gray-50 border border-gray-200 rounded-lg px-4 py-2.5 text-gray-900 focus:ring-2 focus:ring-[#ff4b86]/20 focus:border-[#ff4b86] transition-all"
-                                value={formData.max_occupancy}
-                                onChange={(e) => setFormData({ ...formData, max_occupancy: parseInt(e.target.value) || 0 })}
+                                placeholder="e.g. Boxing Ring"
+                                value={formData.name}
+                                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                            />
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-xs font-bold uppercase tracking-widest text-gray-500 mb-1">
+                                    Stage Code
+                                </label>
+                                <input
+                                    type="text"
+                                    required
+                                    className="w-full bg-gray-50 border border-gray-200 rounded-lg px-4 py-2.5 text-gray-900 focus:ring-2 focus:ring-[#ff4b86]/20 focus:border-[#ff4b86] transition-all font-mono text-sm"
+                                    placeholder="e.g. STG-001-BOX"
+                                    value={formData.code}
+                                    onChange={(e) => setFormData({ ...formData, code: e.target.value.toUpperCase() })}
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold uppercase tracking-widest text-gray-500 mb-1">
+                                    Zone / Location
+                                </label>
+                                <input
+                                    type="text"
+                                    className="w-full bg-gray-50 border border-gray-200 rounded-lg px-4 py-2.5 text-gray-900 focus:ring-2 focus:ring-[#ff4b86]/20 focus:border-[#ff4b86] transition-all"
+                                    placeholder="e.g. Zone A - Floor 2"
+                                    value={formData.zone}
+                                    onChange={(e) => setFormData({ ...formData, zone: e.target.value })}
+                                />
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-xs font-bold uppercase tracking-widest text-gray-500 mb-1">
+                                    Status
+                                </label>
+                                <select
+                                    className="w-full bg-gray-50 border border-gray-200 rounded-lg px-4 py-2.5 text-gray-900 focus:ring-2 focus:ring-[#ff4b86]/20 focus:border-[#ff4b86] transition-all"
+                                    value={formData.status}
+                                    onChange={(e) => setFormData({ ...formData, status: e.target.value as any })}
+                                >
+                                    <option value="active">Active</option>
+                                    <option value="maintenance">Maintenance</option>
+                                    <option value="inactive">Inactive</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold uppercase tracking-widest text-gray-500 mb-1">
+                                    Max Occupancy
+                                </label>
+                                <input
+                                    type="number"
+                                    min="0"
+                                    className="w-full bg-gray-50 border border-gray-200 rounded-lg px-4 py-2.5 text-gray-900 focus:ring-2 focus:ring-[#ff4b86]/20 focus:border-[#ff4b86] transition-all"
+                                    value={formData.max_occupancy}
+                                    onChange={(e) => setFormData({ ...formData, max_occupancy: parseInt(e.target.value) || 0 })}
+                                />
+                            </div>
+                        </div>
+
+                        <div>
+                            <label className="block text-xs font-bold uppercase tracking-widest text-gray-500 mb-1">
+                                Description
+                            </label>
+                            <textarea
+                                rows={3}
+                                className="w-full bg-gray-50 border border-gray-200 rounded-lg px-4 py-2.5 text-gray-900 focus:ring-2 focus:ring-[#ff4b86]/20 focus:border-[#ff4b86] transition-all resize-none"
+                                placeholder="Describe the stage atmosphere..."
+                                value={formData.description}
+                                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                             />
                         </div>
                     </div>
