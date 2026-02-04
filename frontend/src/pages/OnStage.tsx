@@ -26,12 +26,12 @@ const OnStage = () => {
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
-  // Auto-advance hero slider every 5 seconds
+  // Auto-advance hero slider every 8 seconds
   useEffect(() => {
     if (heroBanners.length === 0) return;
     const timer = setInterval(() => {
       setCurrentHeroSlide((prev) => (prev + 1) % heroBanners.length);
-    }, 5000);
+    }, 8000);
     return () => clearInterval(timer);
   }, [heroBanners.length]);
 
@@ -116,13 +116,13 @@ const OnStage = () => {
     <div className="bg-white min-h-screen">
       {/* Hero Section with Slider */}
       <section
-        className="relative h-[500px] md:h-[600px] overflow-hidden"
+        className="relative w-full aspect-video md:aspect-auto md:h-[600px] overflow-hidden bg-gray-900"
         onTouchStart={handleHeroTouchStart}
         onTouchMove={handleHeroTouchMove}
         onTouchEnd={handleHeroTouchEnd}
       >
         {/* Hero Slides */}
-        <div className="relative h-full">
+        <div className="relative h-full w-full">
           {heroBanners.map((slide, index) => (
             <div
               key={slide.id}
@@ -133,7 +133,7 @@ const OnStage = () => {
               <img
                 src={slide.image_url}
                 alt={slide.title}
-                className="w-full h-full object-cover"
+                className="w-full h-full object-cover md:object-cover"
               />
               <div className="absolute inset-0 bg-black/20"></div>
 
