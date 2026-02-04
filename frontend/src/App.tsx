@@ -131,18 +131,7 @@ function AppRoutes() {
             )
           }
         />
-        <Route
-          path="/checkout/product"
-          element={
-            wrap(
-              <ProtectedRoute>
-                <Suspense fallback={<RouteLoading />}>
-                  <ProductCheckoutPage />
-                </Suspense>
-              </ProtectedRoute>
-            )
-          }
-        />
+
         <Route
           path="/scan/:stageCode"
           element={
@@ -290,6 +279,18 @@ function AppRoutes() {
                 <Suspense fallback={<RouteLoading />}>
                   <Shop />
                 </Suspense>
+              )
+            }
+          />
+          <Route
+            path="checkout/product"
+            element={
+              wrap(
+                <ProtectedRoute>
+                  <Suspense fallback={<RouteLoading />}>
+                    <ProductCheckoutPage />
+                  </Suspense>
+                </ProtectedRoute>
               )
             }
           />
