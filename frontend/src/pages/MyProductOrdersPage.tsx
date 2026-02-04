@@ -88,6 +88,14 @@ export default function MyProductOrdersPage() {
       );
     }
 
+    if (order.pickup_status === 'pending_review') {
+      return (
+        <span className="inline-block px-3 py-1 text-xs font-bold rounded-full bg-amber-100 text-amber-700">
+          {t('myOrders.status.pendingReview')}
+        </span>
+      );
+    }
+
     if (order.pickup_status === 'completed') {
       return (
         <span className="inline-block px-3 py-1 text-xs font-bold rounded-full bg-green-100 text-green-700">
@@ -116,6 +124,22 @@ export default function MyProductOrdersPage() {
       <span className="inline-block px-3 py-1 text-xs font-bold rounded-full bg-blue-100 text-blue-700">
         {t('myOrders.status.readyForPickup')}
       </span>
+    );
+  };
+
+  const getPickupInstruction = (order: ProductOrder) => {
+    const status = String(order.pickup_status || '').toLowerCase();
+    if (status === 'completed') return t('myOrders.pickup.instructions.pickedUp');
+    if (status === 'expired') return t('myOrders.pickup.instructions.expired');
+    if (status === 'cancelled') return t('myOrders.pickup.instructions.cancelled');
+    if (status === 'pending_review') return t('myOrders.pickup.instructions.pendingReview');
+    return t('myOrders.pickup.instructions.ready');
+  };
+
+  const shouldShowPickupExpiry = (order: ProductOrder) => {
+    const status = String(order.pickup_status || '').toLowerCase();
+    return Boolean(
+      order.pickup_expires_at && (status === 'pending_pickup' || status === 'pending_review')
     );
   };
 
@@ -286,8 +310,8 @@ export default function MyProductOrdersPage() {
                     </div>
                   </div>
 
-                  {/* QR Code Section - Only show for paid orders */}
-                  {order.payment_status === 'paid' && order.pickup_code && order.pickup_status === 'pending_pickup' && (
+                  {/* QR Code Section - Show for paid orders with pickup code */}
+                  {order.payment_status === 'paid' && order.pickup_code && (
                     <div className="mt-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
                       <div className="flex flex-col md:flex-row items-center gap-6">
                         <div className="bg-white p-4 rounded-lg shadow-sm">
@@ -295,15 +319,15 @@ export default function MyProductOrdersPage() {
                         </div>
                         <div className="flex-1 text-center md:text-left">
                           <p className="text-xs uppercase tracking-widest text-gray-500 mb-1">
-                            Pickup Code
+                            {t('myOrders.pickup.label')}
                           </p>
                           <p className="font-display text-2xl text-main-600 mb-2">{order.pickup_code}</p>
                           <p className="text-sm text-gray-600">
-                            Show this QR code to admin when picking up your items
+                            {getPickupInstruction(order)}
                           </p>
-                          {order.pickup_expires_at && (
+                          {shouldShowPickupExpiry(order) && (
                             <p className="text-xs text-gray-500 mt-2">
-                              Expires: {formatDate(order.pickup_expires_at)}
+                              {t('myOrders.pickup.expires')}: {formatDate(order.pickup_expires_at)}
                             </p>
                           )}
                         </div>

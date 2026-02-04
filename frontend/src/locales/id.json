@@ -146,7 +146,19 @@
       "pickedUp": "Sudah Diambil",
       "expired": "Kadaluarsa",
       "cancelled": "Dibatalkan",
-      "readyForPickup": "Siap Diambil"
+      "readyForPickup": "Siap Diambil",
+      "pendingReview": "Sedang Ditinjau"
+    },
+    "pickup": {
+      "label": "Kode Pengambilan",
+      "expires": "Kadaluarsa",
+      "instructions": {
+        "ready": "Tunjukkan QR ini ke admin saat mengambil barang",
+        "pickedUp": "Pesanan ini sudah diambil",
+        "expired": "Kode pengambilan sudah kadaluarsa",
+        "cancelled": "Pesanan ini dibatalkan",
+        "pendingReview": "Pembayaran terkonfirmasi. Pengambilan sedang ditinjau"
+      }
     },
     "actions": {
       "viewItems": "Lihat Item",

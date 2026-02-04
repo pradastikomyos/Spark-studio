@@ -146,7 +146,19 @@
       "pickedUp": "Picked Up",
       "expired": "Expired",
       "cancelled": "Cancelled",
-      "readyForPickup": "Ready for Pickup"
+      "readyForPickup": "Ready for Pickup",
+      "pendingReview": "Under Review"
+    },
+    "pickup": {
+      "label": "Pickup Code",
+      "expires": "Expires",
+      "instructions": {
+        "ready": "Show this QR code to admin when picking up your items",
+        "pickedUp": "This order has been picked up",
+        "expired": "Pickup code expired",
+        "cancelled": "This order was cancelled",
+        "pendingReview": "Payment confirmed. Pickup is under review"
+      }
     },
     "actions": {
       "viewItems": "View Items",
