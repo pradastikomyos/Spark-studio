@@ -278,8 +278,7 @@ export default function JourneySelectionPage() {
   }
 
   const price = parseFloat(ticket.price);
-  const vat = price * 0.1;
-  const total = price + vat;
+  const total = price; // VAT already included in ticket price
 
   return (
     <PageTransition>
@@ -467,12 +466,8 @@ export default function JourneySelectionPage() {
 
                 <div className="border-t border-gray-200 pt-6 mb-6 space-y-3">
                   <div className="flex justify-between text-sm">
-                    <span className="text-gray-600">Ticket Price</span>
+                    <span className="text-gray-600">Ticket Price <span className="text-xs text-gray-500">(VAT included)</span></span>
                     <span className="font-medium">{formatCurrency(price)}</span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-600">VAT (10%)</span>
-                    <span className="font-medium">{formatCurrency(vat)}</span>
                   </div>
                   <div className="flex justify-between items-center pt-3 border-t border-gray-200">
                     <span className="text-lg font-bold">TOTAL</span>

@@ -6,6 +6,7 @@ import { supabase } from '../lib/supabase';
 import { getOrderStatusPresentation } from '../utils/midtransStatus';
 import { useAuth } from '../contexts/AuthContext';
 import BookingSuccessSkeleton from '../components/skeletons/BookingSuccessSkeleton';
+import StarSparkleIcon from '../components/StarSparkleIcon';
 
 interface LocationState {
   orderNumber?: string;
@@ -474,9 +475,7 @@ export default function BookingSuccessPage() {
     alert('Ticket has been sent to your email!');
   };
 
-  const handleDownloadPDF = () => {
-    alert('PDF download started!');
-  };
+
 
   const formatDate = (dateString: string) => {
     if (!dateString) return '-';
@@ -559,18 +558,46 @@ export default function BookingSuccessPage() {
         <div className="layout-content-container flex flex-col max-w-[800px] flex-1">
           {/* Celebration Section */}
           <div className="text-center mb-8">
-            <div className={`inline-flex items-center justify-center p-3 mb-4 rounded-full ${effectiveStatus === 'pending' ? 'bg-yellow-100 text-yellow-600' : 'bg-primary/10 text-primary'
-              }`}>
-              <span className="material-symbols-outlined text-4xl">
-                {statusIcon}
-              </span>
-            </div>
-            <h1 className="text-[#1c0d0d] tracking-tight text-4xl md:text-5xl font-bold leading-tight pb-3 font-display">
-              {statusTitle}
-            </h1>
-            <p className="text-[#9c4949] text-lg font-normal leading-normal max-w-xl mx-auto px-4">
-              {statusDescription}
-            </p>
+            {effectiveStatus === 'paid' ? (
+              /* Success State - "Ready to Be a Star?" */
+              <>
+                {/* Status Badge */}
+                <p className="text-xs uppercase tracking-widest text-gray-400 font-semibold mb-3">
+                  Booking Confirmed
+                </p>
+                
+                {/* Main Headline with Gradient */}
+                <h1 className="text-5xl md:text-6xl font-display font-bold mb-4 bg-gradient-to-r from-primary via-rose-500 to-primary bg-[length:200%_auto] animate-gradient bg-clip-text text-transparent leading-tight pb-2">
+                  Ready to Be a Star?
+                </h1>
+                
+                {/* Custom Star Icon with Sparkle */}
+                <div className="inline-flex items-center justify-center mb-4">
+                  <StarSparkleIcon className="w-12 h-12 text-primary" />
+                </div>
+                
+                {/* Subtext */}
+                <p className="text-lg text-gray-600 font-medium">
+                  {statusDescription}
+                </p>
+              </>
+            ) : (
+              /* Other States - Keep Original Design */
+              <>
+                <div className={`inline-flex items-center justify-center p-3 mb-4 rounded-full ${effectiveStatus === 'pending' ? 'bg-yellow-100 text-yellow-600' : 'bg-primary/10 text-primary'
+                  }`}>
+                  <span className="material-symbols-outlined text-4xl">
+                    {statusIcon}
+                  </span>
+                </div>
+                <h1 className="text-[#1c0d0d] tracking-tight text-4xl md:text-5xl font-bold leading-tight pb-3 font-display">
+                  {statusTitle}
+                </h1>
+                <p className="text-[#9c4949] text-lg font-normal leading-normal max-w-xl mx-auto px-4">
+                  {statusDescription}
+                </p>
+              </>
+            )}
           </div>
 
           {/* Order Info */}
@@ -768,19 +795,12 @@ export default function BookingSuccessPage() {
             </div>
           )}
 
-          {/* Action Buttons */}
+          {/* Action Button */}
           {tickets.length > 0 && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-10 px-4">
-              <button
-                onClick={handleDownloadPDF}
-                className="flex items-center justify-center gap-2 min-w-[180px] h-14 rounded-xl bg-[#ff4b86] text-white font-bold text-lg hover:bg-[#e63d75] transition-all shadow-xl shadow-primary/30"
-              >
-                <span className="material-symbols-outlined">download</span>
-                Download All Tickets
-              </button>
+            <div className="flex justify-center mt-10 px-4">
               <button
                 onClick={() => navigate('/my-tickets')}
-                className="flex items-center justify-center gap-2 min-w-[180px] h-14 rounded-xl bg-white border-2 border-primary text-primary font-bold text-lg hover:bg-primary/5 transition-all"
+                className="flex items-center justify-center gap-2 min-w-[200px] h-14 rounded-xl bg-[#ff4b86] text-white font-bold text-lg hover:bg-[#e63d75] transition-all shadow-xl shadow-primary/30"
               >
                 <span className="material-symbols-outlined">confirmation_number</span>
                 View My Tickets

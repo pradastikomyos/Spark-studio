@@ -39,8 +39,8 @@ export function getOrderStatusPresentation(status: unknown): {
   if (s === 'paid') {
     return {
       icon: 'check_circle',
-      title: 'Thank You!',
-      description: 'Your session is locked in. We can\'t wait to see your vision come to life at Spark Stage.',
+      title: 'Ready to Be a Star?',
+      description: 'Your stage awaits. Let the magic begin.',
     }
   }
 

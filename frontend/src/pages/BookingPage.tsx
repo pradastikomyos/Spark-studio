@@ -348,8 +348,7 @@ export default function BookingPage() {
   }
 
   const price = parseFloat(ticket.price);
-  const vat = price * 0.1;
-  const total = price + vat;
+  const total = price; // VAT already included in ticket price
 
   const monthName = currentDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
 
@@ -657,12 +656,8 @@ export default function BookingPage() {
 
                   <div className="pt-6 border-t border-background-light space-y-4">
                     <div className="flex justify-between text-sm">
-                      <span>Ticket Price</span>
+                      <span>Ticket Price <span className="text-xs text-gray-500">(VAT included)</span></span>
                       <span className="font-bold">{formatCurrency(price)}</span>
-                    </div>
-                    <div className="flex justify-between text-sm">
-                      <span>VAT (10%)</span>
-                      <span className="font-bold">{formatCurrency(vat)}</span>
                     </div>
                     <div className="flex justify-between text-xl font-black pt-4 border-t border-dashed border-[#e8cece]#3d2424]">
                       <span className="uppercase tracking-tighter">Total</span>
