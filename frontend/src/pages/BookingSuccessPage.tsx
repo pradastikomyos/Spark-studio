@@ -97,7 +97,8 @@ export default function BookingSuccessPage() {
 
     const duration = 3000;
     const animationEnd = Date.now() + duration;
-    const defaults = { startVelocity: 30, spread: 360, ticks: 60, zIndex: 9999 };
+    const defaults = { startVelocity: 45, spread: 360, ticks: 100, zIndex: 9999, scalar: 1.2 };
+    const colors = ['#FFD700', '#C0C0C0', '#FCEabb', '#EFEFEF']; // Gold, Silver, light varieties
 
     const randomInRange = (min: number, max: number) => Math.random() * (max - min) + min;
 
@@ -109,14 +110,15 @@ export default function BookingSuccessPage() {
         return;
       }
 
-      const particleCount = 50 * (timeLeft / duration);
+      const particleCount = 300 * (timeLeft / duration);
 
       // Left side burst
       confetti({
         ...defaults,
         particleCount,
         origin: { x: randomInRange(0.1, 0.3), y: Math.random() - 0.2 },
-        colors: ['#ff4b86', '#ff6b9d', '#ffa8c5', '#ffcce0'],
+        colors: colors,
+        shapes: ['square', 'circle', 'star'],
       });
 
       // Right side burst
@@ -124,7 +126,8 @@ export default function BookingSuccessPage() {
         ...defaults,
         particleCount,
         origin: { x: randomInRange(0.7, 0.9), y: Math.random() - 0.2 },
-        colors: ['#ff4b86', '#ff6b9d', '#ffa8c5', '#ffcce0'],
+        colors: colors,
+        shapes: ['square', 'circle', 'star'],
       });
     }, 250);
   };
