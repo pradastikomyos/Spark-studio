@@ -260,33 +260,7 @@ export default function PaymentPage() {
   return (
     <div className="min-h-screen bg-background-light flex flex-col">
       {/* Header */}
-      <header className="flex items-center justify-between border-b border-solid border-rose-100 px-10 py-4 bg-white sticky top-0 z-50">
-        <div className="flex items-center gap-4">
-          <div className="size-8 text-primary">
-            <svg fill="none" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
-              <g clipPath="url(#clip0_6_543)">
-                <path d="M42.1739 20.1739L27.8261 5.82609C29.1366 7.13663 28.3989 10.1876 26.2002 13.7654C24.8538 15.9564 22.9595 18.3449 20.6522 20.6522C18.3449 22.9595 15.9564 24.8538 13.7654 26.2002C10.1876 28.3989 7.13663 29.1366 5.82609 27.8261L20.1739 42.1739C21.4845 43.4845 24.5355 42.7467 28.1133 40.548C30.3042 39.2016 32.6927 37.3073 35 35C37.3073 32.6927 39.2016 30.3042 40.548 28.1133C42.7467 24.5355 43.4845 21.4845 42.1739 20.1739Z" fill="currentColor"></path>
-              </g>
-              <defs>
-                <clipPath id="clip0_6_543">
-                  <rect fill="white" height="48" width="48"></rect>
-                </clipPath>
-              </defs>
-            </svg>
-          </div>
-          <h2 className="text-lg font-bold leading-tight tracking-[-0.015em]">Spark Stage</h2>
-        </div>
-        <div className="flex items-center gap-8">
-          <nav className="hidden md:flex items-center gap-9">
-            <button onClick={() => navigate('/')} className="text-sm font-medium hover:text-primary transition-colors">
-              Studio
-            </button>
-            <button className="text-sm font-medium hover:text-primary transition-colors">Gallery</button>
-            <button className="text-sm font-medium hover:text-primary transition-colors">Bookings</button>
-            <button className="text-sm font-medium hover:text-primary transition-colors">Contact</button>
-          </nav>
-        </div>
-      </header>
+
 
       <main className="max-w-4xl mx-auto px-6 py-10 flex-1">
         {/* Progress Bar */}

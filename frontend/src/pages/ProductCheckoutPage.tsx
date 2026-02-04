@@ -154,75 +154,202 @@ export default function ProductCheckoutPage() {
   };
 
   return (
-    <div className="min-h-screen bg-background-light">
-      <main className="max-w-4xl mx-auto px-6 lg:px-12 py-16 w-full">
-        <header className="mb-10 border-b border-gray-200 pb-6">
-          <h1 className="font-display text-4xl md:text-5xl font-light">Checkout</h1>
-          <p className="mt-2 text-sm text-gray-500 uppercase tracking-widest">Buy Online, Pick Up In Store</p>
-        </header>
+    <div className="min-h-screen bg-background-light flex flex-col">
+       {/* Header */}
 
-        {error && <div className="mb-6 rounded-xl border border-red-500/20 bg-red-500/10 p-4 text-sm text-red-700">{error}</div>}
 
-        <div className="grid grid-cols-1 lg:grid-cols-5 gap-10">
-          <section className="lg:col-span-3">
-            <div className="rounded-xl border border-gray-200 bg-white/50 p-6">
-              <h2 className="font-display text-2xl mb-6">Customer Details</h2>
+      <main className="max-w-4xl mx-auto px-6 py-10 flex-1 w-full">
+         {/* Progress Bar */}
+         <div className="max-w-[800px] mx-auto mb-8">
+          <div className="flex flex-col gap-3">
+            <div className="flex gap-6 justify-between items-end">
+              <p className="text-base font-medium">Step 2 of 3</p>
+              <p className="text-sm font-normal opacity-70">66% Complete</p>
+            </div>
+            <div className="rounded-full bg-rose-100 overflow-hidden">
+              <div className="h-2.5 rounded-full bg-primary" style={{ width: '66%' }}></div>
+            </div>
+            <p className="text-primary text-sm font-medium">Payment Confirmation</p>
+          </div>
+        </div>
+
+        {error && (
+            <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700">
+            <div className="flex items-center gap-2">
+                <span className="material-symbols-outlined">error</span>
+                <span>{error}</span>
+            </div>
+            </div>
+        )}
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+           {/* Left Side: Order Summary */}
+           <div className="space-y-6">
+            <div className="bg-white p-6 rounded-xl border border-rose-100 shadow-sm">
+              <h3 className="text-xl font-bold mb-6 flex items-center gap-2">
+                <span className="material-symbols-outlined text-primary">shopping_bag</span>
+                Order Summary
+              </h3>
+
               <div className="space-y-4">
-                <div>
-                  <label className="block text-xs uppercase tracking-widest text-gray-500 mb-2">Name</label>
-                  <input
-                    value={customerName}
-                    onChange={(e) => setCustomerName(e.target.value)}
-                    className="w-full rounded-lg border border-gray-200 bg-white px-4 py-3 text-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary"
-                    placeholder="Your name"
-                    type="text"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs uppercase tracking-widest text-gray-500 mb-2">Phone (optional)</label>
-                  <input
-                    value={customerPhone}
-                    onChange={(e) => setCustomerPhone(e.target.value)}
-                    className="w-full rounded-lg border border-gray-200 bg-white px-4 py-3 text-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary"
-                    placeholder="08xxxxxxxxxx"
-                    type="tel"
-                  />
+                 {orderItems.map((i) => (
+                    <div key={i.product_variant_id} className="flex justify-between items-start border-b border-dashed border-rose-100 pb-4 last:border-0 last:pb-0">
+                        <div>
+                            <p className="font-bold text-neutral-950">{i.product_name}</p>
+                            <p className="text-sm text-rose-700">{i.variant_name}</p>
+                            <p className="text-xs text-gray-500 mt-1">{i.quantity} x {formatCurrency(i.unit_price)}</p>
+                        </div>
+                        <p className="font-semibold">{formatCurrency(i.subtotal)}</p>
+                    </div>
+                ))}
+
+                <div className="pt-6 flex justify-between items-end border-t border-rose-100 mt-4">
+                  <p className="text-lg font-bold">Total Amount</p>
+                  <div className="text-right">
+                    <p className="text-2xl font-black text-primary tracking-tight">
+                      {formatCurrency(subtotal)}
+                    </p>
+                    <p className="text-[10px] text-rose-700 uppercase tracking-wider">
+                      Inclusive of all taxes
+                    </p>
+                  </div>
                 </div>
               </div>
             </div>
-          </section>
 
-          <aside className="lg:col-span-2">
-            <div className="rounded-xl border border-gray-200 bg-white/50 p-6 sticky top-24">
-              <h2 className="font-display text-2xl mb-6">Order Summary</h2>
-              <div className="space-y-3 text-sm mb-6">
-                {orderItems.map((i) => (
-                  <div key={i.product_variant_id} className="flex justify-between gap-4 text-gray-700">
-                    <div className="min-w-0">
-                      <p className="truncate">{i.product_name}</p>
-                      <p className="text-xs text-gray-500 truncate">
-                        {i.variant_name} · {i.quantity} × {formatCurrency(i.unit_price)}
-                      </p>
-                    </div>
-                    <span className="font-medium">{formatCurrency(i.subtotal)}</span>
+            <div className="flex items-center gap-4 p-4 bg-primary/5 rounded-lg border border-primary/10">
+              <span className="material-symbols-outlined text-primary">verified_user</span>
+              <p className="text-xs leading-relaxed text-rose-700">
+                Your payment is secured by Midtrans with 256-bit SSL encryption.
+              </p>
+            </div>
+          </div>
+
+          {/* Right Side: Customer Details & Pay */}
+          <div>
+            <div className="bg-white p-6 rounded-xl border border-rose-100 shadow-sm">
+              <h1 className="text-2xl font-bold mb-6">Complete Payment</h1>
+
+              <div className="space-y-5 mb-8">
+                <div className="space-y-1.5">
+                  <label className="text-sm font-semibold text-neutral-950">
+                    Your Name <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={customerName}
+                    onChange={(e) => setCustomerName(e.target.value)}
+                    className="w-full rounded-lg border border-rose-100 focus:ring-primary focus:border-primary text-sm py-3 px-4 outline-none transition-all"
+                    placeholder="Enter your full name"
+                    disabled={loading}
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-sm font-semibold text-neutral-950">
+                    Phone Number (Optional)
+                  </label>
+                  <input
+                    type="tel"
+                    value={customerPhone}
+                    onChange={(e) => setCustomerPhone(e.target.value)}
+                    className="w-full rounded-lg border border-rose-100 focus:ring-primary focus:border-primary text-sm py-3 px-4 outline-none transition-all"
+                    placeholder="08xxxxxxxxxx"
+                    disabled={loading}
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-sm font-semibold text-neutral-950">
+                    Email
+                  </label>
+                  <input
+                    type="email"
+                    value={user?.email || ''}
+                    className="w-full rounded-lg border border-rose-100 text-sm py-3 px-4 bg-gray-50 outline-none"
+                    disabled
+                  />
+                  <p className="text-xs text-rose-700">Order details will be sent to this email</p>
+                </div>
+              </div>
+
+              {/* Midtrans Payment Info */}
+              <div className="mb-6 p-4 bg-blue-50 rounded-lg border border-blue-100">
+                <div className="flex items-start gap-3">
+                  <span className="material-symbols-outlined text-blue-500">info</span>
+                  <div>
+                    <p className="text-sm font-medium text-blue-800">
+                      Secure Payment via Midtrans
+                    </p>
+                    <p className="text-xs text-blue-600 mt-1">
+                      You can pay using Credit Card, Bank Transfer, E-Wallet (GoPay, OVO, ShopeePay), QRIS, and more.
+                    </p>
                   </div>
-                ))}
+                </div>
               </div>
-              <div className="border-t border-gray-200 pt-4 flex justify-between items-center">
-                <span className="uppercase tracking-widest text-xs text-gray-500">Total</span>
-                <span className="font-display text-2xl text-primary">{formatCurrency(subtotal)}</span>
-              </div>
+
               <button
                 onClick={handlePay}
                 disabled={loading || !canCheckout}
-                className="mt-6 w-full bg-[#ff4b86] text-white py-4 uppercase tracking-widest text-sm font-bold hover:bg-[#e63d75] transition-colors shadow-lg shadow-red-900/20 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full bg-[#ff4b86] hover:bg-[#e63d75] disabled:bg-gray-400 disabled:cursor-not-allowed text-white font-bold py-4 rounded-xl shadow-lg shadow-primary/20 transition-all flex items-center justify-center gap-2"
               >
-                {!initialized ? 'Loading...' : loading ? 'Processing...' : 'Pay with Midtrans'}
+                {loading ? (
+                  <>
+                    <span className="material-symbols-outlined animate-spin">progress_activity</span>
+                    Processing...
+                  </>
+                ) : (
+                  <>
+                    <span className="material-symbols-outlined text-[20px]">lock</span>
+                    Pay {formatCurrency(subtotal)} Now
+                  </>
+                )}
               </button>
+
+              {/* Payment Method Logos */}
+              <div className="mt-6 pt-6 border-t border-rose-100">
+                <p className="text-xs text-center text-rose-700 mb-3">Supported Payment Methods</p>
+                <div className="flex justify-center items-center gap-4 flex-wrap opacity-60">
+                  <img
+                    alt="Visa"
+                    className="h-5"
+                    src="https://upload.wikimedia.org/wikipedia/commons/thumb/5/5e/Visa_Inc._logo.svg/200px-Visa_Inc._logo.svg.png"
+                  />
+                  <img
+                    alt="Mastercard"
+                    className="h-5"
+                    src="https://upload.wikimedia.org/wikipedia/commons/thumb/2/2a/Mastercard-logo.svg/200px-Mastercard-logo.svg.png"
+                  />
+                  <div className="px-2 py-1 bg-cyan-500 rounded text-white text-[10px] font-bold">GoPay</div>
+                  <div className="px-2 py-1 bg-purple-700 rounded text-white text-[10px] font-bold">OVO</div>
+                  <div className="px-2 py-1 bg-orange-500 rounded text-white text-[10px] font-bold">ShopeePay</div>
+                  <div className="px-2 py-1 bg-gray-800 rounded text-white text-[10px] font-bold">QRIS</div>
+                </div>
+              </div>
             </div>
-          </aside>
+
+            <p className="text-center mt-6 text-xs text-rose-700">
+              By clicking "Pay Now", you agree to Spark Stage's{' '}
+              <a className="underline" href="#">Terms of Service</a> and{' '}
+              <a className="underline" href="#">Cancellation Policy</a>.
+            </p>
+          </div>
         </div>
       </main>
+
+      {/* Footer */}
+      <footer className="mt-auto py-10 border-t border-rose-100 text-center">
+        <div className="flex flex-col items-center gap-2">
+          <div className="size-6 text-gray-400">
+            <svg fill="none" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+              <path d="M42.1739 20.1739L27.8261 5.82609C29.1366 7.13663 28.3989 10.1876 26.2002 13.7654C24.8538 15.9564 22.9595 18.3449 20.6522 20.6522C18.3449 22.9595 15.9564 24.8538 13.7654 26.2002C10.1876 28.3989 7.13663 29.1366 5.82609 27.8261L20.1739 42.1739C21.4845 43.4845 24.5355 42.7467 28.1133 40.548C30.3042 39.2016 32.6927 37.3073 35 35C37.3073 32.6927 39.2016 30.3042 40.548 28.1133C42.7467 24.5355 43.4845 21.4845 42.1739 20.1739Z" fill="currentColor"></path>
+            </svg>
+          </div>
+          <p className="text-xs text-rose-700">
+            © 2023 Spark Stage. All rights reserved.
+          </p>
+        </div>
+      </footer>
     </div>
   );
 }

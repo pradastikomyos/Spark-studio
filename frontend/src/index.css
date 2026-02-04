@@ -27,6 +27,13 @@
   }
 }
 
+
+/* Global Text Selection */
+::selection {
+  background-color: #ff4b86;
+  color: white;
+}
+
 .hide-scrollbar::-webkit-scrollbar {
   display: none;
 }
