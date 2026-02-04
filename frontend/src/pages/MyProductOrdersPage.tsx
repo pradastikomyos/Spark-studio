@@ -325,7 +325,7 @@ export default function MyProductOrdersPage() {
                           <p className="text-sm text-gray-600">
                             {getPickupInstruction(order)}
                           </p>
-                          {shouldShowPickupExpiry(order) && (
+                          {shouldShowPickupExpiry(order) && order.pickup_expires_at && (
                             <p className="text-xs text-gray-500 mt-2">
                               {t('myOrders.pickup.expires')}: {formatDate(order.pickup_expires_at)}
                             </p>
