@@ -19,7 +19,7 @@ export default function ProductCheckoutPage() {
   const location = useLocation();
   const queryClient = useQueryClient();
   const { user, session, initialized } = useAuth();
-  const { items: allItems, removeItem, clear: clearCart } = useCart();
+  const { items: allItems, removeItem } = useCart();
   const { showToast } = useToast();
 
   const [customerName, setCustomerName] = useState('');
