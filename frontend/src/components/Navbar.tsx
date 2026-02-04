@@ -124,15 +124,20 @@ const Navbar = () => {
 
                 <Link
                   to="/my-tickets"
-                  className="text-gray-500 hover:text-main-600 transition-colors"
+                  className="relative text-gray-500 hover:text-main-600 transition-colors"
                   title={t('nav.myTickets')}
                 >
                   <Ticket className="h-5 w-5" />
+                  {ticketCount > 0 && (
+                    <span className="absolute -top-1.5 -right-1.5 bg-main-600 text-white text-[10px] w-4 h-4 flex items-center justify-center rounded-full">
+                      {ticketCount}
+                    </span>
+                  )}
                 </Link>
 
                 <Link
                   to="/my-orders"
-                  className="text-gray-500 hover:text-main-600 transition-colors"
+                  className="relative text-gray-500 hover:text-main-600 transition-colors"
                   title={t('nav.myOrders')}
                 >
                   <ReceiptText className="h-5 w-5" />
