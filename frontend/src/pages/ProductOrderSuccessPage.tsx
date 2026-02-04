@@ -41,7 +41,6 @@ export default function ProductOrderSuccessPage() {
 
   const pickupCode = order?.pickup_code ?? null;
   const { session } = useAuth();
-  const [showManualButton, setShowManualButton] = useState(false);
   const [autoSyncInProgress, setAutoSyncInProgress] = useState(false);
 
   const fetchOrder = useCallback(async () => {
@@ -129,7 +128,6 @@ export default function ProductOrderSuccessPage() {
         // If status changed to paid, fetch details to get pickup code and items
         // We use the response status to check
         if (data.order.payment_status === 'paid') {
-          setShowManualButton(false);
           // Re-fetch everything to ensure we have consistent state (items, etc.)
           await fetchOrder();
         }
@@ -167,30 +165,56 @@ export default function ProductOrderSuccessPage() {
     };
   }, [orderNumber, fetchOrder]);
 
+  useEffect(() => {
+    if (!orderNumber) return;
+
+    const channel = supabase
+      .channel(`order_products:${orderNumber}`)
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'order_products', filter: `order_number=eq.${orderNumber}` },
+        async (payload) => {
+          const next = (payload as unknown as { new?: ProductOrder }).new;
+          if (!next) return;
+          setOrder((prev) => ({ ...(prev || ({} as ProductOrder)), ...next }));
+          if (next.payment_status === 'paid' || next.pickup_code) {
+            await fetchOrder();
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [fetchOrder, orderNumber]);
+
 
 
   // Active Sync / Aggressive Polling
   useEffect(() => {
     if (!orderNumber) return;
-    // Don't poll if already paid/picked up
     if (pickupCode || order?.payment_status === 'paid') return;
 
-    // Initial sync on mount (or when orderNumber changes)
-    handleSyncStatus(true);
+    const delaysMs = [0, 5000, 15000, 35000];
+    let timeout: ReturnType<typeof setTimeout> | null = null;
+    let cancelled = false;
 
-    // Poll every 2 seconds
-    const interval = setInterval(() => {
-      handleSyncStatus(true);
-    }, 2000);
+    const runAttempt = (attempt: number) => {
+      if (cancelled) return;
+      if (attempt >= delaysMs.length) return;
 
-    // Show manual button after 20 seconds
-    const timeout = setTimeout(() => {
-      setShowManualButton(true);
-    }, 20000);
+      timeout = setTimeout(async () => {
+        await handleSyncStatus(true);
+        runAttempt(attempt + 1);
+      }, delaysMs[attempt]);
+    };
+
+    runAttempt(0);
 
     return () => {
-      clearInterval(interval);
-      clearTimeout(timeout);
+      cancelled = true;
+      if (timeout) clearTimeout(timeout);
     };
   }, [orderNumber, pickupCode, order?.payment_status, handleSyncStatus]);
 
@@ -225,7 +249,7 @@ export default function ProductOrderSuccessPage() {
 
         {error && <div className="mb-6 rounded-xl border border-red-500/20 bg-red-500/10 p-4 text-sm text-red-700">{error}</div>}
 
-        {loading || !order || (!pickupCode && order?.payment_status !== 'paid' && !showManualButton) ? (
+        {loading || !order ? (
           <OrderSuccessSkeleton />
         ) : (
           <>

@@ -153,31 +153,47 @@ serve(async (req) => {
         const stockIssues: string[] = []
 
         if (Array.isArray(orderItems)) {
+          const variantIds = Array.from(
+            new Set(
+              orderItems
+                .map((row) => Number((row as { product_variant_id: number | string }).product_variant_id))
+                .filter((id) => id > 0)
+            )
+          )
+          const { data: variantRows } = variantIds.length
+            ? await supabase.from('product_variants').select('id, stock, reserved_stock').in('id', variantIds)
+            : { data: [] as unknown[] }
+
+          const variantsById = new Map<number, { stock: number; reserved_stock: number }>()
+          if (Array.isArray(variantRows)) {
+            for (const v of variantRows) {
+              const id = Number((v as { id?: number | string }).id ?? 0)
+              if (!id) continue
+              variantsById.set(id, {
+                stock: Number((v as { stock?: unknown }).stock ?? 0),
+                reserved_stock: Number((v as { reserved_stock?: unknown }).reserved_stock ?? 0),
+              })
+            }
+          }
+
           for (const row of orderItems) {
             const variantId = Number((row as { product_variant_id: number | string }).product_variant_id)
             const qty = Math.max(1, Math.floor(Number((row as { quantity: number | string }).quantity)))
+            const variant = variantsById.get(variantId)
+            if (!variant) continue
+            const currentStock = variant.stock
+            const currentReserved = variant.reserved_stock
 
-            const { data: variant } = await supabase
-              .from('product_variants')
-              .select('stock, reserved_stock')
-              .eq('id', variantId)
-              .single()
+            // Check if there's still enough reserved stock for this order
+            if (currentReserved < qty) {
+              stockValidationFailed = true
+              stockIssues.push(`Variant ${variantId}: reserved=${currentReserved}, needed=${qty}`)
+            }
 
-            if (variant) {
-              const currentStock = (variant as { stock?: number }).stock ?? 0
-              const currentReserved = (variant as { reserved_stock?: number }).reserved_stock ?? 0
-              
-              // Check if there's still enough reserved stock for this order
-              if (currentReserved < qty) {
-                stockValidationFailed = true
-                stockIssues.push(`Variant ${variantId}: reserved=${currentReserved}, needed=${qty}`)
-              }
-              
-              // Check if actual stock is sufficient
-              if (currentStock < qty) {
-                stockValidationFailed = true
-                stockIssues.push(`Variant ${variantId}: stock=${currentStock}, needed=${qty}`)
-              }
+            // Check if actual stock is sufficient
+            if (currentStock < qty) {
+              stockValidationFailed = true
+              stockIssues.push(`Variant ${variantId}: stock=${currentStock}, needed=${qty}`)
             }
           }
         }
@@ -262,17 +278,30 @@ serve(async (req) => {
           .eq('order_product_id', (productOrder as { id: number }).id)
 
         if (Array.isArray(orderItems)) {
+          const qtyByVariantId = new Map<number, number>()
           for (const row of orderItems) {
             const variantId = Number((row as { product_variant_id: number | string }).product_variant_id)
             const qty = Math.max(1, Math.floor(Number((row as { quantity: number | string }).quantity)))
+            if (!variantId || qty <= 0) continue
+            qtyByVariantId.set(variantId, (qtyByVariantId.get(variantId) ?? 0) + qty)
+          }
 
-            const { data: variant } = await supabase
-              .from('product_variants')
-              .select('reserved_stock')
-              .eq('id', variantId)
-              .single()
+          const variantIds = Array.from(qtyByVariantId.keys())
+          const { data: variantRows } = variantIds.length
+            ? await supabase.from('product_variants').select('id, reserved_stock').in('id', variantIds)
+            : { data: [] as unknown[] }
 
-            const currentReserved = (variant as { reserved_stock?: number } | null)?.reserved_stock ?? 0
+          const reservedById = new Map<number, number>()
+          if (Array.isArray(variantRows)) {
+            for (const v of variantRows) {
+              const id = Number((v as { id?: number | string }).id ?? 0)
+              if (!id) continue
+              reservedById.set(id, Number((v as { reserved_stock?: unknown }).reserved_stock ?? 0))
+            }
+          }
+
+          for (const [variantId, qty] of qtyByVariantId.entries()) {
+            const currentReserved = reservedById.get(variantId) ?? 0
             await supabase
               .from('product_variants')
               .update({ reserved_stock: Math.max(0, currentReserved - qty), updated_at: nowIso })
@@ -336,22 +365,34 @@ serve(async (req) => {
     if (shouldReleaseCapacity) {
       const orderItemsRows = (order as { order_items?: unknown }).order_items
       if (Array.isArray(orderItemsRows)) {
+        const releases = new Map<string, { ticketId: number; selectedDate: string; timeSlot: string | null; qty: number }>()
         for (const row of orderItemsRows) {
           const qty = Math.max(1, Math.floor(Number((row as { quantity?: unknown }).quantity ?? 0)))
           const ticketId = Number((row as { ticket_id?: unknown }).ticket_id ?? 0)
           const selectedDate = String((row as { selected_date?: unknown }).selected_date ?? '')
           if (!ticketId || !selectedDate || qty <= 0) continue
+
           const slots = normalizeSelectedTimeSlots((row as { selected_time_slots?: unknown }).selected_time_slots)
           const normalizedSlots = slots.length > 0 ? slots : ['all-day']
           for (const slot of normalizedSlots) {
             const timeSlot = normalizeAvailabilityTimeSlot(String(slot))
-            await supabase.rpc('release_ticket_capacity', {
-              p_ticket_id: ticketId,
-              p_date: selectedDate,
-              p_time_slot: timeSlot,
-              p_quantity: qty,
-            })
+            const key = `${ticketId}|${selectedDate}|${timeSlot ?? ''}`
+            const existing = releases.get(key)
+            if (existing) {
+              existing.qty += qty
+            } else {
+              releases.set(key, { ticketId, selectedDate, timeSlot, qty })
+            }
           }
+        }
+
+        for (const release of releases.values()) {
+          await supabase.rpc('release_ticket_capacity', {
+            p_ticket_id: release.ticketId,
+            p_date: release.selectedDate,
+            p_time_slot: release.timeSlot,
+            p_quantity: release.qty,
+          })
         }
       }
     }
@@ -361,46 +402,49 @@ serve(async (req) => {
 
       if (!itemsError && Array.isArray(orderItems)) {
         const now = new Date()
-        
+        const itemIds = orderItems.map((row) => Number((row as { id?: number | string }).id ?? 0)).filter((id) => id > 0)
+        const { data: existingTicketRows } = itemIds.length
+          ? await supabase.from('purchased_tickets').select('order_item_id').in('order_item_id', itemIds)
+          : { data: [] as unknown[] }
+
+        const existingByOrderItemId = new Map<number, number>()
+        if (Array.isArray(existingTicketRows)) {
+          for (const row of existingTicketRows) {
+            const id = Number((row as { order_item_id?: number | string }).order_item_id ?? 0)
+            if (!id) continue
+            existingByOrderItemId.set(id, (existingByOrderItemId.get(id) ?? 0) + 1)
+          }
+        }
+
+        const ticketsToInsert: Array<Record<string, unknown>> = []
+        const capacityUpdates = new Map<string, { ticketId: number; selectedDate: string; timeSlot: string | null; qty: number }>()
+
         for (const item of orderItems) {
-          const { count: existingCount } = await supabase
-            .from('purchased_tickets')
-            .select('id', { count: 'exact', head: true })
-            .eq('order_item_id', item.id)
+          const orderItemId = Number((item as { id?: number | string }).id ?? 0)
+          const quantity = Math.max(0, Math.floor(Number((item as { quantity?: unknown }).quantity ?? 0)))
+          const existing = existingByOrderItemId.get(orderItemId) ?? 0
+          const needed = Math.max(0, quantity - existing)
+          if (!orderItemId || needed <= 0) continue
 
-          const existing = existingCount ?? 0
-          const needed = Math.max(0, (item.quantity ?? 0) - existing)
-          if (needed <= 0) continue
-
-          const slots = normalizeSelectedTimeSlots(item.selected_time_slots)
+          const slots = normalizeSelectedTimeSlots((item as { selected_time_slots?: unknown }).selected_time_slots)
           const firstSlot = slots[0]
           let timeSlotForTicket = firstSlot && firstSlot !== 'all-day' && /^\d{2}:\d{2}/.test(firstSlot) ? firstSlot : null
-          
-          // Validate time slot is still valid (graceful degradation)
-          // NEW LOGIC (Jan 2026): Check if SESSION has ended (not just if slot started)
-          // Session duration: 2.5 hours (150 minutes)
+
           let slotExpired = false
-          if (timeSlotForTicket && item.selected_date) {
-            const SESSION_DURATION_MINUTES = 150; // 2.5 hours
-            const sessionStartTimeWIB = new Date(`${item.selected_date}T${timeSlotForTicket}:00+07:00`)
-            const sessionEndTimeWIB = new Date(sessionStartTimeWIB.getTime() + SESSION_DURATION_MINUTES * 60 * 1000)
-            
-            // Only mark as expired if session has ENDED (not just started)
+          const selectedDate = String((item as { selected_date?: unknown }).selected_date ?? '')
+          if (timeSlotForTicket && selectedDate) {
+            const sessionStartTimeWIB = new Date(`${selectedDate}T${timeSlotForTicket}:00+07:00`)
+            const sessionEndTimeWIB = new Date(sessionStartTimeWIB.getTime() + 150 * 60 * 1000)
             if (now > sessionEndTimeWIB) {
               slotExpired = true
-              console.warn(`[WEBHOOK] Session ended for order ${orderId}: ${item.selected_date} ${timeSlotForTicket}. Converting to all-day access.`)
-              
-              // Graceful degradation: Convert to all-day access
-              // Business keeps revenue, customer can still use studio today
+              console.warn(`[WEBHOOK] Session ended for order ${orderId}: ${selectedDate} ${timeSlotForTicket}. Converting to all-day access.`)
               timeSlotForTicket = null
-              
-              // Log for audit trail
               await logWebhook(supabase, {
                 orderNumber: orderId,
                 eventType: 'session_ended_converted_to_allday',
                 payload: {
                   original_slot: firstSlot,
-                  selected_date: item.selected_date,
+                  selected_date: selectedDate,
                   session_end_time: sessionEndTimeWIB.toISOString(),
                   payment_completed_at: nowIso,
                 },
@@ -412,13 +456,12 @@ serve(async (req) => {
           }
 
           for (let i = 0; i < needed; i++) {
-            const ticketCode = generateTicketCode()
-            await supabase.from('purchased_tickets').insert({
-              ticket_code: ticketCode,
-              order_item_id: item.id,
-              user_id: order.user_id,
-              ticket_id: item.ticket_id,
-              valid_date: item.selected_date,
+            ticketsToInsert.push({
+              ticket_code: generateTicketCode(),
+              order_item_id: orderItemId,
+              user_id: (order as { user_id?: unknown }).user_id,
+              ticket_id: (item as { ticket_id?: unknown }).ticket_id,
+              valid_date: selectedDate,
               time_slot: timeSlotForTicket,
               status: 'active',
               created_at: nowIso,
@@ -426,17 +469,38 @@ serve(async (req) => {
             })
           }
 
-          // Update sold capacity
-          // If slot expired and converted to all-day, increment all-day capacity instead
-          for (const slot of slots) {
-            const slotToIncrement = slotExpired ? null : normalizeAvailabilityTimeSlot(String(slot))
-            await supabase.rpc('finalize_ticket_capacity', {
-              p_ticket_id: item.ticket_id,
-              p_date: item.selected_date,
-              p_time_slot: slotToIncrement,
-              p_quantity: needed,
-            })
+          const rawSlots = slots.length > 0 ? slots : ['all-day']
+          const slotsForCapacity = slotExpired ? [null] : rawSlots.map((slot) => normalizeAvailabilityTimeSlot(String(slot)))
+          const uniqueSlots = Array.from(new Set(slotsForCapacity.map((s) => (s == null ? '' : String(s)))))
+          const ticketId = Number((item as { ticket_id?: unknown }).ticket_id ?? 0)
+          if (!ticketId || !selectedDate) continue
+
+          for (const slotKey of uniqueSlots) {
+            const timeSlot = slotKey === '' ? null : slotKey
+            const key = `${ticketId}|${selectedDate}|${timeSlot ?? ''}`
+            const existingUpdate = capacityUpdates.get(key)
+            if (existingUpdate) {
+              existingUpdate.qty += needed
+            } else {
+              capacityUpdates.set(key, { ticketId, selectedDate, timeSlot, qty: needed })
+            }
           }
+        }
+
+        if (ticketsToInsert.length > 0) {
+          const { error: insertError } = await supabase.from('purchased_tickets').insert(ticketsToInsert)
+          if (insertError) {
+            console.error('[WEBHOOK] Failed bulk insert purchased_tickets:', insertError)
+          }
+        }
+
+        for (const update of capacityUpdates.values()) {
+          await supabase.rpc('finalize_ticket_capacity', {
+            p_ticket_id: update.ticketId,
+            p_date: update.selectedDate,
+            p_time_slot: update.timeSlot,
+            p_quantity: update.qty,
+          })
         }
       }
     }

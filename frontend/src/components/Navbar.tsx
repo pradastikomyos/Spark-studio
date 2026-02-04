@@ -6,6 +6,7 @@ import Logo from './Logo';
 import LanguageSwitcher from './LanguageSwitcher';
 import { useAuth } from '../contexts/AuthContext';
 import { useTicketCount } from '../hooks/useTicketCount';
+import { useOrderCount } from '../hooks/useOrderCount';
 import { useCart } from '../contexts/cartStore';
 import { getUserDisplayName } from '../utils/auth';
 
@@ -13,6 +14,7 @@ const Navbar = () => {
   const { t } = useTranslation();
   const { user, signOut, isAdmin, loggingOut } = useAuth();
   const { count: ticketCount } = useTicketCount();
+  const { count: orderCount } = useOrderCount();
   const { totalQuantity } = useCart();
   const navigate = useNavigate();
   const location = useLocation();
@@ -141,6 +143,11 @@ const Navbar = () => {
                   title={t('nav.myOrders')}
                 >
                   <ReceiptText className="h-5 w-5" />
+                  {orderCount > 0 && (
+                    <span className="absolute -top-1.5 -right-1.5 bg-main-600 text-white text-[10px] w-4 h-4 flex items-center justify-center rounded-full">
+                      {orderCount}
+                    </span>
+                  )}
                 </Link>
 
                 <Link to="/cart" className="relative text-gray-500 hover:text-main-600 transition-colors" aria-label={t('nav.cart')}>
@@ -353,6 +360,11 @@ const Navbar = () => {
             >
               <span className="material-symbols-outlined text-[22px]">receipt_long</span>
               <span>{t('nav.myOrders')}</span>
+              {orderCount > 0 && (
+                <span className="ml-auto bg-main-600 text-white text-[10px] px-2 py-0.5 rounded-full">
+                  {orderCount}
+                </span>
+              )}
             </Link>
           </div>
 

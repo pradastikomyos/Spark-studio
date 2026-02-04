@@ -336,7 +336,7 @@ export default function BookingSuccessPage() {
 
     // AUTO-POLLING: Active Sync (Agresif)
     // Langsung tembak ke Midtrans via Edge Function, jangan tunggu webhook.
-    let autoSyncInterval: NodeJS.Timeout | null = null;
+    let autoSyncTimeout: NodeJS.Timeout | null = null;
     let showButtonTimer: NodeJS.Timeout | null = null;
 
     // Compute status inside effect to avoid stale closures
@@ -345,39 +345,27 @@ export default function BookingSuccessPage() {
     if (orderNumber && currentStatus === 'pending') {
       console.log(`[Auto-Sync] Order ${orderNumber} is pending. Starting IMMEDIATE sync...`);
 
-      // 2. Tembak Sync PERTAMA KALI (Instan saat mount)
-      // Ini kunci agar QR muncul < 2 detik
-      handleSyncStatus(true);
+      const delaysMs = [0, 5000, 15000, 35000];
+      const runAttempt = (attempt: number) => {
+        if (attempt >= delaysMs.length) return;
+        autoSyncTimeout = setTimeout(async () => {
+          await handleSyncStatus(true);
+          runAttempt(attempt + 1);
+        }, delaysMs[attempt]);
+      };
 
-      // 3. Setup Polling Interval (Agresif tiap 2 detik)
-      // Jaga-jaga jika hitungan pertama Midtrans belum siap/network lag
-      let attemptCount = 0;
-      autoSyncInterval = setInterval(async () => {
-        attemptCount++;
-        console.log(`[Auto-Sync] Attempt ${attemptCount}/15`);
+      runAttempt(0);
 
-        if (attemptCount >= 15) {
-          console.log('[Auto-Sync] Max attempts reached - Showing manual button');
-          setShowManualButton(true);
-          if (autoSyncInterval) clearInterval(autoSyncInterval);
-          return;
-        }
-
-        // Trigger sync ulang
-        await handleSyncStatus(true);
-      }, 2000); // 2 detik (lebih agresif)
-
-      // 4. Safety net button (muncul setelah 20 detik jika macet total)
       showButtonTimer = setTimeout(() => {
-        console.log('[Auto-Sync] 20 seconds elapsed - Showing manual button');
+        console.log('[Auto-Sync] 8 seconds elapsed - Showing manual button');
         setShowManualButton(true);
-      }, 20000);
+      }, 8000);
     }
 
     return () => {
       if (channel) supabase.removeChannel(channel);
       if (pollInterval) clearInterval(pollInterval);
-      if (autoSyncInterval) clearInterval(autoSyncInterval);
+      if (autoSyncTimeout) clearTimeout(autoSyncTimeout);
       if (showButtonTimer) clearTimeout(showButtonTimer);
     };
   }, [orderNumber, state?.ticketCode, orderData?.status, initialIsPending]);
@@ -542,11 +530,7 @@ export default function BookingSuccessPage() {
   const { icon: statusIcon, title: statusTitle, description: statusDescription } =
     getOrderStatusPresentation(effectiveStatus);
 
-  // Show skeleton while:
-  // 1. Initial data is loading, OR
-  // 2. Order status is still pending (waiting for payment confirmation)
-  // This creates a seamless: Skeleton → QR Code experience (no intermediate loading page)
-  const showSkeleton = loading || (effectiveStatus === 'pending' && !showManualButton);
+  const showSkeleton = loading && !orderData && tickets.length === 0;
 
   if (showSkeleton) {
     return <BookingSuccessSkeleton />;

@@ -3,11 +3,7 @@ import { corsHeaders, handleCors } from '../_shared/http.ts'
 import { getMidtransEnv, getSupabaseEnv } from '../_shared/env.ts'
 import { createServiceClient, getUserFromAuthHeader } from '../_shared/supabase.ts'
 import { getMidtransBasicAuthHeader, getStatusBaseUrl } from '../_shared/midtrans.ts'
-import {
-  mapMidtransStatus,
-  normalizeAvailabilityTimeSlot,
-  normalizeSelectedTimeSlots,
-} from '../_shared/tickets.ts'
+import { mapMidtransStatus } from '../_shared/tickets.ts'
 
 serve(async (req) => {
   const corsResponse = handleCors(req)
@@ -52,7 +48,7 @@ serve(async (req) => {
 
     const { data: order, error: orderError } = await supabase
       .from('orders')
-      .select('*, order_items(*)')
+      .select('id, user_id, order_number, status, expires_at')
       .eq('order_number', orderNumber)
       .single()
 
@@ -69,8 +65,6 @@ serve(async (req) => {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
     }
-
-    const previousStatus = String((order as { status?: unknown }).status || '').toLowerCase()
 
     const baseUrl = getStatusBaseUrl(midtransIsProduction)
     const authString = getMidtransBasicAuthHeader(midtransServerKey)
@@ -101,7 +95,7 @@ serve(async (req) => {
         updated_at: new Date().toISOString(),
       })
       .eq('id', order.id)
-      .select('*, order_items(*)')
+      .select('id, user_id, order_number, status, expires_at, updated_at')
       .single()
 
     if (updateError || !updatedOrder) {
@@ -109,71 +103,6 @@ serve(async (req) => {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
-    }
-
-    const shouldReleaseCapacity =
-      (newStatus === 'expired' || newStatus === 'failed' || newStatus === 'refunded') && previousStatus !== 'paid'
-    if (shouldReleaseCapacity && Array.isArray(updatedOrder.order_items)) {
-      for (const item of updatedOrder.order_items) {
-        const qty = Math.max(1, Math.floor(Number((item as { quantity?: unknown }).quantity ?? 0)))
-        const ticketId = Number((item as { ticket_id?: unknown }).ticket_id ?? 0)
-        const selectedDate = String((item as { selected_date?: unknown }).selected_date ?? '')
-        if (!ticketId || !selectedDate || qty <= 0) continue
-        const slots = normalizeSelectedTimeSlots((item as { selected_time_slots?: unknown }).selected_time_slots)
-        const normalizedSlots = slots.length > 0 ? slots : ['all-day']
-        for (const slot of normalizedSlots) {
-          const timeSlot = normalizeAvailabilityTimeSlot(String(slot))
-          await supabase.rpc('release_ticket_capacity', {
-            p_ticket_id: ticketId,
-            p_date: selectedDate,
-            p_time_slot: timeSlot,
-            p_quantity: qty,
-          })
-        }
-      }
-    }
-
-    if (newStatus === 'paid' && Array.isArray(updatedOrder.order_items)) {
-      for (const item of updatedOrder.order_items) {
-        const { count: existingCount } = await supabase
-          .from('purchased_tickets')
-          .select('id', { count: 'exact', head: true })
-          .eq('order_item_id', item.id)
-
-        const existing = existingCount ?? 0
-        const needed = Math.max(0, (item.quantity ?? 0) - existing)
-        if (needed <= 0) continue
-
-        const slots = normalizeSelectedTimeSlots(item.selected_time_slots)
-        const firstSlot = slots[0]
-        const timeSlotForTicket =
-          firstSlot && firstSlot !== 'all-day' && /^\d{2}:\d{2}/.test(firstSlot) ? firstSlot : null
-
-        for (let i = 0; i < needed; i++) {
-          const ticketCode = `TKT-${crypto.randomUUID().replace(/-/g, '').slice(0, 12).toUpperCase()}`
-          await supabase.from('purchased_tickets').insert({
-            ticket_code: ticketCode,
-            order_item_id: item.id,
-            user_id: updatedOrder.user_id,
-            ticket_id: item.ticket_id,
-            valid_date: item.selected_date,
-            time_slot: timeSlotForTicket,
-            status: 'active',
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-          })
-        }
-
-        const normalizedSlots = slots.length > 0 ? slots : ['all-day']
-        for (const slot of normalizedSlots) {
-          await supabase.rpc('finalize_ticket_capacity', {
-            p_ticket_id: item.ticket_id,
-            p_date: item.selected_date,
-            p_time_slot: normalizeAvailabilityTimeSlot(String(slot)),
-            p_quantity: needed,
-          })
-        }
-      }
     }
 
     return new Response(JSON.stringify({ status: 'ok', order: updatedOrder }), {
