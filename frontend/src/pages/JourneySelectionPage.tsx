@@ -10,6 +10,7 @@ import {
   isTimeSlotBookable,
   getMinutesUntilSessionEnd,
   toLocalDateString,
+  SESSION_DURATION_MINUTES,
 } from '../utils/timezone';
 import { TicketData } from '../types';
 import { PageTransition } from '../components/PageTransition';
@@ -402,11 +403,12 @@ export default function JourneySelectionPage() {
                                         {slot.isPast ? '(Ended)' : `(${slot.available} left)`}
                                       </span>
 
-                                      {!slot.isPast && urgency !== 'none' && minutesLeft !== null && (
+                                      {!slot.isPast && minutesLeft !== null && minutesLeft <= SESSION_DURATION_MINUTES && (
                                         <span className={`absolute -top-2 -right-2 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase
                                           ${urgency === 'high' ? 'bg-red-500 text-white animate-pulse' : ''}
                                           ${urgency === 'medium' ? 'bg-orange-500 text-white' : ''}
                                           ${urgency === 'low' ? 'bg-yellow-500 text-black' : ''}
+                                          ${urgency === 'none' ? 'bg-green-500 text-white' : ''}
                                         `}>
                                           {minutesLeft}m
                                         </span>

@@ -190,7 +190,7 @@ const OnStage = () => {
             className="inline-flex items-center gap-2 bg-main-600 hover:bg-main-700 text-white px-8 py-4 rounded-md shadow-lg transition-colors font-semibold"
           >
             <span className="material-symbols-outlined text-xl">confirmation_number</span>
-            Buy Ticket
+            BE A STAR
           </Link>
         </div>
       </div>
