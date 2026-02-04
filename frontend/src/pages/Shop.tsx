@@ -275,6 +275,14 @@ const Shop = () => {
                                                     <span className="material-symbols-outlined text-5xl">{product.placeholder}</span>
                                                 </div>
                                             )}
+                                            {/* Out of Stock Overlay */}
+                                            {!product.defaultVariantId && (
+                                                <div className="absolute inset-0 bg-black/50 flex items-center justify-center z-10">
+                                                    <span className="text-white text-xs font-bold uppercase tracking-widest px-3 py-1 border border-white/50 bg-black/20 backdrop-blur-sm">
+                                                        Out of Stock
+                                                    </span>
+                                                </div>
+                                            )}
                                             {/* Quick Add Button */}
                                             <button
                                                 onClick={(e) => {
@@ -283,7 +291,7 @@ const Shop = () => {
                                                     handleAddToCart(product);
                                                 }}
                                                 disabled={!product.defaultVariantId}
-                                                className="absolute bottom-3 right-3 bg-[#ff4b86] text-white p-2.5 rounded-full opacity-0 scale-75 group-hover:opacity-100 group-hover:scale-100 transition-all duration-300 shadow-lg hover:bg-[#e63d75] disabled:opacity-50 disabled:cursor-not-allowed"
+                                                className="absolute bottom-3 right-3 bg-[#ff4b86] text-white p-2.5 rounded-full opacity-0 scale-75 group-hover:opacity-100 group-hover:scale-100 transition-all duration-300 shadow-lg hover:bg-[#e63d75] disabled:opacity-0 disabled:cursor-not-allowed"
                                             >
                                                 <span className="material-symbols-outlined text-lg">add_shopping_cart</span>
                                             </button>

@@ -250,10 +250,14 @@ export default function ProductDetailPage() {
                           disabled={!selectedVariant || selectedVariant.available <= 0}
                           whileHover={{ scale: 1.02 }}
                           whileTap={{ scale: 0.98 }}
-                          className="w-full bg-[#e63d75] text-white py-5 rounded-xl uppercase tracking-widest text-sm font-bold shadow-xl shadow-pink-200 hover:bg-[#cc2f64] hover:shadow-pink-300 active:bg-[#a32550] transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none flex items-center justify-center gap-3"
+                          className="w-full bg-[#e63d75] text-white py-5 rounded-xl uppercase tracking-widest text-sm font-bold shadow-xl shadow-pink-200 hover:bg-[#cc2f64] hover:shadow-pink-300 active:bg-[#a32550] transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none flex items-center justify-center gap-3 disabled:bg-gray-400"
                         >
                           <ShoppingBag className="w-5 h-5" />
-                          Add to Shopping Bag
+                          {!selectedVariant || selectedVariant.available <= 0 ? (
+                            'Out of Stock'
+                          ) : (
+                            'Add to Shopping Bag'
+                          )}
                         </m.button>
 
                         {!selectedVariant || selectedVariant.available <= 0 ? (
