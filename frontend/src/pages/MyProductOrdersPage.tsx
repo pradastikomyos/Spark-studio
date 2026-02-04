@@ -39,34 +39,111 @@ export default function MyProductOrdersPage() {
   const { user, session } = useAuth();
   const { showToast } = useToast();
   const { t } = useTranslation();
-  const [activeTab, setActiveTab] = useState<'active' | 'history'>('active');
+  // 3 TAB SYSTEM: pending → aktif → riwayat (urgency-first UX)
+  const [activeTab, setActiveTab] = useState<'pending' | 'active' | 'history'>('pending');
   const { data: orders = [], error, isLoading: loading, isFetching } = useMyOrders(user?.id);
   const [expandedOrder, setExpandedOrder] = useState<number | null>(null);
   const [syncingOrderId, setSyncingOrderId] = useState<number | null>(null);
+  
   useEffect(() => {
     if (error) {
       showToast('error', error instanceof Error ? error.message : 'Failed to load orders');
     }
   }, [error, showToast]);
 
-  // Filter orders based on active tab
-  const activeOrders = orders.filter(
-    (order) =>
-      order.payment_status === 'paid' &&
-      order.pickup_status !== 'completed' &&
-      order.pickup_status !== 'expired' &&
-      order.pickup_status !== 'cancelled'
-  );
+  // ============================================
+  // TAB 1: PENDING - Orders awaiting payment
+  // ============================================
+  const pendingOrders = orders.filter((order) => {
+    const paymentStatus = order.payment_status?.toLowerCase() ?? '';
+    const status = (order.status ?? '').toLowerCase();
+    
+    // Only unpaid orders that haven't expired/cancelled
+    if (status === 'cancelled' || status === 'expired') {
+      return false;
+    }
+    
+    // Pending payment = unpaid
+    return paymentStatus === 'unpaid' || paymentStatus === 'pending';
+  });
 
-  const historyOrders = orders.filter(
-    (order) =>
-      order.payment_status !== 'paid' ||
-      order.pickup_status === 'completed' ||
-      order.pickup_status === 'expired' ||
-      order.pickup_status === 'cancelled'
-  );
+  // ============================================
+  // TAB 2: AKTIF - Paid orders ready for pickup
+  // ============================================
+  const activeOrders = orders.filter((order) => {
+    const paymentStatus = order.payment_status?.toLowerCase() ?? '';
+    const pickupStatus = (order.pickup_status ?? '').toLowerCase();
+    const status = (order.status ?? '').toLowerCase();
 
-  const displayOrders = activeTab === 'active' ? activeOrders : historyOrders;
+    // Must be paid
+    if (paymentStatus !== 'paid') {
+      return false;
+    }
+
+    // Completed/expired/cancelled pickup = history
+    if (pickupStatus === 'completed' || pickupStatus === 'expired' || pickupStatus === 'cancelled') {
+      return false;
+    }
+
+    // Order cancelled/expired = history
+    if (status === 'cancelled' || status === 'expired' || status === 'completed') {
+      return false;
+    }
+
+    // Paid and waiting for pickup
+    return true;
+  });
+
+  // ============================================
+  // TAB 3: RIWAYAT - Completed, cancelled, expired, failed
+  // ============================================
+  const historyOrders = orders.filter((order) => {
+    const paymentStatus = order.payment_status?.toLowerCase() ?? '';
+    const pickupStatus = (order.pickup_status ?? '').toLowerCase();
+    const status = (order.status ?? '').toLowerCase();
+
+    // Completed pickup = history
+    if (pickupStatus === 'completed') {
+      return true;
+    }
+
+    // Expired/cancelled pickup = history
+    if (pickupStatus === 'expired' || pickupStatus === 'cancelled') {
+      return true;
+    }
+
+    // Order cancelled/expired/completed = history
+    if (status === 'cancelled' || status === 'expired' || status === 'completed') {
+      return true;
+    }
+
+    // Failed/refunded payment = history
+    if (paymentStatus === 'failed' || paymentStatus === 'refunded') {
+      return true;
+    }
+
+    return false;
+  });
+
+  // Auto-switch to tab with orders on first load
+  useEffect(() => {
+    if (!loading && orders.length > 0) {
+      // Priority: pending (needs action) → active (ready for pickup) → history
+      if (pendingOrders.length > 0) {
+        setActiveTab('pending');
+      } else if (activeOrders.length > 0) {
+        setActiveTab('active');
+      } else if (historyOrders.length > 0) {
+        setActiveTab('history');
+      }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading]); // Only run on initial load
+
+  const displayOrders = 
+    activeTab === 'pending' ? pendingOrders :
+    activeTab === 'active' ? activeOrders : 
+    historyOrders;
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -236,7 +313,7 @@ export default function MyProductOrdersPage() {
               </p>
             </div>
 
-            {/* Tab Switcher */}
+            {/* Tab Switcher - Mobile First: 3 Tabs with Badges */}
             <div className="flex items-center gap-3">
               {isFetching && !loading && (
                 <div className="flex items-center gap-1.5 text-xs text-main-600">
@@ -244,26 +321,72 @@ export default function MyProductOrdersPage() {
                   {t('myOrders.updating')}
                 </div>
               )}
-              <div className="flex gap-1 bg-white p-1 rounded-lg border border-gray-200 shadow-sm">
+              {/* 3 Tab System: Pending → Aktif → Riwayat */}
+              <div className="flex gap-1 bg-white p-1 rounded-lg border border-gray-200 shadow-sm overflow-x-auto">
+                {/* PENDING TAB - Needs Action */}
+                <button
+                  onClick={() => setActiveTab('pending')}
+                  className={`relative flex items-center gap-1.5 px-3 md:px-4 py-2 text-xs md:text-sm font-bold rounded-md transition-colors whitespace-nowrap ${
+                    activeTab === 'pending'
+                      ? 'bg-yellow-500 text-white shadow-sm'
+                      : 'text-gray-600 hover:bg-gray-50'
+                  }`}
+                >
+                  <span className="material-symbols-outlined text-sm md:text-base">schedule</span>
+                  <span className="hidden sm:inline">{t('myOrders.tabs.pending', 'Pending')}</span>
+                  {pendingOrders.length > 0 && (
+                    <span className={`ml-1 min-w-[18px] h-[18px] flex items-center justify-center text-[10px] font-bold rounded-full ${
+                      activeTab === 'pending' 
+                        ? 'bg-white text-yellow-600' 
+                        : 'bg-yellow-100 text-yellow-700'
+                    }`}>
+                      {pendingOrders.length}
+                    </span>
+                  )}
+                </button>
+
+                {/* AKTIF TAB - Ready for Pickup */}
                 <button
                   onClick={() => setActiveTab('active')}
-                  className={`px-5 py-2 text-sm font-bold rounded-md transition-colors ${
+                  className={`relative flex items-center gap-1.5 px-3 md:px-4 py-2 text-xs md:text-sm font-bold rounded-md transition-colors whitespace-nowrap ${
                     activeTab === 'active'
                       ? 'bg-main-600 text-white shadow-sm'
                       : 'text-gray-600 hover:bg-gray-50'
                   }`}
                 >
-                  {t('myOrders.tabs.active')}
+                  <span className="material-symbols-outlined text-sm md:text-base">qr_code_2</span>
+                  <span className="hidden sm:inline">{t('myOrders.tabs.active')}</span>
+                  {activeOrders.length > 0 && (
+                    <span className={`ml-1 min-w-[18px] h-[18px] flex items-center justify-center text-[10px] font-bold rounded-full ${
+                      activeTab === 'active' 
+                        ? 'bg-white text-main-600' 
+                        : 'bg-main-100 text-main-700'
+                    }`}>
+                      {activeOrders.length}
+                    </span>
+                  )}
                 </button>
+
+                {/* RIWAYAT TAB - History */}
                 <button
                   onClick={() => setActiveTab('history')}
-                  className={`px-5 py-2 text-sm font-bold rounded-md transition-colors ${
+                  className={`relative flex items-center gap-1.5 px-3 md:px-4 py-2 text-xs md:text-sm font-bold rounded-md transition-colors whitespace-nowrap ${
                     activeTab === 'history'
-                      ? 'bg-main-600 text-white shadow-sm'
+                      ? 'bg-gray-600 text-white shadow-sm'
                       : 'text-gray-600 hover:bg-gray-50'
                   }`}
                 >
-                  {t('myOrders.tabs.history')}
+                  <span className="material-symbols-outlined text-sm md:text-base">history</span>
+                  <span className="hidden sm:inline">{t('myOrders.tabs.history')}</span>
+                  {historyOrders.length > 0 && (
+                    <span className={`ml-1 min-w-[18px] h-[18px] flex items-center justify-center text-[10px] font-bold rounded-full ${
+                      activeTab === 'history' 
+                        ? 'bg-white text-gray-600' 
+                        : 'bg-gray-100 text-gray-600'
+                    }`}>
+                      {historyOrders.length}
+                    </span>
+                  )}
                 </button>
               </div>
             </div>
@@ -410,25 +533,32 @@ export default function MyProductOrdersPage() {
           ) : (
             <div className="text-center py-16">
               <span className="material-symbols-outlined text-6xl text-gray-300 mb-4">
-                {activeTab === 'active' ? 'shopping_bag' : 'history'}
+                {activeTab === 'pending' ? 'schedule' : activeTab === 'active' ? 'qr_code_2' : 'history'}
               </span>
               <p className="text-gray-500 text-lg mb-2">
-                {activeTab === 'active'
+                {activeTab === 'pending'
+                  ? t('myOrders.empty.pending.title', 'No pending payments')
+                  : activeTab === 'active'
                   ? t('myOrders.empty.active.title')
                   : t('myOrders.empty.history.title')}
               </p>
               <p className="text-gray-400 text-sm mb-6">
-                {activeTab === 'active'
+                {activeTab === 'pending'
+                  ? t('myOrders.empty.pending.subtitle', 'All your orders are paid!')
+                  : activeTab === 'active'
                   ? t('myOrders.empty.active.subtitle')
                   : t('myOrders.empty.history.subtitle')}
               </p>
-              <button
-                onClick={() => navigate('/shop')}
-                className="inline-flex items-center gap-2 px-6 py-3 bg-main-600 text-white text-sm font-bold rounded-lg hover:bg-main-700 transition-colors shadow-sm"
-              >
-                <span className="material-symbols-outlined">shopping_cart</span>
-                {t('myOrders.actions.browseShop')}
-              </button>
+              {/* Only show shop button for pending/active tabs */}
+              {activeTab !== 'history' && (
+                <button
+                  onClick={() => navigate('/shop')}
+                  className="inline-flex items-center gap-2 px-6 py-3 bg-main-600 text-white text-sm font-bold rounded-lg hover:bg-main-700 transition-colors shadow-sm"
+                >
+                  <span className="material-symbols-outlined">shopping_cart</span>
+                  {t('myOrders.actions.browseShop')}
+                </button>
+              )}
             </div>
           )}
         </div>

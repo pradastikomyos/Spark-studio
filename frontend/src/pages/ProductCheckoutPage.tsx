@@ -1,10 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../contexts/AuthContext';
 import { useCart } from '../contexts/cartStore';
+import { useToast } from '../components/Toast';
 import { supabase } from '../lib/supabase';
 import { loadSnapScript, type SnapResult } from '../utils/midtransSnap';
 import { formatCurrency } from '../utils/formatters';
+import { queryKeys } from '../lib/queryKeys';
 
 type CreateProductTokenResponse = {
   token: string;
@@ -14,8 +17,10 @@ type CreateProductTokenResponse = {
 export default function ProductCheckoutPage() {
   const navigate = useNavigate();
   const location = useLocation();
+  const queryClient = useQueryClient();
   const { user, session, initialized } = useAuth();
-  const { items: allItems, removeItem } = useCart();
+  const { items: allItems, removeItem, clear: clearCart } = useCart();
+  const { showToast } = useToast();
 
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
@@ -131,18 +136,30 @@ export default function ProductCheckoutPage() {
 
       window.snap.pay(payload.token, {
         onSuccess: () => {
-          // Only remove purchased items
-          orderItems.forEach(item => removeItem(item.product_variant_id));
-          navigate(`/order/product/success/${orderNumber}`);
+          // Clear all purchased items from cart
+          const purchasedVariantIds = orderItems.map(item => item.product_variant_id);
+          purchasedVariantIds.forEach(id => removeItem(id));
+          
+          // Invalidate order queries for real-time badge update
+          if (user?.id) {
+            queryClient.invalidateQueries({ queryKey: queryKeys.myOrders(user.id) });
+          }
+          
+          showToast('success', '🎉 Payment successful! Your order is confirmed.');
+          navigate(`/order/product/success/${orderNumber}`, { state: { paymentSuccess: true } });
         },
         onPending: (result: SnapResult) => {
+          showToast('info', 'Payment is being processed. Please wait for confirmation.');
           navigate(`/order/product/success/${orderNumber}`, { state: { paymentResult: result, isPending: true } });
         },
         onError: () => {
+          showToast('error', 'Payment failed. Please try again.');
           setError('Payment failed. Please try again.');
         },
         onClose: () => {
           setLoading(false);
+          // User closed payment popup - order was created, navigate to check status
+          showToast('info', 'Payment window closed. Check your order status.');
           navigate(`/order/product/success/${orderNumber}`, { state: { isPending: true } });
         },
       });

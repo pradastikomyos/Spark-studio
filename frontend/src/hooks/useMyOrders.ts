@@ -36,9 +36,11 @@ type OrderItemRow = {
   subtotal: number;
   product_variants?: {
     name?: string | null;
+    product_id?: number | null;
     products?: {
       name?: string | null;
       image_url?: string | null;
+      product_images?: { image_url?: string | null; is_primary?: boolean }[] | null;
     } | null;
   } | null;
 };
@@ -85,9 +87,14 @@ export function useMyOrders(userId: string | null | undefined) {
               subtotal,
               product_variants (
                 name,
+                product_id,
                 products (
                   name,
-                  image_url
+                  image_url,
+                  product_images (
+                    image_url,
+                    is_primary
+                  )
                 )
               )
             `
@@ -95,15 +102,26 @@ export function useMyOrders(userId: string | null | undefined) {
             .abortSignal(signal)
             .eq('order_product_id', order.id);
 
-          const items: OrderItem[] = ((itemsData as OrderItemRow[] | null) || []).map((item) => ({
-            id: item.id,
-            quantity: item.quantity,
-            price: item.price,
-            subtotal: item.subtotal,
-            productName: item.product_variants?.products?.name || 'Product',
-            variantName: item.product_variants?.name || 'Variant',
-            imageUrl: item.product_variants?.products?.image_url || undefined,
-          }));
+          const items: OrderItem[] = ((itemsData as OrderItemRow[] | null) || []).map((item) => {
+            const product = item.product_variants?.products;
+            // Try to get image: 1) products.image_url, 2) primary product_image, 3) first product_image
+            let imageUrl: string | undefined = product?.image_url || undefined;
+            
+            if (!imageUrl && product?.product_images && Array.isArray(product.product_images)) {
+              const primaryImage = product.product_images.find((img) => img.is_primary);
+              imageUrl = primaryImage?.image_url || product.product_images[0]?.image_url || undefined;
+            }
+
+            return {
+              id: item.id,
+              quantity: item.quantity,
+              price: item.price,
+              subtotal: item.subtotal,
+              productName: product?.name || 'Product',
+              variantName: item.product_variants?.name || 'Variant',
+              imageUrl,
+            };
+          });
 
           const itemCount = items.reduce((sum, item) => sum + item.quantity, 0);
           return {

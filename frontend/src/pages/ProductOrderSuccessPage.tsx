@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { useCallback, useEffect, useMemo, useState, useRef } from 'react';
+import { Link, useParams, useLocation } from 'react-router-dom';
 import QRCode from 'react-qr-code';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import { formatCurrency } from '../utils/formatters';
+import { useToast } from '../components/Toast';
 import OrderSuccessSkeleton from '../components/skeletons/OrderSuccessSkeleton';
 
 type ProductOrder = {
@@ -31,17 +32,39 @@ type ProductOrderItem = {
 
 export default function ProductOrderSuccessPage() {
   const params = useParams();
+  const location = useLocation();
   const orderNumber = params.orderNumber || '';
+  const { showToast } = useToast();
+  const hasShownSuccessToast = useRef(false);
 
   const [order, setOrder] = useState<ProductOrder | null>(null);
   const [items, setItems] = useState<ProductOrderItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [showConfetti, setShowConfetti] = useState(false);
 
   const pickupCode = order?.pickup_code ?? null;
   const { session } = useAuth();
   const [autoSyncInProgress, setAutoSyncInProgress] = useState(false);
+
+  // Show success toast and confetti if coming from successful payment
+  useEffect(() => {
+    const state = location.state as { paymentSuccess?: boolean; isPending?: boolean } | null;
+    
+    if (!hasShownSuccessToast.current && state?.paymentSuccess) {
+      hasShownSuccessToast.current = true;
+      setShowConfetti(true);
+      showToast('success', '\ud83c\udf89 Payment confirmed! Your order is ready for pickup.');
+      
+      // Hide confetti after animation
+      const timer = setTimeout(() => setShowConfetti(false), 5000);
+      return () => clearTimeout(timer);
+    } else if (!hasShownSuccessToast.current && state?.isPending) {
+      hasShownSuccessToast.current = true;
+      showToast('info', 'Your payment is being processed. We\u2019ll update the status shortly.');
+    }
+  }, [location.state, showToast]);
 
   const fetchOrder = useCallback(async () => {
     if (!orderNumber) return;
@@ -57,13 +80,30 @@ export default function ProductOrderSuccessPage() {
     const orderId = Number((data as unknown as { id: number | string }).id);
     const { data: itemRows, error: itemsError } = await supabase
       .from('order_product_items')
-      .select('id, quantity, price, subtotal, product_variants(name, products(name, image_url))')
+      .select('id, quantity, price, subtotal, product_variants(name, product_id, products(name, image_url, product_images(image_url, is_primary)))')
       .eq('order_product_id', orderId);
 
     if (itemsError) throw itemsError;
     const mapped: ProductOrderItem[] = (itemRows || []).map((row) => {
-      const pv = (row as unknown as { product_variants?: { name?: string; products?: { name?: string; image_url?: string | null } | null } | null })
-        .product_variants;
+      const pv = (row as unknown as { 
+        product_variants?: { 
+          name?: string; 
+          products?: { 
+            name?: string; 
+            image_url?: string | null;
+            product_images?: { image_url?: string | null; is_primary?: boolean }[] | null;
+          } | null 
+        } | null 
+      }).product_variants;
+      
+      // Try to get image: 1) products.image_url, 2) primary product_image, 3) first product_image
+      let imageUrl: string | undefined = pv?.products?.image_url ?? undefined;
+      
+      if (!imageUrl && pv?.products?.product_images && Array.isArray(pv.products.product_images)) {
+        const primaryImage = pv.products.product_images.find((img) => img.is_primary);
+        imageUrl = primaryImage?.image_url ?? pv.products.product_images[0]?.image_url ?? undefined;
+      }
+      
       return {
         id: Number((row as unknown as { id: number | string }).id),
         quantity: Number((row as unknown as { quantity: number | string }).quantity),
@@ -71,7 +111,7 @@ export default function ProductOrderSuccessPage() {
         subtotal: Number((row as unknown as { subtotal: number | string }).subtotal),
         productName: String(pv?.products?.name ?? 'Product'),
         variantName: String(pv?.name ?? 'Variant'),
-        imageUrl: pv?.products?.image_url ?? undefined,
+        imageUrl,
       };
     });
     setItems(mapped);
@@ -240,11 +280,69 @@ export default function ProductOrderSuccessPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background-light">
+    <div className="min-h-screen bg-background-light relative overflow-hidden">
+      {/* Confetti Animation */}
+      {showConfetti && (
+        <div className="fixed inset-0 pointer-events-none z-50" aria-hidden="true">
+          <div className="absolute inset-0 flex justify-center">
+            {[...Array(50)].map((_, i) => (
+              <div
+                key={i}
+                className="absolute animate-confetti"
+                style={{
+                  left: `${Math.random() * 100}%`,
+                  animationDelay: `${Math.random() * 2}s`,
+                  animationDuration: `${3 + Math.random() * 2}s`,
+                }}
+              >
+                <div
+                  className="w-3 h-3 rounded-sm"
+                  style={{
+                    backgroundColor: ['#ff4b86', '#fbbf24', '#34d399', '#60a5fa', '#a78bfa', '#f472b6'][Math.floor(Math.random() * 6)],
+                    transform: `rotate(${Math.random() * 360}deg)`,
+                  }}
+                />
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+      
+      {/* Success Banner - Show when payment confirmed */}
+      {order?.payment_status === 'paid' && !loading && (
+        <div className="bg-gradient-to-r from-green-500 to-emerald-500 text-white py-4 px-6 text-center animate-fade-in">
+          <div className="flex items-center justify-center gap-3">
+            <span className="material-symbols-outlined text-2xl">check_circle</span>
+            <div>
+              <p className="font-bold text-lg">Payment Successful!</p>
+              <p className="text-sm text-white/90">Your order is confirmed and ready for pickup</p>
+            </div>
+          </div>
+        </div>
+      )}
+      
       <main className="max-w-4xl mx-auto px-6 lg:px-12 py-16 w-full">
         <header className="mb-10 border-b border-gray-200 pb-6">
-          <h1 className="font-display text-4xl md:text-5xl font-light">Order Confirmed</h1>
-          <p className="mt-2 text-sm text-gray-500 uppercase tracking-widest">Pick up in store</p>
+          <div className="flex items-center gap-4 mb-2">
+            {order?.payment_status === 'paid' && (
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-bold uppercase tracking-wider bg-green-100 text-green-700 rounded-full">
+                <span className="material-symbols-outlined text-sm">verified</span>
+                Paid
+              </span>
+            )}
+            {order?.payment_status !== 'paid' && order && (
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-bold uppercase tracking-wider bg-amber-100 text-amber-700 rounded-full">
+                <span className="material-symbols-outlined text-sm animate-pulse">schedule</span>
+                Pending
+              </span>
+            )}
+          </div>
+          <h1 className="font-display text-4xl md:text-5xl font-light">
+            {order?.payment_status === 'paid' ? 'Order Confirmed' : 'Order Created'}
+          </h1>
+          <p className="mt-2 text-sm text-gray-500 uppercase tracking-widest">
+            {order?.payment_status === 'paid' ? 'Pick up in store' : 'Waiting for payment confirmation'}
+          </p>
         </header>
 
         {error && <div className="mb-6 rounded-xl border border-red-500/20 bg-red-500/10 p-4 text-sm text-red-700">{error}</div>}

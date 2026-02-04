@@ -106,6 +106,82 @@ serve(async (req) => {
       })
     }
 
+    // ================================================================
+    // ROUTING: Handle PRINT- orders for spark-print project
+    // Shared Midtrans account - forward to sparkstage55.print database
+    // Project ID: lapyyqozbbcfsljxdhcg
+    // ================================================================
+    if (orderId.startsWith('PRINT-')) {
+      const SPARK_PRINT_URL = 'https://lapyyqozbbcfsljxdhcg.supabase.co'
+      const SPARK_PRINT_SERVICE_KEY = Deno.env.get('SPARK_PRINT_SERVICE_ROLE_KEY') || ''
+      
+      if (!SPARK_PRINT_SERVICE_KEY) {
+        await logWebhook(supabase, {
+          orderNumber: orderId,
+          eventType: 'spark_print_config_error',
+          payload: notification,
+          success: false,
+          errorMessage: 'SPARK_PRINT_SERVICE_ROLE_KEY not configured',
+          processedAt: nowIso,
+        })
+        return new Response(JSON.stringify({ error: 'Spark Print service key not configured' }), {
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        })
+      }
+      
+      const sparkPrintSupabase = createServiceClient(SPARK_PRINT_URL, SPARK_PRINT_SERVICE_KEY)
+      const printNewStatus = mapMidtransStatus(transactionStatus, fraudStatus)
+      
+      // Map to spark-print status format (UPPERCASE)
+      const printStatus = printNewStatus === 'paid' ? 'PAID' : 
+                          printNewStatus === 'expired' ? 'EXPIRED' : 
+                          printNewStatus === 'failed' ? 'FAILED' : 
+                          printNewStatus === 'refunded' ? 'REFUNDED' : 'UNPAID'
+      
+      const updateData: Record<string, unknown> = {
+        status: printStatus,
+        updated_at: nowIso,
+      }
+      
+      if (printNewStatus === 'paid') {
+        updateData.paid_at = nowIso
+      }
+      
+      const { error: updateError } = await sparkPrintSupabase
+        .from('print_orders')
+        .update(updateData)
+        .eq('midtrans_order_id', orderId)
+      
+      await logWebhook(supabase, {
+        orderNumber: orderId,
+        eventType: 'spark_print_update',
+        payload: { 
+          request: payload, 
+          updateData, 
+          newStatus: printNewStatus,
+          error: updateError?.message 
+        },
+        success: !updateError,
+        errorMessage: updateError?.message ?? null,
+        processedAt: nowIso,
+      })
+      
+      if (updateError) {
+        console.error(`[WEBHOOK] Failed to update print order ${orderId}:`, updateError)
+        return new Response(JSON.stringify({ error: 'Failed to update print order', details: updateError.message }), {
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        })
+      }
+      
+      console.log(`[WEBHOOK] Successfully updated print order ${orderId} to ${printStatus}`)
+      return new Response(JSON.stringify({ status: 'ok', project: 'spark-print', order_status: printStatus }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+    // ================================================================
+
     const newStatus = mapMidtransStatus(transactionStatus, fraudStatus)
 
     const { data: productOrder } = await supabase

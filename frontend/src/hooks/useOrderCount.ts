@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -7,42 +7,76 @@ export const useOrderCount = () => {
   const [loading, setLoading] = useState(true);
   const { user, initialized } = useAuth();
 
-  useEffect(() => {
-    if (!initialized) return;
-
+  const fetchOrderCount = useCallback(async () => {
     const userId = user?.id ?? null;
+    
+    if (!userId) {
+      setCount(0);
+      setLoading(false);
+      return;
+    }
 
-    const fetchOrderCount = async () => {
-      if (!userId) {
+    try {
+      // Count ACTIVE orders: orders that need user attention
+      // This includes PENDING (unpaid) + AKTIF (paid, waiting pickup)
+      // Matches the 3-tab system in MyProductOrdersPage
+      const { data: orders, error } = await supabase
+        .from('order_products')
+        .select('id, payment_status, pickup_status, status')
+        .eq('user_id', userId);
+
+      if (error) {
         setCount(0);
-        setLoading(false);
         return;
       }
 
-      try {
-        const nowIso = new Date().toISOString();
-        const { count: orderCount, error } = await supabase
-          .from('order_products')
-          .select('*', { count: 'exact', head: true })
-          .eq('user_id', userId)
-          .eq('payment_status', 'unpaid')
-          .eq('status', 'awaiting_payment')
-          .gt('payment_expired_at', nowIso);
+      // Count: PENDING orders (unpaid) + AKTIF orders (paid, waiting pickup)
+      let pendingCount = 0;
+      let activeCount = 0;
 
-        if (error) {
-          setCount(0);
-        } else {
-          setCount(orderCount || 0);
+      (orders || []).forEach((order) => {
+        const paymentStatus = (order.payment_status ?? '').toLowerCase();
+        const pickupStatus = (order.pickup_status ?? '').toLowerCase();
+        const status = (order.status ?? '').toLowerCase();
+
+        // Skip expired/cancelled orders
+        if (status === 'cancelled' || status === 'expired' || status === 'completed') {
+          return;
         }
-      } catch {
-        setCount(0);
-      } finally {
-        setLoading(false);
-      }
-    };
+        if (pickupStatus === 'completed' || pickupStatus === 'expired' || pickupStatus === 'cancelled') {
+          return;
+        }
+        if (paymentStatus === 'failed' || paymentStatus === 'refunded') {
+          return;
+        }
+
+        // PENDING: Unpaid orders
+        if (paymentStatus === 'unpaid' || paymentStatus === 'pending') {
+          pendingCount++;
+          return;
+        }
+
+        // AKTIF: Paid orders waiting for pickup
+        if (paymentStatus === 'paid') {
+          activeCount++;
+        }
+      });
+
+      // Total badge = pending + active (both need user attention)
+      setCount(pendingCount + activeCount);
+    } catch {
+      setCount(0);
+    } finally {
+      setLoading(false);
+    }
+  }, [user?.id]);
+
+  useEffect(() => {
+    if (!initialized) return;
 
     fetchOrderCount();
 
+    const userId = user?.id ?? null;
     if (!userId) return;
 
     const subscription = supabase
@@ -59,8 +93,8 @@ export const useOrderCount = () => {
     return () => {
       subscription.unsubscribe();
     };
-  }, [initialized, user?.id]);
+  }, [initialized, user?.id, fetchOrderCount]);
 
-  return { count, loading };
+  return { count, loading, refetch: fetchOrderCount };
 };
 
