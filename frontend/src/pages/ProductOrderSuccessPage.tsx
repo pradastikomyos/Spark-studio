@@ -48,7 +48,7 @@ export default function ProductOrderSuccessPage() {
   const [refreshing, setRefreshing] = useState(false);
   
   const pickupCode = order?.pickup_code ?? null;
-  const { session } = useAuth();
+  const { session, initialized, refreshSession } = useAuth();
   const [autoSyncInProgress, setAutoSyncInProgress] = useState(false);
   const confettiTriggeredRef = useRef(false);
 
@@ -165,7 +165,7 @@ export default function ProductOrderSuccessPage() {
     setItems(mapped);
   }, [orderNumber]);
 
-  const handleSyncStatus = useCallback(async (isAutoSync = false) => {
+  const handleSyncStatus = useCallback(async (isAutoSync = false, retryCount = 0) => {
     if (!orderNumber) return;
 
     // Prevent concurrent auto-sync calls
@@ -180,7 +180,20 @@ export default function ProductOrderSuccessPage() {
     setError(null);
 
     try {
-      const token = session?.access_token;
+      let token = session?.access_token;
+      
+      // If no token, try to refresh session first (handles post-redirect scenarios)
+      if (!token && retryCount === 0) {
+        console.log('[Product-Sync] No token available, attempting session refresh...');
+        try {
+          await refreshSession();
+          const { data: { session: freshSession } } = await supabase.auth.getSession();
+          token = freshSession?.access_token;
+        } catch (refreshError) {
+          console.error('[Product-Sync] Session refresh failed:', refreshError);
+        }
+      }
+      
       if (!token) {
         if (!isAutoSync) setError('Not authenticated');
         return;
@@ -199,6 +212,18 @@ export default function ProductOrderSuccessPage() {
       );
 
       const data = await response.json().catch(() => null);
+
+      // Handle 401 with automatic retry after session refresh
+      if (response.status === 401 && retryCount < 1) {
+        console.log('[Product-Sync] Got 401, refreshing session and retrying...');
+        try {
+          await refreshSession();
+          setAutoSyncInProgress(false);
+          return handleSyncStatus(isAutoSync, retryCount + 1);
+        } catch (refreshError) {
+          console.error('[Product-Sync] Session refresh failed on 401:', refreshError);
+        }
+      }
 
       if (!response.ok) {
         if (!isAutoSync) setError(data?.error || 'Failed to sync status');
@@ -229,7 +254,7 @@ export default function ProductOrderSuccessPage() {
         setRefreshing(false);
       }
     }
-  }, [orderNumber, session, autoSyncInProgress, fetchOrder]);
+  }, [orderNumber, session, autoSyncInProgress, fetchOrder, refreshSession]);
 
 
 
@@ -281,6 +306,13 @@ export default function ProductOrderSuccessPage() {
 
   // Active Sync / Aggressive Polling
   useEffect(() => {
+    // CRITICAL: Wait for auth to be initialized before attempting sync
+    // This prevents 401 errors after Midtrans redirect when session is not yet ready
+    if (!initialized) {
+      console.log('[Product-Sync] Waiting for auth initialization...');
+      return;
+    }
+    
     if (!orderNumber) return;
     if (pickupCode || order?.payment_status === 'paid') return;
 
@@ -304,7 +336,7 @@ export default function ProductOrderSuccessPage() {
       cancelled = true;
       if (timeout) clearTimeout(timeout);
     };
-  }, [orderNumber, pickupCode, order?.payment_status, handleSyncStatus]);
+  }, [initialized, orderNumber, pickupCode, order?.payment_status, handleSyncStatus]);
 
   const totalItems = useMemo(() => items.reduce((sum, i) => sum + i.quantity, 0), [items]);
   const paymentMethodLabel = useMemo(() => {

@@ -70,7 +70,7 @@ export default function BookingSuccessPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const state = location.state as LocationState;
-  const { session } = useAuth();
+  const { session, initialized, refreshSession } = useAuth();
 
   const [loading, setLoading] = useState(true);
   const [tickets, setTickets] = useState<PurchasedTicket[]>([]);
@@ -343,7 +343,7 @@ export default function BookingSuccessPage() {
   }, [orderNumber, state?.ticketCode, orderData?.status]);
 
   // Define handleSyncStatus before it's used in the auto-sync effect
-  const handleSyncStatus = useCallback(async (isAutoSync = false) => {
+  const handleSyncStatus = useCallback(async (isAutoSync = false, retryCount = 0) => {
     if (!orderNumber) return;
 
     // Prevent concurrent auto-sync calls
@@ -363,7 +363,21 @@ export default function BookingSuccessPage() {
 
     try {
       // CRITICAL: Use session from AuthContext (validated), not from supabase.auth.getSession() (localStorage)
-      const token = session?.access_token;
+      let token = session?.access_token;
+      
+      // If no token, try to refresh session first (handles post-redirect scenarios)
+      if (!token && retryCount === 0) {
+        console.log('[Auto-Sync] No token available, attempting session refresh...');
+        try {
+          await refreshSession();
+          // Session will be updated via AuthContext, but we need to get it fresh
+          const { data: { session: freshSession } } = await supabase.auth.getSession();
+          token = freshSession?.access_token;
+        } catch (refreshError) {
+          console.error('[Auto-Sync] Session refresh failed:', refreshError);
+        }
+      }
+      
       if (!token) {
         setSyncError('Not authenticated');
         return;
@@ -382,6 +396,20 @@ export default function BookingSuccessPage() {
       );
 
       const data = await response.json().catch(() => null);
+      
+      // Handle 401 with automatic retry after session refresh
+      if (response.status === 401 && retryCount < 1) {
+        console.log('[Auto-Sync] Got 401, refreshing session and retrying...');
+        try {
+          await refreshSession();
+          // Retry once with refreshed session
+          setAutoSyncInProgress(false);
+          return handleSyncStatus(isAutoSync, retryCount + 1);
+        } catch (refreshError) {
+          console.error('[Auto-Sync] Session refresh failed on 401:', refreshError);
+        }
+      }
+      
       if (!response.ok) {
         const errorMsg = data?.error || 'Failed to sync status';
         setSyncError(errorMsg);
@@ -480,10 +508,17 @@ export default function BookingSuccessPage() {
         setSyncing(false);
       }
     }
-  }, [orderNumber, session, autoSyncInProgress, orderData]);
+  }, [orderNumber, session, autoSyncInProgress, orderData, refreshSession]);
 
   // NEW: Dedicated auto-sync effect - runs when order is pending
   useEffect(() => {
+    // CRITICAL: Wait for auth to be initialized before attempting sync
+    // This prevents 401 errors after Midtrans redirect when session is not yet ready
+    if (!initialized) {
+      console.log('[Auto-Sync] Waiting for auth initialization...');
+      return;
+    }
+    
     // Only run auto-sync when we have an order and status is pending (or unknown) and no tickets yet
     const shouldSync = orderNumber && 
                        (effectiveStatus === 'pending' || (effectiveStatus === null && initialIsPending)) && 
@@ -531,7 +566,7 @@ export default function BookingSuccessPage() {
       cancelled = true;
       timeouts.forEach(t => clearTimeout(t));
     };
-  }, [orderNumber, effectiveStatus, initialIsPending, tickets.length, handleSyncStatus]);
+  }, [initialized, orderNumber, effectiveStatus, initialIsPending, tickets.length, handleSyncStatus]);
 
   // Trigger confetti when tickets appear (paid status)
   useEffect(() => {
