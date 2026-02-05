@@ -48,7 +48,7 @@ export default function ProductOrderSuccessPage() {
   const [refreshing, setRefreshing] = useState(false);
   
   const pickupCode = order?.pickup_code ?? null;
-  const { initialized } = useAuth();
+  const { initialized, session } = useAuth();
   const [autoSyncInProgress, setAutoSyncInProgress] = useState(false);
   const confettiTriggeredRef = useRef(false);
 
