@@ -558,23 +558,13 @@ export default function BookingSuccessPage() {
                   Ready to Be a Star?
                 </h1> */}
                 {/* Main Headline Image */}
-                <div className="flex justify-center mb-6">
+                <div className="flex justify-center mb-2">
                   <img 
                     src="/images/landing/READY%20TO%20BE%20A%20STAR.PNG" 
                     alt="Ready to Be a Star?" 
                     className="h-auto w-full max-w-xl object-contain"
                   />
                 </div>
-                
-                {/* Custom Star Icon with Sparkle */}
-                <div className="inline-flex items-center justify-center mb-4">
-                  <StarSparkleIcon className="w-12 h-12 text-primary" />
-                </div>
-                
-                {/* Subtext */}
-                <p className="text-lg text-gray-600 font-medium">
-                  {statusDescription}
-                </p>
               </>
             ) : (
               /* Other States - Keep Original Design */
