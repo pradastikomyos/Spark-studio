@@ -110,7 +110,7 @@ export default function BookingSuccessPage() {
         return;
       }
 
-      const particleCount = 300 * (timeLeft / duration);
+      const particleCount = 500 * (timeLeft / duration);
 
       // Left side burst
       confetti({
@@ -554,9 +554,17 @@ export default function BookingSuccessPage() {
                 </p>
                 
                 {/* Main Headline with Gradient */}
-                <h1 className="text-5xl md:text-6xl font-display font-bold mb-4 bg-gradient-to-r from-primary via-rose-500 to-primary bg-[length:200%_auto] animate-gradient bg-clip-text text-transparent leading-tight pb-2">
+                {/* <h1 className="text-5xl md:text-6xl font-display font-bold mb-4 bg-gradient-to-r from-primary via-rose-500 to-primary bg-[length:200%_auto] animate-gradient bg-clip-text text-transparent leading-tight pb-2">
                   Ready to Be a Star?
-                </h1>
+                </h1> */}
+                {/* Main Headline Image */}
+                <div className="flex justify-center mb-6">
+                  <img 
+                    src="/images/landing/READY%20TO%20BE%20A%20STAR.PNG" 
+                    alt="Ready to Be a Star?" 
+                    className="h-auto w-full max-w-xl object-contain"
+                  />
+                </div>
                 
                 {/* Custom Star Icon with Sparkle */}
                 <div className="inline-flex items-center justify-center mb-4">
@@ -621,9 +629,9 @@ export default function BookingSuccessPage() {
                   {/* Right Side: Details */}
                   <div className="flex-1 space-y-6">
                     <div>
-                      <p className="text-primary text-sm font-bold uppercase tracking-widest mb-1">
+                      {/* <p className="text-primary text-sm font-bold uppercase tracking-widest mb-1">
                         Official Studio Pass
-                      </p>
+                      </p> */}
                       <h2 className="text-2xl font-bold font-display">{ticket.ticket.name}</h2>
                       <span className={`inline-block mt-2 px-3 py-1 rounded-full text-xs font-bold uppercase ${ticket.status === 'active'
                         ? 'bg-green-100 text-green-700'

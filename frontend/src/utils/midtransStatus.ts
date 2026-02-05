@@ -40,7 +40,7 @@ export function getOrderStatusPresentation(status: unknown): {
     return {
       icon: 'check_circle',
       title: 'Ready to Be a Star?',
-      description: 'Your stage awaits. Let the magic begin.',
+      description: 'Your stage awaits. Let the magic .',
     }
   }
 
