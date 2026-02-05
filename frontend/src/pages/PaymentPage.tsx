@@ -195,7 +195,7 @@ export default function PaymentPage() {
           onSuccess: (result) => {
             console.log('Payment success:', result);
             clearBookingState(); // Success! Clear the preserved state
-            navigate('/booking-success', {
+            navigate(`/booking-success?order_id=${encodeURIComponent(data.order_number)}`, {
               state: {
                 orderNumber: data.order_number,
                 orderId: data.order_id,
@@ -212,7 +212,7 @@ export default function PaymentPage() {
           onPending: (result) => {
             console.log('Payment pending:', result);
             // Navigate to success page with pending status
-            navigate('/booking-success', {
+            navigate(`/booking-success?order_id=${encodeURIComponent(data.order_number)}`, {
               state: {
                 orderNumber: data.order_number,
                 orderId: data.order_id,
@@ -233,7 +233,7 @@ export default function PaymentPage() {
           onClose: () => {
             console.log('Payment popup closed');
             setLoading(false);
-            navigate('/booking-success', {
+            navigate(`/booking-success?order_id=${encodeURIComponent(data.order_number)}`, {
               state: {
                 orderNumber: data.order_number,
                 orderId: data.order_id,

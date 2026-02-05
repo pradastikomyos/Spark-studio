@@ -70,7 +70,7 @@ export default function BookingSuccessPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const state = location.state as LocationState;
-  const { initialized } = useAuth();
+  const { initialized, session, validateSession } = useAuth();
 
   const [loading, setLoading] = useState(true);
   const [tickets, setTickets] = useState<PurchasedTicket[]>([]);
@@ -342,7 +342,18 @@ export default function BookingSuccessPage() {
     };
   }, [orderNumber, state?.ticketCode, orderData?.status]);
 
-  // Define handleSyncStatus before it's used in the auto-sync effect
+  const getValidAccessToken = useCallback(async () => {
+    if (session?.access_token) {
+      return session.access_token;
+    }
+    const isValid = await validateSession();
+    if (!isValid) {
+      return null;
+    }
+    const { data: { session: currentSession } } = await supabase.auth.getSession();
+    return currentSession?.access_token ?? null;
+  }, [session?.access_token, validateSession]);
+
   const handleSyncStatus = useCallback(async (isAutoSync = false, retryCount = 0) => {
     if (!orderNumber) return;
 
@@ -362,70 +373,33 @@ export default function BookingSuccessPage() {
     setSyncError(null);
 
     try {
-      // CRITICAL FIX: Always ensure we have a VALID token
-      // 1. getSession() only returns localStorage data (may be expired)
-      // 2. refreshSession() actually validates and renews the token
-      // 3. On first attempt after redirect, token in localStorage is often stale
-      
-      let token: string | undefined;
-      
-      // Always try to get fresh token by calling refreshSession directly
-      // This is more reliable than checking closure state
-      try {
-        console.log(`[Auto-Sync] Ensuring valid token (attempt ${retryCount + 1})...`);
-        
-        // Call Supabase refresh directly to get a guaranteed fresh token
-        const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
-        
-        if (refreshError) {
-          console.error('[Auto-Sync] Token refresh error:', refreshError.message);
-          // Fallback to existing session if refresh fails
-          const { data: { session: existingSession } } = await supabase.auth.getSession();
-          token = existingSession?.access_token;
-        } else if (refreshData.session) {
-          token = refreshData.session.access_token;
-          console.log('[Auto-Sync] Got refreshed token successfully');
-        }
-      } catch (refreshError) {
-        console.error('[Auto-Sync] Session refresh failed:', refreshError);
-        // Last resort: try getSession
-        const { data: { session: fallbackSession } } = await supabase.auth.getSession();
-        token = fallbackSession?.access_token;
-      }
-      
+      console.log(`[Auto-Sync] Ensuring valid token (attempt ${retryCount + 1})...`);
+      const token = await getValidAccessToken();
       if (!token) {
-        console.log('[Auto-Sync] No token available after refresh attempts');
+        console.log('[Auto-Sync] No token available after validation');
         setSyncError('Not authenticated');
         if (isAutoSync) setAutoSyncInProgress(false);
         return;
       }
 
       console.log('[Auto-Sync] Making API call with valid token...');
-      const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/sync-midtrans-status`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`,
-          },
-          body: JSON.stringify({ order_number: orderNumber }),
-        }
-      );
+      const { data, error: invokeError } = await supabase.functions.invoke('sync-midtrans-status', {
+        body: { order_number: orderNumber },
+        headers: { Authorization: `Bearer ${token}` },
+      });
 
-      const data = await response.json().catch(() => null);
-      
-      // Handle 401 - this should rarely happen now since we refresh first
-      // But if it does, retry once with a delay
-      if (response.status === 401 && retryCount < 1) {
-        console.log('[Auto-Sync] Got 401 even after refresh, retrying in 1s...');
-        setAutoSyncInProgress(false);
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        return handleSyncStatus(isAutoSync, retryCount + 1);
-      }
-      
-      if (!response.ok) {
-        const errorMsg = data?.error || 'Failed to sync status';
+      if (invokeError) {
+        const errorStatus = (invokeError as { context?: { status?: number } }).context?.status;
+        if (errorStatus === 401 && retryCount < 1) {
+          console.log('[Auto-Sync] Got 401 after validation, retrying in 1s...');
+          setAutoSyncInProgress(false);
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          return handleSyncStatus(isAutoSync, retryCount + 1);
+        }
+        const errorMsg =
+          (invokeError as { context?: { error?: string } }).context?.error ||
+          invokeError.message ||
+          'Failed to sync status';
         setSyncError(errorMsg);
         if (isAutoSync) {
           console.log(`[Auto-Sync] Failed: ${errorMsg}`);
@@ -433,11 +407,13 @@ export default function BookingSuccessPage() {
         return;
       }
 
+      const responseData = data as { order?: OrderState } | null;
       console.log('[Auto-Sync] API call successful!');
-      setOrderData(data?.order || orderData);
+      if (responseData?.order) {
+        setOrderData(responseData.order);
+      }
 
-      // If successful and status is paid, stop auto-polling AND fetch tickets immediately
-      if (data?.order?.status === 'paid') {
+      if (responseData?.order?.status === 'paid') {
         setShowManualButton(false);
         if (isAutoSync) {
           console.log('[Auto-Sync] Success - Payment confirmed! Fetching tickets...');
@@ -508,7 +484,7 @@ export default function BookingSuccessPage() {
           console.error('[Auto-Sync] Error fetching tickets:', refetchError);
         }
       } else if (isAutoSync) {
-        console.log(`[Auto-Sync] Status still: ${data?.order?.status || 'pending'}`);
+        console.log(`[Auto-Sync] Status still: ${responseData?.order?.status || 'pending'}`);
       }
     } catch (e: unknown) {
       const errorMsg = e instanceof Error ? e.message : 'Failed to sync status';
@@ -523,7 +499,7 @@ export default function BookingSuccessPage() {
         setSyncing(false);
       }
     }
-  }, [orderNumber, autoSyncInProgress, orderData]);
+  }, [orderNumber, autoSyncInProgress, getValidAccessToken]);
 
   // NEW: Dedicated auto-sync effect - runs when order is pending
   useEffect(() => {
