@@ -483,6 +483,7 @@ export default function BookingSuccessPage() {
         } catch (refetchError) {
           console.error('[Auto-Sync] Error fetching tickets:', refetchError);
         }
+        setLoading(false);
       } else if (isAutoSync) {
         console.log(`[Auto-Sync] Status still: ${responseData?.order?.status || 'pending'}`);
       }
@@ -512,7 +513,7 @@ export default function BookingSuccessPage() {
     
     // Only run auto-sync when we have an order and status is pending (or unknown) and no tickets yet
     const shouldSync = orderNumber && 
-                       (effectiveStatus === 'pending' || (effectiveStatus === null && initialIsPending)) && 
+                       (effectiveStatus === 'pending' || effectiveStatus === 'paid' || (effectiveStatus === null && initialIsPending)) && 
                        tickets.length === 0;
     
     if (!shouldSync) return;

@@ -56,16 +56,28 @@ export default function ProductOrderPendingPage() {
 
   const fetchOrder = useCallback(async () => {
     if (!orderNumber) return;
-    const { data, error: orderError } = await supabase
+    const primarySelect = 'id, order_number, payment_status, status, total, created_at, payment_url, payment_data, pickup_code';
+    const fallbackSelect = 'id, order_number, payment_status, status, total, created_at, payment_url, pickup_code';
+
+    let result = await supabase
       .from('order_products')
-      .select('id, order_number, payment_status, status, total, created_at, payment_url, payment_data, pickup_code')
+      .select(primarySelect)
       .eq('order_number', orderNumber)
       .single();
 
-    if (orderError || !data) throw orderError ?? new Error('Order not found');
-    setOrder(data as unknown as typeof order);
+    const errorCode = (result.error as { code?: string } | null)?.code;
+    if (result.error && (errorCode === '42703' || errorCode === 'PGRST204')) {
+      result = await supabase
+        .from('order_products')
+        .select(fallbackSelect)
+        .eq('order_number', orderNumber)
+        .single();
+    }
 
-    const orderId = Number((data as unknown as { id: number | string }).id);
+    if (result.error || !result.data) throw result.error ?? new Error('Order not found');
+    setOrder(result.data as unknown as typeof order);
+
+    const orderId = Number((result.data as unknown as { id: number | string }).id);
     const { data: itemRows, error: itemsError } = await supabase
       .from('order_product_items')
       .select('id, quantity, price, subtotal, product_variants(name, product_id, products(name, image_url, product_images(image_url, is_primary)))')
@@ -396,9 +408,9 @@ export default function ProductOrderPendingPage() {
           </div>
         )}
 
-        {loading || !order ? (
+        {loading ? (
           <OrderSuccessSkeleton />
-        ) : (
+        ) : order ? (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             <div className="lg:col-span-2 space-y-6">
               <section className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8">
@@ -636,6 +648,10 @@ export default function ProductOrderPendingPage() {
                 </div>
               </div>
             </aside>
+          </div>
+        ) : (
+          <div className="rounded-xl border border-red-500/20 bg-red-500/10 p-6 text-sm text-red-700">
+            Failed to load order.
           </div>
         )}
       </main>

@@ -114,18 +114,30 @@ export default function ProductOrderSuccessPage() {
 
   const fetchOrder = useCallback(async () => {
     if (!orderNumber) return;
-    const { data, error: orderError } = await supabase
+    const primarySelect =
+      'id, order_number, payment_status, status, pickup_code, pickup_status, pickup_expires_at, paid_at, total, created_at, payment_url, payment_data';
+    const fallbackSelect =
+      'id, order_number, payment_status, status, pickup_code, pickup_status, pickup_expires_at, paid_at, total, created_at, payment_url';
+
+    let result = await supabase
       .from('order_products')
-      .select(
-        'id, order_number, payment_status, status, pickup_code, pickup_status, pickup_expires_at, paid_at, total, created_at, payment_url, payment_data'
-      )
+      .select(primarySelect)
       .eq('order_number', orderNumber)
       .single();
 
-    if (orderError || !data) throw orderError ?? new Error('Order not found');
-    setOrder(data as unknown as ProductOrder);
+    const errorCode = (result.error as { code?: string } | null)?.code;
+    if (result.error && (errorCode === '42703' || errorCode === 'PGRST204')) {
+      result = await supabase
+        .from('order_products')
+        .select(fallbackSelect)
+        .eq('order_number', orderNumber)
+        .single();
+    }
 
-    const orderId = Number((data as unknown as { id: number | string }).id);
+    if (result.error || !result.data) throw result.error ?? new Error('Order not found');
+    setOrder(result.data as unknown as ProductOrder);
+
+    const orderId = Number((result.data as unknown as { id: number | string }).id);
     const { data: itemRows, error: itemsError } = await supabase
       .from('order_product_items')
       .select('id, quantity, price, subtotal, product_variants(name, product_id, products(name, image_url, product_images(image_url, is_primary)))')
@@ -433,9 +445,9 @@ export default function ProductOrderSuccessPage() {
           </div>
         )}
 
-        {loading || !order ? (
+        {loading ? (
           <OrderSuccessSkeleton />
-        ) : (
+        ) : order ? (
           <>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
               <div className="md:col-span-2 space-y-6">
@@ -586,6 +598,10 @@ export default function ProductOrderSuccessPage() {
               </div>
             )}
           </>
+        ) : (
+          <div className="rounded-xl border border-red-500/20 bg-red-500/10 p-6 text-sm text-red-700">
+            Failed to load order.
+          </div>
         )}
       </main>
     </div>
