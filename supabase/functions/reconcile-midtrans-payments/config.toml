@@ -1,1 +1,3 @@
+# System/scheduled function - no user auth needed
+# Called by cron jobs or admin to reconcile payment states
 verify_jwt = false

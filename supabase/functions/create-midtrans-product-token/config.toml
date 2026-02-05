@@ -1,1 +1,3 @@
-verify_jwt = true
+# User-facing function - auth handled manually in code for better error messages
+# Code validates JWT via getUserFromAuthHeader() for detailed session errors
+verify_jwt = false

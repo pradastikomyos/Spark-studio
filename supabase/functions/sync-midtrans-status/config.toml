@@ -1,1 +1,3 @@
+# User-facing function - auth handled manually in code
+# Code validates JWT + ownership check (order.user_id === user.id)
 verify_jwt = true
