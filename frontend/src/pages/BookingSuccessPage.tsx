@@ -433,11 +433,76 @@ export default function BookingSuccessPage() {
 
       setOrderData(data?.order || orderData);
 
-      // If successful and status is paid, stop auto-polling
+      // If successful and status is paid, stop auto-polling AND fetch tickets immediately
       if (data?.order?.status === 'paid') {
         setShowManualButton(false);
         if (isAutoSync) {
-          console.log('[Auto-Sync] Success - Payment confirmed!');
+          console.log('[Auto-Sync] Success - Payment confirmed! Fetching tickets...');
+        }
+
+        // CRITICAL FIX: Immediately fetch tickets after payment is confirmed
+        // This is the missing piece that caused skeleton to load forever
+        try {
+          // First get order items
+          const { data: orderData2 } = await supabase
+            .from('orders')
+            .select('id')
+            .eq('order_number', orderNumber)
+            .single();
+
+          if (orderData2?.id) {
+            const { data: orderItems } = await supabase
+              .from('order_items')
+              .select('id')
+              .eq('order_id', orderData2.id);
+
+            const orderItemIds = (orderItems || []).map((item: { id: number }) => item.id);
+
+            if (orderItemIds.length > 0) {
+              const { data: purchasedTickets, error: ticketsError } = await supabase
+                .from('purchased_tickets')
+                .select(`
+                  id,
+                  ticket_code,
+                  valid_date,
+                  time_slot,
+                  queue_number,
+                  queue_overflow,
+                  status,
+                  tickets:ticket_id (
+                    name,
+                    type
+                  )
+                `)
+                .in('order_item_id', orderItemIds);
+
+              if (!ticketsError && purchasedTickets && purchasedTickets.length > 0) {
+                const transformedTickets = purchasedTickets.map((t: PurchasedTicketRow) => {
+                  const ticketMeta = Array.isArray(t.tickets) ? t.tickets[0] : t.tickets;
+                  return {
+                    id: t.id,
+                    ticket_code: t.ticket_code,
+                    valid_date: t.valid_date,
+                    time_slot: t.time_slot,
+                    queue_number: t.queue_number ?? null,
+                    queue_overflow: Boolean(t.queue_overflow),
+                    status: t.status,
+                    ticket: {
+                      name: ticketMeta?.name || 'Ticket',
+                      type: ticketMeta?.type || 'entrance',
+                    },
+                  };
+                });
+                setTickets(transformedTickets);
+                setLoading(false);
+                console.log('[Auto-Sync] Tickets fetched successfully:', transformedTickets.length);
+              } else {
+                console.log('[Auto-Sync] No tickets found yet, will retry...');
+              }
+            }
+          }
+        } catch (refetchError) {
+          console.error('[Auto-Sync] Error fetching tickets:', refetchError);
         }
       } else if (isAutoSync) {
         console.log(`[Auto-Sync] Status still: ${data?.order?.status || 'pending'}`);
@@ -551,16 +616,16 @@ export default function BookingSuccessPage() {
                 <p className="text-xs uppercase tracking-widest text-gray-400 font-semibold mb-3">
                   Booking Confirmed
                 </p>
-                
+
                 {/* Main Headline with Gradient */}
                 {/* <h1 className="text-5xl md:text-6xl font-display font-bold mb-4 bg-gradient-to-r from-primary via-rose-500 to-primary bg-[length:200%_auto] animate-gradient bg-clip-text text-transparent leading-tight pb-2">
                   Ready to Be a Star?
                 </h1> */}
                 {/* Main Headline Image */}
                 <div className="flex justify-center mb-2">
-                  <img 
-                    src="/images/landing/READY%20TO%20BE%20A%20STAR.PNG" 
-                    alt="Ready to Be a Star?" 
+                  <img
+                    src="/images/landing/READY%20TO%20BE%20A%20STAR.PNG"
+                    alt="Ready to Be a Star?"
                     className="h-auto w-full max-w-xl object-contain"
                   />
                 </div>
