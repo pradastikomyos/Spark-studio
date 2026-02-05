@@ -362,17 +362,22 @@ export default function BookingSuccessPage() {
     setSyncError(null);
 
     try {
-      // CRITICAL: Use session from AuthContext (validated), not from supabase.auth.getSession() (localStorage)
+      // CRITICAL: Always get fresh token directly from Supabase on retry
+      // The closure's session reference may be stale after redirect/refresh
       let token = session?.access_token;
       
-      // If no token, try to refresh session first (handles post-redirect scenarios)
-      if (!token && retryCount === 0) {
-        console.log('[Auto-Sync] No token available, attempting session refresh...');
+      // On retry OR if no token, always get fresh from Supabase
+      if (!token || retryCount > 0) {
+        console.log(`[Auto-Sync] ${retryCount > 0 ? 'Retry: ' : ''}Getting fresh token from Supabase...`);
         try {
-          await refreshSession();
-          // Session will be updated via AuthContext, but we need to get it fresh
+          // First try refresh to ensure we have valid token
+          if (retryCount > 0) {
+            await refreshSession();
+          }
+          // Then get the fresh session
           const { data: { session: freshSession } } = await supabase.auth.getSession();
           token = freshSession?.access_token;
+          console.log(`[Auto-Sync] Fresh token obtained: ${token ? 'yes' : 'no'}`);
         } catch (refreshError) {
           console.error('[Auto-Sync] Session refresh failed:', refreshError);
         }
@@ -380,6 +385,7 @@ export default function BookingSuccessPage() {
       
       if (!token) {
         setSyncError('Not authenticated');
+        if (isAutoSync) setAutoSyncInProgress(false);
         return;
       }
 
@@ -397,17 +403,13 @@ export default function BookingSuccessPage() {
 
       const data = await response.json().catch(() => null);
       
-      // Handle 401 with automatic retry after session refresh
+      // Handle 401 with automatic retry after session refresh (max 1 retry)
       if (response.status === 401 && retryCount < 1) {
-        console.log('[Auto-Sync] Got 401, refreshing session and retrying...');
-        try {
-          await refreshSession();
-          // Retry once with refreshed session
-          setAutoSyncInProgress(false);
-          return handleSyncStatus(isAutoSync, retryCount + 1);
-        } catch (refreshError) {
-          console.error('[Auto-Sync] Session refresh failed on 401:', refreshError);
-        }
+        console.log('[Auto-Sync] Got 401, will retry with fresh token...');
+        setAutoSyncInProgress(false);
+        // Small delay to allow Supabase to process token refresh
+        await new Promise(resolve => setTimeout(resolve, 500));
+        return handleSyncStatus(isAutoSync, retryCount + 1);
       }
       
       if (!response.ok) {
