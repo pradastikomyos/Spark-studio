@@ -48,7 +48,7 @@ export default function ProductOrderSuccessPage() {
   const [refreshing, setRefreshing] = useState(false);
   
   const pickupCode = order?.pickup_code ?? null;
-  const { session, initialized, refreshSession } = useAuth();
+  const { initialized } = useAuth();
   const [autoSyncInProgress, setAutoSyncInProgress] = useState(false);
   const confettiTriggeredRef = useRef(false);
 
@@ -180,25 +180,30 @@ export default function ProductOrderSuccessPage() {
     setError(null);
 
     try {
-      // CRITICAL: Always get fresh token directly from Supabase on retry
-      // The closure's session reference may be stale after redirect/refresh
-      let token = session?.access_token;
+      // CRITICAL FIX: Always ensure we have a VALID token
+      // 1. getSession() only returns localStorage data (may be expired)
+      // 2. refreshSession() actually validates and renews the token
       
-      // On retry OR if no token, always get fresh from Supabase
-      if (!token || retryCount > 0) {
-        console.log(`[Product-Sync] ${retryCount > 0 ? 'Retry: ' : ''}Getting fresh token from Supabase...`);
-        try {
-          // First try refresh to ensure we have valid token
-          if (retryCount > 0) {
-            await refreshSession();
-          }
-          // Then get the fresh session
-          const { data: { session: freshSession } } = await supabase.auth.getSession();
-          token = freshSession?.access_token;
-          console.log(`[Product-Sync] Fresh token obtained: ${token ? 'yes' : 'no'}`);
-        } catch (refreshError) {
-          console.error('[Product-Sync] Session refresh failed:', refreshError);
+      let token: string | undefined;
+      
+      try {
+        console.log(`[Product-Sync] Ensuring valid token (attempt ${retryCount + 1})...`);
+        
+        // Call Supabase refresh directly to get a guaranteed fresh token
+        const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
+        
+        if (refreshError) {
+          console.error('[Product-Sync] Token refresh error:', refreshError.message);
+          const { data: { session: existingSession } } = await supabase.auth.getSession();
+          token = existingSession?.access_token;
+        } else if (refreshData.session) {
+          token = refreshData.session.access_token;
+          console.log('[Product-Sync] Got refreshed token successfully');
         }
+      } catch (refreshError) {
+        console.error('[Product-Sync] Session refresh failed:', refreshError);
+        const { data: { session: fallbackSession } } = await supabase.auth.getSession();
+        token = fallbackSession?.access_token;
       }
       
       if (!token) {
@@ -207,6 +212,7 @@ export default function ProductOrderSuccessPage() {
         return;
       }
 
+      console.log('[Product-Sync] Making API call with valid token...');
       const response = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/sync-midtrans-product-status`,
         {
@@ -221,12 +227,11 @@ export default function ProductOrderSuccessPage() {
 
       const data = await response.json().catch(() => null);
 
-      // Handle 401 with automatic retry after session refresh (max 1 retry)
+      // Handle 401 - retry once with delay
       if (response.status === 401 && retryCount < 1) {
-        console.log('[Product-Sync] Got 401, will retry with fresh token...');
+        console.log('[Product-Sync] Got 401, retrying in 1s...');
         setAutoSyncInProgress(false);
-        // Small delay to allow Supabase to process token refresh
-        await new Promise(resolve => setTimeout(resolve, 500));
+        await new Promise(resolve => setTimeout(resolve, 1000));
         return handleSyncStatus(isAutoSync, retryCount + 1);
       }
 
@@ -259,7 +264,7 @@ export default function ProductOrderSuccessPage() {
         setRefreshing(false);
       }
     }
-  }, [orderNumber, session, autoSyncInProgress, fetchOrder, refreshSession]);
+  }, [orderNumber, autoSyncInProgress, fetchOrder]);
 
 
 
