@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, useRef } from 'react';
 import { Link, useParams, useLocation, useNavigate } from 'react-router-dom';
 import QRCode from 'react-qr-code';
+import confetti from 'canvas-confetti';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import { formatCurrency } from '../utils/formatters';
@@ -45,11 +46,51 @@ export default function ProductOrderSuccessPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
-  const [showConfetti, setShowConfetti] = useState(false);
-
+  
   const pickupCode = order?.pickup_code ?? null;
   const { session } = useAuth();
   const [autoSyncInProgress, setAutoSyncInProgress] = useState(false);
+  const confettiTriggeredRef = useRef(false);
+
+  // Confetti celebration effect (Match BookingSuccessPage)
+  const triggerConfetti = useCallback(() => {
+    if (confettiTriggeredRef.current) return;
+    confettiTriggeredRef.current = true;
+
+    const duration = 3000;
+    const animationEnd = Date.now() + duration;
+    const defaults = { startVelocity: 45, spread: 360, ticks: 100, zIndex: 9999, scalar: 1.2 };
+    const colors = ['#FFD700', '#C0C0C0', '#FCEabb', '#EFEFEF'];
+
+    const randomInRange = (min: number, max: number) => Math.random() * (max - min) + min;
+
+    const interval = window.setInterval(() => {
+      const timeLeft = animationEnd - Date.now();
+
+      if (timeLeft <= 0) {
+        clearInterval(interval);
+        return;
+      }
+
+      const particleCount = 500 * (timeLeft / duration);
+
+      confetti({
+        ...defaults,
+        particleCount,
+        origin: { x: randomInRange(0.1, 0.3), y: Math.random() - 0.2 },
+        colors,
+        shapes: ['square', 'circle', 'star'],
+      });
+
+      confetti({
+        ...defaults,
+        particleCount,
+        origin: { x: randomInRange(0.7, 0.9), y: Math.random() - 0.2 },
+        colors,
+        shapes: ['square', 'circle', 'star'],
+      });
+    }, 250);
+  }, []);
 
   useEffect(() => {
     if (!order || loading) return;
@@ -63,17 +104,13 @@ export default function ProductOrderSuccessPage() {
     
     if (!hasShownSuccessToast.current && state?.paymentSuccess) {
       hasShownSuccessToast.current = true;
-      setShowConfetti(true);
-      showToast('success', '\ud83c\udf89 Payment confirmed! Your order is ready for pickup.');
-      
-      // Hide confetti after animation
-      const timer = setTimeout(() => setShowConfetti(false), 5000);
-      return () => clearTimeout(timer);
+      triggerConfetti();
+      showToast('success', '🎉 Payment confirmed! Your order is ready for pickup.');
     } else if (!hasShownSuccessToast.current && state?.isPending) {
       hasShownSuccessToast.current = true;
-      showToast('info', 'Your payment is being processed. We\u2019ll update the status shortly.');
+      showToast('info', 'Your payment is being processed. We’ll update the status shortly.');
     }
-  }, [location.state, showToast]);
+  }, [location.state, showToast, triggerConfetti]);
 
   const fetchOrder = useCallback(async () => {
     if (!orderNumber) return;
@@ -325,41 +362,27 @@ export default function ProductOrderSuccessPage() {
 
   return (
     <div className="bg-background-light relative overflow-hidden">
-      {showConfetti && (
-        <div className="fixed inset-0 pointer-events-none z-50" aria-hidden="true">
-          <div className="absolute inset-0 flex justify-center">
-            {[...Array(50)].map((_, i) => (
-              <div
-                key={i}
-                className="absolute animate-confetti"
-                style={{
-                  left: `${Math.random() * 100}%`,
-                  animationDelay: `${Math.random() * 2}s`,
-                  animationDuration: `${3 + Math.random() * 2}s`,
-                }}
-              >
-                <div
-                  className="w-3 h-3 rounded-sm"
-                  style={{
-                    backgroundColor: ['#ff4b86', '#fbbf24', '#34d399', '#60a5fa', '#a78bfa', '#f472b6'][
-                      Math.floor(Math.random() * 6)
-                    ],
-                    transform: `rotate(${Math.random() * 360}deg)`,
-                  }}
-                />
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+      <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 md:py-12">
+        <div className="text-center mb-8">
+          <p className="text-xs uppercase tracking-widest text-gray-400 font-semibold mb-3">
+            Payment Successful
+          </p>
 
-      <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-12 md:py-20">
-        <div className="text-center mb-10">
-          <div className="inline-flex items-center justify-center w-20 h-20 bg-green-100 rounded-full mb-6">
-            <span className="material-symbols-outlined text-5xl text-green-600">check_circle</span>
+          {/* Main Headline Image */}
+          <div className="flex justify-center mb-2">
+            <img 
+              src="/images/landing/READY%20TO%20BE%20A%20STAR.PNG" 
+              alt="Ready to Be a Star?" 
+              className="h-auto w-full max-w-xl object-contain"
+            />
           </div>
-          <h1 className="text-4xl md:text-5xl font-display text-text-light mb-2">Payment Successful</h1>
-          <p className="text-subtext-light">Thank you for your purchase! Your order is being processed.</p>
+          
+          <div className="text-gray-500 font-medium font-sans">
+            Order Number
+          </div>
+          <div className="font-mono font-bold text-lg text-gray-900 tracking-wider">
+            #{orderNumber}
+          </div>
         </div>
 
         {error && (
