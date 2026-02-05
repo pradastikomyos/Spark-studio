@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import QRCode from 'react-qr-code';
 import confetti from 'canvas-confetti';
@@ -336,54 +336,14 @@ export default function BookingSuccessPage() {
       }, 5000);
     }
 
-    // AUTO-POLLING: Active Sync (Agresif)
-    // Langsung tembak ke Midtrans via Edge Function, jangan tunggu webhook.
-    let autoSyncTimeout: NodeJS.Timeout | null = null;
-    let showButtonTimer: NodeJS.Timeout | null = null;
-
-    // Compute status inside effect to avoid stale closures
-    const currentStatus = orderData?.status || (initialIsPending ? 'pending' : null);
-
-    if (orderNumber && currentStatus === 'pending') {
-      console.log(`[Auto-Sync] Order ${orderNumber} is pending. Starting IMMEDIATE sync...`);
-
-      const delaysMs = [0, 5000, 15000, 35000];
-      const runAttempt = (attempt: number) => {
-        if (attempt >= delaysMs.length) return;
-        autoSyncTimeout = setTimeout(async () => {
-          await handleSyncStatus(true);
-          runAttempt(attempt + 1);
-        }, delaysMs[attempt]);
-      };
-
-      runAttempt(0);
-
-      showButtonTimer = setTimeout(() => {
-        console.log('[Auto-Sync] 8 seconds elapsed - Showing manual button');
-        setShowManualButton(true);
-      }, 8000);
-    }
-
     return () => {
       if (channel) supabase.removeChannel(channel);
       if (pollInterval) clearInterval(pollInterval);
-      if (autoSyncTimeout) clearTimeout(autoSyncTimeout);
-      if (showButtonTimer) clearTimeout(showButtonTimer);
     };
-  }, [orderNumber, state?.ticketCode, orderData?.status, initialIsPending]);
+  }, [orderNumber, state?.ticketCode, orderData?.status]);
 
-  // Trigger confetti when tickets appear (paid status)
-  useEffect(() => {
-    if (tickets.length > 0 && effectiveStatus === 'paid' && !loading) {
-      // Small delay to ensure QR code is rendered
-      const timer = setTimeout(() => {
-        triggerConfetti();
-      }, 100);
-      return () => clearTimeout(timer);
-    }
-  }, [tickets.length, effectiveStatus, loading]);
-
-  const handleSyncStatus = async (isAutoSync = false) => {
+  // Define handleSyncStatus before it's used in the auto-sync effect
+  const handleSyncStatus = useCallback(async (isAutoSync = false) => {
     if (!orderNumber) return;
 
     // Prevent concurrent auto-sync calls
@@ -520,7 +480,69 @@ export default function BookingSuccessPage() {
         setSyncing(false);
       }
     }
-  };
+  }, [orderNumber, session, autoSyncInProgress, orderData]);
+
+  // NEW: Dedicated auto-sync effect - runs when order is pending
+  useEffect(() => {
+    // Only run auto-sync when we have an order and status is pending (or unknown) and no tickets yet
+    const shouldSync = orderNumber && 
+                       (effectiveStatus === 'pending' || (effectiveStatus === null && initialIsPending)) && 
+                       tickets.length === 0;
+    
+    if (!shouldSync) return;
+
+    console.log('[Auto-Sync] Starting aggressive sync for order:', orderNumber);
+
+    // Immediate + exponential backoff retries
+    const delays = [0, 5000, 15000, 35000];
+    let attempt = 0;
+    let cancelled = false;
+    const timeouts: NodeJS.Timeout[] = [];
+
+    const runSync = async () => {
+      if (cancelled || attempt >= delays.length) return;
+      
+      const delay = delays[attempt];
+      const timeout = setTimeout(async () => {
+        if (cancelled) return;
+        await handleSyncStatus(true);
+        attempt++;
+        // Continue if still no tickets
+        if (!cancelled && tickets.length === 0) {
+          runSync();
+        }
+      }, delay);
+      
+      timeouts.push(timeout);
+    };
+
+    runSync();
+
+    // Show manual button after 8 seconds
+    const showButtonTimer = setTimeout(() => {
+      if (!cancelled) {
+        console.log('[Auto-Sync] 8 seconds elapsed - Showing manual button');
+        setShowManualButton(true);
+      }
+    }, 8000);
+    timeouts.push(showButtonTimer);
+
+    return () => {
+      cancelled = true;
+      timeouts.forEach(t => clearTimeout(t));
+    };
+  }, [orderNumber, effectiveStatus, initialIsPending, tickets.length, handleSyncStatus]);
+
+  // Trigger confetti when tickets appear (paid status)
+  useEffect(() => {
+    if (tickets.length > 0 && effectiveStatus === 'paid' && !loading) {
+      // Small delay to ensure QR code is rendered
+      const timer = setTimeout(() => {
+        triggerConfetti();
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [tickets.length, effectiveStatus, loading]);
 
   const handlePrint = () => {
     window.print();

@@ -162,7 +162,7 @@ describe('PaymentPage', () => {
 
             global.fetch = vi.fn().mockResolvedValue({
                 ok: true,
-                json: async () => ({ token: 'snap-token', order_id: '123' })
+                json: async () => ({ token: 'snap-token', order_id: '123', order_number: 'ORD-123' })
             }) as any
 
             // Mock window.snap.pay
@@ -182,6 +182,41 @@ describe('PaymentPage', () => {
             await waitFor(() => {
                 expect(clearBookingState).toHaveBeenCalled()
                 expect(mockNavigate).toHaveBeenCalledWith('/booking-success', expect.anything())
+            })
+        })
+
+        it('should pass isPending: true flag on success navigation', async () => {
+            vi.mocked(supabase.auth.getSession).mockResolvedValue({
+                data: { session: { access_token: 'token' } }
+            } as any)
+
+            global.fetch = vi.fn().mockResolvedValue({
+                ok: true,
+                json: async () => ({ token: 'snap-token', order_id: '123', order_number: 'ORD-123' })
+            }) as any
+
+            // Mock window.snap.pay
+            const mockSnapPay = vi.fn().mockImplementation((_token, callbacks) => {
+                callbacks.onSuccess({ status_code: '200' })
+            })
+            global.window.snap = { pay: mockSnapPay } as any
+
+            render(<MemoryRouter><PaymentPage /></MemoryRouter>)
+
+            // Wait for snap script load
+            await waitFor(() => expect(screen.queryByText(/loading/i)).toBeNull())
+
+            const payButton = await screen.findByRole('button', { name: /Pay/i })
+            fireEvent.click(payButton)
+
+            await waitFor(() => {
+                expect(mockNavigate).toHaveBeenCalledWith('/booking-success', 
+                    expect.objectContaining({
+                        state: expect.objectContaining({
+                            isPending: true
+                        })
+                    })
+                )
             })
         })
     })
