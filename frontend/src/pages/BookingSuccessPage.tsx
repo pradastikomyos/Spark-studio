@@ -6,7 +6,6 @@ import { supabase } from '../lib/supabase';
 import { getOrderStatusPresentation } from '../utils/midtransStatus';
 import { useAuth } from '../contexts/AuthContext';
 import BookingSuccessSkeleton from '../components/skeletons/BookingSuccessSkeleton';
-import StarSparkleIcon from '../components/StarSparkleIcon';
 
 interface LocationState {
   orderNumber?: string;
