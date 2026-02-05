@@ -4,6 +4,7 @@ import { getMidtransEnv, getSupabaseEnv } from '../_shared/env.ts'
 import { createServiceClient, getUserFromAuthHeader } from '../_shared/supabase.ts'
 import { getMidtransBasicAuthHeader, getStatusBaseUrl } from '../_shared/midtrans.ts'
 import { mapMidtransStatus } from '../_shared/tickets.ts'
+import { issueTicketsIfNeeded, releaseTicketCapacityIfNeeded } from '../_shared/payment-effects.ts'
 
 serve(async (req) => {
   const corsResponse = handleCors(req)
@@ -48,7 +49,7 @@ serve(async (req) => {
 
     const { data: order, error: orderError } = await supabase
       .from('orders')
-      .select('id, user_id, order_number, status, expires_at')
+      .select('id, user_id, order_number, status, expires_at, tickets_issued_at, capacity_released_at')
       .eq('order_number', orderNumber)
       .single()
 
@@ -86,16 +87,17 @@ serve(async (req) => {
     }
 
     const newStatus = mapMidtransStatus(statusData?.transaction_status, statusData?.fraud_status)
+    const nowIso = new Date().toISOString()
 
     const { data: updatedOrder, error: updateError } = await supabase
       .from('orders')
       .update({
         status: newStatus,
         payment_data: statusData,
-        updated_at: new Date().toISOString(),
+        updated_at: nowIso,
       })
       .eq('id', order.id)
-      .select('id, user_id, order_number, status, expires_at, updated_at')
+      .select('id, user_id, order_number, status, expires_at, updated_at, tickets_issued_at, capacity_released_at')
       .single()
 
     if (updateError || !updatedOrder) {
@@ -103,6 +105,52 @@ serve(async (req) => {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
+    }
+
+    if (newStatus === 'paid') {
+      const { data: orderItems } = await supabase
+        .from('order_items')
+        .select('id, ticket_id, selected_date, selected_time_slots, quantity')
+        .eq('order_id', order.id)
+
+      if (Array.isArray(orderItems)) {
+        await issueTicketsIfNeeded({
+          supabase,
+          order: updatedOrder as unknown as {
+            id: number
+            order_number: string
+            user_id: string | null
+            status?: string | null
+            tickets_issued_at?: string | null
+            capacity_released_at?: string | null
+          },
+          orderItems: orderItems as Array<{ id: number; ticket_id: number; selected_date: string; selected_time_slots: unknown; quantity: number }>,
+          nowIso,
+        })
+      }
+    }
+
+    if (newStatus === 'expired' || newStatus === 'failed' || newStatus === 'refunded') {
+      const { data: orderItems } = await supabase
+        .from('order_items')
+        .select('id, ticket_id, selected_date, selected_time_slots, quantity')
+        .eq('order_id', order.id)
+
+      if (Array.isArray(orderItems)) {
+        await releaseTicketCapacityIfNeeded({
+          supabase,
+          order: updatedOrder as unknown as {
+            id: number
+            order_number: string
+            user_id: string | null
+            status?: string | null
+            tickets_issued_at?: string | null
+            capacity_released_at?: string | null
+          },
+          orderItems: orderItems as Array<{ id: number; ticket_id: number; selected_date: string; selected_time_slots: unknown; quantity: number }>,
+          nowIso,
+        })
+      }
     }
 
     return new Response(JSON.stringify({ status: 'ok', order: updatedOrder }), {

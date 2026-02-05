@@ -4,6 +4,7 @@ import { getMidtransEnv, getSupabaseEnv } from '../_shared/env.ts'
 import { createServiceClient, getUserFromAuthHeader } from '../_shared/supabase.ts'
 import { getMidtransBasicAuthHeader, getStatusBaseUrl } from '../_shared/midtrans.ts'
 import { mapMidtransStatus } from '../_shared/tickets.ts'
+import { ensureProductPaidSideEffects, releaseProductReservedStockIfNeeded } from '../_shared/payment-effects.ts'
 
 /**
  * sync-midtrans-product-status
@@ -61,7 +62,7 @@ serve(async (req) => {
         // 2. Fetch order from order_products table
         const { data: order, error: orderError } = await supabase
             .from('order_products')
-            .select('id, user_id, order_number, status, payment_status, pickup_code, pickup_status, total')
+            .select('id, user_id, order_number, status, payment_status, pickup_code, pickup_status, pickup_expires_at, total, stock_released_at')
             .eq('order_number', orderNumber)
             .single()
 
@@ -132,40 +133,60 @@ serve(async (req) => {
             updated_at: nowIso,
         }
 
-        // 6. CRITICAL: Generate pickup code if status just changed to paid
-        if (midtransStatus === 'paid' && previousPaymentStatus !== 'paid') {
-            updateFields.paid_at = nowIso
-
-            // Only generate pickup code if not already exists
-            if (!order.pickup_code) {
-                const { data: pickupCodeData } = await supabase.rpc('generate_pickup_code')
-                const pickupCode = String(pickupCodeData || '')
-
-                if (pickupCode) {
-                    updateFields.pickup_code = pickupCode
-                    updateFields.pickup_status = 'pending_pickup'
-                    updateFields.pickup_expires_at = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString() // 7 days
-                }
-            }
-        }
-
-        // Handle expired status
         if (midtransStatus === 'expired') {
             updateFields.expired_at = nowIso
         }
 
-        // 7. Update order in database
         const { data: updatedOrder, error: updateError } = await supabase
             .from('order_products')
             .update(updateFields)
             .eq('id', order.id)
-            .select('id, order_number, status, payment_status, pickup_code, pickup_status, pickup_expires_at, paid_at, total')
+            .select('id, order_number, status, payment_status, pickup_code, pickup_status, pickup_expires_at, paid_at, total, stock_released_at')
             .single()
 
         if (updateError || !updatedOrder) {
             return new Response(JSON.stringify({ error: 'Failed to update order' }), {
                 status: 500,
                 headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            })
+        }
+
+        if (midtransStatus === 'paid' && (previousPaymentStatus !== 'paid' || !updatedOrder.pickup_code)) {
+            await ensureProductPaidSideEffects({
+                supabase,
+                order: updatedOrder as unknown as {
+                    id: number
+                    order_number: string
+                    status?: string | null
+                    payment_status?: string | null
+                    total?: unknown
+                    pickup_code?: string | null
+                    pickup_status?: string | null
+                    pickup_expires_at?: string | null
+                    stock_released_at?: string | null
+                },
+                nowIso,
+                grossAmount: statusData?.gross_amount,
+                defaultStatus: orderStatus,
+                shouldSetPaidAt: true,
+            })
+        }
+
+        if (midtransStatus === 'expired' || midtransStatus === 'failed' || midtransStatus === 'refunded') {
+            await releaseProductReservedStockIfNeeded({
+                supabase,
+                order: updatedOrder as unknown as {
+                    id: number
+                    order_number: string
+                    status?: string | null
+                    payment_status?: string | null
+                    total?: unknown
+                    pickup_code?: string | null
+                    pickup_status?: string | null
+                    pickup_expires_at?: string | null
+                    stock_released_at?: string | null
+                },
+                nowIso,
             })
         }
 

@@ -9,6 +9,8 @@
   - [create-midtrans-token](file:///c:/Users/prada/Documents/Spark%20studio/supabase/functions/create-midtrans-token/index.ts) membuat order + request Snap token
   - [midtrans-webhook](file:///c:/Users/prada/Documents/Spark%20studio/supabase/functions/midtrans-webhook/index.ts) menerima HTTP Notification dan update status/tiket
   - [sync-midtrans-status](file:///c:/Users/prada/Documents/Spark%20studio/supabase/functions/sync-midtrans-status/index.ts) fallback manual: cek status ke Core API Midtrans dan sinkronkan ke DB
+  - [sync-midtrans-product-status](file:///c:/Users/prada/Documents/Spark%20studio/supabase/functions/sync-midtrans-product-status/index.ts) fallback manual: cek status pembayaran produk + pickup
+  - [reconcile-midtrans-payments](file:///c:/Users/prada/Documents/Spark%20studio/supabase/functions/reconcile-midtrans-payments/index.ts) job rekonsiliasi otomatis untuk mismatch pembayaran
 - Database (public schema)
   - `orders` (status pembayaran + `payment_data`)
   - `order_items` (item yang dibeli)
@@ -28,10 +30,14 @@
    - verifikasi signature
    - mapping `transaction_status` → `orders.status`
    - jika `paid`: buat `purchased_tickets` (idempotent) + update sold_capacity
+   - jika `failed/expired/refunded`: release kapasitas dan stock (idempotent)
 6. BookingSuccessPage:
    - fetch `orders` dan `purchased_tickets` (kalau sudah `paid`)
    - realtime subscribe + polling fallback untuk update status
    - tombol “Check Status” memanggil `sync-midtrans-status` bila status stuck
+7. Rekonsiliasi berkala:
+   - `reconcile-midtrans-payments` memeriksa mismatch (paid tanpa tiket, expired masih reserved stock/capacity)
+   - hasil dicatat ke `webhook_logs` dengan event_type `reconcile_*`
 
 ## Signature Verification (Midtrans HTTP Notification)
 
@@ -68,6 +74,11 @@ Mapping yang dipakai (dan diuji di frontend util [midtransStatus.ts](file:///c:/
   - pembuatan `purchased_tickets` idempotent (mengisi “kekurangan” tiket per order_item)
   - update `ticket_availabilities.sold_capacity` memakai optimistic concurrency (pakai kolom `version`)
   - normalisasi `all-day` menjadi `NULL` untuk `ticket_availabilities.time_slot`
+- Sync + webhook pakai helper side-effects yang sama (idempotent)
+- Tambahan idempotency markers:
+  - `orders.tickets_issued_at`
+  - `orders.capacity_released_at`
+  - `order_products.stock_released_at`
 - BookingSuccessPage:
   - tidak lagi bergantung pada flag `isPending` saja; status diambil dari DB
   - realtime subscribe + polling fallback (stop saat expired/final)
@@ -91,6 +102,32 @@ Contoh cek mismatch status:
 
 - `orders.status` vs `payment_data->>'transaction_status'`
 - `orders(status=paid)` tapi tiket belum ada (harus 0 hasil)
+- `order_products(payment_status=paid)` tapi `pickup_code` null
+- `order_products(status=expired/failed)` tapi reserved_stock belum berkurang
+
+Contoh audit:
+
+```sql
+-- Paid ticket orders missing tickets
+select o.order_number
+from orders o
+left join order_items oi on oi.order_id = o.id
+left join purchased_tickets pt on pt.order_item_id = oi.id
+where o.status = 'paid'
+group by o.order_number
+having count(pt.id) = 0;
+
+-- Paid product orders missing pickup_code
+select order_number from order_products
+where payment_status = 'paid' and pickup_code is null;
+
+-- Expired/failed product orders with reserved_stock still > 0
+select op.order_number, pv.id as variant_id, pv.reserved_stock
+from order_products op
+join order_product_items opi on opi.order_product_id = op.id
+join product_variants pv on pv.id = opi.product_variant_id
+where op.status in ('expired','cancelled') and pv.reserved_stock > 0;
+```
 
 Semua cek ini dilakukan via SQL di proyek dan saat ini tidak menemukan mismatch.
 
@@ -103,4 +140,3 @@ npm test
 ```
 
 Test mencakup mapping status Midtrans dan presentasi UI status.
-
