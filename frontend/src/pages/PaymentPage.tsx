@@ -205,6 +205,7 @@ export default function PaymentPage() {
                 time: timeSlot,
                 customerName: customerName.trim(),
                 paymentResult: result,
+                isPending: true,
               },
             });
           },
