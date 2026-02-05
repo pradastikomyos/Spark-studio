@@ -51,3 +51,4 @@ fullcode.txt
 docs/TECHNICAL_AUDIT_REPORT.md
 supabase/migrations/20260202_security_performance_fix.sql
 supabase/migrations/20260202200000_add_stages_display_order.sql
+supabase/migrations/20260205_fix_ticket_capacity_rpc_types.sql
