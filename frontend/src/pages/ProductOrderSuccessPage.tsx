@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, useRef } from 'react';
-import { Link, useParams, useLocation } from 'react-router-dom';
+import { Link, useParams, useLocation, useNavigate } from 'react-router-dom';
 import QRCode from 'react-qr-code';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
@@ -18,6 +18,8 @@ type ProductOrder = {
   paid_at: string | null;
   total: number;
   created_at: string | null;
+  payment_url?: string | null;
+  payment_data?: unknown | null;
 };
 
 type ProductOrderItem = {
@@ -33,6 +35,7 @@ type ProductOrderItem = {
 export default function ProductOrderSuccessPage() {
   const params = useParams();
   const location = useLocation();
+  const navigate = useNavigate();
   const orderNumber = params.orderNumber || '';
   const { showToast } = useToast();
   const hasShownSuccessToast = useRef(false);
@@ -47,6 +50,12 @@ export default function ProductOrderSuccessPage() {
   const pickupCode = order?.pickup_code ?? null;
   const { session } = useAuth();
   const [autoSyncInProgress, setAutoSyncInProgress] = useState(false);
+
+  useEffect(() => {
+    if (!order || loading) return;
+    if (String(order.payment_status || '').toLowerCase() === 'paid') return;
+    navigate(`/order/product/pending/${orderNumber}`, { replace: true, state: location.state });
+  }, [loading, location.state, navigate, order, orderNumber]);
 
   // Show success toast and confetti if coming from successful payment
   useEffect(() => {
@@ -70,7 +79,9 @@ export default function ProductOrderSuccessPage() {
     if (!orderNumber) return;
     const { data, error: orderError } = await supabase
       .from('order_products')
-      .select('id, order_number, payment_status, status, pickup_code, pickup_status, pickup_expires_at, paid_at, total, created_at')
+      .select(
+        'id, order_number, payment_status, status, pickup_code, pickup_status, pickup_expires_at, paid_at, total, created_at, payment_url, payment_data'
+      )
       .eq('order_number', orderNumber)
       .single();
 
@@ -259,6 +270,39 @@ export default function ProductOrderSuccessPage() {
   }, [orderNumber, pickupCode, order?.payment_status, handleSyncStatus]);
 
   const totalItems = useMemo(() => items.reduce((sum, i) => sum + i.quantity, 0), [items]);
+  const paymentMethodLabel = useMemo(() => {
+    const raw = order?.payment_data as
+      | {
+          payment_type?: string;
+          va_numbers?: { bank?: string; va_number?: string }[];
+          permata_va_number?: string;
+          store?: string;
+        }
+      | null
+      | undefined;
+
+    const paymentType = raw?.payment_type ? String(raw.payment_type) : '';
+    if (!paymentType) return 'Midtrans';
+
+    if (paymentType === 'bank_transfer') {
+      const va = Array.isArray(raw?.va_numbers) && raw.va_numbers.length > 0 ? raw.va_numbers[0] : null;
+      if (va?.bank) return `${String(va.bank).toUpperCase()} Virtual Account`;
+      if (raw?.permata_va_number) return 'Permata Virtual Account';
+      return 'Bank Transfer';
+    }
+
+    if (paymentType === 'cstore') {
+      if (raw?.store) return String(raw.store).toUpperCase();
+      return 'Convenience Store';
+    }
+
+    if (paymentType === 'qris') return 'QRIS';
+    if (paymentType === 'gopay') return 'GoPay';
+    if (paymentType === 'shopeepay') return 'ShopeePay';
+    if (paymentType === 'akulaku') return 'Akulaku';
+
+    return paymentType.replace(/_/g, ' ').toUpperCase();
+  }, [order?.payment_data]);
   const formatPickupExpiry = (value: string) =>
     new Date(value).toLocaleString('en-US', {
       timeZone: 'Asia/Jakarta',
@@ -280,8 +324,7 @@ export default function ProductOrderSuccessPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background-light relative overflow-hidden">
-      {/* Confetti Animation */}
+    <div className="bg-background-light relative overflow-hidden">
       {showConfetti && (
         <div className="fixed inset-0 pointer-events-none z-50" aria-hidden="true">
           <div className="absolute inset-0 flex justify-center">
@@ -298,7 +341,9 @@ export default function ProductOrderSuccessPage() {
                 <div
                   className="w-3 h-3 rounded-sm"
                   style={{
-                    backgroundColor: ['#ff4b86', '#fbbf24', '#34d399', '#60a5fa', '#a78bfa', '#f472b6'][Math.floor(Math.random() * 6)],
+                    backgroundColor: ['#ff4b86', '#fbbf24', '#34d399', '#60a5fa', '#a78bfa', '#f472b6'][
+                      Math.floor(Math.random() * 6)
+                    ],
                     transform: `rotate(${Math.random() * 360}deg)`,
                   }}
                 />
@@ -307,158 +352,174 @@ export default function ProductOrderSuccessPage() {
           </div>
         </div>
       )}
-      
-      {/* Success Banner - Show when payment confirmed */}
-      {order?.payment_status === 'paid' && !loading && (
-        <div className="bg-gradient-to-r from-green-500 to-emerald-500 text-white py-4 px-6 text-center animate-fade-in">
-          <div className="flex items-center justify-center gap-3">
-            <span className="material-symbols-outlined text-2xl">check_circle</span>
-            <div>
-              <p className="font-bold text-lg">Payment Successful!</p>
-              <p className="text-sm text-white/90">Your order is confirmed and ready for pickup</p>
-            </div>
-          </div>
-        </div>
-      )}
-      
-      <main className="max-w-4xl mx-auto px-6 lg:px-12 py-16 w-full">
-        <header className="mb-10 border-b border-gray-200 pb-6">
-          <div className="flex items-center gap-4 mb-2">
-            {order?.payment_status === 'paid' && (
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-bold uppercase tracking-wider bg-green-100 text-green-700 rounded-full">
-                <span className="material-symbols-outlined text-sm">verified</span>
-                Paid
-              </span>
-            )}
-            {order?.payment_status !== 'paid' && order && (
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-bold uppercase tracking-wider bg-amber-100 text-amber-700 rounded-full">
-                <span className="material-symbols-outlined text-sm animate-pulse">schedule</span>
-                Pending
-              </span>
-            )}
-          </div>
-          <h1 className="font-display text-4xl md:text-5xl font-light">
-            {order?.payment_status === 'paid' ? 'Order Confirmed' : 'Order Created'}
-          </h1>
-          <p className="mt-2 text-sm text-gray-500 uppercase tracking-widest">
-            {order?.payment_status === 'paid' ? 'Pick up in store' : 'Waiting for payment confirmation'}
-          </p>
-        </header>
 
-        {error && <div className="mb-6 rounded-xl border border-red-500/20 bg-red-500/10 p-4 text-sm text-red-700">{error}</div>}
+      <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-12 md:py-20">
+        <div className="text-center mb-10">
+          <div className="inline-flex items-center justify-center w-20 h-20 bg-green-100 rounded-full mb-6">
+            <span className="material-symbols-outlined text-5xl text-green-600">check_circle</span>
+          </div>
+          <h1 className="text-4xl md:text-5xl font-display text-text-light mb-2">Payment Successful</h1>
+          <p className="text-subtext-light">Thank you for your purchase! Your order is being processed.</p>
+        </div>
+
+        {error && (
+          <div className="mb-8 rounded-xl border border-red-500/20 bg-red-500/10 p-4 text-sm text-red-700">
+            {error}
+          </div>
+        )}
 
         {loading || !order ? (
           <OrderSuccessSkeleton />
         ) : (
           <>
-            <section className="rounded-xl border border-gray-200 bg-white/50 p-6">
-              <div className="flex flex-col md:flex-row md:items-start gap-8">
-                <div className="flex-1">
-                  <h2 className="font-display text-2xl mb-2">Pickup QR</h2>
-                  <p className="text-sm text-gray-500">
-                    Show this QR code to admin when picking up your items.
-                  </p>
-                  <div className="mt-6">
-                    {pickupCode ? (
-                      <div className="inline-flex flex-col items-center gap-4 rounded-xl border border-gray-200 bg-white p-6">
-                        <div className="bg-white p-4 rounded-lg">
-                          <QRCode value={pickupCode} size={220} />
-                        </div>
-                        <div className="text-center">
-                          <p className="text-xs uppercase tracking-widest text-gray-500 mb-1">Pickup Code</p>
-                          <p className="font-display text-2xl text-primary">{pickupCode}</p>
-                        </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+              <div className="md:col-span-2 space-y-6">
+                <section className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100">
+                  <h2 className="text-xl font-display mb-6 border-b border-gray-50 pb-4">Order Details</h2>
+                  <div className="space-y-6">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Order ID</p>
+                        <p className="font-medium">#{orderNumber}</p>
                       </div>
-                    ) : (
-                      <div className="rounded-xl border border-gray-200 bg-white p-6 animate-fade-in">
-                        <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-                          <p className="text-sm text-yellow-700 flex items-center gap-2">
-                            <span className="material-symbols-outlined text-base">info</span>
-                            Payment verification is taking longer.
-                          </p>
+                      {order.created_at && (
+                        <div className="text-right">
+                          <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Date</p>
+                          <p className="font-medium">{formatPickupExpiry(order.created_at)}</p>
                         </div>
-                        <p className="mt-2 text-xs text-gray-500 mb-4">
-                          Your payment might be confirmed but delayed. Click below to check status manually.
-                        </p>
-                        <button
-                          onClick={() => handleSyncStatus(false)}
-                          disabled={refreshing || autoSyncInProgress}
-                          className="w-full bg-[#ff4b86] text-white py-3 uppercase tracking-widest text-xs font-bold hover:bg-[#e63d75] transition-colors disabled:opacity-60 shadow-lg shadow-red-900/10"
-                        >
-                          {refreshing || autoSyncInProgress ? 'Checking...' : 'Check Status Manually'}
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                </div>
+                      )}
+                    </div>
 
-                <div className="w-full md:w-80">
-                  <div className="rounded-xl border border-gray-200 bg-white p-5">
-                    <p className="text-xs uppercase tracking-widest text-gray-500">Order Number</p>
-                    <p className="font-display text-xl mt-1">{orderNumber}</p>
-                    <div className="mt-4 space-y-2 text-sm text-gray-700">
-                      <div className="flex justify-between">
-                        <span className="text-gray-500">Status</span>
-                        <span className="font-medium">{order?.payment_status ?? '-'}</span>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-8">
+                      <div>
+                        <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Payment Method</p>
+                        <div className="flex items-center space-x-2">
+                          <span className="material-symbols-outlined text-gray-400">account_balance_wallet</span>
+                          <p className="font-medium">{paymentMethodLabel}</p>
+                        </div>
                       </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-500">Items</span>
-                        <span className="font-medium">{totalItems}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-500">Total</span>
-                        <span className="font-medium">{formatCurrency(Number(order?.total ?? 0))}</span>
+                      <div>
+                        <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Fulfillment</p>
+                        <p className="font-medium">Pick up in store</p>
                       </div>
                     </div>
-                    {order?.pickup_expires_at && (
-                      <p className="mt-4 text-xs text-gray-500">
-                        Pickup expires: {formatPickupExpiry(order.pickup_expires_at)}
-                      </p>
-                    )}
+
+                    <div className="border-t border-gray-50 pt-6">
+                      <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Pickup QR</p>
+                      {pickupCode ? (
+                        <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6">
+                          <div className="bg-white p-4 rounded-xl border border-gray-100">
+                            <QRCode value={pickupCode} size={200} />
+                          </div>
+                          <div className="flex-1 w-full">
+                            <div className="bg-slate-50 p-4 rounded-lg">
+                              <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Pickup Code</p>
+                              <p className="font-display text-2xl text-primary">{pickupCode}</p>
+                              {order.pickup_expires_at && (
+                                <p className="mt-2 text-sm text-gray-500">
+                                  Pickup expires: {formatPickupExpiry(order.pickup_expires_at)}
+                                </p>
+                              )}
+                            </div>
+                            <p className="mt-3 text-sm text-gray-500">
+                              Show this QR code to admin when picking up your items.
+                            </p>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="rounded-xl border border-yellow-200 bg-yellow-50 p-4">
+                          <p className="text-sm text-yellow-800 flex items-center gap-2">
+                            <span className="material-symbols-outlined text-base">info</span>
+                            Pickup details are still being prepared.
+                          </p>
+                          <button
+                            onClick={() => handleSyncStatus(false)}
+                            disabled={refreshing || autoSyncInProgress}
+                            className="mt-4 w-full py-3 bg-primary text-white rounded-full font-bold text-xs tracking-widest uppercase hover:bg-primary-dark transition-colors disabled:opacity-60"
+                          >
+                            {refreshing || autoSyncInProgress ? 'Checking...' : 'Check Status'}
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </section>
+
+                <section className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100">
+                  <h2 className="text-xl font-display mb-6 border-b border-gray-50 pb-4">Order Items</h2>
+                  <div className="space-y-4">
+                    {items.map((i) => (
+                      <div key={i.id} className="flex items-center gap-4">
+                        <div className="h-16 w-12 bg-gray-100 rounded-lg overflow-hidden flex items-center justify-center">
+                          {i.imageUrl ? (
+                            <img alt={i.productName} src={i.imageUrl} className="h-full w-full object-cover" loading="lazy" />
+                          ) : (
+                            <span className="material-symbols-outlined text-gray-400">inventory_2</span>
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="truncate font-medium text-gray-900">{i.productName}</p>
+                          <p className="truncate text-sm text-gray-500">
+                            {i.variantName} · {i.quantity} × {formatCurrency(i.price)}
+                          </p>
+                        </div>
+                        <span className="font-medium text-gray-900">{formatCurrency(i.subtotal)}</span>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              </div>
+
+              <aside className="md:col-span-1">
+                <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100 sticky top-24">
+                  <h2 className="text-xl font-display mb-6">Order Summary</h2>
+                  <div className="space-y-4 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">Items</span>
+                      <span>{totalItems}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">Subtotal</span>
+                      <span>{formatCurrency(Number(order.total ?? 0))}</span>
+                    </div>
+                    <div className="pt-4 border-t border-dashed border-gray-200">
+                      <div className="flex justify-between items-end">
+                        <span className="text-base font-bold">Total Paid</span>
+                        <span className="text-xl font-bold text-primary font-display">
+                          {formatCurrency(Number(order.total ?? 0))}
+                        </span>
+                      </div>
+                    </div>
                   </div>
 
-                  <div className="mt-4 space-y-3">
+                  <div className="mt-8 space-y-3">
                     <Link
                       to="/my-orders"
-                      className="w-full flex items-center justify-center gap-2 bg-[#ff4b86] text-white py-3 uppercase tracking-widest text-xs font-bold hover:bg-[#e63d75] transition-colors"
+                      className="w-full py-4 bg-primary text-white rounded-full font-bold text-xs tracking-widest uppercase hover:bg-primary-dark transition-colors flex items-center justify-center space-x-2"
                     >
-                      <span className="material-symbols-outlined text-base">receipt_long</span>
-                      View All My Orders
+                      <span>View My Orders</span>
+                      <span className="material-symbols-outlined text-sm">chevron_right</span>
                     </Link>
                     <Link
                       to="/shop"
-                      className="w-full text-center border border-gray-200 py-3 uppercase tracking-widest text-xs font-bold text-gray-700 hover:bg-gray-100:bg-white/5 transition-colors"
+                      className="w-full py-4 bg-transparent text-gray-600 border border-gray-200 rounded-full font-bold text-xs tracking-widest uppercase hover:bg-gray-50 transition-colors flex items-center justify-center space-x-2"
                     >
-                      Back to Shop
+                      <span className="material-symbols-outlined text-sm">arrow_back</span>
+                      <span>Continue Shopping</span>
                     </Link>
                   </div>
                 </div>
-              </div>
-            </section>
+              </aside>
+            </div>
 
-            <section className="mt-10 rounded-xl border border-gray-200 bg-white/50 p-6">
-              <h2 className="font-display text-2xl mb-6">Order Items</h2>
-              <div className="space-y-4">
-                {items.map((i) => (
-                  <div key={i.id} className="flex items-center gap-4">
-                    <div className="h-16 w-12 bg-gray-100 rounded overflow-hidden flex items-center justify-center">
-                      {i.imageUrl ? (
-                        <img alt={i.productName} src={i.imageUrl} className="h-full w-full object-cover" loading="lazy" />
-                      ) : (
-                        <span className="material-symbols-outlined text-gray-400">inventory_2</span>
-                      )}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="truncate font-medium text-gray-900">{i.productName}</p>
-                      <p className="truncate text-sm text-gray-500">
-                        {i.variantName} · {i.quantity} × {formatCurrency(i.price)}
-                      </p>
-                    </div>
-                    <span className="font-medium text-gray-900">{formatCurrency(i.subtotal)}</span>
-                  </div>
-                ))}
+            {session?.user?.email && (
+              <div className="mt-12 text-center">
+                <p className="text-sm text-gray-400">
+                  A confirmation email has been sent to{' '}
+                  <span className="text-gray-700 font-medium">{session.user.email}</span>.
+                </p>
               </div>
-            </section>
+            )}
           </>
         )}
       </main>

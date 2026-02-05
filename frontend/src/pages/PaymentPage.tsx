@@ -232,6 +232,18 @@ export default function PaymentPage() {
           onClose: () => {
             console.log('Payment popup closed');
             setLoading(false);
+            navigate('/booking-success', {
+              state: {
+                orderNumber: data.order_number,
+                orderId: data.order_id,
+                ticketName,
+                total,
+                date: bookingDate,
+                time: timeSlot,
+                customerName: customerName.trim(),
+                isPending: true,
+              },
+            });
           },
         });
       } else {

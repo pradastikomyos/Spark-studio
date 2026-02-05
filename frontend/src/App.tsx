@@ -39,6 +39,7 @@ const CartPage = lazy(() => import('./pages/CartPage'));
 const CheckoutPage = lazy(() => import('./pages/CheckoutPage'));
 const ProductCheckoutPage = lazy(() => import('./pages/ProductCheckoutPage'));
 const ProductOrderSuccessPage = lazy(() => import('./pages/ProductOrderSuccessPage'));
+const ProductOrderPendingPage = lazy(() => import('./pages/ProductOrderPendingPage'));
 const ProductDetailPage = lazy(() => import('./pages/ProductDetailPage'));
 const MyProductOrdersPage = lazy(() => import('./pages/MyProductOrdersPage'));
 const MyTicketsPage = lazy(() => import('./pages/MyTicketsPage'));
@@ -84,7 +85,8 @@ function AppRoutes() {
   const location = useLocation();
   const wrap = (node: ReactNode) => {
     const path = location.pathname;
-    const isSuccessPage = path === '/booking-success' || path.startsWith('/order/product/success/');
+    const isSuccessPage =
+      path === '/booking-success' || path.startsWith('/order/product/success/') || path.startsWith('/order/product/pending/');
     const shouldWrap = !isSuccessPage && (path.startsWith('/admin') || path === '/shop' || path.startsWith('/shop/'));
     return shouldWrap ? <ErrorBoundary>{node}</ErrorBoundary> : node;
   };
@@ -421,6 +423,18 @@ function AppRoutes() {
                 <ProtectedRoute>
                   <Suspense fallback={<RouteLoading />}>
                     <ProductOrderSuccessPage />
+                  </Suspense>
+                </ProtectedRoute>
+              )
+            }
+          />
+          <Route
+            path="order/product/pending/:orderNumber"
+            element={
+              wrap(
+                <ProtectedRoute>
+                  <Suspense fallback={<RouteLoading />}>
+                    <ProductOrderPendingPage />
                   </Suspense>
                 </ProtectedRoute>
               )

@@ -264,6 +264,52 @@ export default function MyProductOrdersPage() {
     [session?.access_token, showToast, t]
   );
 
+  const handleCancelOrder = useCallback(
+    async (order: ProductOrder) => {
+      if (!session?.access_token) {
+        showToast('error', t('myOrders.errors.notAuthenticated'));
+        return;
+      }
+
+      const orderStatus = String(order.status || '').toLowerCase();
+      const paymentStatus = String(order.payment_status || '').toLowerCase();
+      if (paymentStatus === 'paid') {
+        showToast('info', t('myOrders.toast.alreadyPaid', 'This order is already paid.'));
+        return;
+      }
+      if (orderStatus === 'cancelled' || orderStatus === 'expired') {
+        showToast('info', t('myOrders.toast.alreadyFinal', 'This order can no longer be cancelled.'));
+        return;
+      }
+
+      setSyncingOrderId(order.id);
+      try {
+        const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/cancel-product-order`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({ order_number: order.order_number }),
+        });
+
+        const data = await response.json().catch(() => null);
+        if (!response.ok) {
+          const message = typeof data?.error === 'string' && data.error.length > 0 ? data.error : 'Failed to cancel order';
+          showToast('error', message);
+          return;
+        }
+
+        showToast('success', t('myOrders.toast.cancelSuccess', 'Order cancelled.'));
+      } catch (e) {
+        showToast('error', e instanceof Error ? e.message : 'Failed to cancel order');
+      } finally {
+        setSyncingOrderId(null);
+      }
+    },
+    [session?.access_token, showToast, t]
+  );
+
   const toggleExpand = (orderId: number) => {
     setExpandedOrder(expandedOrder === orderId ? null : orderId);
   };
@@ -459,10 +505,10 @@ export default function MyProductOrdersPage() {
                   )}
 
                   {/* Action Buttons */}
-                  <div className="mt-4 flex gap-3">
+                  <div className="mt-4 flex flex-wrap gap-3">
                     <button
                       onClick={() => toggleExpand(order.id)}
-                      className="flex-1 flex items-center justify-center gap-2 px-4 py-2 text-sm font-bold text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                      className="flex-1 min-w-[160px] flex items-center justify-center gap-2 px-4 py-2 text-sm font-bold text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
                     >
                       <span className="material-symbols-outlined text-lg">
                         {expandedOrder === order.id ? 'expand_less' : 'expand_more'}
@@ -471,9 +517,30 @@ export default function MyProductOrdersPage() {
                     </button>
                     {order.payment_status !== 'paid' && (
                       <button
+                        onClick={() => navigate(`/order/product/pending/${order.order_number}`)}
+                        className="flex-1 min-w-[160px] flex items-center justify-center gap-2 px-4 py-2 text-sm font-bold text-white bg-main-600 rounded-lg hover:bg-main-700 transition-colors shadow-sm"
+                      >
+                        <span className="material-symbols-outlined text-lg">arrow_forward</span>
+                        {t('myOrders.actions.payNow', 'Pay Now')}
+                      </button>
+                    )}
+                    {order.payment_status !== 'paid' && (
+                      <button
+                        onClick={() => handleCancelOrder(order)}
+                        disabled={syncingOrderId === order.id}
+                        className="flex-1 min-w-[160px] flex items-center justify-center gap-2 px-4 py-2 text-sm font-bold text-red-600 border border-red-200 rounded-lg hover:bg-red-50 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                      >
+                        <span className="material-symbols-outlined text-lg">
+                          {syncingOrderId === order.id ? 'progress_activity' : 'cancel'}
+                        </span>
+                        {t('myOrders.actions.cancelOrder', 'Cancel')}
+                      </button>
+                    )}
+                    {order.payment_status !== 'paid' && (
+                      <button
                         onClick={() => handleSyncStatus(order)}
                         disabled={syncingOrderId === order.id}
-                        className="flex-1 flex items-center justify-center gap-2 px-4 py-2 text-sm font-bold text-main-600 border border-main-200 rounded-lg hover:bg-main-50 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                        className="flex-1 min-w-[160px] flex items-center justify-center gap-2 px-4 py-2 text-sm font-bold text-main-600 border border-main-200 rounded-lg hover:bg-main-50 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
                       >
                         <span className="material-symbols-outlined text-lg">
                           {syncingOrderId === order.id ? 'progress_activity' : 'refresh'}
@@ -486,7 +553,7 @@ export default function MyProductOrdersPage() {
                     {order.payment_status === 'paid' && order.pickup_code && (
                       <button
                         onClick={() => navigate(`/order/product/success/${order.order_number}`)}
-                        className="flex-1 flex items-center justify-center gap-2 px-4 py-2 text-sm font-bold text-white bg-main-600 rounded-lg hover:bg-main-700 transition-colors shadow-sm"
+                        className="flex-1 min-w-[160px] flex items-center justify-center gap-2 px-4 py-2 text-sm font-bold text-white bg-main-600 rounded-lg hover:bg-main-700 transition-colors shadow-sm"
                       >
                         <span className="material-symbols-outlined text-lg">qr_code_scanner</span>
                         {t('myOrders.actions.viewDetails')}
