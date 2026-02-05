@@ -58,7 +58,7 @@ const Navbar = () => {
   useEffect(() => {
     const activeItem = navItemsRef.current[activeIndex];
     if (activeItem) {
-      const left = activeItem.offsetLeft + (activeItem.offsetWidth / 2) - 14; // 14px = half of star width (28px)
+      const left = activeItem.offsetLeft + (activeItem.offsetWidth / 2);
       setStarPosition(left);
     }
   }, [activeIndex]);
@@ -195,7 +195,7 @@ const Navbar = () => {
 
             <div className="md:hidden flex items-center gap-3">
               {/* Stage 55 Logo - Mobile */}
-              <img src="/images/landing/stage55.png" alt="Stage 55" className="h-12 w-auto object-contain" />
+              <img src="/images/landing/ICON STAR-01.svg" alt="Stage 55" className="h-12 w-auto object-contain" />
               
               <Link to="/cart" className="relative p-2 text-gray-700 active:text-main-600" aria-label={t('nav.cart')} onClick={closeMobileMenu}>
                 <ShoppingBag className="h-6 w-6" />
@@ -230,17 +230,16 @@ const Navbar = () => {
                 left: `${starPosition}px`,
                 top: '50%',
                 transform: 'translate(-50%, -50%)',
-                width: '120px',
-                height: '120px',
+                width: '100px',
+                height: '100px',
                 zIndex: 0
               }}
             >
-              <svg viewBox="0 0 100 100" className="w-full h-full">
-                <path
-                  d="M50 6 L61 36 L94 36 L66 54 L76 84 L50 66 L24 84 L34 54 L6 36 L39 36 Z"
-                  fill="#ff4b86"
-                />
-              </svg>
+              <img 
+                src="/images/landing/ICON%20STAR-01.svg" 
+                alt="Active" 
+                className="w-full h-full object-contain"
+              />
             </div>
 
             {/* Navigation items */}
