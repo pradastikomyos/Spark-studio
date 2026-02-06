@@ -1,8 +1,24 @@
 import { normalizeAvailabilityTimeSlot, normalizeSelectedTimeSlots } from './tickets.ts'
 
+type SupabaseQueryResult = {
+  data?: unknown
+  error?: { message?: string }
+}
+
+type SupabaseQuery = PromiseLike<SupabaseQueryResult> & {
+  select: (columns?: string, options?: Record<string, unknown>) => SupabaseQuery
+  eq: (column: string, value: unknown) => SupabaseQuery
+  order: (column: string, options?: Record<string, unknown>) => SupabaseQuery
+  in: (column: string, values: unknown[]) => SupabaseQuery
+  update: (values: Record<string, unknown>) => SupabaseQuery
+  insert: (values: unknown) => SupabaseQuery
+  delete: () => SupabaseQuery
+  single: () => SupabaseQuery
+}
+
 type SupabaseClient = {
-  from: (table: string) => any
-  rpc: (fn: string, params: Record<string, unknown>) => any
+  from: (table: string) => SupabaseQuery
+  rpc: (fn: string, params: Record<string, unknown>) => SupabaseQuery
 }
 
 type TicketOrder = {

@@ -13,10 +13,22 @@ const OnStage = () => {
   const heroTouchStartX = useRef(0);
   const heroTouchEndX = useRef(0);
 
-  const { data: heroBanners = [], isLoading: heroLoading } = useBanners('hero');
-  const { data: stageBanners = [], isLoading: stageLoading } = useBanners('stage');
+  const {
+    data: heroBanners = [],
+    isLoading: heroLoading,
+    error: heroError,
+    refetch: refetchHero,
+  } = useBanners('hero');
+  const {
+    data: stageBanners = [],
+    isLoading: stageLoading,
+    error: stageError,
+    refetch: refetchStage,
+  } = useBanners('stage');
 
-  const loading = heroLoading || stageLoading;
+  const hasData = heroBanners.length > 0 || stageBanners.length > 0;
+  const loading = (heroLoading || stageLoading) && !hasData;
+  const error = heroError || stageError;
 
   // Detect mobile viewport
   useEffect(() => {
@@ -108,6 +120,26 @@ const OnStage = () => {
     return (
       <div className="bg-white min-h-screen flex items-center justify-center">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-main-600"></div>
+      </div>
+    );
+  }
+
+  if (error && !hasData) {
+    return (
+      <div className="bg-white min-h-screen flex items-center justify-center">
+        <div className="text-center px-6">
+          <p className="text-sm text-gray-600 mb-4">Gagal memuat konten. Coba lagi.</p>
+          <button
+            type="button"
+            onClick={() => {
+              refetchHero();
+              refetchStage();
+            }}
+            className="inline-flex items-center justify-center rounded-md bg-main-600 px-4 py-2 text-white text-sm font-semibold hover:bg-main-700 transition-colors"
+          >
+            Muat ulang
+          </button>
+        </div>
       </div>
     );
   }

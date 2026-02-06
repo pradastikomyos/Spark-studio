@@ -1,6 +1,15 @@
 import { useState, useEffect } from 'react';
 import { type StageRow } from '../../hooks/useStages';
 
+type StageFormData = {
+    name: string;
+    code: string;
+    description: string;
+    status: StageRow['status'];
+    max_occupancy: number;
+    zone: string;
+};
+
 type StageFormModalProps = {
     isOpen: boolean;
     onClose: () => void;
@@ -16,7 +25,7 @@ export default function StageFormModal({
     onSubmit,
     isSubmitting,
 }: StageFormModalProps) {
-    const [formData, setFormData] = useState({
+    const [formData, setFormData] = useState<StageFormData>({
         name: '',
         code: '',
         description: '',
@@ -31,7 +40,7 @@ export default function StageFormModal({
                 name: initialData.name || '',
                 code: initialData.code || '',
                 description: initialData.description || '',
-                status: (initialData.status as any) || 'active',
+                status: initialData.status || 'active',
                 max_occupancy: initialData.max_occupancy || 0,
                 zone: initialData.zone || '',
             });
@@ -124,7 +133,12 @@ export default function StageFormModal({
                                 <select
                                     className="w-full bg-gray-50 border border-gray-200 rounded-lg px-4 py-2.5 text-gray-900 focus:ring-2 focus:ring-[#ff4b86]/20 focus:border-[#ff4b86] transition-all"
                                     value={formData.status}
-                                    onChange={(e) => setFormData({ ...formData, status: e.target.value as any })}
+                                    onChange={(e) =>
+                                        setFormData({
+                                            ...formData,
+                                            status: e.target.value as StageRow['status'],
+                                        })
+                                    }
                                 >
                                     <option value="active">Active</option>
                                     <option value="maintenance">Maintenance</option>

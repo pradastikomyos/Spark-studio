@@ -165,7 +165,9 @@ const StageManager = () => {
         );
     }, [stages, searchQuery]);
 
-    const handleSaveStage = async (data: any) => {
+    const handleSaveStage = async (
+        data: Omit<StageRow, 'id' | 'created_at' | 'updated_at' | 'qr_code_url'>
+    ) => {
         try {
             if (editingStage) {
                 await updateStage.mutateAsync({ id: editingStage.id, ...data });

@@ -35,7 +35,29 @@ async function fetchBanners(type?: 'hero' | 'stage' | 'promo' | 'events' | 'shop
 export function useBanners(type?: 'hero' | 'stage' | 'promo' | 'events' | 'shop') {
   return useQuery({
     queryKey: queryKeys.banners(type),
-    queryFn: ({ signal }) => fetchBanners(type, signal),
+    queryFn: async ({ signal }) => {
+      const timeoutSignal =
+        typeof AbortSignal !== 'undefined' && 'timeout' in AbortSignal
+          ? AbortSignal.timeout(10000)
+          : undefined;
+      const combinedSignal =
+        timeoutSignal && typeof (AbortSignal as unknown as { any?: unknown }).any === 'function'
+          ? (AbortSignal as unknown as { any: (signals: AbortSignal[]) => AbortSignal }).any([signal, timeoutSignal])
+          : signal;
+
+      try {
+        return await fetchBanners(type, combinedSignal);
+      } catch (error) {
+        if (error instanceof Error && error.name === 'AbortError') {
+          const timeoutError = new Error('Request timeout');
+          timeoutError.name = 'TimeoutError';
+          throw timeoutError;
+        }
+        throw error;
+      }
+    },
     staleTime: 5 * 60 * 1000, // 5 minutes
+    refetchOnWindowFocus: true,
+    refetchOnReconnect: true,
   });
 }
