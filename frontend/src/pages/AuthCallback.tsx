@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { isAdmin } from '../utils/auth';
+import { withTimeout } from '../utils/queryHelpers';
 
 const AuthCallback = () => {
   const navigate = useNavigate();
@@ -10,7 +11,11 @@ const AuthCallback = () => {
     const handleCallback = async () => {
       try {
         // Get session from URL hash
-        const { data: { session }, error } = await supabase.auth.getSession();
+        const { data: { session }, error } = await withTimeout(
+          supabase.auth.getSession(),
+          5000,
+          'Session timeout. Please try again.'
+        );
 
         if (error) {
           console.error('OAuth callback error:', error);
@@ -32,6 +37,11 @@ const AuthCallback = () => {
           navigate('/login');
         }
       } catch (err) {
+        const message = err instanceof Error ? err.message : '';
+        if (message.toLowerCase().includes('timeout')) {
+          navigate('/login?error=timeout');
+          return;
+        }
         console.error('Unexpected error in OAuth callback:', err);
         navigate('/login?error=unexpected');
       }

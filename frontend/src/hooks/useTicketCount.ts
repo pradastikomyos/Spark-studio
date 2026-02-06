@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
+import { createQuerySignal } from '../lib/fetchers';
 import { useAuth } from '../contexts/AuthContext';
 
 export const useTicketCount = () => {
@@ -22,6 +23,7 @@ export const useTicketCount = () => {
         return;
       }
 
+      const { signal: timeoutSignal, cleanup } = createQuerySignal(undefined, 10000);
       try {
         // Count purchased tickets with status 'active' and valid_date >= today
         const todayStr = new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD in local time
@@ -31,7 +33,8 @@ export const useTicketCount = () => {
           .select('*', { count: 'exact', head: true })
           .eq('user_id', userId)
           .eq('status', 'active')
-          .gte('valid_date', todayStr);
+          .gte('valid_date', todayStr)
+          .abortSignal(timeoutSignal);
 
         if (ticketError) {
           setCount(0);
@@ -41,6 +44,7 @@ export const useTicketCount = () => {
       } catch {
         setCount(0);
       } finally {
+        cleanup();
         setLoading(false);
       }
     };

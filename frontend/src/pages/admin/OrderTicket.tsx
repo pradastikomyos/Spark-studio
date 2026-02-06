@@ -5,8 +5,10 @@ import AdminLayout from '../../components/AdminLayout';
 import QRScannerModal from '../../components/admin/QRScannerModal';
 import { ADMIN_MENU_ITEMS, ADMIN_MENU_SECTIONS } from '../../constants/adminMenu';
 import { createWIBDate, addMinutes, nowWIB, SESSION_DURATION_MINUTES, toLocalDateString } from '../../utils/timezone';
+import { withTimeout } from '../../utils/queryHelpers';
 
 const TAB_RETURN_EVENT = 'tab-returned-from-idle';
+const REQUEST_TIMEOUT_MS = 60000;
 
 const OrderTicket = () => {
   const { signOut } = useAuth();
@@ -45,20 +47,24 @@ const OrderTicket = () => {
 
       try {
         // Step 1: Fetch ticket data (without profiles join)
-        const { data, error } = await supabase
-          .from('purchased_tickets')
-          .select(`
-            id, 
-            ticket_code, 
-            status, 
-            valid_date,
-            time_slot,
-            used_at,
-            user_id,
-            tickets!inner(name)
-          `)
-          .eq('ticket_code', code)
-          .maybeSingle();
+        const { data, error } = await withTimeout(
+          supabase
+            .from('purchased_tickets')
+            .select(`
+              id, 
+              ticket_code, 
+              status, 
+              valid_date,
+              time_slot,
+              used_at,
+              user_id,
+              tickets!inner(name)
+            `)
+            .eq('ticket_code', code)
+            .maybeSingle(),
+          REQUEST_TIMEOUT_MS,
+          'Request timeout. Please try again.'
+        );
 
         if (error) {
           const errMsg = 'Gagal mengambil data tiket: ' + error.message;
@@ -78,11 +84,15 @@ const OrderTicket = () => {
         let userName = '-';
 
         if (ticketData.user_id) {
-          const { data: profileData } = await supabase
-            .from('profiles')
-            .select('name')
-            .eq('id', ticketData.user_id)
-            .maybeSingle();
+          const { data: profileData } = await withTimeout(
+            supabase
+              .from('profiles')
+              .select('name')
+              .eq('id', ticketData.user_id)
+              .maybeSingle(),
+            REQUEST_TIMEOUT_MS,
+            'Request timeout. Please try again.'
+          );
 
           if (profileData) {
             userName = profileData.name || '-';
@@ -161,16 +171,20 @@ const OrderTicket = () => {
 
         // Update ticket status to 'used' with timestamp
         console.log('Attempting to update ticket ID:', ticketData.id);
-        const { data: updatedTicket, error: updateError } = await supabase
-          .from('purchased_tickets')
-          .update({
-            status: 'used',
-            used_at: new Date().toISOString()
-          })
-          .eq('id', ticketData.id)
-          .eq('status', 'active')
-          .select('id, status')
-          .maybeSingle();
+        const { data: updatedTicket, error: updateError } = await withTimeout(
+          supabase
+            .from('purchased_tickets')
+            .update({
+              status: 'used',
+              used_at: new Date().toISOString()
+            })
+            .eq('id', ticketData.id)
+            .eq('status', 'active')
+            .select('id, status')
+            .maybeSingle(),
+          REQUEST_TIMEOUT_MS,
+          'Request timeout. Please try again.'
+        );
 
         console.log('Update result:', { updatedTicket, updateError });
 

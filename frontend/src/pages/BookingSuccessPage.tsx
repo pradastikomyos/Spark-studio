@@ -3,6 +3,7 @@ import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import QRCode from 'react-qr-code';
 import confetti from 'canvas-confetti';
 import { supabase } from '../lib/supabase';
+import { createQuerySignal } from '../lib/fetchers';
 import { getOrderStatusPresentation } from '../utils/midtransStatus';
 import { useAuth } from '../contexts/AuthContext';
 import BookingSuccessSkeleton from '../components/skeletons/BookingSuccessSkeleton';
@@ -132,14 +133,29 @@ export default function BookingSuccessPage() {
   };
 
   useEffect(() => {
+    const runWithTimeout = async <T,>(fn: (signal: AbortSignal) => PromiseLike<T>) => {
+      const { signal, cleanup, didTimeout } = createQuerySignal(undefined, 10000);
+      try {
+        return await Promise.resolve(fn(signal));
+      } catch (error) {
+        if (didTimeout()) {
+          throw new Error('Request timeout');
+        }
+        throw error;
+      } finally {
+        cleanup();
+      }
+    };
+
     const fetchOrderAndTickets = async () => {
       // Handle direct ticket view (from MyTicketsPage)
       if (state?.ticketCode && !orderNumber) {
         try {
           setLoading(true);
-          const { data: purchasedTicket, error: ticketError } = await supabase
-            .from('purchased_tickets')
-            .select(`
+          const { data: purchasedTicket, error: ticketError } = await runWithTimeout((signal) =>
+            supabase
+              .from('purchased_tickets')
+              .select(`
               id,
               ticket_code,
               valid_date,
@@ -153,8 +169,10 @@ export default function BookingSuccessPage() {
                 type
               )
             `)
-            .eq('ticket_code', state.ticketCode)
-            .single();
+              .eq('ticket_code', state.ticketCode)
+              .abortSignal(signal)
+              .single()
+          );
 
           if (ticketError || !purchasedTicket) {
             console.error('Error fetching ticket:', ticketError);
@@ -199,11 +217,14 @@ export default function BookingSuccessPage() {
 
       try {
         // Fetch order data (without nested select to avoid stuck query)
-        const { data: order, error: orderError } = await supabase
-          .from('orders')
-          .select('*')
-          .eq('order_number', orderNumber)
-          .single();
+        const { data: order, error: orderError } = await runWithTimeout((signal) =>
+          supabase
+            .from('orders')
+            .select('*')
+            .eq('order_number', orderNumber)
+            .abortSignal(signal)
+            .single()
+        );
 
         if (orderError) {
           console.error('Error fetching order:', orderError);
@@ -212,10 +233,13 @@ export default function BookingSuccessPage() {
         }
 
         // Fetch order items separately
-        const { data: orderItems, error: itemsError } = await supabase
-          .from('order_items')
-          .select('*')
-          .eq('order_id', order.id);
+        const { data: orderItems, error: itemsError } = await runWithTimeout((signal) =>
+          supabase
+            .from('order_items')
+            .select('*')
+            .eq('order_id', order.id)
+            .abortSignal(signal)
+        );
 
         if (itemsError) {
           console.error('Error fetching order items:', itemsError);
@@ -232,9 +256,10 @@ export default function BookingSuccessPage() {
         // Fetch purchased tickets for this order
         const typedOrderItems = (orderItems as OrderItem[] | null) || [];
         if (order?.status === 'paid' && typedOrderItems.length > 0) {
-          const { data: purchasedTickets, error: ticketsError } = await supabase
-            .from('purchased_tickets')
-            .select(`
+          const { data: purchasedTickets, error: ticketsError } = await runWithTimeout((signal) =>
+            supabase
+              .from('purchased_tickets')
+              .select(`
               id,
               ticket_code,
               valid_date,
@@ -247,7 +272,9 @@ export default function BookingSuccessPage() {
                 type
               )
             `)
-            .in('order_item_id', typedOrderItems.map((item) => item.id));
+              .in('order_item_id', typedOrderItems.map((item) => item.id))
+              .abortSignal(signal)
+          );
 
           if (ticketsError) {
             console.error('Error fetching tickets:', ticketsError);
@@ -310,11 +337,14 @@ export default function BookingSuccessPage() {
     let pollInterval: NodeJS.Timeout | null = null;
     if (orderNumber) {
       pollInterval = setInterval(async () => {
-        const { data: order, error } = await supabase
-          .from('orders')
-          .select('status, expires_at')
-          .eq('order_number', orderNumber)
-          .single();
+        const { data: order, error } = await runWithTimeout((signal) =>
+          supabase
+            .from('orders')
+            .select('status, expires_at')
+            .eq('order_number', orderNumber)
+            .abortSignal(signal)
+            .single()
+        );
 
         if (error) {
           return;

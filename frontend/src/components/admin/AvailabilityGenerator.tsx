@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { toLocalDateString } from '../../utils/timezone';
+import { withTimeout } from '../../utils/queryHelpers';
 
 interface AvailabilityGeneratorProps {
     onSuccess?: () => void;
@@ -14,6 +15,8 @@ export default function AvailabilityGenerator({ onSuccess }: AvailabilityGenerat
         type: 'success' | 'error';
         message: string;
     } | null>(null);
+
+    const REQUEST_TIMEOUT_MS = 60000;
 
     const setQuickRange = (days: number) => {
         const today = new Date();
@@ -45,50 +48,61 @@ export default function AvailabilityGenerator({ onSuccess }: AvailabilityGenerat
             const daysDiff = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
             const totalSlots = daysDiff * 4; // 4 sessions per day
 
-            // Generate availability using SQL
-            const { error } = await supabase.rpc('generate_ticket_availability', {
-                p_start_date: startDate,
-                p_end_date: endDate,
-                p_ticket_id: 1
-            });
+            const { error } = await withTimeout(
+                supabase.rpc('generate_ticket_availability', {
+                    p_start_date: startDate,
+                    p_end_date: endDate,
+                    p_ticket_id: 1
+                }),
+                REQUEST_TIMEOUT_MS,
+                'Request timeout. Please try again.'
+            );
 
             if (error) {
                 // If the function doesn't exist, fall back to direct insert
-                const { error: insertError } = await supabase.from('ticket_availabilities').upsert(
-                    Array.from({ length: daysDiff }, (_, i) => {
-                        const date = new Date(start);
-                        date.setDate(start.getDate() + i);
-                        const dateStr = toLocalDateString(date);
+                const { error: insertError } = await withTimeout(
+                    supabase.from('ticket_availabilities').upsert(
+                        Array.from({ length: daysDiff }, (_, i) => {
+                            const date = new Date(start);
+                            date.setDate(start.getDate() + i);
+                            const dateStr = toLocalDateString(date);
 
-                        return ['09:00:00', '12:00:00', '15:00:00', '18:00:00'].map(time => ({
-                            ticket_id: 1,
-                            date: dateStr,
-                            time_slot: time,
-                            total_capacity: 100,
-                            reserved_capacity: 0,
-                            sold_capacity: 0,
-                            version: 0,
-                            created_at: new Date().toISOString(),
-                            updated_at: new Date().toISOString()
-                        }));
-                    }).flat(),
-                    {
-                        onConflict: 'ticket_id,date,time_slot',
-                        ignoreDuplicates: true
-                    }
+                            return ['09:00:00', '12:00:00', '15:00:00', '18:00:00'].map(time => ({
+                                ticket_id: 1,
+                                date: dateStr,
+                                time_slot: time,
+                                total_capacity: 100,
+                                reserved_capacity: 0,
+                                sold_capacity: 0,
+                                version: 0,
+                                created_at: new Date().toISOString(),
+                                updated_at: new Date().toISOString()
+                            }));
+                        }).flat(),
+                        {
+                            onConflict: 'ticket_id,date,time_slot',
+                            ignoreDuplicates: true
+                        }
+                    ),
+                    REQUEST_TIMEOUT_MS,
+                    'Request timeout. Please try again.'
                 );
 
                 if (insertError) throw insertError;
             }
 
-            const { error: ticketUpdateError } = await supabase
-                .from('tickets')
-                .update({
-                    available_from: `${startDate} 00:00:00`,
-                    available_until: `${endDate} 00:00:00`,
-                    updated_at: new Date().toISOString(),
-                })
-                .eq('id', 1);
+            const { error: ticketUpdateError } = await withTimeout(
+                supabase
+                    .from('tickets')
+                    .update({
+                        available_from: `${startDate} 00:00:00`,
+                        available_until: `${endDate} 00:00:00`,
+                        updated_at: new Date().toISOString(),
+                    })
+                    .eq('id', 1),
+                REQUEST_TIMEOUT_MS,
+                'Request timeout. Please try again.'
+            );
 
             if (ticketUpdateError) throw ticketUpdateError;
 

@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
+import { createQuerySignal } from '../lib/fetchers';
 import { useAuth } from '../contexts/AuthContext';
 
 export const useOrderCount = () => {
@@ -16,6 +17,7 @@ export const useOrderCount = () => {
       return;
     }
 
+    const { signal: timeoutSignal, cleanup } = createQuerySignal(undefined, 10000);
     try {
       // Count ACTIVE orders: orders that need user attention
       // This includes PENDING (unpaid) + AKTIF (paid, waiting pickup)
@@ -23,7 +25,8 @@ export const useOrderCount = () => {
       const { data: orders, error } = await supabase
         .from('order_products')
         .select('id, payment_status, pickup_status, status')
-        .eq('user_id', userId);
+        .eq('user_id', userId)
+        .abortSignal(timeoutSignal);
 
       if (error) {
         setCount(0);
@@ -67,6 +70,7 @@ export const useOrderCount = () => {
     } catch {
       setCount(0);
     } finally {
+      cleanup();
       setLoading(false);
     }
   }, [user?.id]);

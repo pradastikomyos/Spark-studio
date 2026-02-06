@@ -12,6 +12,7 @@ import {
   type BookingState
 } from '../utils/bookingStateManager';
 import { SessionErrorHandler } from '../utils/sessionErrorHandler';
+import { withTimeout } from '../utils/queryHelpers';
 
 interface LocationState {
   ticketId?: number;
@@ -124,7 +125,11 @@ export default function PaymentPage() {
       // getSession() only reads from localStorage without validation (can be stale!)
       console.log('[PaymentPage] Validating session with getUser()...');
 
-      const { data: { user: validatedUser }, error: userError } = await supabase.auth.getUser();
+      const { data: { user: validatedUser }, error: userError } = await withTimeout(
+        supabase.auth.getUser(),
+        5000,
+        'Session timeout. Please try again.'
+      );
 
       if (userError || !validatedUser) {
         console.error('[PaymentPage] Session validation failed:', userError);
@@ -135,7 +140,11 @@ export default function PaymentPage() {
       }
 
       // After getUser() validates, getSession() will have fresh token
-      const { data: { session: currentSession } } = await supabase.auth.getSession();
+      const { data: { session: currentSession } } = await withTimeout(
+        supabase.auth.getSession(),
+        5000,
+        'Session timeout. Please try again.'
+      );
 
       if (!currentSession) {
         console.error('[PaymentPage] No session after validation');
@@ -149,30 +158,34 @@ export default function PaymentPage() {
       const token = currentSession.access_token;
 
       // Call edge function to create Midtrans token
-      const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-midtrans-token`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            items: [
-              {
-                ticketId,
-                ticketName,
-                price,
-                quantity,
-                date: bookingDate,
-                timeSlot,
-              },
-            ],
-            customerName: customerName.trim(),
-            customerEmail: user.email,
-            customerPhone: customerPhone.trim() || undefined,
-          }),
-        }
+      const response = await withTimeout(
+        fetch(
+          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-midtrans-token`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`,
+            },
+            body: JSON.stringify({
+              items: [
+                {
+                  ticketId,
+                  ticketName,
+                  price,
+                  quantity,
+                  date: bookingDate,
+                  timeSlot,
+                },
+              ],
+              customerName: customerName.trim(),
+              customerEmail: user.email,
+              customerPhone: customerPhone.trim() || undefined,
+            }),
+          }
+        ),
+        15000,
+        'Request timeout. Please try again.'
       );
 
       const data = await response.json();

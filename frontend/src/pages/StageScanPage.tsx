@@ -21,11 +21,10 @@ const StageScanPage = () => {
     const [errorMessage, setErrorMessage] = useState('');
 
     const fetchStageAndRecordScan = useCallback(async () => {
+        const { signal: timeoutSignal, cleanup } = createQuerySignal(undefined, 10000);
         try {
             setLoading(true);
             setScanStatus('scanning');
-
-            const { signal: timeoutSignal, cleanup } = createQuerySignal(undefined, 10000);
             // Fetch stage info
             const { data: stageData, error: stageError } = await supabase
                 .from('stages')
@@ -62,11 +61,11 @@ const StageScanPage = () => {
 
             setScanStatus('success');
         } catch (error) {
-            if (error instanceof Error && error.name === 'AbortError') {
-                setErrorMessage('Request timed out. Please try again.');
+            const isTimeout = error instanceof Error && error.name === 'AbortError';
+            if (!isTimeout) {
+                console.error('Error:', error);
             }
-            console.error('Error:', error);
-            setErrorMessage('Something went wrong. Please try again.');
+            setErrorMessage(isTimeout ? 'Request timed out. Please try again.' : 'Something went wrong. Please try again.');
             setScanStatus('error');
         } finally {
             cleanup();

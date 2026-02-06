@@ -5,6 +5,7 @@ import Logo from '../components/Logo';
 import { useAuth } from '../contexts/AuthContext';
 import { isAdmin } from '../utils/auth';
 import { supabase } from '../lib/supabase';
+import { withTimeout } from '../utils/queryHelpers';
 
 const Login = () => {
   const [email, setEmail] = useState('');
@@ -29,14 +30,23 @@ const Login = () => {
       setError(error.message);
       setLoading(false);
     } else {
-      const { data: sessionData } = await supabase.auth.getSession();
-      const userId = sessionData.session?.user?.id;
-      const adminStatus = userId ? await isAdmin(userId) : false;
-      
-      if (adminStatus) {
-        navigate('/admin/dashboard');
-      } else {
-        navigate('/');
+      try {
+        const { data: sessionData } = await withTimeout(
+          supabase.auth.getSession(),
+          5000,
+          'Session timeout. Please try again.'
+        );
+        const userId = sessionData.session?.user?.id;
+        const adminStatus = userId ? await isAdmin(userId) : false;
+        
+        if (adminStatus) {
+          navigate('/admin/dashboard');
+        } else {
+          navigate('/');
+        }
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to validate session');
+        setLoading(false);
       }
     }
   };

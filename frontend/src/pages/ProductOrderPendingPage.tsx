@@ -3,9 +3,11 @@ import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import QRCode from 'react-qr-code';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
+import { createQuerySignal } from '../lib/fetchers';
 import { formatCurrency } from '../utils/formatters';
 import { useToast } from '../components/Toast';
 import OrderSuccessSkeleton from '../components/skeletons/OrderSuccessSkeleton';
+import { withTimeout } from '../utils/queryHelpers';
 
 export default function ProductOrderPendingPage() {
   const params = useParams();
@@ -42,6 +44,7 @@ export default function ProductOrderPendingPage() {
   >([]);
   const [now, setNow] = useState(() => Date.now());
   const hasAutoSynced = useRef(false);
+  const autoSyncAttemptsRef = useRef(0);
 
   useEffect(() => {
     if (!orderNumber) {
@@ -59,61 +62,74 @@ export default function ProductOrderPendingPage() {
     const primarySelect = 'id, order_number, payment_status, status, total, created_at, payment_url, payment_data, pickup_code';
     const fallbackSelect = 'id, order_number, payment_status, status, total, created_at, payment_url, pickup_code';
 
-    let result = await supabase
-      .from('order_products')
-      .select(primarySelect)
-      .eq('order_number', orderNumber)
-      .single();
-
-    const errorCode = (result.error as { code?: string } | null)?.code;
-    if (result.error && (errorCode === '42703' || errorCode === 'PGRST204')) {
-      result = await supabase
+    const { signal: timeoutSignal, cleanup, didTimeout } = createQuerySignal(undefined, 10000);
+    try {
+      let result = await supabase
         .from('order_products')
-        .select(fallbackSelect)
+        .select(primarySelect)
         .eq('order_number', orderNumber)
+        .abortSignal(timeoutSignal)
         .single();
-    }
 
-    if (result.error || !result.data) throw result.error ?? new Error('Order not found');
-    setOrder(result.data as unknown as typeof order);
-
-    const orderId = Number((result.data as unknown as { id: number | string }).id);
-    const { data: itemRows, error: itemsError } = await supabase
-      .from('order_product_items')
-      .select('id, quantity, price, subtotal, product_variants(name, product_id, products(name, image_url, product_images(image_url, is_primary)))')
-      .eq('order_product_id', orderId);
-
-    if (itemsError) throw itemsError;
-
-    const mapped = (itemRows || []).map((row) => {
-      const pv = (row as unknown as {
-        product_variants?: {
-          name?: string;
-          products?: {
-            name?: string;
-            image_url?: string | null;
-            product_images?: { image_url?: string | null; is_primary?: boolean }[] | null;
-          } | null;
-        } | null;
-      }).product_variants;
-
-      let imageUrl: string | undefined = pv?.products?.image_url ?? undefined;
-      if (!imageUrl && pv?.products?.product_images && Array.isArray(pv.products.product_images)) {
-        const primaryImage = pv.products.product_images.find((img) => img.is_primary);
-        imageUrl = primaryImage?.image_url ?? pv.products.product_images[0]?.image_url ?? undefined;
+      const errorCode = (result.error as { code?: string } | null)?.code;
+      if (result.error && (errorCode === '42703' || errorCode === 'PGRST204')) {
+        result = await supabase
+          .from('order_products')
+          .select(fallbackSelect)
+          .eq('order_number', orderNumber)
+          .abortSignal(timeoutSignal)
+          .single();
       }
 
-      return {
-        id: Number((row as unknown as { id: number | string }).id),
-        quantity: Number((row as unknown as { quantity: number | string }).quantity),
-        price: Number((row as unknown as { price: number | string }).price),
-        subtotal: Number((row as unknown as { subtotal: number | string }).subtotal),
-        productName: String(pv?.products?.name ?? 'Product'),
-        variantName: String(pv?.name ?? 'Variant'),
-        imageUrl,
-      };
-    });
-    setItems(mapped);
+      if (result.error || !result.data) throw result.error ?? new Error('Order not found');
+      setOrder(result.data as unknown as typeof order);
+
+      const orderId = Number((result.data as unknown as { id: number | string }).id);
+      const { data: itemRows, error: itemsError } = await supabase
+        .from('order_product_items')
+        .select('id, quantity, price, subtotal, product_variants(name, product_id, products(name, image_url, product_images(image_url, is_primary)))')
+        .eq('order_product_id', orderId)
+        .abortSignal(timeoutSignal);
+
+      if (itemsError) throw itemsError;
+
+      const mapped = (itemRows || []).map((row) => {
+        const pv = (row as unknown as {
+          product_variants?: {
+            name?: string;
+            products?: {
+              name?: string;
+              image_url?: string | null;
+              product_images?: { image_url?: string | null; is_primary?: boolean }[] | null;
+            } | null;
+          } | null;
+        }).product_variants;
+
+        let imageUrl: string | undefined = pv?.products?.image_url ?? undefined;
+        if (!imageUrl && pv?.products?.product_images && Array.isArray(pv.products.product_images)) {
+          const primaryImage = pv.products.product_images.find((img) => img.is_primary);
+          imageUrl = primaryImage?.image_url ?? pv.products.product_images[0]?.image_url ?? undefined;
+        }
+
+        return {
+          id: Number((row as unknown as { id: number | string }).id),
+          quantity: Number((row as unknown as { quantity: number | string }).quantity),
+          price: Number((row as unknown as { price: number | string }).price),
+          subtotal: Number((row as unknown as { subtotal: number | string }).subtotal),
+          productName: String(pv?.products?.name ?? 'Product'),
+          variantName: String(pv?.name ?? 'Variant'),
+          imageUrl,
+        };
+      });
+      setItems(mapped);
+    } catch (error) {
+      if (didTimeout()) {
+        throw new Error('Request timeout');
+      }
+      throw error;
+    } finally {
+      cleanup();
+    }
   }, [orderNumber]);
 
   const handleSyncStatus = useCallback(async (silent = false) => {
@@ -126,14 +142,18 @@ export default function ProductOrderPendingPage() {
         setError('Not authenticated');
         return;
       }
-      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/sync-midtrans-product-status`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ order_number: orderNumber }),
-      });
+      const response = await withTimeout(
+        fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/sync-midtrans-product-status`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ order_number: orderNumber }),
+        }),
+        15000,
+        'Request timeout. Please try again.'
+      );
       const data = await response.json().catch(() => null);
       if (!response.ok) {
         setError(data?.error || 'Failed to sync status');
@@ -209,6 +229,48 @@ export default function ProductOrderPendingPage() {
     hasAutoSynced.current = true;
     void handleSyncStatus(true);
   }, [handleSyncStatus, order]);
+
+  useEffect(() => {
+    if (!order) return;
+    const orderStatus = String(order.status || '').toLowerCase();
+    const paymentStatus = String(order.payment_status || '').toLowerCase();
+    if (order.payment_data) return;
+    if (paymentStatus === 'paid') return;
+    if (orderStatus === 'expired' || orderStatus === 'cancelled') return;
+    if (paymentStatus === 'failed' || paymentStatus === 'refunded') return;
+
+    let cancelled = false;
+    const delaysMs = [15000, 30000, 60000, 90000, 120000];
+    const runAttempt = () => {
+      if (cancelled) return;
+      const attempt = autoSyncAttemptsRef.current;
+      if (attempt >= delaysMs.length) return;
+      const delay = delaysMs[attempt];
+      autoSyncAttemptsRef.current += 1;
+      setTimeout(async () => {
+        if (cancelled) return;
+        await handleSyncStatus(true);
+        runAttempt();
+      }, delay);
+    };
+    runAttempt();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [order, handleSyncStatus]);
+
+  useEffect(() => {
+    const handleVisibility = () => {
+      if (!document.hidden) {
+        fetchOrder().catch(() => null);
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
+  }, [fetchOrder]);
 
   const paymentInfo = useMemo(() => {
     const raw = order?.payment_data as

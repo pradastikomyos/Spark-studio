@@ -8,6 +8,9 @@ import { useMyOrders } from '../hooks/useMyOrders';
 import OrderCardSkeleton from '../components/skeletons/OrderCardSkeleton';
 import { PageTransition } from '../components/PageTransition';
 import { useToast } from '../components/Toast';
+import { supabase } from '../lib/supabase';
+import { withTimeout } from '../utils/queryHelpers';
+import { ensureFreshToken } from '../utils/auth';
 
 interface ProductOrder {
   id: number;
@@ -44,6 +47,7 @@ export default function MyProductOrdersPage() {
   const { data: orders = [], error, isLoading: loading, isFetching } = useMyOrders(user?.id);
   const [expandedOrder, setExpandedOrder] = useState<number | null>(null);
   const [syncingOrderId, setSyncingOrderId] = useState<number | null>(null);
+  const attemptedAutoSync = useState<Set<string>>(() => new Set())[0];
   
   useEffect(() => {
     if (error) {
@@ -263,6 +267,49 @@ export default function MyProductOrdersPage() {
     },
     [session?.access_token, showToast, t]
   );
+
+  useEffect(() => {
+    if (!user?.id) return;
+    const pending = pendingOrders.filter((o) => {
+      const status = (o.status ?? '').toLowerCase();
+      const payment = (o.payment_status ?? '').toLowerCase();
+      return status !== 'cancelled' && status !== 'expired' && payment !== 'failed' && payment !== 'refunded';
+    });
+
+    pending.forEach((order) => {
+      const key = order.order_number;
+      if (attemptedAutoSync.has(key)) return;
+      attemptedAutoSync.add(key);
+
+      const runAttempt = async (delayMs: number) => {
+        setTimeout(async () => {
+          try {
+            const { data: { session: current } } = await supabase.auth.getSession();
+            const fresh = await ensureFreshToken(current ?? null);
+            const token = fresh ?? current?.access_token ?? null;
+            if (!token) return;
+            await withTimeout(
+              fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/sync-midtrans-product-status`, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  Authorization: `Bearer ${token}`,
+                },
+                body: JSON.stringify({ order_number: order.order_number }),
+              }),
+              15000,
+              'Request timeout. Please try again.'
+            ).catch(() => null);
+          } catch {
+            return;
+          }
+        }, delayMs);
+      };
+
+      runAttempt(0);
+      runAttempt(20000);
+    });
+  }, [pendingOrders, user?.id, attemptedAutoSync]);
 
   const handleCancelOrder = useCallback(
     async (order: ProductOrder) => {

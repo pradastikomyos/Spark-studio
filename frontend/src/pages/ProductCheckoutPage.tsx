@@ -8,6 +8,7 @@ import { supabase } from '../lib/supabase';
 import { loadSnapScript, type SnapResult } from '../utils/midtransSnap';
 import { formatCurrency } from '../utils/formatters';
 import { queryKeys } from '../lib/queryKeys';
+import { withTimeout } from '../utils/queryHelpers';
 
 type CreateProductTokenResponse = {
   token: string;
@@ -102,22 +103,26 @@ export default function ProductCheckoutPage() {
     try {
       if (!user.email) throw new Error('Missing account email');
 
-      const { data, error: invokeError } = await supabase.functions.invoke('create-midtrans-product-token', {
-        body: {
-          items: orderItems.map((i) => ({
-            productVariantId: i.product_variant_id,
-            name: `${i.product_name} - ${i.variant_name}`.slice(0, 50),
-            price: i.unit_price,
-            quantity: i.quantity,
-          })),
-          customerName: customerName.trim(),
-          customerEmail: user.email,
-          customerPhone: customerPhone.trim() || undefined,
-        },
-        headers: {
-          Authorization: `Bearer ${session.access_token}`,
-        },
-      });
+      const { data, error: invokeError } = await withTimeout(
+        supabase.functions.invoke('create-midtrans-product-token', {
+          body: {
+            items: orderItems.map((i) => ({
+              productVariantId: i.product_variant_id,
+              name: `${i.product_name} - ${i.variant_name}`.slice(0, 50),
+              price: i.unit_price,
+              quantity: i.quantity,
+            })),
+            customerName: customerName.trim(),
+            customerEmail: user.email,
+            customerPhone: customerPhone.trim() || undefined,
+          },
+          headers: {
+            Authorization: `Bearer ${session.access_token}`,
+          },
+        }),
+        15000,
+        'Request timeout. Please try again.'
+      );
 
       if (invokeError) {
         console.error('Edge Function error:', invokeError);

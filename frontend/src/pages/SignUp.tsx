@@ -5,6 +5,7 @@ import Logo from '../components/Logo';
 import { useAuth } from '../contexts/AuthContext';
 import { isAdmin } from '../utils/auth';
 import { supabase } from '../lib/supabase';
+import { withTimeout } from '../utils/queryHelpers';
 
 const SignUp = () => {
   const [name, setName] = useState('');
@@ -43,21 +44,28 @@ const SignUp = () => {
     } else {
       setSuccess(true);
       
-      // Auto-login: Supabase already created session, check admin status and redirect
-      const { data: sessionData } = await supabase.auth.getSession();
-      const userId = sessionData.session?.user?.id;
-      const adminStatus = userId ? await isAdmin(userId) : false;
-      
-      setLoading(false);
-      
-      // Redirect to appropriate page after brief success message
-      setTimeout(() => {
-        if (adminStatus) {
-          navigate('/admin/dashboard');
-        } else {
-          navigate('/');
-        }
-      }, 1500);
+      try {
+        const { data: sessionData } = await withTimeout(
+          supabase.auth.getSession(),
+          5000,
+          'Session timeout. Please try again.'
+        );
+        const userId = sessionData.session?.user?.id;
+        const adminStatus = userId ? await isAdmin(userId) : false;
+        
+        setLoading(false);
+        
+        setTimeout(() => {
+          if (adminStatus) {
+            navigate('/admin/dashboard');
+          } else {
+            navigate('/');
+          }
+        }, 1500);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to validate session');
+        setLoading(false);
+      }
     }
   };
 
