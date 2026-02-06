@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
+import { createQuerySignal } from '../lib/fetchers';
 
 type Stage = {
     id: number;
@@ -24,11 +25,13 @@ const StageScanPage = () => {
             setLoading(true);
             setScanStatus('scanning');
 
+            const { signal: timeoutSignal, cleanup } = createQuerySignal(undefined, 10000);
             // Fetch stage info
             const { data: stageData, error: stageError } = await supabase
                 .from('stages')
                 .select('*')
                 .eq('code', stageCode)
+                .abortSignal(timeoutSignal)
                 .single();
 
             if (stageError || !stageData) {
@@ -50,7 +53,7 @@ const StageScanPage = () => {
             const { error: scanError } = await supabase.from('stage_scans').insert({
                 stage_id: stageData.id,
                 user_agent: navigator.userAgent,
-            });
+            }).abortSignal(timeoutSignal);
 
             if (scanError) {
                 console.error('Error recording scan:', scanError);
@@ -59,10 +62,14 @@ const StageScanPage = () => {
 
             setScanStatus('success');
         } catch (error) {
+            if (error instanceof Error && error.name === 'AbortError') {
+                setErrorMessage('Request timed out. Please try again.');
+            }
             console.error('Error:', error);
             setErrorMessage('Something went wrong. Please try again.');
             setScanStatus('error');
         } finally {
+            cleanup();
             setLoading(false);
         }
     }, [stageCode]);

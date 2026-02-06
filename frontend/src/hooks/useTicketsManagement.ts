@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
-import { APIError } from '../lib/fetchers';
+import { APIError, createQuerySignal } from '../lib/fetchers';
 import { queryKeys } from '../lib/queryKeys';
 
 export type PurchasedTicket = {
@@ -41,76 +41,86 @@ export function useTicketsManagement() {
   const query = useQuery({
     queryKey: queryKeys.ticketsManagement(),
     queryFn: async ({ signal }) => {
-      const { data: ticketsData, error } = await supabase
-        .from('purchased_tickets')
-        .select(
+      const { signal: timeoutSignal, cleanup, didTimeout } = createQuerySignal(signal);
+      try {
+        const { data: ticketsData, error } = await supabase
+          .from('purchased_tickets')
+          .select(
+            `
+            id,
+            ticket_id,
+            user_id,
+            created_at,
+            status,
+            used_at,
+            ticket_code,
+            valid_date,
+            tickets!inner(name)
           `
-          id,
-          ticket_id,
-          user_id,
-          created_at,
-          status,
-          used_at,
-          ticket_code,
-          valid_date,
-          tickets!inner(name)
-        `
-        )
-        .abortSignal(signal)
-        .order('created_at', { ascending: false })
-        .limit(50);
+          )
+          .abortSignal(timeoutSignal)
+          .order('created_at', { ascending: false })
+          .limit(50);
 
-      if (error) {
-        const err = new Error(error.message) as APIError;
-        err.status = 500;
-        err.info = error;
-        throw err;
+        if (error) {
+          const err = new Error(error.message) as APIError;
+          err.status = 500;
+          err.info = error;
+          throw err;
+        }
+
+        const rows = (ticketsData || []) as unknown as PurchasedTicketRow[];
+        const userIds = Array.from(new Set(rows.map((row) => row.user_id).filter(Boolean)));
+        const { data: profilesData, error: profilesError } =
+          userIds.length > 0
+            ? await supabase.from('profiles').select('id, name, email').abortSignal(timeoutSignal).in('id', userIds)
+            : { data: [], error: null };
+
+        if (profilesError) {
+          const err = new Error(profilesError.message) as APIError;
+          err.status = 500;
+          err.info = profilesError;
+          throw err;
+        }
+
+        const profilesMap = new Map(
+          (profilesData || []).map((profile) => [
+            String(profile.id),
+            { name: String(profile.name || '-'), email: String(profile.email || '-') },
+          ])
+        );
+
+        const mapped: PurchasedTicket[] = rows.map((row) => {
+          const entry_status: PurchasedTicket['entry_status'] =
+            row.status === 'used' ? 'entered' : row.status === 'active' ? 'not_yet' : 'invalid';
+
+          return {
+            id: String(row.id),
+            ticket_id: String(row.ticket_id),
+            user_id: String(row.user_id),
+            purchase_date: row.created_at || new Date().toISOString(),
+            entry_status,
+            qr_code: row.ticket_code,
+            status: row.status,
+            valid_date: row.valid_date,
+            used_at: row.used_at,
+            users: profilesMap.get(String(row.user_id)) || { name: '-', email: '-' },
+            tickets: row.tickets,
+          };
+        });
+
+        const totalValid = mapped.length;
+        const entered = mapped.filter((t) => t.status === 'used').length;
+
+        return { tickets: mapped, stats: { totalValid, entered } };
+      } catch (error) {
+        if (didTimeout()) {
+          throw new Error('Request timeout');
+        }
+        throw error;
+      } finally {
+        cleanup();
       }
-
-      const rows = (ticketsData || []) as unknown as PurchasedTicketRow[];
-      const userIds = Array.from(new Set(rows.map((row) => row.user_id).filter(Boolean)));
-      const { data: profilesData, error: profilesError } =
-        userIds.length > 0
-          ? await supabase.from('profiles').select('id, name, email').abortSignal(signal).in('id', userIds)
-          : { data: [], error: null };
-
-      if (profilesError) {
-        const err = new Error(profilesError.message) as APIError;
-        err.status = 500;
-        err.info = profilesError;
-        throw err;
-      }
-
-      const profilesMap = new Map(
-        (profilesData || []).map((profile) => [
-          String(profile.id),
-          { name: String(profile.name || '-'), email: String(profile.email || '-') },
-        ])
-      );
-
-      const mapped: PurchasedTicket[] = rows.map((row) => {
-        const entry_status: PurchasedTicket['entry_status'] =
-          row.status === 'used' ? 'entered' : row.status === 'active' ? 'not_yet' : 'invalid';
-
-        return {
-          id: String(row.id),
-          ticket_id: String(row.ticket_id),
-          user_id: String(row.user_id),
-          purchase_date: row.created_at || new Date().toISOString(),
-          entry_status,
-          qr_code: row.ticket_code,
-          status: row.status,
-          valid_date: row.valid_date,
-          used_at: row.used_at,
-          users: profilesMap.get(String(row.user_id)) || { name: '-', email: '-' },
-          tickets: row.tickets,
-        };
-      });
-
-      const totalValid = mapped.length;
-      const entered = mapped.filter((t) => t.status === 'used').length;
-
-      return { tickets: mapped, stats: { totalValid, entered } };
     },
     refetchOnWindowFocus: true,
     refetchOnReconnect: true,

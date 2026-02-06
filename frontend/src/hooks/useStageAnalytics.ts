@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
+import { createQuerySignal } from '../lib/fetchers';
 import { safeCountQuery } from '../utils/queryHelpers';
 import { queryKeys } from '../lib/queryKeys';
 
@@ -74,90 +75,92 @@ export function useStageAnalytics(timeFilter: StageAnalyticsTimeFilter, options?
     enabled,
     placeholderData: keepPreviousData,
     queryFn: async ({ signal }) => {
-      const timeout = AbortSignal.timeout(10000);
-      const combined = typeof (AbortSignal as unknown as { any?: unknown }).any === 'function'
-        ? (AbortSignal as unknown as { any: (signals: AbortSignal[]) => AbortSignal }).any([signal, timeout])
-        : signal;
+      const { signal: timeoutSignal, cleanup, didTimeout } = createQuerySignal(signal);
+      try {
+        const { data: stagesData, error: stagesError } = await supabase
+          .from('stages')
+          .select('id, code, name, zone')
+          .order('id', { ascending: true })
+          .abortSignal(timeoutSignal);
 
-      const { data: stagesData, error: stagesError } = await supabase
-        .from('stages')
-        .select('id, code, name, zone')
-        .order('id', { ascending: true })
-        .abortSignal(combined);
+        if (stagesError) throw new Error(stagesError.message);
 
-      if (stagesError) throw new Error(stagesError.message);
+        const stages = stagesData || [];
 
-      const stages = stagesData || [];
+        const stagesWithAnalytics: StageAnalyticsData[] = await Promise.all(
+          stages.map(async (stage) => {
+            const totalScans = await safeCountQuery(
+              async () => {
+                const result = await supabase
+                  .from('stage_scans')
+                  .select('*', { count: 'exact', head: true })
+                  .eq('stage_id', stage.id)
+                  .abortSignal(AbortSignal.timeout(8000));
+                return result;
+              },
+              8000
+            );
 
-      const stagesWithAnalytics: StageAnalyticsData[] = await Promise.all(
-        stages.map(async (stage) => {
-          // Total scans (all time)
-          const totalScans = await safeCountQuery(
-            async () => {
-              const result = await supabase
-                .from('stage_scans')
-                .select('*', { count: 'exact', head: true })
-                .eq('stage_id', stage.id)
-                .abortSignal(AbortSignal.timeout(8000));
-              return result;
-            },
-            8000
-          );
+            const periodScans =
+              timeFilter === 'all'
+                ? totalScans
+                : await safeCountQuery(
+                    async () => {
+                      const result = await supabase
+                        .from('stage_scans')
+                        .select('*', { count: 'exact', head: true })
+                        .eq('stage_id', stage.id)
+                        .gte('scanned_at', ranges.currentStart.toISOString())
+                        .abortSignal(AbortSignal.timeout(8000));
+                      return result;
+                    },
+                    8000
+                  );
 
-          // Period scans (weekly / monthly / all)
-          const periodScans =
-            timeFilter === 'all'
-              ? totalScans
-              : await safeCountQuery(
-                  async () => {
-                    const result = await supabase
-                      .from('stage_scans')
-                      .select('*', { count: 'exact', head: true })
-                      .eq('stage_id', stage.id)
-                      .gte('scanned_at', ranges.currentStart.toISOString())
-                      .abortSignal(AbortSignal.timeout(8000));
-                    return result;
-                  },
-                  8000
-                );
+            const prevPeriodScans =
+              !ranges.prevStart || !ranges.prevEnd
+                ? 0
+                : await safeCountQuery(
+                    async () => {
+                      const result = await supabase
+                        .from('stage_scans')
+                        .select('*', { count: 'exact', head: true })
+                        .eq('stage_id', stage.id)
+                        .gte('scanned_at', ranges.prevStart!.toISOString())
+                        .lt('scanned_at', ranges.prevEnd!.toISOString())
+                        .abortSignal(AbortSignal.timeout(8000));
+                      return result;
+                    },
+                    8000
+                  );
 
-          // Previous period scans (only when comparing weekly/monthly)
-          const prevPeriodScans =
-            !ranges.prevStart || !ranges.prevEnd
-              ? 0
-              : await safeCountQuery(
-                  async () => {
-                    const result = await supabase
-                      .from('stage_scans')
-                      .select('*', { count: 'exact', head: true })
-                      .eq('stage_id', stage.id)
-                      .gte('scanned_at', ranges.prevStart!.toISOString())
-                      .lt('scanned_at', ranges.prevEnd!.toISOString())
-                      .abortSignal(AbortSignal.timeout(8000));
-                    return result;
-                  },
-                  8000
-                );
+            const prev = prevPeriodScans || 0;
+            const current = periodScans || 0;
+            const change =
+              prev > 0 ? Math.round(((current - prev) / prev) * 100) : current > 0 ? 100 : 0;
 
-          const prev = prevPeriodScans || 0;
-          const current = periodScans || 0;
-          const change =
-            prev > 0 ? Math.round(((current - prev) / prev) * 100) : current > 0 ? 100 : 0;
+            return {
+              id: stage.id,
+              code: stage.code,
+              name: stage.name,
+              zone: stage.zone,
+              total_scans: totalScans,
+              period_scans: periodScans,
+              period_change: timeFilter === 'all' ? 0 : change,
+            };
+          })
+        );
 
-          return {
-            id: stage.id,
-            code: stage.code,
-            name: stage.name,
-            zone: stage.zone,
-            total_scans: totalScans,
-            period_scans: periodScans,
-            period_change: timeFilter === 'all' ? 0 : change,
-          };
-        })
-      );
-
-      stagesWithAnalytics.sort((a, b) => b.period_scans - a.period_scans);
-      return stagesWithAnalytics;
+        stagesWithAnalytics.sort((a, b) => b.period_scans - a.period_scans);
+        return stagesWithAnalytics;
+      } catch (error) {
+        if (didTimeout()) {
+          throw new Error('Request timeout');
+        }
+        throw error;
+      } finally {
+        cleanup();
+      }
     },
     refetchOnWindowFocus: true,
     refetchOnReconnect: true,

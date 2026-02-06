@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
-import { APIError } from '../lib/fetchers';
+import { APIError, createQuerySignal } from '../lib/fetchers';
 import { queryKeys } from '../lib/queryKeys';
 
 export type OrderSummaryRow = {
@@ -17,33 +17,43 @@ export function useProductOrders() {
   return useQuery({
     queryKey: queryKeys.productOrders(),
     queryFn: async ({ signal }) => {
-      const [ordersResult, pendingResult] = await Promise.all([
-        supabase
-          .from('order_products')
-          .select('id, order_number, total, pickup_code, pickup_status, paid_at, profiles(name, email)')
-          .abortSignal(signal)
-          .eq('payment_status', 'paid')
-          .order('paid_at', { ascending: false })
-          .limit(100),
-        supabase
-          .from('order_products')
-          .select('id', { count: 'exact', head: true })
-          .abortSignal(signal)
-          .eq('payment_status', 'paid')
-          .eq('pickup_status', 'pending_pickup'),
-      ]);
+      const { signal: timeoutSignal, cleanup, didTimeout } = createQuerySignal(signal);
+      try {
+        const [ordersResult, pendingResult] = await Promise.all([
+          supabase
+            .from('order_products')
+            .select('id, order_number, total, pickup_code, pickup_status, paid_at, profiles(name, email)')
+            .abortSignal(timeoutSignal)
+            .eq('payment_status', 'paid')
+            .order('paid_at', { ascending: false })
+            .limit(100),
+          supabase
+            .from('order_products')
+            .select('id', { count: 'exact', head: true })
+            .abortSignal(timeoutSignal)
+            .eq('payment_status', 'paid')
+            .eq('pickup_status', 'pending_pickup'),
+        ]);
 
-      if (ordersResult.error) {
-        const err = new Error(ordersResult.error.message || 'Gagal memuat daftar pesanan') as APIError;
-        err.status = 500;
-        err.info = ordersResult.error;
-        throw err;
+        if (ordersResult.error) {
+          const err = new Error(ordersResult.error.message || 'Gagal memuat daftar pesanan') as APIError;
+          err.status = 500;
+          err.info = ordersResult.error;
+          throw err;
+        }
+
+        return {
+          orders: (ordersResult.data || []) as OrderSummaryRow[],
+          pendingCount: pendingResult.count ?? 0,
+        };
+      } catch (error) {
+        if (didTimeout()) {
+          throw new Error('Request timeout');
+        }
+        throw error;
+      } finally {
+        cleanup();
       }
-
-      return {
-        orders: (ordersResult.data || []) as OrderSummaryRow[],
-        pendingCount: pendingResult.count ?? 0,
-      };
     },
     refetchOnWindowFocus: true,
     refetchOnReconnect: true,

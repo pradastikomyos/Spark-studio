@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
+import { createQuerySignal } from '../lib/fetchers';
 import { formatCurrency } from '../utils/formatters';
 import {
   addDays,
@@ -39,13 +40,15 @@ export default function JourneySelectionPage() {
   // Fetch first active ticket
   useEffect(() => {
     const fetchTicket = async () => {
+      const { signal: timeoutSignal, cleanup } = createQuerySignal(undefined, 10000);
       try {
         const { data, error } = await supabase
           .from('tickets')
           .select('*')
           .eq('is_active', true)
           .order('type', { ascending: true })
-          .limit(1);
+          .limit(1)
+          .abortSignal(timeoutSignal);
 
         if (error) throw error;
         if (data && data.length > 0) {
@@ -53,6 +56,8 @@ export default function JourneySelectionPage() {
         }
       } catch (err) {
         console.error('Error fetching ticket:', err);
+      } finally {
+        cleanup();
       }
     };
 
@@ -64,6 +69,7 @@ export default function JourneySelectionPage() {
     if (!ticket) return;
 
     const fetchAvailabilities = async () => {
+      const { signal: timeoutSignal, cleanup } = createQuerySignal(undefined, 10000);
       try {
         const today = todayWIB();
         const lookaheadEnd = addDays(today, 30);
@@ -74,7 +80,8 @@ export default function JourneySelectionPage() {
           .eq('ticket_id', ticket.id)
           .gte('date', toLocalDateString(today))
           .lte('date', toLocalDateString(lookaheadEnd))
-          .order('date', { ascending: true });
+          .order('date', { ascending: true })
+          .abortSignal(timeoutSignal);
 
         if (error) throw error;
 
@@ -89,6 +96,7 @@ export default function JourneySelectionPage() {
       } catch (err) {
         console.error('Error fetching availabilities:', err);
       } finally {
+        cleanup();
         setLoading(false);
       }
     };

@@ -23,6 +23,35 @@ const getErrorCode = (error: unknown) => {
   return null;
 };
 
+export const DEFAULT_QUERY_TIMEOUT_MS = 10000;
+
+export function createQuerySignal(signal: AbortSignal | undefined, timeoutMs = DEFAULT_QUERY_TIMEOUT_MS) {
+  const controller = new AbortController();
+  let timedOut = false;
+  const timeoutId = setTimeout(() => {
+    timedOut = true;
+    controller.abort(new DOMException('Timeout', 'TimeoutError'));
+  }, timeoutMs);
+
+  const handleAbort = () => {
+    if (timedOut) return;
+    controller.abort(signal?.reason);
+  };
+
+  if (signal) {
+    signal.addEventListener('abort', handleAbort, { once: true });
+  }
+
+  const cleanup = () => {
+    clearTimeout(timeoutId);
+    if (signal) {
+      signal.removeEventListener('abort', handleAbort);
+    }
+  };
+
+  return { signal: controller.signal, cleanup, didTimeout: () => timedOut };
+}
+
 /**
  * Generic Supabase fetcher for SWR
  * Works with any Supabase query that returns a promise
@@ -145,7 +174,8 @@ export async function supabaseSingleFetcher<T = unknown>(
  * );
  */
 export async function supabaseAuthFetcher<T>(
-  queryFn: () => Promise<{ data: T[] | null; error: unknown }>
+  queryFn: (signal?: AbortSignal) => Promise<{ data: T[] | null; error: unknown }>,
+  signal?: AbortSignal
 ): Promise<T[]> {
   const { data: { session } } = await supabase.auth.getSession();
   
@@ -155,5 +185,5 @@ export async function supabaseAuthFetcher<T>(
     throw err;
   }
   
-  return supabaseFetcher<T>(queryFn);
+  return supabaseFetcher<T>(() => queryFn(signal));
 }

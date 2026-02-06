@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
-import { supabaseAuthFetcher } from '../lib/fetchers';
+import { supabaseAuthFetcher, createQuerySignal } from '../lib/fetchers';
 import { useEffect } from 'react';
 import { queryKeys } from '../lib/queryKeys';
 
@@ -45,33 +45,35 @@ export function useMyTickets(userId: string | null | undefined) {
   const query = useQuery({
     queryKey: enabled ? queryKeys.myTickets(userId) : ['my-tickets', 'invalid'],
     enabled,
-    queryFn: ({ signal }) =>
-      supabaseAuthFetcher<PurchasedTicketRow>(async () =>
-        supabase
-          .from('purchased_tickets')
-          .select(
+    queryFn: async ({ signal }) => {
+      const { signal: timeoutSignal, cleanup, didTimeout } = createQuerySignal(signal);
+      try {
+        const rows = await supabaseAuthFetcher<PurchasedTicketRow>(async (sig) =>
+          supabase
+            .from('purchased_tickets')
+            .select(
+              `
+              id,
+              ticket_code,
+              ticket_id,
+              valid_date,
+              time_slot,
+              queue_number,
+              queue_overflow,
+              status,
+              created_at,
+              tickets:ticket_id (
+                name,
+                type,
+                description
+              )
             `
-            id,
-            ticket_code,
-            ticket_id,
-            valid_date,
-            time_slot,
-            queue_number,
-            queue_overflow,
-            status,
-            created_at,
-            tickets:ticket_id (
-              name,
-              type,
-              description
             )
-          `
-          )
-          .abortSignal(signal)
-          .eq('user_id', userId)
-          .order('created_at', { ascending: false })
-      ).then((rows) =>
-        rows.map((ticket) => {
+            .abortSignal(sig ?? timeoutSignal)
+            .eq('user_id', userId)
+            .order('created_at', { ascending: false })
+        , timeoutSignal);
+        return rows.map((ticket) => {
           const ticketMeta = Array.isArray(ticket.tickets) ? ticket.tickets[0] : ticket.tickets;
           return {
             id: ticket.id,
@@ -89,8 +91,16 @@ export function useMyTickets(userId: string | null | undefined) {
               description: ticketMeta?.description || null,
             },
           };
-        })
-      ),
+        });
+      } catch (error) {
+        if (didTimeout()) {
+          throw new Error('Request timeout');
+        }
+        throw error;
+      } finally {
+        cleanup();
+      }
+    },
     refetchOnWindowFocus: true,
     refetchOnReconnect: true,
     staleTime: 0,

@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { toLocalDateString } from '../utils/timezone';
-import { APIError } from '../lib/fetchers';
+import { APIError, createQuerySignal } from '../lib/fetchers';
 import { queryKeys } from '../lib/queryKeys';
 
 export interface Availability {
@@ -30,26 +30,36 @@ export function useTicketAvailability(ticketId: number | null) {
     queryKey: enabled ? queryKeys.ticketAvailability(ticketId) : ['ticket-availability', 'invalid'],
     enabled,
     queryFn: async ({ signal }) => {
-      const { data, error } = await supabase
-        .from('ticket_availabilities')
-        .select('*')
-        .abortSignal(signal)
-        .eq('ticket_id', ticketId)
-        .gte('date', toLocalDateString(new Date()))
-        .order('date', { ascending: true })
-        .order('time_slot', { ascending: true });
+      const { signal: timeoutSignal, cleanup, didTimeout } = createQuerySignal(signal);
+      try {
+        const { data, error } = await supabase
+          .from('ticket_availabilities')
+          .select('*')
+          .abortSignal(timeoutSignal)
+          .eq('ticket_id', ticketId)
+          .gte('date', toLocalDateString(new Date()))
+          .order('date', { ascending: true })
+          .order('time_slot', { ascending: true });
 
-      if (error) {
-        const err = new Error(error.message) as APIError;
-        err.status = 500;
-        err.info = error;
-        throw err;
+        if (error) {
+          const err = new Error(error.message) as APIError;
+          err.status = 500;
+          err.info = error;
+          throw err;
+        }
+
+        return ((data as RawAvailability[] | null) || []).map((avail) => ({
+          ...avail,
+          available_capacity: avail.total_capacity - avail.reserved_capacity - avail.sold_capacity,
+        }));
+      } catch (error) {
+        if (didTimeout()) {
+          throw new Error('Request timeout');
+        }
+        throw error;
+      } finally {
+        cleanup();
       }
-
-      return ((data as RawAvailability[] | null) || []).map((avail) => ({
-        ...avail,
-        available_capacity: avail.total_capacity - avail.reserved_capacity - avail.sold_capacity,
-      }));
     },
     refetchOnWindowFocus: true,
     refetchOnReconnect: true,

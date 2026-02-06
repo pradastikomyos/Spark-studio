@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
+import { createQuerySignal } from '../lib/fetchers';
 import { queryKeys } from '../lib/queryKeys';
 
 export interface Banner {
@@ -36,24 +37,16 @@ export function useBanners(type?: 'hero' | 'stage' | 'promo' | 'events' | 'shop'
   return useQuery({
     queryKey: queryKeys.banners(type),
     queryFn: async ({ signal }) => {
-      const timeoutSignal =
-        typeof AbortSignal !== 'undefined' && 'timeout' in AbortSignal
-          ? AbortSignal.timeout(10000)
-          : undefined;
-      const combinedSignal =
-        timeoutSignal && typeof (AbortSignal as unknown as { any?: unknown }).any === 'function'
-          ? (AbortSignal as unknown as { any: (signals: AbortSignal[]) => AbortSignal }).any([signal, timeoutSignal])
-          : signal;
-
+      const { signal: timeoutSignal, cleanup, didTimeout } = createQuerySignal(signal);
       try {
-        return await fetchBanners(type, combinedSignal);
+        return await fetchBanners(type, timeoutSignal);
       } catch (error) {
-        if (error instanceof Error && error.name === 'AbortError') {
-          const timeoutError = new Error('Request timeout');
-          timeoutError.name = 'TimeoutError';
-          throw timeoutError;
+        if (didTimeout()) {
+          throw new Error('Request timeout');
         }
         throw error;
+      } finally {
+        cleanup();
       }
     },
     staleTime: 5 * 60 * 1000, // 5 minutes

@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
-import { APIError } from '../lib/fetchers';
+import { APIError, createQuerySignal } from '../lib/fetchers';
 import { queryKeys } from '../lib/queryKeys';
 
 export interface Ticket {
@@ -23,22 +23,32 @@ export function useTickets(slug: string | undefined) {
     queryKey: enabled ? queryKeys.ticket(slug) : ['ticket', 'invalid'],
     enabled,
     queryFn: async ({ signal }) => {
-      const { data, error } = await supabase
-        .from('tickets')
-        .select('*')
-        .abortSignal(signal)
-        .eq('slug', slug)
-        .eq('is_active', true)
-        .single();
+      const { signal: timeoutSignal, cleanup, didTimeout } = createQuerySignal(signal);
+      try {
+        const { data, error } = await supabase
+          .from('tickets')
+          .select('*')
+          .abortSignal(timeoutSignal)
+          .eq('slug', slug)
+          .eq('is_active', true)
+          .single();
 
-      if (error || !data) {
-        const err = new Error(error?.message || 'Ticket not found') as APIError;
-        err.status = error?.code === 'PGRST116' ? 404 : 500;
-        err.info = error;
-        throw err;
+        if (error || !data) {
+          const err = new Error(error?.message || 'Ticket not found') as APIError;
+          err.status = error?.code === 'PGRST116' ? 404 : 500;
+          err.info = error;
+          throw err;
+        }
+
+        return data as Ticket;
+      } catch (error) {
+        if (didTimeout()) {
+          throw new Error('Request timeout');
+        }
+        throw error;
+      } finally {
+        cleanup();
       }
-
-      return data as Ticket;
     },
     refetchOnWindowFocus: true,
     refetchOnReconnect: true,

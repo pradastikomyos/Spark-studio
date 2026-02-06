@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
-import { APIError } from '../lib/fetchers';
+import { APIError, createQuerySignal } from '../lib/fetchers';
 import { queryKeys } from '../lib/queryKeys';
 
 type Variant = {
@@ -109,7 +109,19 @@ export function useProduct(productId: string | undefined) {
   return useQuery({
     queryKey: enabled ? queryKeys.product(numericId) : ['product', 'invalid'],
     enabled,
-    queryFn: ({ signal }) => fetchProductDetail(numericId, signal),
+    queryFn: async ({ signal }) => {
+      const { signal: timeoutSignal, cleanup, didTimeout } = createQuerySignal(signal);
+      try {
+        return await fetchProductDetail(numericId, timeoutSignal);
+      } catch (error) {
+        if (didTimeout()) {
+          throw new Error('Request timeout');
+        }
+        throw error;
+      } finally {
+        cleanup();
+      }
+    },
     refetchOnWindowFocus: false,
     refetchOnReconnect: true,
     staleTime: 60000,

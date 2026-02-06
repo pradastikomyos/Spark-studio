@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
-import { APIError } from '../lib/fetchers';
+import { APIError, createQuerySignal } from '../lib/fetchers';
 import { queryKeys } from '../lib/queryKeys';
 
 type ProductVariantRow = {
@@ -48,6 +48,7 @@ export function useInventory() {
   const query = useQuery({
     queryKey: queryKeys.inventory(),
     queryFn: async ({ signal }) => {
+      const { signal: timeoutSignal, cleanup, didTimeout } = createQuerySignal(signal);
       try {
         const [productsResult, categoriesResult] = await Promise.all([
           supabase
@@ -77,13 +78,13 @@ export function useInventory() {
                 )
               `
             )
-            .abortSignal(signal)
+            .abortSignal(timeoutSignal)
             .is('deleted_at', null)
             .order('name', { ascending: true }),
           supabase
             .from('categories')
             .select('id, name, slug, is_active')
-            .abortSignal(signal)
+            .abortSignal(timeoutSignal)
             .order('name', { ascending: true }),
         ]);
 
@@ -99,12 +100,15 @@ export function useInventory() {
           categories: (categoriesResult.data || []) as unknown as CategoryRow[],
         };
       } catch (error) {
-        // Ignore AbortError - this happens when request is cancelled due to navigation/focus change
+        if (didTimeout()) {
+          throw new Error('Request timeout');
+        }
         if (error instanceof Error && error.name === 'AbortError') {
-          // Return empty data to prevent SWR from showing error
           return { products: [], categories: [] };
         }
         throw error;
+      } finally {
+        cleanup();
       }
     },
     refetchOnWindowFocus: true,

@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
-import { APIError } from '../lib/fetchers';
+import { APIError, createQuerySignal } from '../lib/fetchers';
 import { queryKeys } from '../lib/queryKeys';
 
 /**
@@ -29,21 +29,31 @@ export function useCategories() {
   return useQuery({
     queryKey: queryKeys.categories(),
     queryFn: async ({ signal }) => {
-      const { data, error } = await supabase
-        .from('categories')
-        .select('name, slug')
-        .abortSignal(signal)
-        .eq('is_active', true)
-        .order('name', { ascending: true });
+      const { signal: timeoutSignal, cleanup, didTimeout } = createQuerySignal(signal);
+      try {
+        const { data, error } = await supabase
+          .from('categories')
+          .select('name, slug')
+          .abortSignal(timeoutSignal)
+          .eq('is_active', true)
+          .order('name', { ascending: true });
 
-      if (error) {
-        const err = new Error(error.message) as APIError;
-        err.status = error.code === 'PGRST116' ? 404 : 500;
-        err.info = error;
-        throw err;
+        if (error) {
+          const err = new Error(error.message) as APIError;
+          err.status = error.code === 'PGRST116' ? 404 : 500;
+          err.info = error;
+          throw err;
+        }
+
+        return (data || []) as Category[];
+      } catch (error) {
+        if (didTimeout()) {
+          throw new Error('Request timeout');
+        }
+        throw error;
+      } finally {
+        cleanup();
       }
-
-      return (data || []) as Category[];
     },
     staleTime: 300000,
     refetchOnWindowFocus: false,

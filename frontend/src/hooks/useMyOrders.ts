@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
-import { supabaseAuthFetcher } from '../lib/fetchers';
+import { supabaseAuthFetcher, createQuerySignal } from '../lib/fetchers';
 import { useEffect } from 'react';
 import { queryKeys } from '../lib/queryKeys';
 
@@ -53,7 +53,9 @@ export function useMyOrders(userId: string | null | undefined) {
     queryKey: enabled ? queryKeys.myOrders(userId) : ['my-orders', 'invalid'],
     enabled,
     queryFn: async ({ signal }) => {
-      const orders = await supabaseAuthFetcher(async () =>
+      const { signal: timeoutSignal, cleanup, didTimeout } = createQuerySignal(signal);
+      try {
+        const orders = await supabaseAuthFetcher(async (sig) =>
         supabase
           .from('order_products')
           .select(
@@ -70,10 +72,10 @@ export function useMyOrders(userId: string | null | undefined) {
             created_at
           `
           )
-          .abortSignal(signal)
+          .abortSignal(sig ?? timeoutSignal)
           .eq('user_id', userId)
           .order('created_at', { ascending: false })
-      );
+      , timeoutSignal);
 
       const ordersWithItems = await Promise.all(
         (orders || []).map(async (order) => {
@@ -99,7 +101,7 @@ export function useMyOrders(userId: string | null | undefined) {
               )
             `
             )
-            .abortSignal(signal)
+            .abortSignal(timeoutSignal)
             .eq('order_product_id', order.id);
 
           const items: OrderItem[] = ((itemsData as OrderItemRow[] | null) || []).map((item) => {
@@ -133,6 +135,14 @@ export function useMyOrders(userId: string | null | undefined) {
       );
 
       return ordersWithItems as ProductOrder[];
+      } catch (error) {
+        if (didTimeout()) {
+          throw new Error('Request timeout');
+        }
+        throw error;
+      } finally {
+        cleanup();
+      }
     },
     refetchOnWindowFocus: true,
     refetchOnReconnect: true,
