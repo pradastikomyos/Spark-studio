@@ -20,6 +20,25 @@ type CreateCashierOrderResponse = {
   order_number: string;
 };
 
+type InvokeErrorWithContext = {
+  status?: number;
+  context?: {
+    status?: number;
+    statusCode?: number;
+    response?: Response;
+  };
+};
+
+const getInvokeStatus = (invokeError: unknown) => {
+  const error = invokeError as InvokeErrorWithContext | null | undefined;
+  return (
+    error?.status ??
+    error?.context?.status ??
+    error?.context?.statusCode ??
+    error?.context?.response?.status
+  );
+};
+
 export default function ProductCheckoutPage() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -138,7 +157,7 @@ export default function ProductCheckoutPage() {
       }
 
       let { data, error: invokeError } = await invoke(token);
-      const status = invokeError ? (invokeError as { status?: number }).status : undefined;
+      const status = invokeError ? getInvokeStatus(invokeError) : undefined;
       if (invokeError && status === 401) {
         const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
         if (refreshError || !refreshData.session?.access_token) {
@@ -224,6 +243,14 @@ export default function ProductCheckoutPage() {
     try {
       if (!user.email) throw new Error('Missing account email');
 
+      const { data: validated, error: userError } = await supabase.auth.getUser();
+      if (userError || !validated.user) {
+        await supabase.auth.signOut();
+        setError('Sesi login kadaluarsa. Silakan login ulang.');
+        navigate('/login');
+        return;
+      }
+
       const invoke = async (accessToken: string) => {
         return withTimeout(
           supabase.functions.invoke('create-cashier-product-order', {
@@ -253,7 +280,7 @@ export default function ProductCheckoutPage() {
       }
 
       let { data, error: invokeError } = await invoke(token);
-      const status = invokeError ? (invokeError as { status?: number }).status : undefined;
+      const status = invokeError ? getInvokeStatus(invokeError) : undefined;
       if (invokeError && status === 401) {
         const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
         if (refreshError || !refreshData.session?.access_token) {
@@ -268,6 +295,12 @@ export default function ProductCheckoutPage() {
       }
 
       if (invokeError) {
+        if (getInvokeStatus(invokeError) === 401) {
+          await supabase.auth.signOut();
+          setError('Sesi login kadaluarsa. Silakan login ulang.');
+          navigate('/login');
+          return;
+        }
         const contextError =
           typeof (invokeError as { context?: { error?: unknown } }).context?.error === 'string'
             ? String((invokeError as { context?: { error?: unknown } }).context?.error)

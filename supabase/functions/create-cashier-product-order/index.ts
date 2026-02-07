@@ -17,6 +17,33 @@ type CreateCashierOrderRequest = {
   customerPhone?: string
 }
 
+function generatePickupCode() {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
+  let result = 'PU-'
+  for (let i = 0; i < 6; i++) {
+    result += chars.charAt(Math.floor(Math.random() * chars.length))
+  }
+  return result
+}
+
+async function getUniquePickupCode(supabase: ReturnType<typeof createServiceClient>) {
+  for (let attempt = 0; attempt < 6; attempt += 1) {
+    const code = generatePickupCode()
+    const { data, error } = await supabase
+      .from('order_products')
+      .select('id')
+      .eq('pickup_code', code)
+      .limit(1)
+    if (error) {
+      return null
+    }
+    if (!data || data.length === 0) {
+      return code
+    }
+  }
+  return null
+}
+
 function toNumber(value: unknown, fallback: number) {
   if (typeof value === 'number') return Number.isFinite(value) ? value : fallback
   if (typeof value === 'string' && value.trim() !== '') {
@@ -178,20 +205,20 @@ serve(async (req) => {
 
     const paymentExpiredAt = new Date(now.getTime() + paymentExpiryMinutes * 60 * 1000)
 
+    let pickupCode = ''
     const { data: pickupCodeRow, error: pickupCodeError } = await supabase.rpc('generate_pickup_code', {})
-    if (pickupCodeError) {
-      return new Response(JSON.stringify({ error: 'Failed to generate pickup code' }), {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
+    if (!pickupCodeError) {
+      pickupCode = String(pickupCodeRow || '').trim()
     }
-
-    const pickupCode = String(pickupCodeRow || '').trim()
     if (!pickupCode) {
-      return new Response(JSON.stringify({ error: 'Failed to generate pickup code' }), {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
+      const fallback = await getUniquePickupCode(supabase)
+      if (!fallback) {
+        return new Response(JSON.stringify({ error: 'Failed to generate pickup code' }), {
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        })
+      }
+      pickupCode = fallback
     }
 
     const pickupExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
@@ -324,4 +351,3 @@ serve(async (req) => {
     )
   }
 })
-
