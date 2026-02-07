@@ -17,6 +17,7 @@ export interface OrderItem {
 export interface ProductOrder {
   id: number;
   order_number: string;
+  channel?: string | null;
   payment_status: string;
   status: string;
   pickup_code: string | null;
@@ -62,6 +63,7 @@ export function useMyOrders(userId: string | null | undefined) {
             `
             id,
             order_number,
+            channel,
             payment_status,
             status,
             pickup_code,

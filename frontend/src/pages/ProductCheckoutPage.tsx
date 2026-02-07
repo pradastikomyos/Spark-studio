@@ -9,9 +9,14 @@ import { loadSnapScript, type SnapResult } from '../utils/midtransSnap';
 import { formatCurrency } from '../utils/formatters';
 import { queryKeys } from '../lib/queryKeys';
 import { withTimeout } from '../utils/queryHelpers';
+import { ensureFreshToken } from '../utils/auth';
 
 type CreateProductTokenResponse = {
   token: string;
+  order_number: string;
+};
+
+type CreateCashierOrderResponse = {
   order_number: string;
 };
 
@@ -22,6 +27,7 @@ export default function ProductCheckoutPage() {
   const { user, session, initialized } = useAuth();
   const { items: allItems, removeItem } = useCart();
   const { showToast } = useToast();
+  const cashierCheckoutEnabled = String(import.meta.env.VITE_ENABLE_CASHIER_CHECKOUT || '').toLowerCase() !== 'false';
 
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
@@ -103,29 +109,50 @@ export default function ProductCheckoutPage() {
     try {
       if (!user.email) throw new Error('Missing account email');
 
-      const { data, error: invokeError } = await withTimeout(
-        supabase.functions.invoke('create-midtrans-product-token', {
-          body: {
-            items: orderItems.map((i) => ({
-              productVariantId: i.product_variant_id,
-              name: `${i.product_name} - ${i.variant_name}`.slice(0, 50),
-              price: i.unit_price,
-              quantity: i.quantity,
-            })),
-            customerName: customerName.trim(),
-            customerEmail: user.email,
-            customerPhone: customerPhone.trim() || undefined,
-          },
-          headers: {
-            Authorization: `Bearer ${session.access_token}`,
-          },
-        }),
-        15000,
-        'Request timeout. Please try again.'
-      );
+      const invoke = async (accessToken: string) => {
+        return withTimeout(
+          supabase.functions.invoke('create-midtrans-product-token', {
+            body: {
+              items: orderItems.map((i) => ({
+                productVariantId: i.product_variant_id,
+                name: `${i.product_name} - ${i.variant_name}`.slice(0, 50),
+                price: i.unit_price,
+                quantity: i.quantity,
+              })),
+              customerName: customerName.trim(),
+              customerEmail: user.email,
+              customerPhone: customerPhone.trim() || undefined,
+            },
+            headers: { Authorization: `Bearer ${accessToken}` },
+          }),
+          15000,
+          'Request timeout. Please try again.'
+        );
+      };
+
+      let token = await ensureFreshToken(session);
+      if (!token) {
+        setError('Sesi login kadaluarsa. Silakan login ulang.');
+        navigate('/login');
+        return;
+      }
+
+      let { data, error: invokeError } = await invoke(token);
+      const status = invokeError ? (invokeError as { status?: number }).status : undefined;
+      if (invokeError && status === 401) {
+        const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
+        if (refreshError || !refreshData.session?.access_token) {
+          setError('Sesi login kadaluarsa. Silakan login ulang.');
+          navigate('/login');
+          return;
+        }
+        token = refreshData.session.access_token;
+        const retry = await invoke(token);
+        data = retry.data;
+        invokeError = retry.error ?? null;
+      }
 
       if (invokeError) {
-        console.error('Edge Function error:', invokeError);
         const contextError =
           typeof (invokeError as { context?: { error?: unknown } }).context?.error === 'string'
             ? String((invokeError as { context?: { error?: unknown } }).context?.error)
@@ -170,6 +197,99 @@ export default function ProductCheckoutPage() {
       });
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to process payment');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCashierCheckout = async () => {
+    if (!user) {
+      navigate('/login');
+      return;
+    }
+
+    if (!initialized || !session?.access_token) {
+      setError('Session expired. Please refresh and login again.');
+      return;
+    }
+
+    if (!customerName.trim()) {
+      setError('Please enter your name');
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      if (!user.email) throw new Error('Missing account email');
+
+      const invoke = async (accessToken: string) => {
+        return withTimeout(
+          supabase.functions.invoke('create-cashier-product-order', {
+            body: {
+              items: orderItems.map((i) => ({
+                productVariantId: i.product_variant_id,
+                name: `${i.product_name} - ${i.variant_name}`.slice(0, 50),
+                price: i.unit_price,
+                quantity: i.quantity,
+              })),
+              customerName: customerName.trim(),
+              customerEmail: user.email,
+              customerPhone: customerPhone.trim() || undefined,
+            },
+            headers: { Authorization: `Bearer ${accessToken}` },
+          }),
+          15000,
+          'Request timeout. Please try again.'
+        );
+      };
+
+      let token = await ensureFreshToken(session);
+      if (!token) {
+        setError('Sesi login kadaluarsa. Silakan login ulang.');
+        navigate('/login');
+        return;
+      }
+
+      let { data, error: invokeError } = await invoke(token);
+      const status = invokeError ? (invokeError as { status?: number }).status : undefined;
+      if (invokeError && status === 401) {
+        const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
+        if (refreshError || !refreshData.session?.access_token) {
+          setError('Sesi login kadaluarsa. Silakan login ulang.');
+          navigate('/login');
+          return;
+        }
+        token = refreshData.session.access_token;
+        const retry = await invoke(token);
+        data = retry.data;
+        invokeError = retry.error ?? null;
+      }
+
+      if (invokeError) {
+        const contextError =
+          typeof (invokeError as { context?: { error?: unknown } }).context?.error === 'string'
+            ? String((invokeError as { context?: { error?: unknown } }).context?.error)
+            : null;
+        throw new Error(contextError || invokeError.message || 'Failed to create cashier order');
+      }
+
+      const payload = data as CreateCashierOrderResponse;
+      if (!payload.order_number) throw new Error('Invalid cashier response');
+      const orderNumber = payload.order_number;
+
+      const purchasedVariantIds = orderItems.map((item) => item.product_variant_id);
+      purchasedVariantIds.forEach((id) => removeItem(id));
+
+      if (user?.id) {
+        queryClient.invalidateQueries({ queryKey: queryKeys.myOrders(user.id) });
+      }
+
+      showToast('success', 'Order dibuat. Bayar cash di kasir setelah QR discan admin.');
+      navigate(`/order/product/success/${orderNumber}`, { state: { cashier: true } });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to create cashier order');
     } finally {
       setLoading(false);
     }
@@ -327,6 +447,17 @@ export default function ProductCheckoutPage() {
                   </>
                 )}
               </button>
+
+              {cashierCheckoutEnabled && (
+                <button
+                  onClick={handleCashierCheckout}
+                  disabled={loading || !initialized || !session?.access_token || items.length === 0}
+                  className="w-full mt-3 bg-white hover:bg-rose-50 disabled:bg-gray-100 disabled:cursor-not-allowed text-primary font-bold py-4 rounded-xl border border-rose-100 transition-all flex flex-col items-center justify-center"
+                >
+                  <span>Bayar di Kasir</span>
+                  <span className="text-xs font-semibold text-rose-700 mt-1">Checkout at cashier (backup jika Midtrans bermasalah)</span>
+                </button>
+              )}
 
               {/* Payment Method Logos */}
               <div className="mt-6 pt-6 border-t border-rose-100">

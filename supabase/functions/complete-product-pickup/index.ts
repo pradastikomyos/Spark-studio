@@ -2,6 +2,7 @@ import { serve } from '../_shared/deps.ts'
 import { corsHeaders, handleCors } from '../_shared/http.ts'
 import { getSupabaseEnv } from '../_shared/env.ts'
 import { createServiceClient, getUserFromAuthHeader } from '../_shared/supabase.ts'
+import { ensureProductPaidSideEffects } from '../_shared/payment-effects.ts'
 
 type RequestBody = {
   pickupCode: string
@@ -79,7 +80,7 @@ serve(async (req) => {
 
     const { data: order, error: orderError } = await supabaseService
       .from('order_products')
-      .select('id, payment_status, pickup_status, pickup_expires_at')
+      .select('id, order_number, channel, status, payment_status, total, pickup_code, pickup_status, pickup_expires_at')
       .eq('pickup_code', pickupCode)
       .single()
 
@@ -90,10 +91,33 @@ serve(async (req) => {
       })
     }
 
-    if (String((order as { payment_status?: string }).payment_status).toLowerCase() !== 'paid') {
-      return new Response(JSON.stringify({ error: 'Order not paid' }), {
-        status: 409,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    const paymentStatus = String((order as { payment_status?: string }).payment_status || '').toLowerCase()
+    const channel = String((order as { channel?: string }).channel || '').toLowerCase()
+    if (paymentStatus !== 'paid') {
+      if (channel !== 'cashier') {
+        return new Response(JSON.stringify({ error: 'Order not paid' }), {
+          status: 409,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        })
+      }
+
+      const nowIso = new Date().toISOString()
+      await ensureProductPaidSideEffects({
+        supabase: supabaseService,
+        order: order as unknown as {
+          id: number
+          order_number: string
+          status?: string | null
+          payment_status?: string | null
+          total?: unknown
+          pickup_code?: string | null
+          pickup_status?: string | null
+          pickup_expires_at?: string | null
+        },
+        nowIso,
+        grossAmount: (order as { total?: unknown }).total,
+        defaultStatus: String((order as { status?: unknown }).status || 'processing'),
+        shouldSetPaidAt: true,
       })
     }
 

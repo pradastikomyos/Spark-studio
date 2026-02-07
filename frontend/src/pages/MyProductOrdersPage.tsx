@@ -15,6 +15,7 @@ import { ensureFreshToken } from '../utils/auth';
 interface ProductOrder {
   id: number;
   order_number: string;
+  channel?: string | null;
   payment_status: string;
   status: string;
   pickup_code: string | null;
@@ -527,7 +528,7 @@ export default function MyProductOrdersPage() {
                   </div>
 
                   {/* QR Code Section - Show for paid orders with pickup code */}
-                  {order.payment_status === 'paid' && order.pickup_code && (
+                  {order.pickup_code && (order.payment_status === 'paid' || String(order.channel || '').toLowerCase() === 'cashier') && (
                     <div className="mt-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
                       <div className="flex flex-col md:flex-row items-center gap-6">
                         <div className="bg-white p-4 rounded-lg shadow-sm">
@@ -539,11 +540,18 @@ export default function MyProductOrdersPage() {
                           </p>
                           <p className="font-display text-2xl text-main-600 mb-2">{order.pickup_code}</p>
                           <p className="text-sm text-gray-600">
-                            {getPickupInstruction(order)}
+                            {String(order.channel || '').toLowerCase() === 'cashier'
+                              ? 'Tunjukkan QR ini ke kasir. Pembayaran cash dilakukan setelah QR discan admin.'
+                              : getPickupInstruction(order)}
                           </p>
                           {shouldShowPickupExpiry(order) && order.pickup_expires_at && (
                             <p className="text-xs text-gray-500 mt-2">
                               {t('myOrders.pickup.expires')}: {formatDate(order.pickup_expires_at)}
+                            </p>
+                          )}
+                          {String(order.channel || '').toLowerCase() === 'cashier' && (
+                            <p className="text-xs text-gray-500 mt-2">
+                              Pesanan kasir tidak bisa dibatalkan via aplikasi. Jika perlu perubahan, hubungi staff.
                             </p>
                           )}
                         </div>
@@ -562,7 +570,7 @@ export default function MyProductOrdersPage() {
                       </span>
                       {expandedOrder === order.id ? t('myOrders.actions.hideItems') : t('myOrders.actions.viewItems')}
                     </button>
-                    {order.payment_status !== 'paid' && (
+                    {order.payment_status !== 'paid' && String(order.channel || '').toLowerCase() !== 'cashier' && (
                       <button
                         onClick={() => navigate(`/order/product/pending/${order.order_number}`)}
                         className="flex-1 min-w-[160px] flex items-center justify-center gap-2 px-4 py-2 text-sm font-bold text-white bg-main-600 rounded-lg hover:bg-main-700 transition-colors shadow-sm"
@@ -571,7 +579,7 @@ export default function MyProductOrdersPage() {
                         {t('myOrders.actions.payNow', 'Pay Now')}
                       </button>
                     )}
-                    {order.payment_status !== 'paid' && (
+                    {order.payment_status !== 'paid' && String(order.channel || '').toLowerCase() !== 'cashier' && (
                       <button
                         onClick={() => handleCancelOrder(order)}
                         disabled={syncingOrderId === order.id}
@@ -583,7 +591,7 @@ export default function MyProductOrdersPage() {
                         {t('myOrders.actions.cancelOrder', 'Cancel')}
                       </button>
                     )}
-                    {order.payment_status !== 'paid' && (
+                    {order.payment_status !== 'paid' && String(order.channel || '').toLowerCase() !== 'cashier' && (
                       <button
                         onClick={() => handleSyncStatus(order)}
                         disabled={syncingOrderId === order.id}
@@ -597,7 +605,7 @@ export default function MyProductOrdersPage() {
                           : t('myOrders.actions.refreshStatus')}
                       </button>
                     )}
-                    {order.payment_status === 'paid' && order.pickup_code && (
+                    {order.pickup_code && (order.payment_status === 'paid' || String(order.channel || '').toLowerCase() === 'cashier') && (
                       <button
                         onClick={() => navigate(`/order/product/success/${order.order_number}`)}
                         className="flex-1 min-w-[160px] flex items-center justify-center gap-2 px-4 py-2 text-sm font-bold text-white bg-main-600 rounded-lg hover:bg-main-700 transition-colors shadow-sm"

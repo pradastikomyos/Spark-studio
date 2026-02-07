@@ -13,6 +13,7 @@ import { withTimeout } from '../utils/queryHelpers';
 type ProductOrder = {
   id: number;
   order_number: string;
+  channel?: string | null;
   payment_status: string;
   status: string;
   pickup_code: string | null;
@@ -96,6 +97,8 @@ export default function ProductOrderSuccessPage() {
 
   useEffect(() => {
     if (!order || loading) return;
+    const channel = String(order.channel || '').toLowerCase();
+    if (channel === 'cashier') return;
     if (String(order.payment_status || '').toLowerCase() === 'paid') return;
     navigate(`/order/product/pending/${orderNumber}`, { replace: true, state: location.state });
   }, [loading, location.state, navigate, order, orderNumber]);
@@ -117,9 +120,9 @@ export default function ProductOrderSuccessPage() {
   const fetchOrder = useCallback(async () => {
     if (!orderNumber) return;
     const primarySelect =
-      'id, order_number, payment_status, status, pickup_code, pickup_status, pickup_expires_at, paid_at, total, created_at, payment_url, payment_data';
+      'id, order_number, channel, payment_status, status, pickup_code, pickup_status, pickup_expires_at, paid_at, total, created_at, payment_url, payment_data';
     const fallbackSelect =
-      'id, order_number, payment_status, status, pickup_code, pickup_status, pickup_expires_at, paid_at, total, created_at, payment_url';
+      'id, order_number, channel, payment_status, status, pickup_code, pickup_status, pickup_expires_at, paid_at, total, created_at, payment_url';
 
     const { signal: timeoutSignal, cleanup, didTimeout } = createQuerySignal(undefined, 10000);
     try {
@@ -411,6 +414,9 @@ export default function ProductOrderSuccessPage() {
 
   const totalItems = useMemo(() => items.reduce((sum, i) => sum + i.quantity, 0), [items]);
   const paymentMethodLabel = useMemo(() => {
+    const channel = String(order?.channel || '').toLowerCase();
+    if (channel === 'cashier') return 'Bayar di Kasir';
+
     const raw = order?.payment_data as
       | {
           payment_type?: string;
@@ -442,7 +448,7 @@ export default function ProductOrderSuccessPage() {
     if (paymentType === 'akulaku') return 'Akulaku';
 
     return paymentType.replace(/_/g, ' ').toUpperCase();
-  }, [order?.payment_data]);
+  }, [order?.channel, order?.payment_data]);
   const formatPickupExpiry = (value: string) =>
     new Date(value).toLocaleString('en-US', {
       timeZone: 'Asia/Jakarta',
@@ -468,7 +474,7 @@ export default function ProductOrderSuccessPage() {
       <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 md:py-12">
         <div className="text-center mb-8">
           <p className="text-xs uppercase tracking-widest text-gray-400 font-semibold mb-3">
-            Payment Successful
+            {String(order?.channel || '').toLowerCase() === 'cashier' ? 'Bayar di Kasir' : 'Payment Successful'}
           </p>
 
           {/* Main Headline Image */}
@@ -548,7 +554,9 @@ export default function ProductOrderSuccessPage() {
                               )}
                             </div>
                             <p className="mt-3 text-sm text-gray-500">
-                              Show this QR code to admin when picking up your items.
+                              {String(order?.channel || '').toLowerCase() === 'cashier'
+                                ? 'Tunjukkan QR ini ke kasir. Pembayaran cash dilakukan setelah QR discan admin.'
+                                : 'Show this QR code to admin when picking up your items.'}
                             </p>
                           </div>
                         </div>

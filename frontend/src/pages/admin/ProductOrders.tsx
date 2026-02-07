@@ -21,6 +21,7 @@ type OrderItemRow = {
 
 type OrderDetails = {
   order: OrderSummaryRow & {
+    channel?: string | null;
     payment_status: string;
     status: string;
     pickup_expires_at: string | null;
@@ -69,14 +70,17 @@ export default function ProductOrders() {
   const loadDetailsByPickupCode = useCallback(async (pickupCode: string) => {
     const { data: orderRow, error: orderError } = await supabase
       .from('order_products')
-      .select('id, order_number, total, pickup_code, pickup_status, paid_at, payment_status, status, pickup_expires_at, profiles(name, email)')
+      .select('id, order_number, channel, total, pickup_code, pickup_status, paid_at, payment_status, status, pickup_expires_at, profiles(name, email)')
       .eq('pickup_code', pickupCode)
       .single();
 
     if (orderError || !orderRow) throw orderError ?? new Error('Order not found');
 
     const paymentStatus = String((orderRow as { payment_status?: string }).payment_status || '').toLowerCase();
-    if (paymentStatus !== 'paid') throw new Error('Order belum dibayar');
+    if (paymentStatus !== 'paid') {
+      const channel = String((orderRow as { channel?: string | null }).channel || '').toLowerCase();
+      if (channel !== 'cashier') throw new Error('Order belum dibayar');
+    }
 
     const pickupStatus = String((orderRow as { pickup_status?: string | null }).pickup_status || '').toLowerCase();
     if (pickupStatus === 'completed') throw new Error('Barang sudah diambil');
