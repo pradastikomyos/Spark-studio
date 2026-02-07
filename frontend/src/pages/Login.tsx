@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import Logo from '../components/Logo';
 import { useAuth } from '../contexts/AuthContext';
@@ -15,9 +15,18 @@ const Login = () => {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const { t } = useTranslation();
+  const [searchParams] = useSearchParams();
   
   const { signIn } = useAuth();
   const navigate = useNavigate();
+
+  // Show session expiry message if redirected from auto-logout
+  useEffect(() => {
+    const reason = searchParams.get('reason');
+    if (reason === 'session_expired') {
+      setError('Sesi login Anda telah kadaluarsa. Silakan login kembali.');
+    }
+  }, [searchParams]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

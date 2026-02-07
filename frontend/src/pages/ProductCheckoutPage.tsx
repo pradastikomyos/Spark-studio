@@ -243,64 +243,59 @@ export default function ProductCheckoutPage() {
     try {
       if (!user.email) throw new Error('Missing account email');
 
-      const { data: validated, error: userError } = await supabase.auth.getUser();
-      if (userError || !validated.user) {
+      // Validate current session
+      console.log('[CashierCheckout] Validating session');
+      const { data: { session: currentSession }, error: sessionError } = await supabase.auth.getSession();
+      
+      if (sessionError || !currentSession) {
+        console.error('[CashierCheckout] No valid session:', sessionError);
         await supabase.auth.signOut();
         setError('Sesi login kadaluarsa. Silakan login ulang.');
-        navigate('/login');
+        setTimeout(() => navigate('/login?reason=session_expired'), 2000);
         return;
       }
 
-      const invoke = async (accessToken: string) => {
-        return withTimeout(
-          supabase.functions.invoke('create-cashier-product-order', {
-            body: {
-              items: orderItems.map((i) => ({
-                productVariantId: i.product_variant_id,
-                name: `${i.product_name} - ${i.variant_name}`.slice(0, 50),
-                price: i.unit_price,
-                quantity: i.quantity,
-              })),
-              customerName: customerName.trim(),
-              customerEmail: user.email,
-              customerPhone: customerPhone.trim() || undefined,
-            },
-            headers: { Authorization: `Bearer ${accessToken}` },
-          }),
-          15000,
-          'Request timeout. Please try again.'
-        );
-      };
-
-      let token = await ensureFreshToken(session);
-      if (!token) {
-        setError('Sesi login kadaluarsa. Silakan login ulang.');
-        navigate('/login');
-        return;
-      }
-
-      let { data, error: invokeError } = await invoke(token);
-      const status = invokeError ? getInvokeStatus(invokeError) : undefined;
-      if (invokeError && status === 401) {
+      // Check if token is about to expire (within 5 minutes)
+      const expiresAt = currentSession.expires_at || 0;
+      const now = Math.floor(Date.now() / 1000);
+      const timeUntilExpiry = expiresAt - now;
+      
+      if (timeUntilExpiry < 300) { // Less than 5 minutes
+        console.log('[CashierCheckout] Token expiring soon, attempting refresh');
         const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
-        if (refreshError || !refreshData.session?.access_token) {
-          setError('Sesi login kadaluarsa. Silakan login ulang.');
-          navigate('/login');
+        
+        if (refreshError || !refreshData.session) {
+          console.error('[CashierCheckout] Refresh failed:', refreshError);
+          await supabase.auth.signOut();
+          setError('Sesi login tidak dapat diperpanjang. Silakan login ulang.');
+          setTimeout(() => navigate('/login?reason=session_expired'), 2000);
           return;
         }
-        token = refreshData.session.access_token;
-        const retry = await invoke(token);
-        data = retry.data;
-        invokeError = retry.error ?? null;
+        
+        console.log('[CashierCheckout] Session refreshed successfully');
       }
+
+      console.log('[CashierCheckout] Session valid, calling edge function');
+
+      const { data, error: invokeError } = await withTimeout(
+        supabase.functions.invoke('create-cashier-product-order', {
+          body: {
+            items: orderItems.map((i) => ({
+              productVariantId: i.product_variant_id,
+              name: `${i.product_name} - ${i.variant_name}`.slice(0, 50),
+              price: i.unit_price,
+              quantity: i.quantity,
+            })),
+            customerName: customerName.trim(),
+            customerEmail: user.email,
+            customerPhone: customerPhone.trim() || undefined,
+          },
+        }),
+        15000,
+        'Request timeout. Please try again.'
+      );
 
       if (invokeError) {
-        if (getInvokeStatus(invokeError) === 401) {
-          await supabase.auth.signOut();
-          setError('Sesi login kadaluarsa. Silakan login ulang.');
-          navigate('/login');
-          return;
-        }
         const contextError =
           typeof (invokeError as { context?: { error?: unknown } }).context?.error === 'string'
             ? String((invokeError as { context?: { error?: unknown } }).context?.error)

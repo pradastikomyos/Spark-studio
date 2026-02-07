@@ -48,7 +48,28 @@ export function useSessionRefresh() {
       
       if (error) {
         console.error('[SessionRefresh] Refresh failed:', error);
-        // Retry after delay
+        
+        // Fatal errors that require re-login (cannot be recovered by retry)
+        const fatalErrors = [
+          'refresh token not found',
+          'invalid refresh token',
+          'refresh token expired',
+          'invalid_grant',
+        ];
+        
+        const isFatal = fatalErrors.some(msg => 
+          error.message?.toLowerCase().includes(msg)
+        );
+        
+        if (isFatal) {
+          console.error('[SessionRefresh] Fatal refresh error detected - forcing logout');
+          clearTimers();
+          await supabase.auth.signOut();
+          window.location.href = '/login?reason=session_expired';
+          return;
+        }
+        
+        // Retry after delay for non-fatal errors
         refreshTimerRef.current = setTimeout(refreshSession, RETRY_DELAY_MS);
         return;
       }
@@ -64,7 +85,7 @@ export function useSessionRefresh() {
     } finally {
       isRefreshingRef.current = false;
     }
-  }, []);
+  }, [clearTimers]);
 
   const scheduleNextRefresh = useCallback((expiresAt?: number) => {
     clearTimers();
@@ -82,7 +103,7 @@ export function useSessionRefresh() {
     if (refreshTime <= 0) {
       // Token already expired or about to expire, refresh immediately
       console.log('[SessionRefresh] Token expired or expiring soon, refreshing now');
-      refreshSession();
+      void refreshSession();
     } else {
       console.log(`[SessionRefresh] Scheduling refresh in ${Math.round(refreshTime / 1000 / 60)} minutes`);
       refreshTimerRef.current = setTimeout(refreshSession, refreshTime);
@@ -108,7 +129,7 @@ export function useSessionRefresh() {
 
       if (timeUntilExpiry < REFRESH_BUFFER_MS && !isRefreshingRef.current) {
         console.log('[SessionRefresh] Heartbeat: Token expiring soon, triggering refresh');
-        refreshSession();
+        void refreshSession();
       }
     } catch (error) {
       console.error('[SessionRefresh] Heartbeat error:', error);

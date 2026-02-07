@@ -61,6 +61,7 @@ serve(async (req) => {
 
   try {
     const authHeader = req.headers.get('Authorization') ?? req.headers.get('authorization')
+    
     if (!authHeader) {
       return new Response(JSON.stringify({ error: 'Missing authorization header' }), {
         status: 401,
@@ -89,6 +90,8 @@ serve(async (req) => {
       )
     }
 
+    const userId = user.id
+
     const supabase = createServiceClient(supabaseUrl, supabaseServiceKey)
 
     const payload = (await req.json()) as CreateCashierOrderRequest
@@ -112,8 +115,6 @@ serve(async (req) => {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
     }
-
-    const userId = user.id
 
     const normalizedItems: ProductItem[] = payload.items.map((i) => ({
       productVariantId: toNumber(i.productVariantId, 0),
@@ -186,25 +187,6 @@ serve(async (req) => {
     const orderNumber = `PRD-${Date.now()}-${Math.random().toString(36).substring(2, 7).toUpperCase()}`
     const now = new Date()
 
-    let minStockLevel = Infinity
-    for (const item of resolvedItems) {
-      const row = variantMap.get(item.productVariantId)
-      if (!row) continue
-      const stock = toNumber((row as { stock: unknown }).stock, 0)
-      const reserved = toNumber((row as { reserved_stock: unknown }).reserved_stock, 0)
-      const available = stock - reserved
-      minStockLevel = Math.min(minStockLevel, available)
-    }
-
-    let paymentExpiryMinutes = 60
-    if (minStockLevel < 5) {
-      paymentExpiryMinutes = 15
-    } else if (minStockLevel < 20) {
-      paymentExpiryMinutes = 30
-    }
-
-    const paymentExpiredAt = new Date(now.getTime() + paymentExpiryMinutes * 60 * 1000)
-
     let pickupCode = ''
     const { data: pickupCodeRow, error: pickupCodeError } = await supabase.rpc('generate_pickup_code', {})
     if (!pickupCodeError) {
@@ -272,15 +254,15 @@ serve(async (req) => {
       .insert({
         order_number: orderNumber,
         user_id: userId,
-        channel: 'cashier',
-        status: 'awaiting_payment',
-        payment_status: 'unpaid',
+        channel: 'offline',
+        status: 'paid',
+        payment_status: 'paid',
         subtotal: totalAmount,
         discount_amount: 0,
         shipping_cost: 0,
         shipping_discount: 0,
         total: totalAmount,
-        payment_expired_at: paymentExpiredAt.toISOString(),
+        payment_expired_at: null,
         pickup_code: pickupCode,
         pickup_status: 'pending_pickup',
         pickup_expires_at: pickupExpiresAt,
@@ -342,8 +324,9 @@ serve(async (req) => {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     })
   } catch (e) {
+    const errorMessage = e instanceof Error ? e.message : String(e)
     return new Response(
-      JSON.stringify({ error: 'Internal server error', details: e instanceof Error ? e.message : String(e) }),
+      JSON.stringify({ error: 'Internal server error', details: errorMessage }),
       {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
