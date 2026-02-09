@@ -34,6 +34,10 @@ export default function BookingPage() {
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
 
+  // Multi-ticket quantity (max 5 for family/group bookings)
+  const [quantity, setQuantity] = useState(1);
+  const MAX_TICKETS = 5;
+
   // Layer 1: Track current time for time-based filtering (updates every minute)
   // This ensures past slots are filtered out as time progresses without manual refresh
   const [currentTime, setCurrentTime] = useState(nowWIB());
@@ -308,6 +312,7 @@ export default function BookingPage() {
         ticketName: ticket.name,
         ticketType: ticket.type,
         price: parseFloat(ticket.price),
+        quantity,
         date: toLocalDateString(selectedDate),
         time: selectedTime || 'all-day',
       },
@@ -349,7 +354,7 @@ export default function BookingPage() {
   }
 
   const price = parseFloat(ticket.price);
-  const total = price; // VAT already included in ticket price
+  const total = price * quantity; // VAT already included in ticket price
 
   const monthName = currentDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
 
@@ -656,12 +661,39 @@ export default function BookingPage() {
                     </div>
                   </div>
 
+                  {/* Quantity Selector - For family/group bookings (nitip) */}
+                  <div className="flex items-center justify-between pt-4 border-t border-background-light">
+                    <div>
+                      <p className="text-sm font-bold uppercase tracking-tighter opacity-60">How Many?</p>
+                      <p className="text-xs text-gray-500">Max {MAX_TICKETS} per booking</p>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <m.button
+                        onClick={() => setQuantity(q => Math.max(1, q - 1))}
+                        disabled={quantity <= 1}
+                        whileTap={{ scale: 0.95 }}
+                        className="w-10 h-10 rounded-lg border border-[#e8cece] flex items-center justify-center text-primary font-bold text-xl disabled:opacity-30 disabled:cursor-not-allowed hover:bg-primary/5 transition-colors"
+                      >
+                        −
+                      </m.button>
+                      <span className="w-8 text-center font-black text-xl">{quantity}</span>
+                      <m.button
+                        onClick={() => setQuantity(q => Math.min(MAX_TICKETS, q + 1))}
+                        disabled={quantity >= MAX_TICKETS}
+                        whileTap={{ scale: 0.95 }}
+                        className="w-10 h-10 rounded-lg border border-[#e8cece] flex items-center justify-center text-primary font-bold text-xl disabled:opacity-30 disabled:cursor-not-allowed hover:bg-primary/5 transition-colors"
+                      >
+                        +
+                      </m.button>
+                    </div>
+                  </div>
+
                   <div className="pt-6 border-t border-background-light space-y-4">
                     <div className="flex justify-between text-sm">
-                      <span>Ticket Price <span className="text-xs text-gray-500">(VAT included)</span></span>
-                      <span className="font-bold">{formatCurrency(price)}</span>
+                      <span>{quantity} × {formatCurrency(price)}</span>
+                      <span className="font-bold">{formatCurrency(total)}</span>
                     </div>
-                    <div className="flex justify-between text-xl font-black pt-4 border-t border-dashed border-[#e8cece]#3d2424]">
+                    <div className="flex justify-between text-xl font-black pt-4 border-t border-dashed border-[#e8cece]">
                       <span className="uppercase tracking-tighter">Total</span>
                       <span className="text-primary">{formatCurrency(total)}</span>
                     </div>

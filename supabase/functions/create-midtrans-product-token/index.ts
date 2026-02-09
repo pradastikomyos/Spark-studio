@@ -213,25 +213,22 @@ serve(async (req) => {
         })
       }
 
-      const stock = toNumber((row as { stock: unknown }).stock, 0)
-      const reserved = toNumber((row as { reserved_stock: unknown }).reserved_stock, 0)
-      const available = stock - reserved
-      if (available < item.quantity) {
+      // Atomic reservation using RPC - prevents race conditions
+      const { data: reserved, error: reserveError } = await supabase.rpc('reserve_product_stock', {
+        p_variant_id: item.productVariantId,
+        p_quantity: item.quantity,
+      })
+
+      if (reserveError || reserved !== true) {
+        // Rollback previously reserved items
+        for (const previous of reservedAdjustments) {
+          await supabase.rpc('release_product_stock', {
+            p_variant_id: previous.variantId,
+            p_quantity: previous.quantity,
+          })
+        }
         return new Response(JSON.stringify({ error: `Out of stock for ${item.name}` }), {
           status: 409,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        })
-      }
-
-      const { data: updated, error: reserveError } = await supabase
-        .from('product_variants')
-        .update({ reserved_stock: reserved + item.quantity, updated_at: new Date().toISOString() })
-        .eq('id', item.productVariantId)
-        .select('id')
-
-      if (reserveError || !updated || updated.length === 0) {
-        return new Response(JSON.stringify({ error: 'Failed to reserve stock', details: reserveError?.message }), {
-          status: 500,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         })
       }
@@ -261,12 +258,10 @@ serve(async (req) => {
 
     if (orderError || !order) {
       for (const a of reservedAdjustments) {
-        const { data: variantRow } = await supabase.from('product_variants').select('reserved_stock').eq('id', a.variantId).single()
-        const currentReserved = (variantRow as unknown as { reserved_stock?: number } | null)?.reserved_stock ?? 0
-        await supabase
-          .from('product_variants')
-          .update({ reserved_stock: Math.max(0, currentReserved - a.quantity), updated_at: new Date().toISOString() })
-          .eq('id', a.variantId)
+        await supabase.rpc('release_product_stock', {
+          p_variant_id: a.variantId,
+          p_quantity: a.quantity,
+        })
       }
 
       return new Response(JSON.stringify({ error: 'Failed to create order', details: orderError?.message }), {
@@ -293,12 +288,10 @@ serve(async (req) => {
     if (itemsError) {
       await supabase.from('order_products').delete().eq('id', orderId)
       for (const a of reservedAdjustments) {
-        const { data: variantRow } = await supabase.from('product_variants').select('reserved_stock').eq('id', a.variantId).single()
-        const currentReserved = (variantRow as unknown as { reserved_stock?: number } | null)?.reserved_stock ?? 0
-        await supabase
-          .from('product_variants')
-          .update({ reserved_stock: Math.max(0, currentReserved - a.quantity), updated_at: new Date().toISOString() })
-          .eq('id', a.variantId)
+        await supabase.rpc('release_product_stock', {
+          p_variant_id: a.variantId,
+          p_quantity: a.quantity,
+        })
       }
 
       return new Response(JSON.stringify({ error: 'Failed to create order items', details: itemsError.message }), {
@@ -359,12 +352,10 @@ serve(async (req) => {
       await supabase.from('order_product_items').delete().eq('order_product_id', orderId)
       await supabase.from('order_products').delete().eq('id', orderId)
       for (const a of reservedAdjustments) {
-        const { data: variantRow } = await supabase.from('product_variants').select('reserved_stock').eq('id', a.variantId).single()
-        const currentReserved = (variantRow as unknown as { reserved_stock?: number } | null)?.reserved_stock ?? 0
-        await supabase
-          .from('product_variants')
-          .update({ reserved_stock: Math.max(0, currentReserved - a.quantity), updated_at: new Date().toISOString() })
-          .eq('id', a.variantId)
+        await supabase.rpc('release_product_stock', {
+          p_variant_id: a.variantId,
+          p_quantity: a.quantity,
+        })
       }
 
       return new Response(JSON.stringify({ error: 'Failed to create payment token', details: midtransData }), {

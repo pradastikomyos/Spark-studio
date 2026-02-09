@@ -19,6 +19,7 @@ interface LocationState {
   ticketName?: string;
   ticketType?: string;
   price?: number;
+  quantity?: number;
   date?: string;
   time?: string;
 }
@@ -42,7 +43,7 @@ export default function PaymentPage() {
   const price = state?.price || 0;
   const bookingDate = state?.date || '';
   const timeSlot = state?.time || '';
-  const quantity = 1;
+  const quantity = state?.quantity || 1;
   const total = price * quantity;
 
   // Load Midtrans Snap.js on component mount
