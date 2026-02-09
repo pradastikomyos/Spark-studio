@@ -257,7 +257,10 @@ const OnStage = () => {
                   key={stage.id}
                   className="w-full md:w-1/3 flex-shrink-0 px-3"
                 >
-                  <div className="bg-gray-100 rounded-lg overflow-hidden shadow-md hover:shadow-xl transition-shadow">
+                  <Link 
+                    to={stage.link_url || '#'} 
+                    className={`block bg-gray-100 rounded-lg overflow-hidden shadow-md hover:shadow-xl transition-shadow ${!stage.link_url ? 'cursor-default pointer-events-none' : ''}`}
+                  >
                     {/* Stage Image */}
                     <div className="relative h-64 bg-gray-200">
                       <img
@@ -277,7 +280,7 @@ const OnStage = () => {
                         {stage.subtitle}
                       </p>
                     </div>
-                  </div>
+                  </Link>
                 </div>
               ))}
             </div>

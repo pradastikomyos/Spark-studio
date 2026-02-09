@@ -727,7 +727,7 @@ const BannerManager = () => {
               <div>
                 <label className="block text-sm font-bold text-gray-900 mb-2">Link URL</label>
                 <input
-                  type="url"
+                  type="text"
                   value={formData.link_url}
                   onChange={(e) => setFormData(prev => ({ ...prev, link_url: e.target.value }))}
                   className="w-full rounded-lg border border-gray-300 px-4 py-2 text-sm focus:ring-2 focus:ring-neutral-900 focus:border-transparent"

@@ -44,6 +44,7 @@ const ProductDetailPage = lazy(() => import('./pages/ProductDetailPage'));
 const MyProductOrdersPage = lazy(() => import('./pages/MyProductOrdersPage'));
 const MyTicketsPage = lazy(() => import('./pages/MyTicketsPage'));
 const StageScanPage = lazy(() => import('./pages/StageScanPage'));
+const StageDetailPage = lazy(() => import('./pages/StageDetailPage'));
 const NotFound = lazy(() => import('./pages/NotFound'));
 
 // App-level loading screen - shown until auth is initialized
@@ -140,6 +141,16 @@ function AppRoutes() {
             wrap(
               <Suspense fallback={<RouteLoading />}>
                 <StageScanPage />
+              </Suspense>
+            )
+          }
+        />
+        <Route
+          path="/stage/:stageCode"
+          element={
+            wrap(
+              <Suspense fallback={<RouteLoading />}>
+                <StageDetailPage />
               </Suspense>
             )
           }

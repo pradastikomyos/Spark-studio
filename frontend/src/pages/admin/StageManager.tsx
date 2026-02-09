@@ -9,6 +9,8 @@ import { ADMIN_MENU_ITEMS, ADMIN_MENU_SECTIONS } from '../../constants/adminMenu
 import { toLocalDateString } from '../../utils/formatters';
 import { useStages, useCreateStage, useUpdateStage, useDeleteStage, type StageWithStats, type StageRow } from '../../hooks/useStages';
 import StageFormModal from '../../components/admin/StageFormModal';
+import StageGalleryModal from '../../components/admin/StageGalleryModal';
+import StageReviewsModal from '../../components/admin/StageReviewsModal';
 
 const TAB_RETURN_EVENT = 'tab-returned-from-idle';
 
@@ -24,6 +26,8 @@ const StageManager = () => {
     const [zoomedStage, setZoomedStage] = useState<StageWithStats | null>(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingStage, setEditingStage] = useState<StageRow | null>(null);
+    const [galleryStage, setGalleryStage] = useState<StageRow | null>(null);
+    const [reviewsStage, setReviewsStage] = useState<StageRow | null>(null);
     const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
 
     const errorMessage = useMemo(() => {
@@ -273,7 +277,7 @@ const StageManager = () => {
                     <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
                 </div>
             ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 gap-6">
                     {filteredStages.map((stage) => (
                         <div
                             key={stage.id}
@@ -334,32 +338,51 @@ const StageManager = () => {
                                 </div>
                             </div>
 
-                            {/* Actions */}
-                            <div className="flex gap-2">
-                                <button
-                                    onClick={() => handleDownloadQR(stage)}
-                                    className="flex-1 flex items-center justify-center gap-2 rounded bg-indigo-50 py-2 text-sm font-bold text-indigo-600 hover:bg-indigo-100 transition-colors"
-                                >
-                                    <span className="material-symbols-outlined text-lg">download</span>
-                                    QR
-                                </button>
-                                <button
-                                    onClick={() => {
-                                        setEditingStage(stage);
-                                        setIsModalOpen(true);
-                                    }}
-                                    className="flex items-center justify-center px-3 rounded bg-gray-50 text-gray-600 hover:bg-gray-100 border border-gray-200"
-                                    title="Edit Stage"
-                                >
-                                    <span className="material-symbols-outlined text-lg">edit</span>
-                                </button>
-                                <button
-                                    onClick={() => handleDeleteStage(stage)}
-                                    className="flex items-center justify-center px-3 rounded bg-red-50 text-red-500 hover:bg-red-100 border border-red-100"
-                                    title="Delete Stage"
-                                >
-                                    <span className="material-symbols-outlined text-lg">delete</span>
-                                </button>
+                            <div className="mt-auto space-y-3">
+                                <div className="grid grid-cols-3 gap-2">
+                                    <button
+                                        onClick={() => handleDownloadQR(stage)}
+                                        className="flex items-center justify-center p-2 rounded-lg bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition-colors border border-indigo-100"
+                                        title="Download QR"
+                                    >
+                                        <span className="material-symbols-outlined text-xl">download</span>
+                                    </button>
+                                    <button
+                                        onClick={() => setGalleryStage(stage)}
+                                        className="flex items-center justify-center p-2 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors border border-blue-100"
+                                        title="Manage Gallery"
+                                    >
+                                        <span className="material-symbols-outlined text-xl">photo_library</span>
+                                    </button>
+                                    <button
+                                        onClick={() => setReviewsStage(stage)}
+                                        className="flex items-center justify-center p-2 rounded-lg bg-yellow-50 text-yellow-600 hover:bg-yellow-100 transition-colors border border-yellow-100"
+                                        title="Manage Reviews"
+                                    >
+                                        <span className="material-symbols-outlined text-xl">rate_review</span>
+                                    </button>
+                                </div>
+                                <div className="grid grid-cols-2 gap-2">
+                                    <button
+                                        onClick={() => {
+                                            setEditingStage(stage);
+                                            setIsModalOpen(true);
+                                        }}
+                                        className="flex items-center justify-center gap-2 p-2 rounded-lg bg-gray-50 text-gray-700 hover:bg-gray-100 transition-colors border border-gray-200 font-medium text-sm"
+                                        title="Edit Stage"
+                                    >
+                                        <span className="material-symbols-outlined text-lg">edit</span>
+                                        Edit
+                                    </button>
+                                    <button
+                                        onClick={() => handleDeleteStage(stage)}
+                                        className="flex items-center justify-center gap-2 p-2 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 transition-colors border border-red-100 font-medium text-sm"
+                                        title="Delete Stage"
+                                    >
+                                        <span className="material-symbols-outlined text-lg">delete</span>
+                                        Delete
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     ))}
@@ -452,6 +475,20 @@ const StageManager = () => {
                 initialData={editingStage}
                 onSubmit={handleSaveStage}
                 isSubmitting={createStage.isPending || updateStage.isPending}
+            />
+
+            {/* Gallery Modal */}
+            <StageGalleryModal
+                isOpen={!!galleryStage}
+                onClose={() => setGalleryStage(null)}
+                stage={galleryStage}
+            />
+
+            {/* Reviews Modal */}
+            <StageReviewsModal
+                isOpen={!!reviewsStage}
+                onClose={() => setReviewsStage(null)}
+                stage={reviewsStage}
             />
         </AdminLayout>
     );
