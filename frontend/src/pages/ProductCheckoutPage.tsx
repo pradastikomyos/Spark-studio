@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../contexts/AuthContext';
@@ -53,6 +53,7 @@ export default function ProductCheckoutPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [snapLoaded, setSnapLoaded] = useState(false);
+  const skipEmptyCartRedirectRef = useRef(false);
 
   useEffect(() => {
     loadSnapScript()
@@ -83,7 +84,7 @@ export default function ProductCheckoutPage() {
   const subtotal = useMemo(() => items.reduce((sum, i) => sum + i.unitPrice * i.quantity, 0), [items]);
 
   useEffect(() => {
-    if (items.length === 0) navigate('/cart');
+    if (items.length === 0 && !skipEmptyCartRedirectRef.current) navigate('/cart');
   }, [items.length, navigate]);
 
   const orderItems = useMemo(
@@ -187,6 +188,7 @@ export default function ProductCheckoutPage() {
 
       window.snap.pay(payload.token, {
         onSuccess: () => {
+          skipEmptyCartRedirectRef.current = true;
           // Clear all purchased items from cart
           const purchasedVariantIds = orderItems.map(item => item.product_variant_id);
           purchasedVariantIds.forEach(id => removeItem(id));
@@ -307,6 +309,7 @@ export default function ProductCheckoutPage() {
       if (!payload.order_number) throw new Error('Invalid cashier response');
       const orderNumber = payload.order_number;
 
+      skipEmptyCartRedirectRef.current = true;
       const purchasedVariantIds = orderItems.map((item) => item.product_variant_id);
       purchasedVariantIds.forEach((id) => removeItem(id));
 
