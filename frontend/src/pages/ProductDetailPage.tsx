@@ -30,7 +30,7 @@ export default function ProductDetailPage() {
     const firstAvailable = product.variants.find((v) => v.available > 0) ?? product.variants[0] ?? null;
     setSelectedVariantId(firstAvailable ? firstAvailable.id : null);
     setImageIndex(0);
-  }, [product]);
+  }, [product?.id]);
 
   const selectedVariant = useMemo(() => {
     if (!product || selectedVariantId == null) return null;
@@ -122,6 +122,7 @@ export default function ProductDetailPage() {
                     images={product.imageUrls.length ? product.imageUrls : product.imageUrl ? [product.imageUrl] : []}
                     alt={product.name}
                     onIndexChange={setImageIndex}
+                    currentIndex={imageIndex}
                   />
 
                   {/* Features */}

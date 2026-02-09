@@ -6,11 +6,15 @@ type ProductImageCarouselProps = {
   alt: string;
   className?: string;
   onIndexChange?: (index: number) => void;
+  currentIndex?: number;
 };
 
 export function ProductImageCarousel(props: ProductImageCarouselProps) {
-  const { images, alt, className, onIndexChange } = props;
-  const [index, setIndex] = useState(0);
+  const { images, alt, className, onIndexChange, currentIndex } = props;
+  const [internalIndex, setInternalIndex] = useState(0);
+
+  const isControlled = typeof currentIndex === 'number';
+  const index = isControlled ? currentIndex : internalIndex;
 
   const safeImages = useMemo(() => images.filter((v) => typeof v === 'string' && v.trim().length > 0), [images]);
   const hasImages = safeImages.length > 0;
@@ -20,10 +24,13 @@ export function ProductImageCarousel(props: ProductImageCarouselProps) {
     (next: number) => {
       if (!hasImages) return;
       const wrapped = ((next % safeImages.length) + safeImages.length) % safeImages.length;
-      setIndex(wrapped);
+      
+      if (!isControlled) {
+        setInternalIndex(wrapped);
+      }
       onIndexChange?.(wrapped);
     },
-    [hasImages, safeImages.length, onIndexChange]
+    [hasImages, safeImages.length, onIndexChange, isControlled]
   );
 
   const prev = useCallback(() => setSafeIndex(index - 1), [index, setSafeIndex]);
