@@ -74,7 +74,7 @@ export function ProductImageCarousel(props: ProductImageCarouselProps) {
                 className="flex h-full w-full custom-scrollbar-hide"
                 animate={{ x: `${-index * 100}%` }}
                 transition={{ type: "spring", stiffness: 300, damping: 30 }}
-                drag={hasMultiple && isMobile ? "x" : false}
+                drag={hasMultiple ? "x" : false}
                 dragConstraints={{ left: 0, right: 0 }}
                 dragElastic={0.2} 
                 onDragEnd={(_, { offset }) => {

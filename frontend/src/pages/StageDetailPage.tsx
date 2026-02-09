@@ -167,7 +167,7 @@ const StageDetailPage = () => {
             <div className="relative h-[40vh] min-h-[400px] overflow-hidden">
                 {/* Background Image/Gradient */}
                 <div className="absolute inset-0 bg-gradient-to-r from-[#ff94b8] to-[#ff4b86]"></div>
-                <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1492684223066-81342ee5ff30?q=80&w=2070&auto=format&fit=crop')] bg-cover bg-center opacity-30 mix-blend-soft-light"></div>
+                <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1492684223066-81342ee5ff30?q=80&w=2070&auto=format&fit=crop')] bg-cover bg-center opacity-40 mix-blend-screen"></div>
                 <div className="absolute inset-0 bg-black/20"></div>
                 
                 <div className="absolute inset-0 flex flex-col justify-end pb-16 px-4 md:px-8 max-w-7xl mx-auto z-10">
