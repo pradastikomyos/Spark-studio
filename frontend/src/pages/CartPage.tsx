@@ -117,29 +117,29 @@ export default function CartPage() {
                     initial={{ opacity: 0, scale: 0.95 }}
                     animate={{ opacity: 1, scale: 1 }}
                     exit={{ opacity: 0, scale: 0.95 }}
-                    className={`group bg-white p-4 rounded-2xl border shadow-sm hover:shadow-md transition-all duration-300 flex gap-6 ${selectedItems.has(item.variantId) ? 'border-[#e63d75]/30 ring-1 ring-[#e63d75]/30' : 'border-gray-100'}`}
+                    className={`group bg-white p-3 sm:p-4 rounded-2xl border shadow-sm hover:shadow-md transition-all duration-300 flex gap-3 sm:gap-6 ${selectedItems.has(item.variantId) ? 'border-[#e63d75]/30 ring-1 ring-[#e63d75]/30' : 'border-gray-100'}`}
                   >
                     {/* Checkbox */}
                     <div className="flex items-center">
                       <button
                         onClick={() => toggleSelection(item.variantId)}
-                        className="text-gray-400 hover:text-[#e63d75] transition-colors"
+                        className="text-gray-400 hover:text-[#e63d75] transition-colors p-1 -ml-1"
                       >
                         {selectedItems.has(item.variantId) ? (
-                          <CheckSquare className="w-6 h-6 text-[#e63d75]" />
+                          <CheckSquare className="w-5 h-5 sm:w-6 sm:h-6 text-[#e63d75]" />
                         ) : (
-                          <Square className="w-6 h-6" />
+                          <Square className="w-5 h-5 sm:w-6 sm:h-6" />
                         )}
                       </button>
                     </div>
 
                     {/* Image */}
-                    <div className="relative w-28 h-36 flex-shrink-0 bg-gray-50 rounded-xl overflow-hidden">
+                    <div className="relative w-20 h-28 sm:w-28 sm:h-36 flex-shrink-0 bg-gray-50 rounded-xl overflow-hidden border border-gray-100">
                       {item.productImageUrl ? (
                         <img
                           alt={item.productName}
                           src={item.productImageUrl}
-                          className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                          className="w-full h-full object-cover sm:object-cover"
                           loading="lazy"
                         />
                       ) : (
@@ -150,39 +150,39 @@ export default function CartPage() {
                     </div>
 
                     {/* Content */}
-                    <div className="flex-1 flex flex-col justify-between py-1">
-                      <div className="flex justify-between items-start gap-4">
-                        <div>
-                          <h3 className="font-serif text-xl text-gray-900 leading-tight mb-1">
+                    <div className="flex-1 flex flex-col justify-between py-0.5">
+                      <div className="flex justify-between items-start gap-2">
+                        <div className="min-w-0">
+                          <h3 className="font-serif text-base sm:text-xl text-gray-900 leading-tight mb-1 truncate pr-1">
                             {item.productName}
                           </h3>
-                          <p className="text-sm text-gray-500 font-medium">
+                          <p className="text-xs sm:text-sm text-gray-500 font-medium truncate">
                             {item.variantName}
                           </p>
                         </div>
                         <button
                           onClick={() => removeItem(item.variantId)}
-                          className="text-gray-400 hover:text-red-500 hover:bg-red-50 p-2 rounded-full transition-colors"
+                          className="text-gray-400 hover:text-red-500 hover:bg-red-50 p-1.5 rounded-full transition-colors -mr-2"
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
                       </div>
 
-                      <div className="flex items-end justify-between">
+                      <div className="flex items-end justify-between mt-2">
                         {/* Quantity */}
-                        <div className="flex items-center gap-3 bg-gray-50 rounded-full px-3 py-1.5 border border-gray-100">
+                        <div className="flex items-center gap-2 sm:gap-3 bg-gray-50 rounded-full px-2 sm:px-3 py-1 border border-gray-100">
                           <button
                             onClick={() => setQuantity(item.variantId, item.quantity - 1)}
-                            className="w-6 h-6 flex items-center justify-center text-gray-500 hover:text-[#e63d75] transition-colors"
+                            className="w-5 h-5 sm:w-6 sm:h-6 flex items-center justify-center text-gray-500 hover:text-[#e63d75] transition-colors"
                           >
                             <Minus className="w-3 h-3" />
                           </button>
-                          <span className="text-sm font-semibold w-6 text-center text-gray-900">
+                          <span className="text-xs sm:text-sm font-semibold w-5 sm:w-6 text-center text-gray-900">
                             {item.quantity}
                           </span>
                           <button
                             onClick={() => setQuantity(item.variantId, item.quantity + 1)}
-                            className="w-6 h-6 flex items-center justify-center text-gray-500 hover:text-[#e63d75] transition-colors"
+                            className="w-5 h-5 sm:w-6 sm:h-6 flex items-center justify-center text-gray-500 hover:text-[#e63d75] transition-colors"
                           >
                             <Plus className="w-3 h-3" />
                           </button>
@@ -190,8 +190,8 @@ export default function CartPage() {
 
                         {/* Price */}
                         <div className="text-right">
-                          <p className="text-xs text-gray-400 uppercase tracking-wider mb-0.5">Total</p>
-                          <p className="font-serif text-lg text-[#e63d75] font-medium">
+                          <p className="text-[10px] text-gray-400 uppercase tracking-wider mb-0.5 hidden sm:block">Total</p>
+                          <p className="font-serif text-sm sm:text-lg text-[#e63d75] font-medium">
                             {formatCurrency(item.unitPrice * item.quantity)}
                           </p>
                         </div>

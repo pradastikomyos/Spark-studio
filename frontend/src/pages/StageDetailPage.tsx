@@ -336,9 +336,7 @@ const StageDetailPage = () => {
                                     {reviews.map((review) => (
                                         <div key={review.id} className="group bg-white rounded-xl border border-gray-100 p-6 hover:shadow-lg transition-shadow duration-300">
                                             <div className="flex items-start gap-4 mb-4">
-                                                <div className="w-12 h-12 rounded-full bg-gradient-to-br from-[#ff4b86] to-[#ff94b8] flex items-center justify-center text-white font-bold text-xl shadow-md">
-                                                    {review.user?.name.charAt(0).toUpperCase()}
-                                                </div>
+
                                                 <div className="flex-1">
                                                     <div className="flex justify-between items-start">
                                                         <h4 className="font-bold text-gray-900 text-lg">{review.user?.name}</h4>

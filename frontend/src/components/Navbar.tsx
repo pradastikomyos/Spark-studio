@@ -84,7 +84,7 @@ const Navbar = () => {
   };
 
   return (
-    <nav className={`w-full z-50 bg-white border-b border-gray-300 transition-shadow ${scrolled ? 'shadow-sm' : ''}`.trim()}>
+    <nav className={`w-full z-[100] bg-white border-b border-gray-300 transition-shadow ${scrolled ? 'shadow-sm' : ''}`.trim()}>
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between py-3 md:py-4">
           <div className="hidden md:flex items-center gap-3 w-1/3">

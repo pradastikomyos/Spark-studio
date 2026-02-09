@@ -189,7 +189,7 @@ const Shop = () => {
                 {/* Main Content */}
                 <main className="max-w-7xl mx-auto px-6 lg:px-8 py-12">
                     {/* Filter Bar */}
-                    <div className="flex flex-col md:flex-row justify-between items-center mb-12 border-b border-gray-100 pb-6 sticky top-0 bg-white z-50 pt-6 -mt-6 transition-all">
+                    <div className="flex flex-col md:flex-row justify-between items-center mb-12 border-b border-gray-100 pb-6 sticky top-0 bg-white z-40 pt-6 -mt-6 transition-all">
                         <div className="flex space-x-8 overflow-x-auto w-full md:w-auto pb-2 md:pb-0 hide-scrollbar">
                             <button
                                 key="all"
