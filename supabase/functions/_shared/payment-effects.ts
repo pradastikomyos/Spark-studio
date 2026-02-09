@@ -93,7 +93,8 @@ export async function logWebhookEvent(
       success: params.success,
       error_message: params.errorMessage ?? null,
     })
-  } catch {
+  } catch (err) {
+    console.error('[logWebhookEvent] Failed to log:', err)
     return
   }
 }
