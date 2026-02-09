@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { withTimeout } from './queryHelpers'
 
-const flushPromises = () => new Promise((resolve) => queueMicrotask(resolve))
+const flushPromises = () => new Promise<void>((resolve) => queueMicrotask(() => resolve()))
 
 describe('queryHelpers.withTimeout', () => {
   afterEach(() => {
