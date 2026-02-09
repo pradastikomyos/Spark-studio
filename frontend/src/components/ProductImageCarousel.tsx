@@ -55,7 +55,7 @@ export function ProductImageCarousel(props: ProductImageCarouselProps) {
 
   // Check if we are on mobile/touch device for drag
   // Simple check for window width
-  const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
+  // const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
 
   return (
     <div
