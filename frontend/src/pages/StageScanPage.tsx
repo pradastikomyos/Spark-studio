@@ -140,17 +140,19 @@ const StageScanPage = () => {
                 {/* Instructions */}
                 <div className="bg-primary/10 rounded-xl p-4 mb-6 border border-primary/20">
                     <p className="text-sm text-primary font-medium">
-                        🎉 Enjoy your photo session! Feel free to explore all 15 stages with your all-access pass.
+                        🎉 This is your moment!
+                        <br />
+                        You're the star!
                     </p>
                 </div>
 
                 {/* Action Buttons */}
                 <div className="space-y-3">
                     <button
-                        onClick={() => window.location.assign('/on-stage')}
+                        onClick={() => navigate(`/stage/${stage?.code}`)}
                         className="w-full py-3 px-4 bg-[#ff4b86] text-gray-900 font-bold rounded-lg hover:bg-[#e63d75] transition-colors shadow-lg shadow-red-900/20"
                     >
-                        View All Stages
+                        View Stage Gallery
                     </button>
                     <button
                         onClick={() => navigate('/')}
