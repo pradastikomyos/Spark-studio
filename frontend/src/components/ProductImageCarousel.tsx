@@ -70,7 +70,7 @@ export function ProductImageCarousel(props: ProductImageCarouselProps) {
                 drag={hasMultiple && isMobile ? "x" : false}
                 dragConstraints={{ left: 0, right: 0 }}
                 dragElastic={0.2} 
-                onDragEnd={(e, { offset, velocity }) => {
+                onDragEnd={(_, { offset }) => {
                   const swipe = offset.x;
 
                   if (swipe < -50) {
