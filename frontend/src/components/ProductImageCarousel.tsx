@@ -53,10 +53,6 @@ export function ProductImageCarousel(props: ProductImageCarouselProps) {
     );
   }
 
-  // Check if we are on mobile/touch device for drag
-  // Simple check for window width
-  // const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
-
   return (
     <div
       className={[
@@ -74,18 +70,7 @@ export function ProductImageCarousel(props: ProductImageCarouselProps) {
                 className="flex h-full w-full custom-scrollbar-hide"
                 animate={{ x: `${-index * 100}%` }}
                 transition={{ type: "spring", stiffness: 300, damping: 30 }}
-                drag={hasMultiple ? "x" : false}
-                dragConstraints={{ left: 0, right: 0 }}
-                dragElastic={0.2} 
-                onDragEnd={(_, { offset }) => {
-                  const swipe = offset.x;
-
-                  if (swipe < -50) {
-                    next();
-                  } else if (swipe > 50) {
-                    prev();
-                  }
-                }}
+                drag={false} // Drag disabled as per user request
              >
                 {safeImages.map((src, i) => (
                     <div key={i} className="min-w-full w-full h-full flex-shrink-0 flex items-center justify-center bg-gray-50">
@@ -98,45 +83,44 @@ export function ProductImageCarousel(props: ProductImageCarouselProps) {
                     </div>
                 ))}
              </m.div>
+        
+          {hasMultiple && (
+            <>
+              <button
+                type="button"
+                onClick={prev}
+                className="flex absolute left-3 top-1/2 -translate-y-1/2 h-10 w-10 items-center justify-center rounded-full bg-black/20 text-white backdrop-blur hover:bg-black/40 transition-colors"
+                aria-label="Previous image"
+              >
+                <span className="material-symbols-outlined text-xl">chevron_left</span>
+              </button>
+              <button
+                type="button"
+                onClick={next}
+                className="flex absolute right-3 top-1/2 -translate-y-1/2 h-10 w-10 items-center justify-center rounded-full bg-black/20 text-white backdrop-blur hover:bg-black/40 transition-colors"
+                aria-label="Next image"
+              >
+                <span className="material-symbols-outlined text-xl">chevron_right</span>
+              </button>
+
+              <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-2 rounded-full bg-black/20 px-3 py-1.5 backdrop-blur">
+                {safeImages.map((_, i) => (
+                  <button
+                    key={`dot-${i}`}
+                    type="button"
+                    onClick={() => setSafeIndex(i)}
+                    className={[
+                      'h-1.5 w-1.5 rounded-full transition-all',
+                      i === index ? 'bg-white scale-125' : 'bg-white/40 hover:bg-white/60',
+                    ].join(' ')}
+                    aria-label={`Go to image ${i + 1}`}
+                  />
+                ))}
+              </div>
+            </>
+          )}
         </div>
       </LazyMotion>
-
-      {hasMultiple && (
-        <>
-          <button
-            type="button"
-            onClick={prev}
-            className="hidden md:flex absolute left-3 top-1/2 -translate-y-1/2 h-10 w-10 items-center justify-center rounded-full bg-black/20 text-white backdrop-blur hover:bg-black/40 transition-colors"
-            aria-label="Previous image"
-          >
-            <span className="material-symbols-outlined text-xl">chevron_left</span>
-          </button>
-          <button
-            type="button"
-            onClick={next}
-            className="hidden md:flex absolute right-3 top-1/2 -translate-y-1/2 h-10 w-10 items-center justify-center rounded-full bg-black/20 text-white backdrop-blur hover:bg-black/40 transition-colors"
-            aria-label="Next image"
-          >
-            <span className="material-symbols-outlined text-xl">chevron_right</span>
-          </button>
-
-          <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-2 rounded-full bg-black/20 px-3 py-1.5 backdrop-blur">
-            {safeImages.map((_, i) => (
-              <button
-                key={`dot-${i}`}
-                type="button"
-                onClick={() => setSafeIndex(i)}
-                className={[
-                  'h-1.5 w-1.5 rounded-full transition-all',
-                  i === index ? 'bg-white scale-125' : 'bg-white/40 hover:bg-white/60',
-                ].join(' ')}
-                aria-label={`Go to image ${i + 1}`}
-              />
-            ))}
-          </div>
-        </>
-      )}
     </div>
   );
 }
-
