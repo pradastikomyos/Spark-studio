@@ -4,9 +4,11 @@ import QRCode from 'react-qr-code';
 import confetti from 'canvas-confetti';
 import { supabase } from '../lib/supabase';
 import { createQuerySignal } from '../lib/fetchers';
+import { withTimeout } from '../utils/queryHelpers';
 import { getOrderStatusPresentation } from '../utils/midtransStatus';
 import { useAuth } from '../contexts/AuthContext';
 import BookingSuccessSkeleton from '../components/skeletons/BookingSuccessSkeleton';
+import { incrementMetric, METRIC_KEYS, readMetric } from '../utils/metrics';
 
 interface LocationState {
   orderNumber?: string;
@@ -78,11 +80,32 @@ export default function BookingSuccessPage() {
   const [orderData, setOrderData] = useState<OrderState | null>(null);
   const [syncing, setSyncing] = useState(false);
   const [syncError, setSyncError] = useState<string | null>(null);
+  const [loadingTimedOut, setLoadingTimedOut] = useState(false);
 
   // Auto-polling state
   const [showManualButton, setShowManualButton] = useState(false);
   const [autoSyncInProgress, setAutoSyncInProgress] = useState(false);
   const confettiTriggeredRef = useRef(false);
+
+  const MAX_SKELETON_MS = 20000;
+  const showSkeleton = loading && !loadingTimedOut && !orderData && tickets.length === 0;
+
+  const runQueryWithTimeout = useCallback(
+    async <T,>(fn: (signal: AbortSignal) => PromiseLike<T>, timeoutMs = 10000) => {
+      const { signal, cleanup, didTimeout } = createQuerySignal(undefined, timeoutMs);
+      try {
+        return await withTimeout(Promise.resolve(fn(signal)), timeoutMs, 'Request timeout');
+      } catch (error) {
+        if (didTimeout() || (error instanceof Error && error.message.toLowerCase().includes('timeout'))) {
+          throw new Error('Request timeout');
+        }
+        throw error;
+      } finally {
+        cleanup();
+      }
+    },
+    []
+  );
 
   // Get order number from state or URL params
   const orderNumber = state?.orderNumber || searchParams.get('order_id') || '';
@@ -132,27 +155,17 @@ export default function BookingSuccessPage() {
     }, 250);
   };
 
-  useEffect(() => {
-    const runWithTimeout = async <T,>(fn: (signal: AbortSignal) => PromiseLike<T>) => {
-      const { signal, cleanup, didTimeout } = createQuerySignal(undefined, 10000);
-      try {
-        return await Promise.resolve(fn(signal));
-      } catch (error) {
-        if (didTimeout()) {
-          throw new Error('Request timeout');
-        }
-        throw error;
-      } finally {
-        cleanup();
+  const fetchOrderAndTickets = useCallback(
+    async (setBusy = false) => {
+      if (setBusy) {
+        setLoading(true);
+        setLoadingTimedOut(false);
       }
-    };
 
-    const fetchOrderAndTickets = async () => {
       // Handle direct ticket view (from MyTicketsPage)
       if (state?.ticketCode && !orderNumber) {
         try {
-          setLoading(true);
-          const { data: purchasedTicket, error: ticketError } = await runWithTimeout((signal) =>
+          const { data: purchasedTicket, error: ticketError } = await runQueryWithTimeout((signal) =>
             supabase
               .from('purchased_tickets')
               .select(`
@@ -176,7 +189,6 @@ export default function BookingSuccessPage() {
 
           if (ticketError || !purchasedTicket) {
             console.error('Error fetching ticket:', ticketError);
-            setLoading(false);
             return;
           }
 
@@ -200,12 +212,12 @@ export default function BookingSuccessPage() {
 
           setTickets([transformedTicket]);
           setOrderData({ status: 'paid' }); // Set minimal order data for UI
-          setLoading(false);
           return;
         } catch (error) {
           console.error('Error:', error);
-          setLoading(false);
           return;
+        } finally {
+          setLoading(false);
         }
       }
 
@@ -217,7 +229,7 @@ export default function BookingSuccessPage() {
 
       try {
         // Fetch order data (without nested select to avoid stuck query)
-        const { data: order, error: orderError } = await runWithTimeout((signal) =>
+        const { data: order, error: orderError } = await runQueryWithTimeout((signal) =>
           supabase
             .from('orders')
             .select('*')
@@ -228,12 +240,11 @@ export default function BookingSuccessPage() {
 
         if (orderError) {
           console.error('Error fetching order:', orderError);
-          setLoading(false);
           return;
         }
 
         // Fetch order items separately
-        const { data: orderItems, error: itemsError } = await runWithTimeout((signal) =>
+        const { data: orderItems, error: itemsError } = await runQueryWithTimeout((signal) =>
           supabase
             .from('order_items')
             .select('*')
@@ -256,7 +267,7 @@ export default function BookingSuccessPage() {
         // Fetch purchased tickets for this order
         const typedOrderItems = (orderItems as OrderItem[] | null) || [];
         if (order?.status === 'paid' && typedOrderItems.length > 0) {
-          const { data: purchasedTickets, error: ticketsError } = await runWithTimeout((signal) =>
+          const { data: purchasedTickets, error: ticketsError } = await runQueryWithTimeout((signal) =>
             supabase
               .from('purchased_tickets')
               .select(`
@@ -305,9 +316,18 @@ export default function BookingSuccessPage() {
       } finally {
         setLoading(false);
       }
-    };
+    },
+    [orderNumber, runQueryWithTimeout, state?.ticketCode]
+  );
 
-    fetchOrderAndTickets();
+  useEffect(() => {
+    console.info('[Metrics] Snapshot', {
+      manualRefreshClick: readMetric(METRIC_KEYS.manualRefreshClick),
+      autoSyncSuccess: readMetric(METRIC_KEYS.autoSyncSuccess),
+      loadingTimeout: readMetric(METRIC_KEYS.loadingTimeout),
+    });
+
+    fetchOrderAndTickets(true);
 
     const channel = orderNumber
       ? supabase
@@ -325,7 +345,7 @@ export default function BookingSuccessPage() {
             if (next) {
               setOrderData(next);
               if (next.status === 'paid') {
-                await fetchOrderAndTickets();
+                await fetchOrderAndTickets(false);
               }
             }
           }
@@ -337,7 +357,7 @@ export default function BookingSuccessPage() {
     let pollInterval: NodeJS.Timeout | null = null;
     if (orderNumber) {
       pollInterval = setInterval(async () => {
-        const { data: order, error } = await runWithTimeout((signal) =>
+        const { data: order, error } = await runQueryWithTimeout((signal) =>
           supabase
             .from('orders')
             .select('status, expires_at')
@@ -359,7 +379,7 @@ export default function BookingSuccessPage() {
         if (order?.status && order?.status !== 'pending') {
           setOrderData((prev) => ({ ...(prev || {}), status: order.status }));
           if (order.status === 'paid') {
-            await fetchOrderAndTickets();
+            await fetchOrderAndTickets(false);
           }
           if (pollInterval) clearInterval(pollInterval);
         }
@@ -370,7 +390,23 @@ export default function BookingSuccessPage() {
       if (channel) supabase.removeChannel(channel);
       if (pollInterval) clearInterval(pollInterval);
     };
-  }, [orderNumber, state?.ticketCode, orderData?.status]);
+  }, [orderNumber, state?.ticketCode, orderData?.status, runQueryWithTimeout, fetchOrderAndTickets]);
+
+  useEffect(() => {
+    if (!showSkeleton) return;
+
+    const timeout = setTimeout(() => {
+      if (!showSkeleton) return;
+      console.warn('[BookingSuccess] Loading timeout reached');
+      incrementMetric(METRIC_KEYS.loadingTimeout);
+      setLoadingTimedOut(true);
+      setShowManualButton(true);
+      setSyncError((prev) => prev ?? 'Loading is taking longer than expected. Please retry.');
+      setLoading(false);
+    }, MAX_SKELETON_MS);
+
+    return () => clearTimeout(timeout);
+  }, [MAX_SKELETON_MS, showSkeleton]);
 
   const getValidAccessToken = useCallback(async () => {
     if (session?.access_token) {
@@ -380,7 +416,11 @@ export default function BookingSuccessPage() {
     if (!isValid) {
       return null;
     }
-    const { data: { session: currentSession } } = await supabase.auth.getSession();
+    const { data: { session: currentSession } } = await withTimeout(
+      supabase.auth.getSession(),
+      8000,
+      'Session fetch timeout'
+    );
     return currentSession?.access_token ?? null;
   }, [session?.access_token, validateSession]);
 
@@ -398,13 +438,24 @@ export default function BookingSuccessPage() {
       console.log('[Auto-Sync] Checking payment status...');
     } else {
       setSyncing(true);
+      console.info('[BookingSuccess] Manual status check triggered');
+      incrementMetric(METRIC_KEYS.manualRefreshClick);
     }
 
     setSyncError(null);
 
     try {
+      console.info('[BookingSuccess] Sync start', {
+        orderNumber,
+        isAutoSync,
+        retryCount,
+      });
       console.log(`[Auto-Sync] Ensuring valid token (attempt ${retryCount + 1})...`);
-      const token = await getValidAccessToken();
+      const token = await withTimeout(
+        getValidAccessToken(),
+        10000,
+        'Session validation timeout'
+      );
       if (!token) {
         console.log('[Auto-Sync] No token available after validation');
         setSyncError('Not authenticated');
@@ -413,15 +464,20 @@ export default function BookingSuccessPage() {
       }
 
       console.log('[Auto-Sync] Making API call with valid token...');
-      const { data, error: invokeError } = await supabase.functions.invoke('sync-midtrans-status', {
-        body: { order_number: orderNumber },
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const { data, error: invokeError } = await withTimeout(
+        supabase.functions.invoke('sync-midtrans-status', {
+          body: { order_number: orderNumber },
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+        12000,
+        'Request timeout'
+      );
 
       if (invokeError) {
         const errorStatus = (invokeError as { context?: { status?: number } }).context?.status;
         if (errorStatus === 401 && retryCount < 1) {
           console.log('[Auto-Sync] Got 401 after validation, retrying in 1s...');
+          console.warn('[BookingSuccess] Sync 401 after validation', { orderNumber, isAutoSync });
           setAutoSyncInProgress(false);
           await new Promise(resolve => setTimeout(resolve, 1000));
           return handleSyncStatus(isAutoSync, retryCount + 1);
@@ -439,6 +495,12 @@ export default function BookingSuccessPage() {
 
       const responseData = data as { order?: OrderState } | null;
       console.log('[Auto-Sync] API call successful!');
+      if (responseData?.order?.status) {
+        console.info('[BookingSuccess] Sync success', {
+          orderNumber,
+          status: responseData.order.status,
+        });
+      }
       if (responseData?.order) {
         setOrderData(responseData.order);
       }
@@ -447,43 +509,63 @@ export default function BookingSuccessPage() {
         setShowManualButton(false);
         if (isAutoSync) {
           console.log('[Auto-Sync] Success - Payment confirmed! Fetching tickets...');
+          incrementMetric(METRIC_KEYS.autoSyncSuccess);
         }
 
         // CRITICAL FIX: Immediately fetch tickets after payment is confirmed
         // This is the missing piece that caused skeleton to load forever
         try {
           // First get order items
-          const { data: orderData2 } = await supabase
-            .from('orders')
-            .select('id')
-            .eq('order_number', orderNumber)
-            .single();
+          const { data: orderData2, error: orderError } = await runQueryWithTimeout((signal) =>
+            supabase
+              .from('orders')
+              .select('id')
+              .eq('order_number', orderNumber)
+              .abortSignal(signal)
+              .single()
+          );
+
+          if (orderError) {
+            console.error('[Auto-Sync] Error fetching order id:', orderError);
+            return;
+          }
 
           if (orderData2?.id) {
-            const { data: orderItems } = await supabase
-              .from('order_items')
-              .select('id')
-              .eq('order_id', orderData2.id);
+            const { data: orderItems, error: orderItemsError } = await runQueryWithTimeout((signal) =>
+              supabase
+                .from('order_items')
+                .select('id')
+                .eq('order_id', orderData2.id)
+                .abortSignal(signal)
+            );
+
+            if (orderItemsError) {
+              console.error('[Auto-Sync] Error fetching order items:', orderItemsError);
+              return;
+            }
 
             const orderItemIds = (orderItems || []).map((item: { id: number }) => item.id);
 
             if (orderItemIds.length > 0) {
-              const { data: purchasedTickets, error: ticketsError } = await supabase
-                .from('purchased_tickets')
-                .select(`
-                  id,
-                  ticket_code,
-                  valid_date,
-                  time_slot,
-                  queue_number,
-                  queue_overflow,
-                  status,
-                  tickets:ticket_id (
-                    name,
-                    type
-                  )
-                `)
-                .in('order_item_id', orderItemIds);
+              const { data: purchasedTickets, error: ticketsError } = await runQueryWithTimeout((signal) =>
+                supabase
+                  .from('purchased_tickets')
+                  .select(`
+                    id,
+                    ticket_code,
+                    valid_date,
+                    time_slot,
+                    queue_number,
+                    queue_overflow,
+                    status,
+                    tickets:ticket_id (
+                      name,
+                      type
+                    )
+                  `)
+                  .in('order_item_id', orderItemIds)
+                  .abortSignal(signal)
+              );
 
               if (!ticketsError && purchasedTickets && purchasedTickets.length > 0) {
                 const transformedTickets = purchasedTickets.map((t: PurchasedTicketRow) => {
@@ -520,6 +602,7 @@ export default function BookingSuccessPage() {
     } catch (e: unknown) {
       const errorMsg = e instanceof Error ? e.message : 'Failed to sync status';
       setSyncError(errorMsg);
+      console.warn('[BookingSuccess] Sync error', { orderNumber, isAutoSync, errorMsg });
       if (isAutoSync) {
         console.log(`[Auto-Sync] Error: ${errorMsg}`);
       }
@@ -530,7 +613,14 @@ export default function BookingSuccessPage() {
         setSyncing(false);
       }
     }
-  }, [orderNumber, autoSyncInProgress, getValidAccessToken]);
+  }, [orderNumber, autoSyncInProgress, getValidAccessToken, runQueryWithTimeout]);
+
+  const handleRetryLoad = useCallback(() => {
+    console.info('[BookingSuccess] Manual retry triggered');
+    incrementMetric(METRIC_KEYS.manualRefreshClick);
+    setSyncError(null);
+    void fetchOrderAndTickets(true);
+  }, [fetchOrderAndTickets]);
 
   // NEW: Dedicated auto-sync effect - runs when order is pending
   useEffect(() => {
@@ -675,8 +765,6 @@ export default function BookingSuccessPage() {
 
   const { icon: statusIcon, title: statusTitle, description: statusDescription } =
     getOrderStatusPresentation(effectiveStatus);
-
-  const showSkeleton = loading && !orderData && tickets.length === 0;
 
   if (showSkeleton) {
     return <BookingSuccessSkeleton />;
@@ -886,6 +974,23 @@ export default function BookingSuccessPage() {
                       Order Ref: {orderNumber}
                     </p>
 
+                    {loadingTimedOut && (
+                      <div className="mt-6 animate-fade-in">
+                        <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+                          <p className="text-sm text-red-700">
+                            <span className="material-symbols-outlined text-base align-middle mr-1">warning</span>
+                            Loading is taking longer than expected. You can retry or check status manually.
+                          </p>
+                        </div>
+                        <button
+                          onClick={handleRetryLoad}
+                          className="h-11 px-5 rounded-xl border border-red-200 text-red-700 font-bold hover:bg-red-50 transition-all"
+                        >
+                          Retry Loading
+                        </button>
+                      </div>
+                    )}
+
                     {/* Manual button - only shown after 20 seconds if still pending */}
                     {showManualButton && (
                       <div className="mt-6 animate-fade-in">
@@ -917,6 +1022,16 @@ export default function BookingSuccessPage() {
                     <p className="text-gray-500">
                       Your tickets may still be processing. Please check back in a moment.
                     </p>
+                    {loadingTimedOut && (
+                      <div className="mt-6">
+                        <button
+                          onClick={handleRetryLoad}
+                          className="h-11 px-5 rounded-xl border border-gray-200 text-gray-700 font-bold hover:bg-gray-50 transition-all"
+                        >
+                          Retry Loading
+                        </button>
+                      </div>
+                    )}
                   </>
                 )}
               </div>

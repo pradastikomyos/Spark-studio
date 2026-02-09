@@ -9,6 +9,7 @@ import { formatCurrency } from '../utils/formatters';
 import { useToast } from '../components/Toast';
 import OrderSuccessSkeleton from '../components/skeletons/OrderSuccessSkeleton';
 import { withTimeout } from '../utils/queryHelpers';
+import { incrementMetric, METRIC_KEYS, readMetric } from '../utils/metrics';
 
 type ProductOrder = {
   id: number;
@@ -49,11 +50,13 @@ export default function ProductOrderSuccessPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [loadingTimedOut, setLoadingTimedOut] = useState(false);
   
   const pickupCode = order?.pickup_code ?? null;
   const { initialized, session } = useAuth();
   const [autoSyncInProgress, setAutoSyncInProgress] = useState(false);
   const confettiTriggeredRef = useRef(false);
+  const MAX_SKELETON_MS = 20000;
 
   // Confetti celebration effect (Match BookingSuccessPage)
   const triggerConfetti = useCallback(() => {
@@ -126,32 +129,44 @@ export default function ProductOrderSuccessPage() {
 
     const { signal: timeoutSignal, cleanup, didTimeout } = createQuerySignal(undefined, 10000);
     try {
-      let result = await supabase
-        .from('order_products')
-        .select(primarySelect)
-        .eq('order_number', orderNumber)
-        .abortSignal(timeoutSignal)
-        .single();
+      let result = await withTimeout(
+        supabase
+          .from('order_products')
+          .select(primarySelect)
+          .eq('order_number', orderNumber)
+          .abortSignal(timeoutSignal)
+          .single(),
+        10000,
+        'Request timeout'
+      );
 
       const errorCode = (result.error as { code?: string } | null)?.code;
       if (result.error && (errorCode === '42703' || errorCode === 'PGRST204')) {
-        result = await supabase
-          .from('order_products')
-          .select(fallbackSelect)
-          .eq('order_number', orderNumber)
-          .abortSignal(timeoutSignal)
-          .single();
+        result = await withTimeout(
+          supabase
+            .from('order_products')
+            .select(fallbackSelect)
+            .eq('order_number', orderNumber)
+            .abortSignal(timeoutSignal)
+            .single(),
+          10000,
+          'Request timeout'
+        );
       }
 
       if (result.error || !result.data) throw result.error ?? new Error('Order not found');
       setOrder(result.data as unknown as ProductOrder);
 
       const orderId = Number((result.data as unknown as { id: number | string }).id);
-      const { data: itemRows, error: itemsError } = await supabase
-        .from('order_product_items')
-        .select('id, quantity, price, subtotal, product_variants(name, product_id, products(name, image_url, product_images(image_url, is_primary)))')
-        .eq('order_product_id', orderId)
-        .abortSignal(timeoutSignal);
+      const { data: itemRows, error: itemsError } = await withTimeout(
+        supabase
+          .from('order_product_items')
+          .select('id, quantity, price, subtotal, product_variants(name, product_id, products(name, image_url, product_images(image_url, is_primary)))')
+          .eq('order_product_id', orderId)
+          .abortSignal(timeoutSignal),
+        10000,
+        'Request timeout'
+      );
 
       if (itemsError) throw itemsError;
       const mapped: ProductOrderItem[] = (itemRows || []).map((row) => {
@@ -204,11 +219,18 @@ export default function ProductOrderSuccessPage() {
       setAutoSyncInProgress(true);
     } else {
       setRefreshing(true);
+      console.info('[ProductOrderSuccess] Manual status check triggered');
+      incrementMetric(METRIC_KEYS.manualRefreshClick);
     }
 
     setError(null);
 
     try {
+      console.info('[ProductOrderSuccess] Sync start', {
+        orderNumber,
+        isAutoSync,
+        retryCount,
+      });
       // CRITICAL FIX: Always ensure we have a VALID token
       // 1. getSession() only returns localStorage data (may be expired)
       // 2. refreshSession() actually validates and renews the token
@@ -219,11 +241,19 @@ export default function ProductOrderSuccessPage() {
         console.log(`[Product-Sync] Ensuring valid token (attempt ${retryCount + 1})...`);
         
         // Call Supabase refresh directly to get a guaranteed fresh token
-        const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
+        const { data: refreshData, error: refreshError } = await withTimeout(
+          supabase.auth.refreshSession(),
+          8000,
+          'Session refresh timeout'
+        );
         
         if (refreshError) {
           console.error('[Product-Sync] Token refresh error:', refreshError.message);
-          const { data: { session: existingSession } } = await supabase.auth.getSession();
+          const { data: { session: existingSession } } = await withTimeout(
+            supabase.auth.getSession(),
+            8000,
+            'Session fetch timeout'
+          );
           token = existingSession?.access_token;
         } else if (refreshData.session) {
           token = refreshData.session.access_token;
@@ -231,7 +261,11 @@ export default function ProductOrderSuccessPage() {
         }
       } catch (refreshError) {
         console.error('[Product-Sync] Session refresh failed:', refreshError);
-        const { data: { session: fallbackSession } } = await supabase.auth.getSession();
+        const { data: { session: fallbackSession } } = await withTimeout(
+          supabase.auth.getSession(),
+          8000,
+          'Session fetch timeout'
+        );
         token = fallbackSession?.access_token;
       }
       
@@ -263,6 +297,7 @@ export default function ProductOrderSuccessPage() {
       // Handle 401 - retry once with delay
       if (response.status === 401 && retryCount < 1) {
         console.log('[Product-Sync] Got 401, retrying in 1s...');
+        console.warn('[ProductOrderSuccess] Sync 401 after validation', { orderNumber, isAutoSync });
         setAutoSyncInProgress(false);
         await new Promise(resolve => setTimeout(resolve, 1000));
         return handleSyncStatus(isAutoSync, retryCount + 1);
@@ -270,10 +305,23 @@ export default function ProductOrderSuccessPage() {
 
       if (!response.ok) {
         if (!isAutoSync) setError(data?.error || 'Failed to sync status');
+        console.warn('[ProductOrderSuccess] Sync error', {
+          orderNumber,
+          isAutoSync,
+          status: response.status,
+          error: data?.error || 'Failed to sync status',
+        });
         return;
       }
 
       if (data?.order) {
+        console.info('[ProductOrderSuccess] Sync success', {
+          orderNumber,
+          status: data.order.payment_status || data.order.status,
+        });
+        if (isAutoSync) {
+          incrementMetric(METRIC_KEYS.autoSyncSuccess);
+        }
         // Only update if status changed or data is newer
         setOrder((prev) => {
           if (!prev) return data.order;
@@ -289,7 +337,13 @@ export default function ProductOrderSuccessPage() {
         }
       }
     } catch (e) {
-      if (!isAutoSync) setError(e instanceof Error ? e.message : 'Failed to sync status');
+      const message = e instanceof Error ? e.message : 'Failed to sync status';
+      if (!isAutoSync) setError(message);
+      console.warn('[ProductOrderSuccess] Sync error', {
+        orderNumber,
+        isAutoSync,
+        error: message,
+      });
     } finally {
       if (isAutoSync) {
         setAutoSyncInProgress(false);
@@ -306,6 +360,7 @@ export default function ProductOrderSuccessPage() {
     const run = async () => {
       try {
         setLoading(true);
+        setLoadingTimedOut(false);
         setError(null);
         await fetchOrder();
       } catch (e) {
@@ -320,6 +375,44 @@ export default function ProductOrderSuccessPage() {
       cancelled = true;
     };
   }, [orderNumber, fetchOrder]);
+
+  useEffect(() => {
+    console.info('[Metrics] Snapshot', {
+      manualRefreshClick: readMetric(METRIC_KEYS.manualRefreshClick),
+      autoSyncSuccess: readMetric(METRIC_KEYS.autoSyncSuccess),
+      loadingTimeout: readMetric(METRIC_KEYS.loadingTimeout),
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!loading) return;
+
+    const timeout = setTimeout(() => {
+      if (!loading) return;
+      console.warn('[ProductOrderSuccess] Loading timeout reached');
+      incrementMetric(METRIC_KEYS.loadingTimeout);
+      setLoadingTimedOut(true);
+      setError((prev) => prev ?? 'Loading is taking longer than expected. Please retry.');
+      setLoading(false);
+    }, MAX_SKELETON_MS);
+
+    return () => clearTimeout(timeout);
+  }, [loading, MAX_SKELETON_MS]);
+
+  const handleRetryLoad = useCallback(() => {
+    console.info('[ProductOrderSuccess] Manual retry triggered');
+    incrementMetric(METRIC_KEYS.manualRefreshClick);
+    setError(null);
+    setLoadingTimedOut(false);
+    setLoading(true);
+    void fetchOrder()
+      .catch((e) => {
+        setError(e instanceof Error ? e.message : 'Failed to load order');
+      })
+      .finally(() => {
+        setLoading(false);
+      });
+  }, [fetchOrder]);
 
   useEffect(() => {
     if (!orderNumber) return;
@@ -497,6 +590,28 @@ export default function ProductOrderSuccessPage() {
         {error && (
           <div className="mb-8 rounded-xl border border-red-500/20 bg-red-500/10 p-4 text-sm text-red-700">
             {error}
+          </div>
+        )}
+
+        {!loading && !order && (
+          <div className="mb-8 rounded-2xl border border-amber-200 bg-amber-50 p-6 text-amber-800">
+            <div className="flex items-start gap-3">
+              <span className="material-symbols-outlined text-base">info</span>
+              <div>
+                <p className="font-semibold">Order details are not available yet.</p>
+                <p className="text-sm mt-1">
+                  {loadingTimedOut
+                    ? 'Loading timed out. Please retry to fetch the latest status.'
+                    : 'Please retry in a moment to fetch the latest status.'}
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={handleRetryLoad}
+              className="mt-4 w-full py-3 border border-amber-300 text-amber-900 rounded-full font-bold text-xs tracking-widest uppercase hover:bg-amber-100 transition-colors"
+            >
+              Retry Loading
+            </button>
           </div>
         )}
 

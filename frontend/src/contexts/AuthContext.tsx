@@ -187,42 +187,59 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     initializeAuth();
 
     // STEP 2: Listen for auth state changes (sign in, sign out, token refresh)
-    const { data } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        if (!isMounted) return;
+    let authEventId = 0;
 
-        setSession(session);
-        setUser(session?.user ?? null);
+    const runPostAuthValidation = async (event: string, nextSession: Session | null, eventId: number) => {
+      if (!nextSession?.user?.id) return;
 
-        if (isInitializing) {
+      const startedAt = Date.now();
+      console.log(`[Auth] ${event} start`);
+      try {
+        const result = await validateSessionWithRetry();
+        const durationMs = Date.now() - startedAt;
+        console.log(`[Auth] ${event} took ${durationMs}ms`);
+
+        if (!isMounted || eventId !== authEventId) return;
+
+        if (result.valid && result.user) {
+          await checkAdminStatus(result.user.id);
+          console.log(`[AuthContext] ${event} validation ok in ${durationMs}ms`);
           return;
         }
 
-        if (event === 'SIGNED_OUT') {
-          setIsAdmin(false);
-        } else if (event === 'SIGNED_IN') {
-          // Validate new session on sign in
-          if (session?.user?.id) {
-            const result = await validateSessionWithRetry();
-            if (result.valid && result.user) {
-              await checkAdminStatus(result.user.id);
-            }
-          }
-        } else if (event === 'TOKEN_REFRESHED') {
-          // Validate refreshed token
-          if (session?.user?.id) {
-            const result = await validateSessionWithRetry();
-            if (result.valid && result.user) {
-              await checkAdminStatus(result.user.id);
-            } else {
-              // Refreshed token is invalid, sign out
-              console.warn('Refreshed token validation failed');
-              await supabase.auth.signOut();
-            }
-          }
+        console.warn(`[AuthContext] ${event} validation failed in ${durationMs}ms`);
+
+        if (event === 'TOKEN_REFRESHED') {
+          await supabase.auth.signOut();
         }
+      } catch (error) {
+        const durationMs = Date.now() - startedAt;
+        console.log(`[Auth] ${event} took ${durationMs}ms`);
+        console.error(`[AuthContext] ${event} validation error in ${durationMs}ms:`, error);
       }
-    );
+    };
+
+    const { data } = supabase.auth.onAuthStateChange((event, nextSession) => {
+      if (!isMounted) return;
+
+      setSession(nextSession);
+      setUser(nextSession?.user ?? null);
+
+      if (isInitializing) {
+        return;
+      }
+
+      if (event === 'SIGNED_OUT') {
+        setIsAdmin(false);
+        return;
+      }
+
+      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+        authEventId += 1;
+        const currentEventId = authEventId;
+        void runPostAuthValidation(event, nextSession, currentEventId);
+      }
+    });
     const subscription = data?.subscription;
 
     return () => {

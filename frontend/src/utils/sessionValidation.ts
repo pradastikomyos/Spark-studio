@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase'
+import { withTimeout } from './queryHelpers'
 import type { Session, User } from '@supabase/supabase-js'
 
 export interface ValidationResult {
@@ -17,14 +18,21 @@ export interface ValidationResult {
  * @param maxRetries Maximum number of retry attempts (default: 3)
  * @returns ValidationResult indicating if session is valid
  */
-export async function validateSessionWithRetry(maxRetries = 3): Promise<ValidationResult> {
+export async function validateSessionWithRetry(
+  maxRetries = 3,
+  requestTimeoutMs = 5000
+): Promise<ValidationResult> {
   let attempt = 0
   let backoffMs = 1000 // Start with 1 second
 
   while (attempt < maxRetries) {
     try {
       // Validate token with server
-      const { data: { user }, error: userError } = await supabase.auth.getUser()
+      const { data: { user }, error: userError } = await withTimeout(
+        supabase.auth.getUser(),
+        requestTimeoutMs,
+        'Auth getUser timeout'
+      )
 
       if (userError || !user) {
         // Session invalid on server
@@ -39,7 +47,11 @@ export async function validateSessionWithRetry(maxRetries = 3): Promise<Validati
       }
 
       // Verify session has valid expiry
-      const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+      const { data: { session }, error: sessionError } = await withTimeout(
+        supabase.auth.getSession(),
+        requestTimeoutMs,
+        'Auth getSession timeout'
+      )
 
       if (sessionError || !session) {
         return {
