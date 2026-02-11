@@ -158,6 +158,7 @@ export type Database = {
           id: number
           is_active: boolean
           name: string
+          parent_id: number | null
           slug: string
           updated_at: string | null
         }
@@ -166,6 +167,7 @@ export type Database = {
           id?: number
           is_active?: boolean
           name: string
+          parent_id?: number | null
           slug: string
           updated_at?: string | null
         }
@@ -174,6 +176,7 @@ export type Database = {
           id?: number
           is_active?: boolean
           name?: string
+          parent_id?: number | null
           slug?: string
           updated_at?: string | null
         }

@@ -80,6 +80,7 @@ const StoreInventory = () => {
       name: c.name,
       slug: c.slug,
       is_active: c.is_active ?? undefined,
+      parent_id: c.parent_id ?? null,
     }));
   }, [inventoryCategories]);
 

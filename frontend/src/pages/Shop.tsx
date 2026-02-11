@@ -18,6 +18,7 @@ const Shop = () => {
     const { addItem } = useCart();
     const { showToast } = useToast();
     const [activeCategory, setActiveCategory] = useState<string>('all');
+    const [activeSubcategory, setActiveSubcategory] = useState<string>('all');
     const [currentHeroSlide, setCurrentHeroSlide] = useState(0);
 
     const { data: products = [], error: productsError, isLoading: productsLoading, refetch: refetchProducts } = useProducts();
@@ -53,10 +54,63 @@ const Shop = () => {
         setCurrentHeroSlide((prev) => (prev - 1 + shopBanners.length) % shopBanners.length);
     };
 
+    const { parentCategories, parentCategoryBySlug, childCategoriesByParentSlug, allowedSlugMap } = useMemo(() => {
+        const parents = categories.filter((category) => category.parent_id === null);
+        const parentBySlug = new Map(parents.map((category) => [category.slug, category]));
+        const childrenByParent = new Map<number, string[]>();
+        categories
+            .filter((category) => category.parent_id !== null)
+            .forEach((category) => {
+                const parentId = category.parent_id as number;
+                const existing = childrenByParent.get(parentId) ?? [];
+                existing.push(category.slug);
+                childrenByParent.set(parentId, existing);
+            });
+        const allowed = new Map<string, string[]>();
+        parents.forEach((parent) => {
+            const childSlugs = childrenByParent.get(parent.id) ?? [];
+            allowed.set(parent.slug, [parent.slug, ...childSlugs]);
+        });
+        categories
+            .filter((category) => category.parent_id === null && !allowed.has(category.slug))
+            .forEach((category) => {
+                allowed.set(category.slug, [category.slug]);
+            });
+        const childrenByParentSlug = new Map<string, typeof categories>();
+        parents.forEach((parent) => {
+            const children = categories
+                .filter((category) => category.parent_id === parent.id)
+                .slice()
+                .sort((a, b) => a.name.localeCompare(b.name));
+            childrenByParentSlug.set(parent.slug, children);
+        });
+        return {
+            parentCategories: parents.slice().sort((a, b) => a.name.localeCompare(b.name)),
+            parentCategoryBySlug: parentBySlug,
+            childCategoriesByParentSlug: childrenByParentSlug,
+            allowedSlugMap: allowed,
+        };
+    }, [categories]);
+
     const filteredProducts = useMemo(() => {
         if (activeCategory === 'all') return products;
-        return products.filter((p) => p.categorySlug === activeCategory);
-    }, [products, activeCategory]);
+        if (activeSubcategory !== 'all') {
+            return products.filter((p) => p.categorySlug === activeSubcategory);
+        }
+        const allowedSlugs = allowedSlugMap.get(activeCategory);
+        if (!allowedSlugs) return products.filter((p) => p.categorySlug === activeCategory);
+        return products.filter((p) => p.categorySlug && allowedSlugs.includes(p.categorySlug));
+    }, [products, activeCategory, activeSubcategory, allowedSlugMap]);
+
+    const activeParentName = useMemo(() => {
+        if (activeCategory === 'all') return null;
+        return parentCategoryBySlug.get(activeCategory)?.name ?? null;
+    }, [activeCategory, parentCategoryBySlug]);
+
+    const activeSubcategories = useMemo(() => {
+        if (activeCategory === 'all') return [];
+        return childCategoriesByParentSlug.get(activeCategory) ?? [];
+    }, [activeCategory, childCategoriesByParentSlug]);
 
     const handleAddToCart = (product: typeof products[0]) => {
         if (!product.defaultVariantId || !product.defaultVariantName) return;
@@ -189,11 +243,15 @@ const Shop = () => {
                 {/* Main Content */}
                 <main className="max-w-7xl mx-auto px-6 lg:px-8 py-12">
                     {/* Filter Bar */}
-                    <div className="flex flex-col md:flex-row justify-between items-center mb-12 border-b border-gray-100 pb-6 sticky top-0 bg-white z-40 pt-6 -mt-6 transition-all">
-                        <div className="flex space-x-8 overflow-x-auto w-full md:w-auto pb-2 md:pb-0 hide-scrollbar">
+                    <div className="mb-12 border-b border-gray-100 pb-6 sticky top-0 bg-white z-40 pt-6 -mt-6 transition-all">
+                        <div className="flex flex-col md:flex-row justify-between items-center">
+                            <div className="flex space-x-8 overflow-x-auto w-full md:w-auto pb-2 md:pb-0 hide-scrollbar">
                             <button
                                 key="all"
-                                onClick={() => setActiveCategory('all')}
+                                onClick={() => {
+                                    setActiveCategory('all');
+                                    setActiveSubcategory('all');
+                                }}
                                 className={`text-sm whitespace-nowrap transition-colors ${activeCategory === 'all'
                                     ? 'font-medium text-primary border-b border-primary pb-0.5'
                                     : 'font-light text-subtext-light hover:text-primary'
@@ -201,10 +259,13 @@ const Shop = () => {
                             >
                                 All Products
                             </button>
-                            {categories.map((category) => (
+                            {parentCategories.map((category) => (
                                 <button
                                     key={category.slug}
-                                    onClick={() => setActiveCategory(category.slug)}
+                                    onClick={() => {
+                                        setActiveCategory(category.slug);
+                                        setActiveSubcategory('all');
+                                    }}
                                     className={`text-sm whitespace-nowrap transition-colors ${activeCategory === category.slug
                                         ? 'font-medium text-primary border-b border-primary pb-0.5'
                                         : 'font-light text-subtext-light hover:text-primary'
@@ -214,7 +275,7 @@ const Shop = () => {
                                 </button>
                             ))}
                         </div>
-                        <div className="flex items-center gap-3 mt-4 md:mt-0 w-full md:w-auto justify-end">
+                            <div className="flex items-center gap-3 mt-4 md:mt-0 w-full md:w-auto justify-end">
                             <span className="text-xs text-subtext-light uppercase tracking-widest">
                                 Sort By:
                             </span>
@@ -224,6 +285,40 @@ const Shop = () => {
                                 <option>Price: Low to High</option>
                             </select>
                         </div>
+                        </div>
+
+                        {activeCategory !== 'all' && activeSubcategories.length > 0 && (
+                            <div className="mt-3 flex flex-col gap-2">
+                                <p className="text-xs text-subtext-light">
+                                    Sub kategori di <span className="font-medium text-text-light">{activeParentName ?? activeCategory}</span>
+                                </p>
+                                <div className="flex gap-4 overflow-x-auto hide-scrollbar pb-1">
+                                    <button
+                                        type="button"
+                                        onClick={() => setActiveSubcategory('all')}
+                                        className={`text-sm whitespace-nowrap transition-colors ${activeSubcategory === 'all'
+                                            ? 'font-medium text-primary border-b border-primary pb-0.5'
+                                            : 'font-light text-subtext-light hover:text-primary'
+                                            }`}
+                                    >
+                                        All
+                                    </button>
+                                    {activeSubcategories.map((subcategory) => (
+                                        <button
+                                            key={subcategory.slug}
+                                            type="button"
+                                            onClick={() => setActiveSubcategory(subcategory.slug)}
+                                            className={`text-sm whitespace-nowrap transition-colors ${activeSubcategory === subcategory.slug
+                                                ? 'font-medium text-primary border-b border-primary pb-0.5'
+                                                : 'font-light text-subtext-light hover:text-primary'
+                                                }`}
+                                        >
+                                            {subcategory.name}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
                     </div>
 
                     {/* Products Grid */}

@@ -7,8 +7,10 @@ import { queryKeys } from '../lib/queryKeys';
  * Category interface
  */
 export interface Category {
+  id: number;
   name: string;
   slug: string;
+  parent_id: number | null;
 }
 
 /**
@@ -33,7 +35,7 @@ export function useCategories() {
       try {
         const { data, error } = await supabase
           .from('categories')
-          .select('name, slug')
+          .select('id, name, slug, parent_id')
           .abortSignal(timeoutSignal)
           .eq('is_active', true)
           .order('name', { ascending: true });

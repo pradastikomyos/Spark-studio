@@ -41,6 +41,7 @@ export type CategoryRow = {
   name: string;
   slug: string;
   is_active: boolean | null;
+  parent_id: number | null;
 };
 
 export function useInventory() {
@@ -83,7 +84,7 @@ export function useInventory() {
             .order('name', { ascending: true }),
           supabase
             .from('categories')
-            .select('id, name, slug, is_active')
+            .select('id, name, slug, is_active, parent_id')
             .abortSignal(timeoutSignal)
             .order('name', { ascending: true }),
         ]);

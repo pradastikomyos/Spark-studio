@@ -18,6 +18,7 @@ export type CategoryOption = {
   name: string;
   slug: string;
   is_active?: boolean;
+  parent_id?: number | null;
 };
 
 export type ProductVariantDraft = {
@@ -272,10 +273,23 @@ export default function ProductFormModal(props: ProductFormModalProps) {
   }, []);
 
   const categoryOptions = useMemo(() => {
-    return categories
-      .filter((c) => c.is_active !== false)
+    const active = categories.filter((c) => c.is_active !== false);
+    const nameMap = new Map(active.map((c) => [c.id, c.name]));
+    return active
       .slice()
-      .sort((a, b) => a.name.localeCompare(b.name));
+      .sort((a, b) => {
+        const aParent = a.parent_id ? nameMap.get(a.parent_id) ?? '' : a.name;
+        const bParent = b.parent_id ? nameMap.get(b.parent_id) ?? '' : b.name;
+        const parentSort = aParent.localeCompare(bParent);
+        if (parentSort !== 0) return parentSort;
+        if (a.parent_id && !b.parent_id) return 1;
+        if (!a.parent_id && b.parent_id) return -1;
+        return a.name.localeCompare(b.name);
+      });
+  }, [categories]);
+
+  const categoryNameMap = useMemo(() => {
+    return new Map(categories.map((c) => [c.id, c.name]));
   }, [categories]);
 
   const isDirty = useMemo(() => {
@@ -477,7 +491,7 @@ export default function ProductFormModal(props: ProductFormModalProps) {
                     <option value="">Select category</option>
                     {categoryOptions.map((c) => (
                       <option key={c.id} value={c.id}>
-                        {c.name}
+                        {c.parent_id ? `${categoryNameMap.get(c.parent_id) ?? 'Parent'} / ${c.name}` : c.name}
                       </option>
                     ))}
                   </select>
