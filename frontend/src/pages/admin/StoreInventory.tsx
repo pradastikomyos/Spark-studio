@@ -802,7 +802,7 @@ const StoreInventory = () => {
                       LOW STOCK
                     </div>
                   )}
-                  <div className="absolute right-3 top-3 flex items-center gap-2 opacity-0 transition-opacity group-hover:opacity-100">
+                  <div className="absolute right-3 top-3 flex items-center gap-2 z-20">
                     <button
                       onClick={() => handleOpenEdit(product.id)}
                       className="rounded-lg bg-white/90 px-2 py-1 text-[10px] font-bold text-neutral-900 hover:bg-white"
