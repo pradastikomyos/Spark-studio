@@ -486,7 +486,7 @@ export default function ProductCheckoutPage() {
                   className="w-full mt-3 bg-white hover:bg-rose-50 disabled:bg-gray-100 disabled:cursor-not-allowed text-primary font-bold py-4 rounded-xl border border-rose-100 transition-all flex flex-col items-center justify-center"
                 >
                   <span>Bayar di Kasir</span>
-                  <span className="text-xs font-semibold text-rose-700 mt-1">Checkout at cashier (backup jika Midtrans bermasalah)</span>
+                  <span className="text-xs font-semibold text-rose-700 mt-1">Checkout at cashier</span>
                 </button>
               )}
 

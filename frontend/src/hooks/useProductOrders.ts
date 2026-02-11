@@ -3,6 +3,22 @@ import { supabase } from '../lib/supabase';
 import { APIError, createQuerySignal } from '../lib/fetchers';
 import { queryKeys } from '../lib/queryKeys';
 
+export type OrderItemSummary = {
+  id: number;
+  quantity: number;
+  price: number;
+  subtotal: number;
+  product_variants?: {
+    name?: string;
+    products?: {
+      name?: string;
+      categories?: {
+        name?: string;
+      } | null;
+    } | null;
+  } | null;
+};
+
 export type OrderSummaryRow = {
   id: number;
   order_number: string;
@@ -10,7 +26,10 @@ export type OrderSummaryRow = {
   pickup_code: string | null;
   pickup_status: string | null;
   paid_at: string | null;
+  updated_at: string | null;
+  created_at: string | null;
   profiles?: { name?: string; email?: string } | null;
+  order_product_items?: OrderItemSummary[];
 };
 
 export function useProductOrders() {
@@ -22,7 +41,7 @@ export function useProductOrders() {
         const [ordersResult, pendingResult] = await Promise.all([
           supabase
             .from('order_products')
-            .select('id, order_number, total, pickup_code, pickup_status, paid_at, profiles(name, email)')
+            .select('id, order_number, total, pickup_code, pickup_status, paid_at, updated_at, created_at, profiles(name, email), order_product_items(id, quantity, price, subtotal, product_variants(name, products(name, categories(name))))')
             .abortSignal(timeoutSignal)
             .eq('payment_status', 'paid')
             .order('paid_at', { ascending: false })

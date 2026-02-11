@@ -217,17 +217,34 @@ export default function ProductOrders() {
   }, [details, refetch, session]);
 
   const pendingOrders = useMemo(() => {
-    return orders.filter((o) => o.pickup_status === 'pending_pickup');
+    return orders
+      .filter((o) => o.pickup_status === 'pending_pickup')
+      .sort((a, b) => {
+        const timeA = a.paid_at || a.created_at || '';
+        const timeB = b.paid_at || b.created_at || '';
+        return timeB.localeCompare(timeA);
+      });
   }, [orders]);
 
   const todays = useMemo(() => {
     const today = new Date();
     const key = today.toISOString().slice(0, 10);
-    return orders.filter((o) => (o.paid_at ? String(o.paid_at).slice(0, 10) === key : false));
+    return orders
+      .filter((o) => {
+        const dateStr = o.paid_at || o.created_at;
+        return dateStr ? String(dateStr).slice(0, 10) === key : false;
+      })
+      .sort((a, b) => {
+        const timeA = a.paid_at || a.created_at || '';
+        const timeB = b.paid_at || b.created_at || '';
+        return timeB.localeCompare(timeA);
+      });
   }, [orders]);
 
   const completedOrders = useMemo(() => {
-    return orders.filter((o) => o.pickup_status === 'completed');
+    return orders
+      .filter((o) => o.pickup_status === 'completed')
+      .sort((a, b) => (b.updated_at ?? '').localeCompare(a.updated_at ?? ''));
   }, [orders]);
 
   const menuSections = useMemo(() => {
@@ -372,27 +389,81 @@ export default function ProductOrders() {
                       return;
                     });
                   }}
-                  className="w-full flex items-center justify-between gap-4 rounded-lg border border-gray-100 bg-gray-50/60 px-4 py-3 text-left hover:bg-gray-100 transition-colors"
+                  className="w-full flex flex-col gap-2 rounded-lg border border-gray-100 bg-gray-50/60 px-4 py-3 text-left hover:bg-gray-100 transition-colors"
                 >
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-bold text-neutral-900 truncate">
-                      {o.pickup_code ?? '-'}
-                    </p>
-                    <p className="text-xs text-gray-500 truncate">
-                      {o.profiles?.name ?? o.profiles?.email ?? 'Customer'}
-                    </p>
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-bold text-neutral-900 truncate">
+                        {o.pickup_code ?? '-'}
+                      </p>
+                      <p className="text-xs text-gray-500 truncate">
+                        {o.profiles?.name ?? o.profiles?.email ?? 'Customer'}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className="text-xs font-bold text-gray-500">{formatCurrency(Number(o.total ?? 0))}</span>
+                      <span className={`text-xs font-bold uppercase tracking-wide px-2 py-1 rounded ${o.pickup_status === 'pending_pickup'
+                        ? 'bg-yellow-100 text-yellow-700'
+                        : o.pickup_status === 'completed'
+                          ? 'bg-green-100 text-green-700'
+                          : 'bg-gray-100 text-gray-700'
+                        }`}>
+                        {o.pickup_status === 'pending_pickup' ? 'Pending' : o.pickup_status === 'completed' ? 'Selesai' : o.pickup_status ?? 'pending'}
+                      </span>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-3">
-                    <span className="text-xs font-bold text-gray-500">{formatCurrency(Number(o.total ?? 0))}</span>
-                    <span className={`text-xs font-bold uppercase tracking-wide px-2 py-1 rounded ${o.pickup_status === 'pending_pickup'
-                      ? 'bg-yellow-100 text-yellow-700'
-                      : o.pickup_status === 'completed'
-                        ? 'bg-green-100 text-green-700'
-                        : 'bg-gray-100 text-gray-700'
-                      }`}>
-                      {o.pickup_status === 'pending_pickup' ? 'Pending' : o.pickup_status === 'completed' ? 'Selesai' : o.pickup_status ?? 'pending'}
-                    </span>
-                  </div>
+                  
+                  {o.pickup_status === 'completed' && o.updated_at ? (
+                    <div className="flex justify-end mt-1 mb-1">
+                      <span className="text-[10px] text-gray-500 italic">
+                        Terverifikasi: {new Date(o.updated_at).toLocaleString('id-ID', { 
+                          day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit'
+                        })}
+                      </span>
+                    </div>
+                  ) : (o.paid_at || o.created_at) ? (
+                    <div className="flex justify-end mt-1 mb-1">
+                      <span className="text-[10px] text-gray-500 italic">
+                        {o.paid_at ? 'Dibayar: ' : 'Order: '}
+                        {new Date(o.paid_at || o.created_at || '').toLocaleString('id-ID', { 
+                          day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit'
+                        })}
+                      </span>
+                    </div>
+                  ) : null}
+                  
+                  {/* Product Items List */}
+                  {o.order_product_items && o.order_product_items.length > 0 && (
+                    <div className="pl-2 border-l-2 border-gray-200 space-y-1">
+                      {o.order_product_items.map((item) => {
+                        const productName = item.product_variants?.products?.name ?? 'Product';
+                        const variantName = item.product_variants?.name ?? 'Variant';
+                        const category = item.product_variants?.products?.categories?.name ?? '';
+                        
+                        return (
+                          <div key={item.id} className="flex items-center justify-between gap-2 text-xs">
+                            <div className="min-w-0 flex-1">
+                              <span className="text-gray-700 font-medium">
+                                {productName}
+                              </span>
+                              {category && (
+                                <span className="text-gray-400 ml-1">
+                                  ({category})
+                                </span>
+                              )}
+                              <span className="text-gray-500 mx-1">•</span>
+                              <span className="text-gray-500">
+                                {variantName}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-2 text-gray-600">
+                              <span>{item.quantity}× {formatCurrency(Number(item.price))}</span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </button>
               ))}
             </div>
