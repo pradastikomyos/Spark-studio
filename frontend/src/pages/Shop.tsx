@@ -243,82 +243,71 @@ const Shop = () => {
                 {/* Main Content */}
                 <main className="max-w-7xl mx-auto px-6 lg:px-8 py-12">
                     {/* Filter Bar */}
-                    <div className="mb-12 border-b border-gray-100 pb-6 sticky top-0 bg-white z-40 pt-6 -mt-6 transition-all">
-                        <div className="flex flex-col md:flex-row justify-between items-center">
-                            <div className="flex space-x-8 overflow-x-auto w-full md:w-auto pb-2 md:pb-0 hide-scrollbar">
-                            <button
-                                key="all"
-                                onClick={() => {
-                                    setActiveCategory('all');
-                                    setActiveSubcategory('all');
-                                }}
-                                className={`text-sm whitespace-nowrap transition-colors ${activeCategory === 'all'
-                                    ? 'font-medium text-primary border-b border-primary pb-0.5'
-                                    : 'font-light text-subtext-light hover:text-primary'
-                                    }`}
-                            >
-                                All Products
-                            </button>
-                            {parentCategories.map((category) => (
+                    <div className="mb-8 border-b border-gray-100 pb-0 sticky top-0 bg-white z-40 pt-4 -mt-6 transition-all">
+                        <div className="flex flex-col space-y-4">
+                            {/* Parent Categories */}
+                            <div className="flex space-x-6 overflow-x-auto w-full pb-0 hide-scrollbar px-2">
                                 <button
-                                    key={category.slug}
+                                    key="all"
                                     onClick={() => {
-                                        setActiveCategory(category.slug);
+                                        setActiveCategory('all');
                                         setActiveSubcategory('all');
                                     }}
-                                    className={`text-sm whitespace-nowrap transition-colors ${activeCategory === category.slug
-                                        ? 'font-medium text-primary border-b border-primary pb-0.5'
-                                        : 'font-light text-subtext-light hover:text-primary'
+                                    className={`text-sm whitespace-nowrap pb-3 border-b-2 transition-all px-2 ${activeCategory === 'all'
+                                        ? 'font-bold text-[#ff4b86] border-[#ff4b86]'
+                                        : 'font-medium text-gray-500 border-transparent hover:text-[#ff4b86]'
                                         }`}
                                 >
-                                    {category.name}
+                                    All Products
                                 </button>
-                            ))}
-                        </div>
-                            <div className="flex items-center gap-3 mt-4 md:mt-0 w-full md:w-auto justify-end">
-                            <span className="text-xs text-subtext-light uppercase tracking-widest">
-                                Sort By:
-                            </span>
-                            <select className="text-sm font-light text-text-light bg-transparent border-none focus:ring-0 cursor-pointer pr-8 py-0">
-                                <option>Featured</option>
-                                <option>Newest</option>
-                                <option>Price: Low to High</option>
-                            </select>
-                        </div>
-                        </div>
-
-                        {activeCategory !== 'all' && activeSubcategories.length > 0 && (
-                            <div className="mt-3 flex flex-col gap-2">
-                                <p className="text-xs text-subtext-light">
-                                    Sub kategori di <span className="font-medium text-text-light">{activeParentName ?? activeCategory}</span>
-                                </p>
-                                <div className="flex gap-4 overflow-x-auto hide-scrollbar pb-1">
+                                {parentCategories.map((category) => (
                                     <button
-                                        type="button"
-                                        onClick={() => setActiveSubcategory('all')}
-                                        className={`text-sm whitespace-nowrap transition-colors ${activeSubcategory === 'all'
-                                            ? 'font-medium text-primary border-b border-primary pb-0.5'
-                                            : 'font-light text-subtext-light hover:text-primary'
+                                        key={category.slug}
+                                        onClick={() => {
+                                            setActiveCategory(category.slug);
+                                            setActiveSubcategory('all');
+                                        }}
+                                        className={`text-sm whitespace-nowrap pb-3 border-b-2 transition-all px-2 ${activeCategory === category.slug
+                                            ? 'font-bold text-[#ff4b86] border-[#ff4b86]'
+                                            : 'font-medium text-gray-500 border-transparent hover:text-[#ff4b86]'
                                             }`}
                                     >
-                                        All
+                                        {category.name}
                                     </button>
-                                    {activeSubcategories.map((subcategory) => (
+                                ))}
+                            </div>
+
+                            {/* Subcategories (Pills) */}
+                            {activeCategory !== 'all' && activeSubcategories.length > 0 && (
+                                <div className="w-full overflow-x-auto hide-scrollbar pb-4 px-2">
+                                    <div className="flex gap-2">
                                         <button
-                                            key={subcategory.slug}
                                             type="button"
-                                            onClick={() => setActiveSubcategory(subcategory.slug)}
-                                            className={`text-sm whitespace-nowrap transition-colors ${activeSubcategory === subcategory.slug
-                                                ? 'font-medium text-primary border-b border-primary pb-0.5'
-                                                : 'font-light text-subtext-light hover:text-primary'
+                                            onClick={() => setActiveSubcategory('all')}
+                                            className={`px-5 py-2 rounded-full text-xs font-bold transition-all duration-200 whitespace-nowrap border ${activeSubcategory === 'all'
+                                                ? 'bg-[#ff4b86] text-white border-[#ff4b86] shadow-md transform scale-105'
+                                                : 'bg-white text-gray-500 border-gray-200 hover:border-[#ff4b86] hover:text-[#ff4b86]'
                                                 }`}
                                         >
-                                            {subcategory.name}
+                                            All
                                         </button>
-                                    ))}
+                                        {activeSubcategories.map((subcategory) => (
+                                            <button
+                                                key={subcategory.slug}
+                                                type="button"
+                                                onClick={() => setActiveSubcategory(subcategory.slug)}
+                                                className={`px-5 py-2 rounded-full text-xs font-bold transition-all duration-200 whitespace-nowrap border ${activeSubcategory === subcategory.slug
+                                                    ? 'bg-[#ff4b86] text-white border-[#ff4b86] shadow-md transform scale-105'
+                                                    : 'bg-white text-gray-500 border-gray-200 hover:border-[#ff4b86] hover:text-[#ff4b86]'
+                                                    }`}
+                                            >
+                                                {subcategory.name}
+                                            </button>
+                                        ))}
+                                    </div>
                                 </div>
-                            </div>
-                        )}
+                            )}
+                        </div>
                     </div>
 
                     {/* Products Grid */}
