@@ -54,7 +54,7 @@ const Shop = () => {
         setCurrentHeroSlide((prev) => (prev - 1 + shopBanners.length) % shopBanners.length);
     };
 
-    const { parentCategories, parentCategoryBySlug, childCategoriesByParentSlug, allowedSlugMap } = useMemo(() => {
+    const { parentCategories, childCategoriesByParentSlug, allowedSlugMap } = useMemo(() => {
         const parents = categories.filter((category) => category.parent_id === null);
         const parentBySlug = new Map(parents.map((category) => [category.slug, category]));
         const childrenByParent = new Map<number, string[]>();
@@ -102,10 +102,7 @@ const Shop = () => {
         return products.filter((p) => p.categorySlug && allowedSlugs.includes(p.categorySlug));
     }, [products, activeCategory, activeSubcategory, allowedSlugMap]);
 
-    const activeParentName = useMemo(() => {
-        if (activeCategory === 'all') return null;
-        return parentCategoryBySlug.get(activeCategory)?.name ?? null;
-    }, [activeCategory, parentCategoryBySlug]);
+
 
     const activeSubcategories = useMemo(() => {
         if (activeCategory === 'all') return [];
