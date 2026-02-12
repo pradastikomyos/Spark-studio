@@ -182,13 +182,13 @@ export default function ProductDetailPage() {
                   <div>
                     <div className="flex justify-between items-center mb-4">
                       <p className="text-xs uppercase tracking-widest text-gray-500 font-bold">Select Variant</p>
-                      {selectedVariant && (
+                      {/* {selectedVariant && (
                         <span className={`text-xs font-medium ${selectedVariant.available < 5 ? 'text-red-500' : 'text-green-600'}`}>
                           {selectedVariant.available > 0
                             ? `${selectedVariant.available} items left`
                             : 'Out of Stock'}
                         </span>
-                      )}
+                      )} */}
                     </div>
 
                     {product.variants.length < 6 ? (

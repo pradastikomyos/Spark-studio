@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { LogOut, ReceiptText, Search, ShoppingBag, Ticket, UserRound, X } from 'lucide-react';
+import { LogOut, ReceiptText, Search, ShoppingCart, Ticket, UserRound, X } from 'lucide-react';
 import Logo from './Logo';
 import LanguageSwitcher from './LanguageSwitcher';
 import { useAuth } from '../contexts/AuthContext';
@@ -156,7 +156,7 @@ const Navbar = () => {
                 </Link>
 
                 <Link to="/cart" className="relative text-gray-500 hover:text-main-600 transition-colors" aria-label={t('nav.cart')}>
-                  <ShoppingBag className="h-5 w-5" />
+                  <ShoppingCart className="h-5 w-5" />
                   {totalQuantity > 0 && (
                     <span className="absolute -top-1.5 -right-1.5 bg-main-600 text-white text-[10px] w-4 h-4 flex items-center justify-center rounded-full">
                       {totalQuantity}
@@ -179,7 +179,7 @@ const Navbar = () => {
                 </Link>
 
                 <Link to="/cart" className="relative p-2 text-gray-700 hover:text-main-600 transition-colors" aria-label={t('nav.cart')}>
-                  <ShoppingBag className="h-5 w-5" />
+                  <ShoppingCart className="h-5 w-5" />
                   {totalQuantity > 0 && (
                     <span className="absolute -top-0.5 -right-0.5 bg-main-600 text-white text-[10px] w-4 h-4 flex items-center justify-center rounded-full">
                       {totalQuantity}
@@ -198,7 +198,7 @@ const Navbar = () => {
               <img src="/images/landing/stage55.png" alt="Stage 55" className="h-12 w-auto object-contain" />
               
               <Link to="/cart" className="relative p-2 text-gray-700 active:text-main-600" aria-label={t('nav.cart')} onClick={closeMobileMenu}>
-                <ShoppingBag className="h-6 w-6" />
+                <ShoppingCart className="h-6 w-6" />
                 {totalQuantity > 0 && (
                   <span className="absolute -top-0.5 -right-0.5 bg-main-600 text-white text-[10px] w-4 h-4 flex items-center justify-center rounded-full">
                     {totalQuantity}

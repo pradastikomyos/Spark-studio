@@ -1,6 +1,6 @@
 import { useMemo, useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Search, X } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useCart } from '../contexts/cartStore';
 import { formatCurrency } from '../utils/formatters';
@@ -19,6 +19,7 @@ const Shop = () => {
     const { showToast } = useToast();
     const [activeCategory, setActiveCategory] = useState<string>('all');
     const [activeSubcategory, setActiveSubcategory] = useState<string>('all');
+    const [searchQuery, setSearchQuery] = useState('');
     const [currentHeroSlide, setCurrentHeroSlide] = useState(0);
 
     const { data: products = [], error: productsError, isLoading: productsLoading, refetch: refetchProducts } = useProducts();
@@ -93,14 +94,56 @@ const Shop = () => {
     }, [categories]);
 
     const filteredProducts = useMemo(() => {
-        if (activeCategory === 'all') return products;
-        if (activeSubcategory !== 'all') {
-            return products.filter((p) => p.categorySlug === activeSubcategory);
+        let currentProducts = products;
+
+        // 1. Filter by Category/Subcategory
+        if (activeCategory !== 'all') {
+            if (activeSubcategory !== 'all') {
+                currentProducts = products.filter((p) => p.categorySlug === activeSubcategory);
+            } else {
+                const allowedSlugs = allowedSlugMap.get(activeCategory);
+                if (allowedSlugs) {
+                  currentProducts = products.filter((p) => p.categorySlug && allowedSlugs.includes(p.categorySlug));
+                } else {
+                  currentProducts = products.filter((p) => p.categorySlug === activeCategory);
+                }
+            }
         }
-        const allowedSlugs = allowedSlugMap.get(activeCategory);
-        if (!allowedSlugs) return products.filter((p) => p.categorySlug === activeCategory);
-        return products.filter((p) => p.categorySlug && allowedSlugs.includes(p.categorySlug));
-    }, [products, activeCategory, activeSubcategory, allowedSlugMap]);
+
+        // 2. Filter by Search Query
+        if (searchQuery.trim()) {
+            const query = searchQuery.toLowerCase().trim();
+            currentProducts = currentProducts.filter((p) => 
+                p.name.toLowerCase().includes(query) || 
+                (p.description && p.description.toLowerCase().includes(query))
+            );
+        }
+
+        // 3. Apply sorting only when viewing "All Products" (or all makeup, but user asked for "All Products" specifically)
+        if (activeCategory === 'all') {
+             const makeupSlugs = allowedSlugMap.get('makeup') || [];
+             
+             return [...currentProducts].sort((a, b) => {
+                const getScore = (p: typeof products[0]) => {
+                    const slug = p.categorySlug?.toLowerCase() || '';
+                    if (slug === 'headliner') return 3;
+                    if (slug === 'starglitter' || slug === 'star-glitter') return 2;
+                    if (makeupSlugs.includes(slug)) return 1;
+                    return 0;
+                };
+
+                const scoreA = getScore(a);
+                const scoreB = getScore(b);
+
+                if (scoreA !== scoreB) {
+                    return scoreB - scoreA; // Descending score
+                }
+                return 0; // Maintain original order for same score
+             });
+        }
+
+        return currentProducts;
+    }, [products, activeCategory, activeSubcategory, allowedSlugMap, searchQuery]);
 
 
 
@@ -242,8 +285,30 @@ const Shop = () => {
                     {/* Filter Bar */}
                     <div className="mb-8 border-b border-gray-100 pb-0 sticky top-0 bg-white z-40 pt-4 -mt-6 transition-all">
                         <div className="flex flex-col space-y-4">
+                            {/* Search Bar */}
+                            <div className="relative w-full max-w-md mx-auto mb-2 px-2">
+                                <div className="relative">
+                                    <input
+                                        type="text"
+                                        value={searchQuery}
+                                        onChange={(e) => setSearchQuery(e.target.value)}
+                                        placeholder="Search products..."
+                                        className="w-full pl-10 pr-10 py-2.5 bg-gray-50 border border-gray-200 rounded-full text-sm focus:outline-none focus:border-[#ff4b86] focus:ring-1 focus:ring-[#ff4b86] transition-all"
+                                    />
+                                    <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                                    {searchQuery && (
+                                        <button
+                                            onClick={() => setSearchQuery('')}
+                                            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 p-0.5 rounded-full hover:bg-gray-200 transition-colors"
+                                        >
+                                            <X className="w-4 h-4" />
+                                        </button>
+                                    )}
+                                </div>
+                            </div>
+
                             {/* Parent Categories */}
-                            <div className="flex space-x-6 overflow-x-auto w-full pb-0 hide-scrollbar px-2">
+                            <div className="flex space-x-6 overflow-x-auto w-full pb-0 hide-scrollbar px-2 justify-center md:justify-start">
                                 <button
                                     key="all"
                                     onClick={() => {
