@@ -177,6 +177,11 @@ export default function ProductCheckoutPage() {
   };
 
   const handleApplyVoucher = async () => {
+    if (!user || !session) {
+      setVoucherError('Sesi login kadaluarsa. Silakan login ulang.');
+      return;
+    }
+
     const trimmed = voucherCode.trim().toUpperCase();
     if (!trimmed) {
       setVoucherError(t('voucher.errors.empty'));
@@ -187,11 +192,17 @@ export default function ProductCheckoutPage() {
     setVoucherError(null);
 
     try {
+      const token = await ensureFreshToken(session);
+      if (!token) {
+        setVoucherError('Sesi login kadaluarsa. Silakan login ulang.');
+        return;
+      }
+
       const categoryIds = await fetchCategoryIds();
       const { data, error: voucherError } = await withTimeout(
         supabase.rpc('validate_and_reserve_voucher', {
           p_code: trimmed,
-          p_user_id: user?.id ?? null,
+          p_user_id: user.id,
           p_subtotal: subtotal,
           p_category_ids: categoryIds,
         }),
@@ -427,24 +438,49 @@ export default function ProductCheckoutPage() {
 
       console.log('[CashierCheckout] Session valid, calling edge function');
 
-      const { data, error: invokeError } = await withTimeout(
-        supabase.functions.invoke('create-cashier-product-order', {
-          body: {
-            items: orderItems.map((i) => ({
-              productVariantId: i.product_variant_id,
-              name: `${i.product_name} - ${i.variant_name}`.slice(0, 50),
-              price: i.unit_price,
-              quantity: i.quantity,
-            })),
-            customerName: customerName.trim(),
-            customerEmail: user.email,
-            customerPhone: customerPhone.trim() || undefined,
-            voucherCode: appliedVoucher?.code || undefined,
-          },
-        }),
-        15000,
-        'Request timeout. Please try again.'
-      );
+      let token = await ensureFreshToken(session);
+      if (!token) {
+        setError('Sesi login kadaluarsa. Silakan login ulang.');
+        navigate('/login');
+        return;
+      }
+
+      const invoke = async (accessToken: string) => {
+        return withTimeout(
+          supabase.functions.invoke('create-cashier-product-order', {
+            body: {
+              items: orderItems.map((i) => ({
+                productVariantId: i.product_variant_id,
+                name: `${i.product_name} - ${i.variant_name}`.slice(0, 50),
+                price: i.unit_price,
+                quantity: i.quantity,
+              })),
+              customerName: customerName.trim(),
+              customerEmail: user.email,
+              customerPhone: customerPhone.trim() || undefined,
+              voucherCode: appliedVoucher?.code || undefined,
+            },
+            headers: { Authorization: `Bearer ${accessToken}` },
+          }),
+          15000,
+          'Request timeout. Please try again.'
+        );
+      };
+
+      let { data, error: invokeError } = await invoke(token);
+      const status = invokeError ? getInvokeStatus(invokeError) : undefined;
+      if (invokeError && status === 401) {
+        const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
+        if (refreshError || !refreshData.session?.access_token) {
+          setError('Sesi login kadaluarsa. Silakan login ulang.');
+          navigate('/login');
+          return;
+        }
+        token = refreshData.session.access_token;
+        const retry = await invoke(token);
+        data = retry.data;
+        invokeError = retry.error ?? null;
+      }
 
       if (invokeError) {
         const rawContext = (invokeError as { context?: { error?: unknown } }).context?.error;
