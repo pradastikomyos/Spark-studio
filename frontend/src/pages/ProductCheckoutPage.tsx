@@ -193,6 +193,29 @@ export default function ProductCheckoutPage() {
     return message || t('voucher.errors.generic');
   };
 
+  const getValidatedAccessToken = async (): Promise<string | null> => {
+    try {
+      const { data: userData, error: userError } = await withTimeout(
+        supabase.auth.getUser(),
+        8000,
+        'Session validation timeout'
+      );
+
+      if (userError || !userData.user) return null;
+
+      const { data: { session: latestSession }, error: sessionError } = await withTimeout(
+        supabase.auth.getSession(),
+        8000,
+        'Session fetch timeout'
+      );
+
+      if (sessionError || !latestSession?.access_token) return null;
+      return latestSession.access_token;
+    } catch {
+      return null;
+    }
+  };
+
   const handleApplyVoucher = async () => {
     if (!user || !session) {
       setVoucherError('Sesi login kadaluarsa. Silakan login ulang.');
@@ -309,7 +332,7 @@ export default function ProductCheckoutPage() {
         );
       };
 
-      let token = await ensureFreshToken(session);
+      let token = await getValidatedAccessToken();
       if (!token) {
         setError('Sesi login kadaluarsa. Silakan login ulang.');
         navigate('/login');
@@ -319,13 +342,13 @@ export default function ProductCheckoutPage() {
       let { data, error: invokeError } = await invoke(token);
       const status = invokeError ? getInvokeStatus(invokeError) : undefined;
       if (invokeError && status === 401) {
-        const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
-        if (refreshError || !refreshData.session?.access_token) {
+        await supabase.auth.refreshSession();
+        token = await getValidatedAccessToken();
+        if (!token) {
           setError('Sesi login kadaluarsa. Silakan login ulang.');
           navigate('/login');
           return;
         }
-        token = refreshData.session.access_token;
         const retry = await invoke(token);
         data = retry.data;
         invokeError = retry.error ?? null;
@@ -417,41 +440,7 @@ export default function ProductCheckoutPage() {
     try {
       if (!user.email) throw new Error('Missing account email');
 
-      // Validate current session
-      console.log('[CashierCheckout] Validating session');
-      const { data: { session: currentSession }, error: sessionError } = await supabase.auth.getSession();
-      
-      if (sessionError || !currentSession) {
-        console.error('[CashierCheckout] No valid session:', sessionError);
-        await supabase.auth.signOut();
-        setError('Sesi login kadaluarsa. Silakan login ulang.');
-        setTimeout(() => navigate('/login?reason=session_expired'), 2000);
-        return;
-      }
-
-      // Check if token is about to expire (within 5 minutes)
-      const expiresAt = currentSession.expires_at || 0;
-      const now = Math.floor(Date.now() / 1000);
-      const timeUntilExpiry = expiresAt - now;
-      
-      if (timeUntilExpiry < 300) { // Less than 5 minutes
-        console.log('[CashierCheckout] Token expiring soon, attempting refresh');
-        const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
-        
-        if (refreshError || !refreshData.session) {
-          console.error('[CashierCheckout] Refresh failed:', refreshError);
-          await supabase.auth.signOut();
-          setError('Sesi login tidak dapat diperpanjang. Silakan login ulang.');
-          setTimeout(() => navigate('/login?reason=session_expired'), 2000);
-          return;
-        }
-        
-        console.log('[CashierCheckout] Session refreshed successfully');
-      }
-
-      console.log('[CashierCheckout] Session valid, calling edge function');
-
-      let token = await ensureFreshToken(session);
+      let token = await getValidatedAccessToken();
       if (!token) {
         setError('Sesi login kadaluarsa. Silakan login ulang.');
         navigate('/login');
@@ -483,13 +472,13 @@ export default function ProductCheckoutPage() {
       let { data, error: invokeError } = await invoke(token);
       const status = invokeError ? getInvokeStatus(invokeError) : undefined;
       if (invokeError && status === 401) {
-        const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
-        if (refreshError || !refreshData.session?.access_token) {
+        await supabase.auth.refreshSession();
+        token = await getValidatedAccessToken();
+        if (!token) {
           setError('Sesi login kadaluarsa. Silakan login ulang.');
           navigate('/login');
           return;
         }
-        token = refreshData.session.access_token;
         const retry = await invoke(token);
         data = retry.data;
         invokeError = retry.error ?? null;
