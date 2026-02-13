@@ -40,3 +40,6 @@ enabled = true
 
 [analytics]
 enabled = false
+
+[functions.create-cashier-product-order]
+verify_jwt = false
