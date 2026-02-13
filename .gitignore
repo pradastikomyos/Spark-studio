@@ -55,3 +55,4 @@ docs/TECHNICAL_AUDIT_REPORT.md
 # Supabase local development only
 supabase/.temp/
 supabase/.branches/
+plans/

@@ -73,7 +73,7 @@ Implement a flexible voucher/coupon system for product orders that allows:
 ## 🏗️ Implementation Phases
 
 ### **Phase 1: Database Migration** ✅ (COMPLETED)
-**File**: `supabase/migrations/20260213000000_add_voucher_system.sql`
+**File**: `supabase/migrations/20260213031206_add_voucher_system.sql`
 
 **Tasks**:
 - [x] Create `vouchers` table with constraints
@@ -92,8 +92,8 @@ Implement a flexible voucher/coupon system for product orders that allows:
 - Returns calculated discount amount
 
 **Testing Checklist**:
-- [ ] Deploy migration to Supabase
-- [ ] Verify tables created successfully
+- [x] Deploy migration to Supabase (verified via list_tables - vouchers & voucher_usage exist)
+- [x] Verify tables created successfully (confirmed with proper columns and constraints)
 - [ ] Test RPC function with sample data
 - [ ] Verify RLS policies work correctly
 - [ ] Check indexes are created
@@ -137,7 +137,7 @@ Implement a flexible voucher/coupon system for product orders that allows:
 
 ---
 
-#### 2.2 Update `create-midtrans-product-token` Edge Function
+#### 2.2 Update `create-midtrans-product-token` Edge Function ✅ (COMPLETED)
 **File**: `supabase/functions/create-midtrans-product-token/index.ts`
 
 **Changes Required**:
@@ -153,16 +153,16 @@ Implement a flexible voucher/coupon system for product orders that allows:
 4. Create `voucher_usage` record after successful payment
 
 **Tasks**:
-- [ ] Add voucher validation logic
-- [ ] Update order creation to include voucher fields
-- [ ] Implement rollback on errors
-- [ ] Update Midtrans payload with discounted total
+- [x] Add voucher validation logic (implemented with category extraction)
+- [x] Update order creation to include voucher fields (voucher_id, voucher_code, discount_amount)
+- [x] Implement rollback on errors (release_voucher_quota called on all error paths)
+- [x] Update Midtrans payload with discounted total (finalTotal = totalAmount - discountAmount)
 - [ ] Test with valid/invalid vouchers
 - [ ] Deploy function
 
 ---
 
-#### 2.3 Update `create-cashier-product-order` Edge Function
+#### 2.3 Update `create-cashier-product-order` Edge Function ✅ (COMPLETED)
 **File**: `supabase/functions/create-cashier-product-order/index.ts`
 
 **Changes Required**:
@@ -171,8 +171,8 @@ Implement a flexible voucher/coupon system for product orders that allows:
 - Store voucher info in order record
 
 **Tasks**:
-- [ ] Add voucher validation logic
-- [ ] Update order creation
+- [x] Add voucher validation logic (implemented with category extraction)
+- [x] Update order creation (voucher_id, voucher_code, discount_amount stored)
 - [ ] Test cashier flow with vouchers
 - [ ] Deploy function
 
@@ -195,9 +195,9 @@ Implement a flexible voucher/coupon system for product orders that allows:
 
 ---
 
-### **Phase 3: Admin UI - Voucher Manager**
+### **Phase 3: Admin UI - Voucher Manager** ✅ (COMPLETED)
 
-#### 3.1 Create VoucherManager Page
+#### 3.1 Create VoucherManager Page ✅ (COMPLETED)
 **File**: `frontend/src/pages/admin/VoucherManager.tsx`
 
 **Features**:
@@ -224,17 +224,17 @@ Implement a flexible voucher/coupon system for product orders that allows:
   - Active toggle
 
 **Tasks**:
-- [ ] Create VoucherManager component
-- [ ] Implement CRUD operations using Supabase client
-- [ ] Add form validation
-- [ ] Add usage statistics display
-- [ ] Style with Tailwind (match existing admin pages)
-- [ ] Add loading states and error handling
+- [x] Create VoucherManager component (703 lines, fully implemented)
+- [x] Implement CRUD operations using Supabase client (create, update, delete, toggle active)
+- [x] Add form validation (validateForm function with comprehensive checks)
+- [x] Add usage statistics display (redemptions & discount total from voucher_usage)
+- [x] Style with Tailwind (match existing admin pages)
+- [x] Add loading states and error handling (loading, error, saving states)
 - [ ] Test all CRUD operations
 
 ---
 
-#### 3.2 Add to Admin Menu
+#### 3.2 Add to Admin Menu ✅ (COMPLETED)
 **File**: `frontend/src/constants/adminMenu.ts`
 
 **Changes**:
@@ -243,16 +243,16 @@ Implement a flexible voucher/coupon system for product orders that allows:
 - Route: `/admin/vouchers`
 
 **Tasks**:
-- [ ] Update admin menu constants
-- [ ] Add route to App.tsx
+- [x] Update admin menu constants (added as "Voucher & Diskon" with confirmation_number icon)
+- [x] Add route to App.tsx (route exists at /admin/vouchers with VoucherManager component)
 - [ ] Verify navigation works
 - [ ] Update admin menu tests (if any)
 
 ---
 
-### **Phase 4: Customer UI - Checkout Integration**
+### **Phase 4: Customer UI - Checkout Integration** ✅ (COMPLETED)
 
-#### 4.1 Update ProductCheckoutPage
+#### 4.1 Update ProductCheckoutPage ✅ (COMPLETED)
 **File**: `frontend/src/pages/ProductCheckoutPage.tsx`
 
 **Changes**:
@@ -290,14 +290,14 @@ Implement a flexible voucher/coupon system for product orders that allows:
 ```
 
 **Tasks**:
-- [ ] Add voucher input UI component
-- [ ] Implement apply voucher logic
-- [ ] Update order summary calculations
-- [ ] Add discount display
-- [ ] Handle validation errors gracefully
-- [ ] Update payment submission to include voucher
+- [x] Add voucher input UI component (voucherCode state, input field, apply button)
+- [x] Implement apply voucher logic (handleApplyVoucher with RPC call)
+- [x] Update order summary calculations (appliedVoucher state with discount display)
+- [x] Add discount display (shows voucher code and discount amount)
+- [x] Handle validation errors gracefully (voucherError state with error messages)
+- [x] Update payment submission to include voucher (voucherCode passed to edge functions)
 - [ ] Test with various voucher scenarios
-- [ ] Add loading/disabled states
+- [x] Add loading/disabled states (applyingVoucher state)
 
 ---
 
@@ -317,7 +317,7 @@ Implement a flexible voucher/coupon system for product orders that allows:
 
 ---
 
-#### 4.3 Update Order Display Pages
+#### 4.3 Update Order Display Pages ✅ (COMPLETED)
 **Files**:
 - `frontend/src/pages/MyProductOrdersPage.tsx`
 - `frontend/src/pages/ProductOrderSuccessPage.tsx`
@@ -329,14 +329,14 @@ Implement a flexible voucher/coupon system for product orders that allows:
 - Update total calculation display
 
 **Tasks**:
-- [ ] Add voucher display to order cards
-- [ ] Update order summary breakdown
+- [x] Add voucher display to order cards (MyProductOrdersPage shows voucher badge)
+- [x] Update order summary breakdown (discount_amount displayed with voucher_code)
 - [ ] Test with voucher and non-voucher orders
 - [ ] Ensure responsive design
 
 ---
 
-### **Phase 5: Localization (i18n)**
+### **Phase 5: Localization (i18n)** ✅ (COMPLETED)
 
 **Files**:
 - `frontend/src/locales/en.json`
@@ -363,9 +363,9 @@ Implement a flexible voucher/coupon system for product orders that allows:
 ```
 
 **Tasks**:
-- [ ] Add English translations
-- [ ] Add Indonesian translations
-- [ ] Update all UI components to use i18n keys
+- [x] Add English translations (comprehensive voucher translations in en.json)
+- [x] Add Indonesian translations (comprehensive voucher translations in id.json)
+- [x] Update all UI components to use i18n keys (VoucherManager & ProductCheckoutPage use t())
 - [ ] Test language switching
 
 ---
@@ -590,12 +590,71 @@ ALTER TABLE public.order_products
 
 ## ✅ Current Status
 
-**Phase 1: Database Migration** - ✅ COMPLETED (migration file created)
+**Implementation Progress: ~85% Complete**
+
+### ✅ Completed Phases:
+1. **Phase 1: Database Migration** - 100% Complete
+   - Tables created: `vouchers`, `voucher_usage`
+   - Columns added to `order_products`: `voucher_code`, `voucher_id`
+   - RPC functions: `validate_and_reserve_voucher()`, `release_voucher_quota()`
+   - RLS policies configured
+   - Migration deployed to production
+
+2. **Phase 2: Edge Functions** - 80% Complete
+   - ✅ `create-midtrans-product-token` updated with voucher logic
+   - ✅ `create-cashier-product-order` updated with voucher logic
+   - ⏳ Testing with valid/invalid vouchers (pending)
+   - ⏳ Deployment verification (pending)
+
+3. **Phase 3: Admin UI** - 100% Complete
+   - ✅ VoucherManager page created (703 lines)
+   - ✅ CRUD operations implemented
+   - ✅ Form validation
+   - ✅ Usage statistics display
+   - ✅ Admin menu updated
+   - ✅ Route added to App.tsx
+   - ⏳ Testing CRUD operations (pending)
+
+4. **Phase 4: Customer UI** - 90% Complete
+   - ✅ ProductCheckoutPage updated with voucher input
+   - ✅ Apply/remove voucher logic
+   - ✅ Discount display in order summary
+   - ✅ Error handling
+   - ✅ MyProductOrdersPage shows voucher badge
+   - ⏳ Testing with various scenarios (pending)
+
+5. **Phase 5: Localization** - 100% Complete
+   - ✅ English translations added
+   - ✅ Indonesian translations added
+   - ✅ All UI components use i18n keys
+   - ⏳ Language switching test (pending)
+
+### 🔄 Remaining Tasks:
+1. **Testing & Validation** (Phase 6)
+   - Test RPC functions with sample data
+   - Test edge functions with valid/invalid vouchers
+   - Test admin CRUD operations
+   - Test customer checkout flow
+   - Test concurrent redemptions
+   - Test edge cases
+
+2. **Deployment**
+   - Verify migration deployed successfully
+   - Deploy edge functions
+   - Test on production environment
+
+3. **Documentation**
+   - Create voucher creation guide for team
+   - Document voucher management process
+
+---
 
 **Next Steps**:
-1. Deploy migration to Supabase
-2. Test RPC functions
-3. Start Phase 2: Edge Functions
+1. Test RPC functions in Supabase dashboard
+2. Create test vouchers via admin UI
+3. Test checkout flow with vouchers
+4. Deploy edge functions to production
+5. Monitor error logs for 24 hours
 
 ---
 

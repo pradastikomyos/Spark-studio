@@ -296,12 +296,19 @@ const StoreInventory = () => {
     try {
       const token = await ensureFreshToken(session);
       if (!token) throw new Error('Session expired. Please refresh and log in again.');
+      const deletedAt = new Date().toISOString();
       const { error } = await withTimeout(
-        supabase.from('products').update({ deleted_at: new Date().toISOString() }).eq('id', deletingProduct.id),
+        supabase.from('products').update({ deleted_at: deletedAt }).eq('id', deletingProduct.id),
         REQUEST_TIMEOUT_MS,
         'Request timeout. Please try again.'
       );
       if (error) throw error;
+      const { error: cascadeError } = await withTimeout(
+        supabase.rpc('soft_delete_product_cascade', { p_product_id: deletingProduct.id, p_deleted_at: deletedAt }),
+        REQUEST_TIMEOUT_MS,
+        'Request timeout. Please try again.'
+      );
+      if (cascadeError) throw cascadeError;
       setDeletingProduct(null);
       await refetch();
     } catch (e) {
@@ -603,6 +610,16 @@ const StoreInventory = () => {
         if (typeof err === 'string') return err;
         if (err && typeof err === 'object') {
           const maybe = err as { message?: unknown; details?: unknown; hint?: unknown; code?: unknown };
+          if (maybe.code === '23505') {
+            const message = typeof maybe.message === 'string' ? maybe.message.toLowerCase() : '';
+            if (message.includes('sku')) {
+              return '⚠️ Variant SKU already exists on an active variant. Please use a different SKU or delete the old product first.';
+            }
+            if (message.includes('slug')) {
+              return '⚠️ Product slug is already taken. Please use a different slug.';
+            }
+            return '⚠️ Duplicate data detected. Please check SKU/slug uniqueness.';
+          }
           const parts = [maybe.message, maybe.details, maybe.hint]
             .filter((v): v is string => typeof v === 'string' && v.trim().length > 0)
             .slice(0, 2);
