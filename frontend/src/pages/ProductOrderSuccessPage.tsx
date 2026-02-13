@@ -6,6 +6,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import { createQuerySignal } from '../lib/fetchers';
 import { formatCurrency } from '../utils/formatters';
+import { formatDateTimeWIB } from '../utils/timezone';
 import { useToast } from '../components/Toast';
 import OrderSuccessSkeleton from '../components/skeletons/OrderSuccessSkeleton';
 import { withTimeout } from '../utils/queryHelpers';
@@ -542,16 +543,6 @@ export default function ProductOrderSuccessPage() {
 
     return paymentType.replace(/_/g, ' ').toUpperCase();
   }, [order?.channel, order?.payment_data]);
-  const formatPickupExpiry = (value: string) =>
-    new Date(value).toLocaleString('en-US', {
-      timeZone: 'Asia/Jakarta',
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-
   if (!orderNumber) {
     return (
       <div className="min-h-screen bg-background-light flex items-center justify-center px-6">
@@ -632,7 +623,7 @@ export default function ProductOrderSuccessPage() {
                       {order.created_at && (
                         <div className="text-right">
                           <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Date</p>
-                          <p className="font-medium">{formatPickupExpiry(order.created_at)}</p>
+                          <p className="font-medium">{formatDateTimeWIB(order.created_at)}</p>
                         </div>
                       )}
                     </div>
@@ -664,7 +655,7 @@ export default function ProductOrderSuccessPage() {
                               <p className="font-display text-2xl text-primary">{pickupCode}</p>
                               {order.pickup_expires_at && (
                                 <p className="mt-2 text-sm text-gray-500">
-                                  Pickup expires: {formatPickupExpiry(order.pickup_expires_at)}
+                                  Pickup expires: {formatDateTimeWIB(order.pickup_expires_at)}
                                 </p>
                               )}
                             </div>

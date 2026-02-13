@@ -151,9 +151,9 @@ export function formatTimeWIB(date: Date): string {
 /**
  * Format datetime for display in WIB
  */
-export function formatDateTimeWIB(date: Date): string {
-  const wibDate = utcToWIB(date);
-  return wibDate.toLocaleString('id-ID', {
+export function formatDateTimeWIB(date: Date | string): string {
+  const target = typeof date === 'string' ? new Date(date) : date;
+  return target.toLocaleString('id-ID', {
     timeZone: 'Asia/Jakarta',
     year: 'numeric',
     month: 'short',

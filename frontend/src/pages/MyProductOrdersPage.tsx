@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import QRCode from 'react-qr-code';
 import { formatCurrency } from '../utils/formatters';
+import { formatDateTimeWIB } from '../utils/timezone';
 import { useAuth } from '../contexts/AuthContext';
 import { useMyOrders } from '../hooks/useMyOrders';
 import OrderCardSkeleton from '../components/skeletons/OrderCardSkeleton';
@@ -151,17 +152,6 @@ export default function MyProductOrdersPage() {
     activeTab === 'pending' ? pendingOrders :
     activeTab === 'active' ? activeOrders : 
     historyOrders;
-
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-  };
 
   const getStatusBadge = (order: ProductOrder) => {
     if (order.payment_status !== 'paid') {
@@ -519,7 +509,7 @@ export default function MyProductOrdersPage() {
                       </div>
                       <div className="flex items-center gap-2 text-sm text-gray-600">
                         <span className="material-symbols-outlined text-base">schedule</span>
-                        <span>{formatDate(order.created_at)}</span>
+                        <span>{formatDateTimeWIB(order.created_at)}</span>
                       </div>
                     </div>
 
@@ -553,7 +543,7 @@ export default function MyProductOrdersPage() {
                           </p>
                           {shouldShowPickupExpiry(order) && order.pickup_expires_at && (
                             <p className="text-xs text-gray-500 mt-2">
-                              {t('myOrders.pickup.expires')}: {formatDate(order.pickup_expires_at)}
+                              {t('myOrders.pickup.expires')}: {formatDateTimeWIB(order.pickup_expires_at)}
                             </p>
                           )}
                           {String(order.channel || '').toLowerCase() === 'cashier' && (
