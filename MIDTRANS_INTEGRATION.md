@@ -3,19 +3,27 @@
 ## Komponen
 
 - Frontend (Vite/React)
-  - [PaymentPage.tsx](file:///c:/Users/prada/Documents/Spark%20studio/src/pages/PaymentPage.tsx) memulai pembayaran via Snap popup
-  - [BookingSuccessPage.tsx](file:///c:/Users/prada/Documents/Spark%20studio/src/pages/BookingSuccessPage.tsx) menampilkan status order dan tiket
+  - `frontend/src/pages/PaymentPage.tsx` memulai pembayaran booking tiket via Snap popup
+  - `frontend/src/pages/BookingSuccessPage.tsx` menampilkan status booking + tiket
+  - `frontend/src/pages/ProductCheckoutPage.tsx` checkout produk + apply voucher
+  - `frontend/src/pages/ProductOrderSuccessPage.tsx` status order produk + pickup info
 - Supabase Edge Functions
-  - [create-midtrans-token](file:///c:/Users/prada/Documents/Spark%20studio/supabase/functions/create-midtrans-token/index.ts) membuat order + request Snap token
-  - [midtrans-webhook](file:///c:/Users/prada/Documents/Spark%20studio/supabase/functions/midtrans-webhook/index.ts) menerima HTTP Notification dan update status/tiket
-  - [sync-midtrans-status](file:///c:/Users/prada/Documents/Spark%20studio/supabase/functions/sync-midtrans-status/index.ts) fallback manual: cek status ke Core API Midtrans dan sinkronkan ke DB
-  - [sync-midtrans-product-status](file:///c:/Users/prada/Documents/Spark%20studio/supabase/functions/sync-midtrans-product-status/index.ts) fallback manual: cek status pembayaran produk + pickup
-  - [reconcile-midtrans-payments](file:///c:/Users/prada/Documents/Spark%20studio/supabase/functions/reconcile-midtrans-payments/index.ts) job rekonsiliasi otomatis untuk mismatch pembayaran
+  - `supabase/functions/create-midtrans-token/index.ts` buat order tiket + request Snap token
+  - `supabase/functions/create-midtrans-product-token/index.ts` buat order produk + reserve stock/voucher + request Snap token
+  - `supabase/functions/create-cashier-product-order/index.ts` order produk via kasir (tanpa Snap)
+  - `supabase/functions/midtrans-webhook/index.ts` HTTP Notification → update status (tiket + produk)
+  - `supabase/functions/sync-midtrans-status/index.ts` fallback manual: cek status tiket ke Core API Midtrans dan sinkronkan ke DB
+  - `supabase/functions/sync-midtrans-product-status/index.ts` fallback manual: cek status pembayaran produk + pickup
+  - `supabase/functions/reconcile-midtrans-payments/index.ts` job rekonsiliasi otomatis untuk mismatch pembayaran
 - Database (public schema)
   - `orders` (status pembayaran + `payment_data`)
   - `order_items` (item yang dibeli)
   - `purchased_tickets` (tiket yang dibuat setelah paid)
   - `ticket_availabilities` (kapasitas)
+  - `order_products` (order produk + pickup)
+  - `order_product_items` (item produk per order)
+  - `product_variants` (stock + reserved_stock)
+  - `vouchers` dan `voucher_usage` (diskon)
 
 ## Alur End-to-End
 
@@ -39,17 +47,29 @@
    - `reconcile-midtrans-payments` memeriksa mismatch (paid tanpa tiket, expired masih reserved stock/capacity)
    - hasil dicatat ke `webhook_logs` dengan event_type `reconcile_*`
 
+## Alur Checkout Produk (Ringkas)
+
+1. User checkout di `ProductCheckoutPage` (opsional: apply voucher via RPC `validate_voucher`).
+2. Frontend request Snap token via Edge Function `create-midtrans-product-token`:
+   - reserve `product_variants.reserved_stock` secara atomic
+   - jika ada voucher: reserve quota via `validate_and_reserve_voucher`
+   - buat record `order_products` + `order_product_items`
+3. Snap popup berjalan seperti biasa.
+4. `midtrans-webhook` / `sync-midtrans-product-status`:
+   - jika paid: set `payment_status=paid`, generate `pickup_code` (idempotent)
+   - jika expired/cancel/failed: release reserved_stock + release voucher quota (idempotent)
+
 ## Signature Verification (Midtrans HTTP Notification)
 
 Midtrans mensyaratkan perhitungan:
 
 `SHA512(order_id + status_code + gross_amount + ServerKey)`
 
-Implementasi di [midtrans-webhook](file:///c:/Users/prada/Documents/Spark%20studio/supabase/functions/midtrans-webhook/index.ts) mengikuti rumus tersebut dan menormalisasi tipe `status_code`/`gross_amount` agar tidak mismatch ketika payload bertipe number vs string.
+Implementasi di `supabase/functions/midtrans-webhook/index.ts` mengikuti rumus tersebut dan menormalisasi tipe `status_code`/`gross_amount` agar tidak mismatch ketika payload bertipe number vs string.
 
 ## Status Mapping (Midtrans → orders.status)
 
-Mapping yang dipakai (dan diuji di frontend util [midtransStatus.ts](file:///c:/Users/prada/Documents/Spark%20studio/src/utils/midtransStatus.ts)):
+Mapping yang dipakai (dan diuji di frontend util `frontend/src/utils/midtransStatus.ts`):
 
 - `settlement` → `paid`
 - `capture` + `fraud_status=accept` (atau fraud_status tidak ada) → `paid`
@@ -129,7 +149,7 @@ join product_variants pv on pv.id = opi.product_variant_id
 where op.status in ('expired','cancelled') and pv.reserved_stock > 0;
 ```
 
-Semua cek ini dilakukan via SQL di proyek dan saat ini tidak menemukan mismatch.
+Gunakan query ini untuk audit bila ada laporan mismatch (status paid tapi UI belum update, pickup_code null, reserved_stock tidak kembali, dll).
 
 ## Testing
 

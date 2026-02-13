@@ -5,30 +5,30 @@ Dokumen ini hanya inventaris struktur frontend yang aktif saat ini (bukan redesi
 ## Stack Frontend
 
 - React 18 + TypeScript + Vite
-- Routing: react-router-dom (definisi route di [App.tsx](file:///c:/Users/prada/Documents/Spark%20studio/src/App.tsx))
-- Styling: Tailwind CSS + CSS global ([index.css](file:///c:/Users/prada/Documents/Spark%20studio/src/index.css))
-- Data fetching: SWR
+- Routing: react-router-dom (definisi route di `frontend/src/App.tsx`)
+- Styling: Tailwind CSS + CSS global (`frontend/src/index.css`)
+- Data fetching: TanStack React Query
 - Backend client: Supabase JS
-- i18n: i18next ([src/locales](file:///c:/Users/prada/Documents/Spark%20studio/src/locales))
+- i18n: i18next (`frontend/src/locales`)
 
 ## Lokasi Kode Frontend
 
-- Entry HTML: [index.html](file:///c:/Users/prada/Documents/Spark%20studio/index.html)
-- Bootstrap React: [main.tsx](file:///c:/Users/prada/Documents/Spark%20studio/src/main.tsx)
-- Router & guard: [App.tsx](file:///c:/Users/prada/Documents/Spark%20studio/src/App.tsx)
-- Layout & komponen shared: [components](file:///c:/Users/prada/Documents/Spark%20studio/src/components)
-- Halaman public: [pages](file:///c:/Users/prada/Documents/Spark%20studio/src/pages)
-- Halaman admin: [pages/admin](file:///c:/Users/prada/Documents/Spark%20studio/src/pages/admin)
-- Komponen admin: [components/admin](file:///c:/Users/prada/Documents/Spark%20studio/src/components/admin)
-- State/Context: [contexts](file:///c:/Users/prada/Documents/Spark%20studio/src/contexts)
-- Hooks (SWR): [hooks](file:///c:/Users/prada/Documents/Spark%20studio/src/hooks)
-- Utilitas UI & helper: [utils](file:///c:/Users/prada/Documents/Spark%20studio/src/utils)
-- Assets publik: [public](file:///c:/Users/prada/Documents/Spark%20studio/public)
-- Logo/brand assets: [src/logo](file:///c:/Users/prada/Documents/Spark%20studio/src/logo)
+- Entry HTML: `frontend/index.html`
+- Bootstrap React: `frontend/src/main.tsx`
+- Router & guard: `frontend/src/App.tsx`
+- Layout & komponen shared: `frontend/src/components`
+- Halaman public: `frontend/src/pages`
+- Halaman admin: `frontend/src/pages/admin`
+- Komponen admin: `frontend/src/components/admin`
+- State/Context: `frontend/src/contexts`
+- Hooks: `frontend/src/hooks`
+- Utilitas UI & helper: `frontend/src/utils`
+- Assets publik: `frontend/public`
+- Logo/brand assets: `frontend/src/logo`
 
 ## Peta Route (Front Office + Admin)
 
-Sumber: [AppRoutes](file:///c:/Users/prada/Documents/Spark%20studio/src/App.tsx#L78-L405)
+Sumber: `frontend/src/App.tsx`
 
 - Public (tanpa login)
   - `/` → Home
@@ -65,20 +65,20 @@ Sumber: [AppRoutes](file:///c:/Users/prada/Documents/Spark%20studio/src/App.tsx#
 
 ## Layout Utama (Komponen yang Paling Mengikat Desain)
 
-- Layout public: [PublicLayout](file:///c:/Users/prada/Documents/Spark%20studio/src/components/PublicLayout.tsx)
-- Navbar: [Navbar](file:///c:/Users/prada/Documents/Spark%20studio/src/components/Navbar.tsx)
-- Footer: [Footer](file:///c:/Users/prada/Documents/Spark%20studio/src/components/Footer.tsx)
-- Hero/landing sections: [Hero](file:///c:/Users/prada/Documents/Spark%20studio/src/components/Hero.tsx), [FeaturedCollections](file:///c:/Users/prada/Documents/Spark%20studio/src/components/FeaturedCollections.tsx), [AboutSection](file:///c:/Users/prada/Documents/Spark%20studio/src/components/AboutSection.tsx), [Newsletter](file:///c:/Users/prada/Documents/Spark%20studio/src/components/Newsletter.tsx)
-- Admin layout: [AdminLayout](file:///c:/Users/prada/Documents/Spark%20studio/src/components/AdminLayout.tsx)
+- Layout public: `frontend/src/components/PublicLayout.tsx`
+- Navbar: `frontend/src/components/Navbar.tsx`
+- Footer: `frontend/src/components/Footer.tsx`
+- Hero/landing sections: `frontend/src/components/Hero.tsx`, `frontend/src/components/FeaturedCollections.tsx`, `frontend/src/components/AboutSection.tsx`, `frontend/src/components/Newsletter.tsx`
+- Admin layout: `frontend/src/components/AdminLayout.tsx`
 
 ## Titik Branding / Copy yang Berpotensi “Kesan Tukang Foto”
 
 Yang biasanya perlu diinventaris saat migrasi ke “Wahana/Experience”:
 
-- Title/meta/OG image di HTML: [index.html](file:///c:/Users/prada/Documents/Spark%20studio/index.html)
-- String navigasi & CTA: [id.json](file:///c:/Users/prada/Documents/Spark%20studio/src/locales/id.json), [en.json](file:///c:/Users/prada/Documents/Spark%20studio/src/locales/en.json)
-- Nama halaman/section: Home/Hero/OnStage/Shop/Booking/Payment (komponen di [pages](file:///c:/Users/prada/Documents/Spark%20studio/src/pages) dan [components](file:///c:/Users/prada/Documents/Spark%20studio/src/components))
-- Logo & aset visual: [src/logo](file:///c:/Users/prada/Documents/Spark%20studio/src/logo), [public/images](file:///c:/Users/prada/Documents/Spark%20studio/public/images)
+- Title/meta/OG image di HTML: `frontend/index.html`
+- String navigasi & CTA: `frontend/src/locales/id.json`, `frontend/src/locales/en.json`
+- Nama halaman/section: Home/Hero/OnStage/Shop/Booking/Payment (komponen di `frontend/src/pages` dan `frontend/src/components`)
+- Logo & aset visual: `frontend/src/logo`, `frontend/public/images`
 
 ## Catatan Arsip
 

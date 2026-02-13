@@ -209,6 +209,7 @@
       "quotaExceeded": "Kuota voucher habis.",
       "minPurchase": "Minimum pembelian {{amount}}.",
       "categoryMismatch": "Voucher tidak berlaku untuk produk ini.",
+      "categoryMismatchWithCategories": "Voucher ini hanya berlaku untuk kategori: {{categories}} (termasuk sub-kategori).",
       "applyFailed": "Gagal menggunakan voucher.",
       "validation": "Validasi voucher gagal.",
       "timeout": "Permintaan timeout. Coba lagi.",

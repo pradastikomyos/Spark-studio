@@ -5,24 +5,13 @@ Aplikasi fullstack booking tiket + e-commerce.
 - Frontend: Vite + React + TypeScript + Tailwind CSS (deploy: Vercel)
 - Backend: Supabase Postgres + Supabase Edge Functions (deploy: Supabase)
 
-## Features
+## Docs
 
-- ⚡ Vite for lightning-fast development
-- ⚛️ React 18 with TypeScript
-- 🎨 Tailwind CSS for styling
-- 🌙 **Dark mode toggle with localStorage persistence**
-- 🎨 **Dynamic logo switching (light/dark mode)**
-- 🛣️ **React Router for multi-page navigation**
-- 📱 Fully responsive design
-- 🎭 Material Symbols Outlined icons
-- 🔤 Custom Google Fonts (Playfair Display & Inter)
-- ✨ Premium animations and transitions
-- 🎯 Sophisticated color palette for luxury aesthetic
-- 💳 Midtrans Snap payment + Supabase Edge Functions
-
-## Dark Mode
-
-UI mendukung dark mode dan menyimpan preferensi pengguna.
+- Index: `docs/README.md`
+- Backend overview + checklist: `docs/backend.md`
+- DB migrations workflow (repo ↔ DB sync): `docs/db-migrations-workflow.md`
+- Midtrans flow (ticket + product): `MIDTRANS_INTEGRATION.md`
+- Voucher system: `docs/voucher-system.md`
 
 ## Project Structure (current)
 
@@ -65,25 +54,15 @@ cd Spark-studio
 npm install
 ```
 
-Or with your preferred package manager:
-
-```bash
-yarn install
-# or
-pnpm install
-# or
-bun install
-```
-
 3. Set up environment variables:
 
-Copy `.env.example` to `.env` and fill in your credentials:
+Copy `.env.example` to `.env.local` and fill in your credentials:
 
 ```bash
-cp .env.example .env
+cp .env.example .env.local
 ```
 
-Then edit `.env` with your actual values:
+Then edit `.env.local` with your actual values:
 
 ```env
 VITE_SUPABASE_URL=your_supabase_project_url
@@ -94,13 +73,19 @@ VITE_MIDTRANS_IS_PRODUCTION=false
 
 **Important**: Midtrans Server Key must never be exposed to the browser. Set `MIDTRANS_SERVER_KEY` and `MIDTRANS_IS_PRODUCTION` as Supabase Edge Functions secrets.
 
+## Repo Convention
+
+- Jalankan semua script dari root (`package.json` di root).
+- Folder `frontend/` adalah Vite root (diatur via `vite.config.ts`), bukan workspace Node terpisah (tidak ada `frontend/package.json`).
+
 ## Midtrans Integration
 
-See [MIDTRANS_INTEGRATION.md](file:///c:/Users/prada/Documents/Spark%20studio/MIDTRANS_INTEGRATION.md).
+See `MIDTRANS_INTEGRATION.md`.
 
 ## Backend (Supabase)
 
-Dokumentasi struktur backend dan checklist deploy ada di [backend.md](file:///c:/Users/prada/Documents/Spark%20studio/docs/backend.md).
+Dokumentasi struktur backend dan checklist deploy ada di `docs/backend.md`.
+Workflow sinkronisasi DB ↔ repo (migrations) ada di `docs/db-migrations-workflow.md`.
 
 ### Development
 
@@ -194,29 +179,16 @@ To add a custom domain:
 
 ## Pages
 
-### Home (`/`)
-- Hero section with full-screen imagery
-- Ticket booking section with date cards
-- About section with studio philosophy
-- Featured collections (Fashion & Beauty)
-- Newsletter subscription
+Routes utama:
 
-### On Stage (`/on-stage`)
-- Gallery header with description
-- Interactive grid layout with 6 different studio sets
-- Features section (Lighting, Dressing, Props)
-- Hover effects with grayscale-to-color transitions
-- Responsive masonry-style grid
-
-### Shop (`/shop`)
-- Hero header with collection title
-- Product filtering by category
-- Product grid with 6 items
-- Add to cart hover buttons
-- Feature section with brand story
-- Newsletter subscription
-
-### Events (`/events`)
+- `/` Home
+- `/booking` Booking tiket (Midtrans)
+- `/order/success/:orderNumber` Booking success + status sync
+- `/shop` Store
+- `/cart` Cart
+- `/checkout/product` Checkout produk (Midtrans)
+- `/order/product/success/:orderNumber` Product order success + status sync
+- `/admin` Admin (voucher, inventory, orders, stages)
 - Hero header with curated experiences tagline
 - Event filtering (All Events, Workshops, Exhibitions, Masterclass)
 - Event cards with 5 upcoming events:

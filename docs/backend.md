@@ -5,6 +5,11 @@ Repo ini tidak memakai backend HTTP tradisional (Express/Nest). Backend ada di f
 - `supabase/migrations`: schema + rls + perubahan database
 - `supabase/functions`: edge functions (Deno) untuk logic server-side (contoh: Midtrans)
 
+Catatan penting:
+
+- Admin authorization di DB pakai `public.is_admin()` (source of truth: `public.user_role_assignments`).
+- Voucher checkout produk punya dua mode: validasi read-only (frontend) dan reserve atomic (server). Detailnya ada di `docs/voucher-system.md`.
+
 ## struktur folder yang scalable
 
 ```
@@ -86,6 +91,7 @@ Catatan:
 
 - Function dengan `verify_jwt = true` butuh user login (ada Authorization header).
 - `midtrans-webhook` tidak dipanggil dari browser. URL ini dipakai Midtrans untuk callback.
+- Beberapa function butuh header Authorization eksplisit jika invoke tidak membawa session secara otomatis (lihat implementasi di frontend).
 
 ### webhook midtrans
 
@@ -105,6 +111,7 @@ Catatan:
 
 - Semua migrasi ada di `supabase/migrations` dan sudah apply ke project target.
 - RLS policy untuk tabel terkait order/purchased tickets/webhook logs sesuai kebutuhan.
+- Workflow sinkronisasi DB ↔ repo: lihat `docs/db-migrations-workflow.md`.
 
 ### edge functions
 
@@ -116,4 +123,3 @@ Catatan:
 
 - Buat booking tiket → dapat snap token → bayar di Midtrans sandbox → webhook update status → tiket terbentuk.
 - Checkout produk → stok reserved → bayar → webhook update status → pickup code valid → complete pickup mengurangi stock & reserved.
-

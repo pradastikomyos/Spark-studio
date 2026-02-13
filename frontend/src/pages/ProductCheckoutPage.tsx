@@ -49,6 +49,16 @@ type AppliedVoucher = {
   discountValue?: number | null;
 };
 
+type ValidateVoucherResult = {
+  voucher_id?: string | null;
+  discount_type?: string | null;
+  discount_value?: number | string | null;
+  discount_amount?: number | string | null;
+  error_message?: string | null;
+  error_code?: string | null;
+  applicable_category_names?: string[] | null;
+};
+
 const mapVoucherErrorCode = (message?: string | null, code?: string | null) => {
   const normalized = String(message || '').toLowerCase();
   if (code === 'VOUCHER_INACTIVE' || normalized.includes('tidak aktif')) return 'voucher.errors.inactive';
@@ -165,8 +175,15 @@ export default function ProductCheckoutPage() {
     );
   };
 
-  const resolveVoucherErrorMessage = (message?: string | null, code?: string | null) => {
+  const resolveVoucherErrorMessage = (
+    message?: string | null,
+    code?: string | null,
+    applicableCategoryNames?: string[] | null
+  ) => {
     const key = mapVoucherErrorCode(message, code);
+    if (key === 'voucher.errors.categoryMismatch' && applicableCategoryNames && applicableCategoryNames.length > 0) {
+      return t('voucher.errors.categoryMismatchWithCategories', { categories: applicableCategoryNames.join(', ') });
+    }
     if (key === 'voucher.errors.minPurchase' && message) {
       const match = message.match(/Rp\s*([0-9.,]+)/i);
       const amount = match ? `Rp ${match[1]}` : message;
@@ -200,9 +217,8 @@ export default function ProductCheckoutPage() {
 
       const categoryIds = await fetchCategoryIds();
       const { data, error: voucherError } = await withTimeout(
-        supabase.rpc('validate_and_reserve_voucher', {
+        supabase.rpc('validate_voucher', {
           p_code: trimmed,
-          p_user_id: user.id,
           p_subtotal: subtotal,
           p_category_ids: categoryIds,
         }),
@@ -212,10 +228,12 @@ export default function ProductCheckoutPage() {
 
       if (voucherError) throw voucherError;
 
-      const result = Array.isArray(data) ? data[0] : data;
+      const result = (Array.isArray(data) ? data[0] : data) as ValidateVoucherResult | null | undefined;
       if (result?.error_message) {
         setAppliedVoucher(null);
-        setVoucherError(resolveVoucherErrorMessage(result.error_message, null));
+        setVoucherError(
+          resolveVoucherErrorMessage(result.error_message, result.error_code ?? null, result.applicable_category_names)
+        );
         return;
       }
 
@@ -226,13 +244,8 @@ export default function ProductCheckoutPage() {
         code: trimmed,
         discountAmount: discountAmountValue,
         discountType: result?.discount_type ?? null,
-        discountValue: result?.discount_value ?? null,
+        discountValue: result?.discount_value != null ? Number(result.discount_value) : null,
       });
-
-      // Immediately release quota so we don't double-reserve before checkout
-      if (voucherId) {
-        await supabase.rpc('release_voucher_quota', { p_voucher_id: voucherId });
-      }
     } catch (e) {
       setAppliedVoucher(null);
       setVoucherError(e instanceof Error ? e.message : t('voucher.errors.applyFailed'));

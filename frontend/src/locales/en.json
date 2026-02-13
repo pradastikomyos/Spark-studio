@@ -209,6 +209,7 @@
       "quotaExceeded": "Voucher quota has been used up.",
       "minPurchase": "Minimum purchase {{amount}}.",
       "categoryMismatch": "Voucher is not valid for these items.",
+      "categoryMismatchWithCategories": "This voucher only applies to: {{categories}} (including sub-categories).",
       "applyFailed": "Failed to apply voucher.",
       "validation": "Voucher validation failed.",
       "timeout": "Request timeout. Please try again.",
