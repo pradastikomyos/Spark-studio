@@ -15,6 +15,7 @@ type CreateCashierOrderRequest = {
   customerName: string
   customerEmail: string
   customerPhone?: string
+  voucherCode?: string  // NEW: Optional voucher code for discount
 }
 
 function generatePickupCode() {
@@ -187,6 +188,97 @@ serve(async (req) => {
     const orderNumber = `PRD-${Date.now()}-${Math.random().toString(36).substring(2, 7).toUpperCase()}`
     const now = new Date()
 
+    // VOUCHER VALIDATION: Extract category IDs and validate voucher if provided
+    let voucherId: string | null = null
+    let voucherCode: string | null = null
+    let discountAmount = 0
+
+    if (payload.voucherCode?.trim()) {
+      // Extract category IDs from product variants
+      const { data: variantCategories, error: categoryError } = await supabase
+        .from('product_variants')
+        .select('product_id')
+        .in('id', variantIds)
+
+      if (categoryError || !variantCategories) {
+        return new Response(JSON.stringify({ error: 'Failed to load product categories' }), {
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        })
+      }
+
+      const productIds = variantCategories.map((v: { product_id: number }) => v.product_id)
+      const { data: products, error: productsError } = await supabase
+        .from('products')
+        .select('category_id')
+        .in('id', productIds)
+
+      if (productsError || !products) {
+        return new Response(JSON.stringify({ error: 'Failed to load product categories' }), {
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        })
+      }
+
+      const categoryIds = products.map((p: { category_id: number }) => p.category_id).filter((id: number) => id != null)
+
+      // Call validate_and_reserve_voucher RPC
+      const { data: voucherResult, error: voucherError } = await supabase.rpc('validate_and_reserve_voucher', {
+        p_code: payload.voucherCode.trim(),
+        p_user_id: userId,
+        p_subtotal: totalAmount,
+        p_category_ids: categoryIds,
+      })
+
+      if (voucherError) {
+        return new Response(
+          JSON.stringify({
+            error: 'Failed to validate voucher',
+            code: 'VOUCHER_VALIDATION_ERROR',
+            details: voucherError.message,
+          }),
+          {
+            status: 500,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          }
+        )
+      }
+
+      // RPC returns array with single row
+      const result = Array.isArray(voucherResult) ? voucherResult[0] : voucherResult
+
+      if (result?.error_message) {
+        // Voucher validation failed - return specific error
+        let errorCode = 'VOUCHER_INVALID'
+        const errorMsg = result.error_message
+
+        if (errorMsg.includes('tidak aktif')) errorCode = 'VOUCHER_INACTIVE'
+        else if (errorMsg.includes('belum berlaku')) errorCode = 'VOUCHER_NOT_YET_VALID'
+        else if (errorMsg.includes('kadaluarsa')) errorCode = 'VOUCHER_EXPIRED'
+        else if (errorMsg.includes('Kuota')) errorCode = 'VOUCHER_QUOTA_EXCEEDED'
+        else if (errorMsg.includes('Minimum')) errorCode = 'VOUCHER_MIN_PURCHASE'
+        else if (errorMsg.includes('kategori')) errorCode = 'VOUCHER_CATEGORY_MISMATCH'
+
+        return new Response(
+          JSON.stringify({
+            error: errorMsg,
+            code: errorCode,
+          }),
+          {
+            status: 400,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          }
+        )
+      }
+
+      // Voucher validated successfully - store details
+      voucherId = result.voucher_id
+      voucherCode = payload.voucherCode.trim().toUpperCase()
+      discountAmount = toNumber(result.discount_amount, 0)
+
+      console.log(`Voucher applied: ${voucherCode}, discount: ${discountAmount}`)
+    }
+
     let pickupCode = ''
     const { data: pickupCodeRow, error: pickupCodeError } = await supabase.rpc('generate_pickup_code', {})
     if (!pickupCodeError) {
@@ -227,6 +319,24 @@ serve(async (req) => {
       const reserved = toNumber((row as { reserved_stock: unknown }).reserved_stock, 0)
       const available = stock - reserved
       if (available < item.quantity) {
+        // Rollback voucher quota if it was reserved
+        if (voucherId) {
+          await supabase.rpc('release_voucher_quota', { p_voucher_id: voucherId })
+        }
+
+        // Rollback previously reserved items
+        for (const previous of reservedAdjustments) {
+          const { data: variantRow } = await supabase
+            .from('product_variants')
+            .select('reserved_stock')
+            .eq('id', previous.variantId)
+            .single()
+          const currentReserved = (variantRow as { reserved_stock?: number } | null)?.reserved_stock ?? 0
+          await supabase
+            .from('product_variants')
+            .update({ reserved_stock: Math.max(0, currentReserved - previous.quantity), updated_at: new Date().toISOString() })
+            .eq('id', previous.variantId)
+        }
         return new Response(JSON.stringify({ error: `Out of stock for ${item.name}` }), {
           status: 409,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -240,6 +350,24 @@ serve(async (req) => {
         .select('id')
 
       if (reserveError || !updated || updated.length === 0) {
+        // Rollback voucher quota if it was reserved
+        if (voucherId) {
+          await supabase.rpc('release_voucher_quota', { p_voucher_id: voucherId })
+        }
+
+        // Rollback previously reserved items
+        for (const previous of reservedAdjustments) {
+          const { data: variantRow } = await supabase
+            .from('product_variants')
+            .select('reserved_stock')
+            .eq('id', previous.variantId)
+            .single()
+          const currentReserved = (variantRow as { reserved_stock?: number } | null)?.reserved_stock ?? 0
+          await supabase
+            .from('product_variants')
+            .update({ reserved_stock: Math.max(0, currentReserved - previous.quantity), updated_at: new Date().toISOString() })
+            .eq('id', previous.variantId)
+        }
         return new Response(JSON.stringify({ error: 'Failed to reserve stock', details: reserveError?.message }), {
           status: 500,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -248,6 +376,8 @@ serve(async (req) => {
 
       reservedAdjustments.push({ variantId: item.productVariantId, quantity: item.quantity })
     }
+
+    const finalTotal = totalAmount - discountAmount
 
     const { data: order, error: orderError } = await supabase
       .from('order_products')
@@ -258,10 +388,12 @@ serve(async (req) => {
         status: 'paid',
         payment_status: 'paid',
         subtotal: totalAmount,
-        discount_amount: 0,
+        discount_amount: discountAmount,
         shipping_cost: 0,
         shipping_discount: 0,
-        total: totalAmount,
+        total: finalTotal,
+        voucher_id: voucherId,
+        voucher_code: voucherCode,
         payment_expired_at: null,
         pickup_code: pickupCode,
         pickup_status: 'pending_pickup',
@@ -273,6 +405,11 @@ serve(async (req) => {
       .single()
 
     if (orderError || !order) {
+      // Rollback voucher quota if it was reserved
+      if (voucherId) {
+        await supabase.rpc('release_voucher_quota', { p_voucher_id: voucherId })
+      }
+      
       for (const a of reservedAdjustments) {
         const { data: variantRow } = await supabase.from('product_variants').select('reserved_stock').eq('id', a.variantId).single()
         const currentReserved = (variantRow as unknown as { reserved_stock?: number } | null)?.reserved_stock ?? 0
@@ -304,6 +441,12 @@ serve(async (req) => {
     const { error: itemsError } = await supabase.from('order_product_items').insert(orderItems)
     if (itemsError) {
       await supabase.from('order_products').delete().eq('id', orderId)
+      
+      // Rollback voucher quota if it was reserved
+      if (voucherId) {
+        await supabase.rpc('release_voucher_quota', { p_voucher_id: voucherId })
+      }
+      
       for (const a of reservedAdjustments) {
         const { data: variantRow } = await supabase.from('product_variants').select('reserved_stock').eq('id', a.variantId).single()
         const currentReserved = (variantRow as unknown as { reserved_stock?: number } | null)?.reserved_stock ?? 0
@@ -319,7 +462,7 @@ serve(async (req) => {
       })
     }
 
-    return new Response(JSON.stringify({ order_number: orderNumber }), {
+    return new Response(JSON.stringify({ order_number: orderNumber, discount_amount: discountAmount }), {
       status: 200,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     })

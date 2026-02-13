@@ -13,7 +13,6 @@ CREATE TABLE IF NOT EXISTS public.user_id_mapping (
   email TEXT NOT NULL,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
-
 -- Populate mapping from public.users → auth.users
 INSERT INTO public.user_id_mapping (old_id, new_id, email)
 SELECT 
@@ -23,7 +22,6 @@ SELECT
 FROM public.users pu
 INNER JOIN auth.users au ON pu.email = au.email
 ON CONFLICT (old_id) DO NOTHING;
-
 -- Verify mapping
 DO $$
 DECLARE
@@ -39,20 +37,16 @@ BEGIN
   
   RAISE NOTICE 'Mapping complete: % users mapped', mapping_count;
 END $$;
-
-
 -- PHASE 2.2: Migrate orders.user_id
 -- ============================================
 
 -- Add new UUID column
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS user_id_new UUID;
-
 -- Populate with mapped UUIDs
 UPDATE orders o
 SET user_id_new = m.new_id
 FROM public.user_id_mapping m
 WHERE o.user_id = m.old_id;
-
 -- Verify no NULLs
 DO $$
 DECLARE
@@ -66,35 +60,26 @@ BEGIN
   
   RAISE NOTICE 'All orders.user_id mapped successfully';
 END $$;
-
 -- Drop old FK constraint
 ALTER TABLE orders DROP CONSTRAINT IF EXISTS orders_user_id_foreign;
-
 -- Drop old column
 ALTER TABLE orders DROP COLUMN IF EXISTS user_id;
-
 -- Rename new column
 ALTER TABLE orders RENAME COLUMN user_id_new TO user_id;
-
 -- Add FK constraint to auth.users
 ALTER TABLE orders
   ADD CONSTRAINT orders_user_id_fkey
   FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
-
 -- Create index
 CREATE INDEX IF NOT EXISTS orders_user_id_idx ON orders(user_id);
-
-
 -- PHASE 2.3: Migrate order_products.user_id
 -- ============================================
 
 ALTER TABLE order_products ADD COLUMN IF NOT EXISTS user_id_new UUID;
-
 UPDATE order_products op
 SET user_id_new = m.new_id
 FROM public.user_id_mapping m
 WHERE op.user_id = m.old_id;
-
 DO $$
 DECLARE
   null_count INT;
@@ -105,28 +90,21 @@ BEGIN
   END IF;
   RAISE NOTICE 'All order_products.user_id mapped successfully';
 END $$;
-
 ALTER TABLE order_products DROP CONSTRAINT IF EXISTS order_products_user_id_foreign;
 ALTER TABLE order_products DROP COLUMN IF EXISTS user_id;
 ALTER TABLE order_products RENAME COLUMN user_id_new TO user_id;
-
 ALTER TABLE order_products
   ADD CONSTRAINT order_products_user_id_fkey
   FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
-
 CREATE INDEX IF NOT EXISTS order_products_user_id_idx ON order_products(user_id);
-
-
 -- PHASE 2.4: Migrate purchased_tickets.user_id
 -- ============================================
 
 ALTER TABLE purchased_tickets ADD COLUMN IF NOT EXISTS user_id_new UUID;
-
 UPDATE purchased_tickets pt
 SET user_id_new = m.new_id
 FROM public.user_id_mapping m
 WHERE pt.user_id = m.old_id;
-
 DO $$
 DECLARE
   null_count INT;
@@ -137,28 +115,21 @@ BEGIN
   END IF;
   RAISE NOTICE 'All purchased_tickets.user_id mapped successfully';
 END $$;
-
 ALTER TABLE purchased_tickets DROP CONSTRAINT IF EXISTS purchased_tickets_user_id_foreign;
 ALTER TABLE purchased_tickets DROP COLUMN IF EXISTS user_id;
 ALTER TABLE purchased_tickets RENAME COLUMN user_id_new TO user_id;
-
 ALTER TABLE purchased_tickets
   ADD CONSTRAINT purchased_tickets_user_id_fkey
   FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
-
 CREATE INDEX IF NOT EXISTS purchased_tickets_user_id_idx ON purchased_tickets(user_id);
-
-
 -- PHASE 2.5: Migrate reservations.user_id
 -- ============================================
 
 ALTER TABLE reservations ADD COLUMN IF NOT EXISTS user_id_new UUID;
-
 UPDATE reservations r
 SET user_id_new = m.new_id
 FROM public.user_id_mapping m
 WHERE r.user_id = m.old_id;
-
 DO $$
 DECLARE
   null_count INT;
@@ -169,28 +140,21 @@ BEGIN
   END IF;
   RAISE NOTICE 'All reservations.user_id mapped successfully';
 END $$;
-
 ALTER TABLE reservations DROP CONSTRAINT IF EXISTS reservations_user_id_foreign;
 ALTER TABLE reservations DROP COLUMN IF EXISTS user_id;
 ALTER TABLE reservations RENAME COLUMN user_id_new TO user_id;
-
 ALTER TABLE reservations
   ADD CONSTRAINT reservations_user_id_fkey
   FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
-
 CREATE INDEX IF NOT EXISTS reservations_user_id_idx ON reservations(user_id);
-
-
 -- PHASE 2.6: Migrate user_addresses.user_id
 -- ============================================
 
 ALTER TABLE user_addresses ADD COLUMN IF NOT EXISTS user_id_new UUID;
-
 UPDATE user_addresses ua
 SET user_id_new = m.new_id
 FROM public.user_id_mapping m
 WHERE ua.user_id = m.old_id;
-
 DO $$
 DECLARE
   null_count INT;
@@ -201,28 +165,21 @@ BEGIN
   END IF;
   RAISE NOTICE 'All user_addresses.user_id mapped successfully';
 END $$;
-
 ALTER TABLE user_addresses DROP CONSTRAINT IF EXISTS user_addresses_user_id_foreign;
 ALTER TABLE user_addresses DROP COLUMN IF EXISTS user_id;
 ALTER TABLE user_addresses RENAME COLUMN user_id_new TO user_id;
-
 ALTER TABLE user_addresses
   ADD CONSTRAINT user_addresses_user_id_fkey
   FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
-
 CREATE INDEX IF NOT EXISTS user_addresses_user_id_idx ON user_addresses(user_id);
-
-
 -- PHASE 2.7: Migrate shipping_voucher_usage.user_id
 -- ============================================
 
 ALTER TABLE shipping_voucher_usage ADD COLUMN IF NOT EXISTS user_id_new UUID;
-
 UPDATE shipping_voucher_usage svu
 SET user_id_new = m.new_id
 FROM public.user_id_mapping m
 WHERE svu.user_id = m.old_id;
-
 DO $$
 DECLARE
   null_count INT;
@@ -233,28 +190,21 @@ BEGIN
   END IF;
   RAISE NOTICE 'All shipping_voucher_usage.user_id mapped successfully';
 END $$;
-
 ALTER TABLE shipping_voucher_usage DROP CONSTRAINT IF EXISTS shipping_voucher_usage_user_id_foreign;
 ALTER TABLE shipping_voucher_usage DROP COLUMN IF EXISTS user_id;
 ALTER TABLE shipping_voucher_usage RENAME COLUMN user_id_new TO user_id;
-
 ALTER TABLE shipping_voucher_usage
   ADD CONSTRAINT shipping_voucher_usage_user_id_fkey
   FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
-
 CREATE INDEX IF NOT EXISTS shipping_voucher_usage_user_id_idx ON shipping_voucher_usage(user_id);
-
-
 -- PHASE 2.8: Migrate product_reviews.user_id
 -- ============================================
 
 ALTER TABLE product_reviews ADD COLUMN IF NOT EXISTS user_id_new UUID;
-
 UPDATE product_reviews pr
 SET user_id_new = m.new_id
 FROM public.user_id_mapping m
 WHERE pr.user_id = m.old_id;
-
 DO $$
 DECLARE
   null_count INT;
@@ -265,28 +215,21 @@ BEGIN
   END IF;
   RAISE NOTICE 'All product_reviews.user_id mapped successfully';
 END $$;
-
 ALTER TABLE product_reviews DROP CONSTRAINT IF EXISTS product_reviews_user_id_foreign;
 ALTER TABLE product_reviews DROP COLUMN IF EXISTS user_id;
 ALTER TABLE product_reviews RENAME COLUMN user_id_new TO user_id;
-
 ALTER TABLE product_reviews
   ADD CONSTRAINT product_reviews_user_id_fkey
   FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
-
 CREATE INDEX IF NOT EXISTS product_reviews_user_id_idx ON product_reviews(user_id);
-
-
 -- PHASE 2.9: Migrate ticket_reviews.user_id
 -- ============================================
 
 ALTER TABLE ticket_reviews ADD COLUMN IF NOT EXISTS user_id_new UUID;
-
 UPDATE ticket_reviews tr
 SET user_id_new = m.new_id
 FROM public.user_id_mapping m
 WHERE tr.user_id = m.old_id;
-
 DO $$
 DECLARE
   null_count INT;
@@ -297,41 +240,30 @@ BEGIN
   END IF;
   RAISE NOTICE 'All ticket_reviews.user_id mapped successfully';
 END $$;
-
 ALTER TABLE ticket_reviews DROP CONSTRAINT IF EXISTS ticket_reviews_user_id_foreign;
 ALTER TABLE ticket_reviews DROP COLUMN IF EXISTS user_id;
 ALTER TABLE ticket_reviews RENAME COLUMN user_id_new TO user_id;
-
 ALTER TABLE ticket_reviews
   ADD CONSTRAINT ticket_reviews_user_id_fkey
   FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
-
 CREATE INDEX IF NOT EXISTS ticket_reviews_user_id_idx ON ticket_reviews(user_id);
-
-
 -- PHASE 2.10: Migrate order_products.picked_up_by
 -- ============================================
 -- Note: This is also a user_id FK but with different column name
 
 ALTER TABLE order_products ADD COLUMN IF NOT EXISTS picked_up_by_new UUID;
-
 UPDATE order_products op
 SET picked_up_by_new = m.new_id
 FROM public.user_id_mapping m
 WHERE op.picked_up_by = m.old_id;
-
 -- Allow NULLs here (not all orders are picked up yet)
 ALTER TABLE order_products DROP CONSTRAINT IF EXISTS order_products_picked_up_by_fkey;
 ALTER TABLE order_products DROP COLUMN IF EXISTS picked_up_by;
 ALTER TABLE order_products RENAME COLUMN picked_up_by_new TO picked_up_by;
-
 ALTER TABLE order_products
   ADD CONSTRAINT order_products_picked_up_by_fkey
   FOREIGN KEY (picked_up_by) REFERENCES auth.users(id) ON DELETE SET NULL;
-
 CREATE INDEX IF NOT EXISTS order_products_picked_up_by_idx ON order_products(picked_up_by);
-
-
 -- PHASE 2.11: Final verification
 -- ============================================
 
@@ -361,7 +293,6 @@ BEGIN
   
   RAISE NOTICE 'Migration verification passed: No orphaned records';
 END $$;
-
 -- Success message
 DO $$
 BEGIN
@@ -371,7 +302,6 @@ BEGIN
   RAISE NOTICE 'All FK constraints point to auth.users.id';
   RAISE NOTICE '========================================';
 END $$;
-
 -- ============================================
 -- Migration: Fix FK Constraints and RLS Policies
 -- Date: 2026-01-28
@@ -439,8 +369,6 @@ BEGIN
     RAISE NOTICE 'Dropped invalid FK: reservations_user_id_fkey';
   END IF;
 END $$;
-
-
 -- PHASE 2: Recreate Valid FK Constraints
 -- ============================================
 -- Following Supabase best practices:
@@ -454,43 +382,36 @@ ALTER TABLE purchased_tickets
   FOREIGN KEY (user_id) 
   REFERENCES auth.users(id) 
   ON DELETE CASCADE;
-
 -- orders.user_id → auth.users(id)
 ALTER TABLE orders
   ADD CONSTRAINT orders_user_id_fkey
   FOREIGN KEY (user_id) 
   REFERENCES auth.users(id) 
   ON DELETE CASCADE;
-
 -- order_products.user_id → auth.users(id)
 ALTER TABLE order_products
   ADD CONSTRAINT order_products_user_id_fkey
   FOREIGN KEY (user_id) 
   REFERENCES auth.users(id) 
   ON DELETE CASCADE;
-
 -- order_products.picked_up_by → auth.users(id) (optional, can be NULL)
 ALTER TABLE order_products
   ADD CONSTRAINT order_products_picked_up_by_fkey
   FOREIGN KEY (picked_up_by) 
   REFERENCES auth.users(id) 
   ON DELETE SET NULL;
-
 -- reservations.user_id → auth.users(id)
 ALTER TABLE reservations
   ADD CONSTRAINT reservations_user_id_fkey
   FOREIGN KEY (user_id) 
   REFERENCES auth.users(id) 
   ON DELETE CASCADE;
-
 -- Create indexes for FK columns (performance best practice)
 CREATE INDEX IF NOT EXISTS purchased_tickets_user_id_idx ON purchased_tickets(user_id);
 CREATE INDEX IF NOT EXISTS orders_user_id_idx ON orders(user_id);
 CREATE INDEX IF NOT EXISTS order_products_user_id_idx ON order_products(user_id);
 CREATE INDEX IF NOT EXISTS order_products_picked_up_by_idx ON order_products(picked_up_by);
 CREATE INDEX IF NOT EXISTS reservations_user_id_idx ON reservations(user_id);
-
-
 -- PHASE 3: Clean Up Duplicate RLS Policies
 -- ============================================
 -- Remove duplicate and overly permissive policies on profiles table
@@ -527,8 +448,6 @@ BEGIN
     RAISE NOTICE 'Dropped overly permissive policy: Service role can do anything';
   END IF;
 END $$;
-
-
 -- PHASE 4: Verification
 -- ============================================
 
@@ -555,7 +474,6 @@ BEGIN
   RAISE NOTICE 'Following Supabase best practices';
   RAISE NOTICE '========================================';
 END $$;
-
 -- ============================================================================
 -- LARAVEL TO SUPABASE CLEANUP MIGRATION
 -- ============================================================================
@@ -578,10 +496,8 @@ END $$;
 -- Drop news table FK constraints
 ALTER TABLE IF EXISTS public.news 
   DROP CONSTRAINT IF EXISTS news_author_id_foreign;
-
 ALTER TABLE IF EXISTS public.news 
   DROP CONSTRAINT IF EXISTS news_category_id_foreign;
-
 -- ============================================================================
 -- PHASE 2: DROP UNUSED FEATURE TABLES (in dependency order)
 -- ============================================================================
@@ -589,19 +505,14 @@ ALTER TABLE IF EXISTS public.news
 -- Fashion showcase system (0 rows, unused)
 DROP TABLE IF EXISTS public.fashion_showcase_products CASCADE;
 DROP TABLE IF EXISTS public.fashion_showcases CASCADE;
-
 -- News system (0 rows, unused, had FK to public.users)
 DROP TABLE IF EXISTS public.news CASCADE;
-
 -- Banners (1 row, unused)
 DROP TABLE IF EXISTS public.banners CASCADE;
-
 -- Events (0 rows, unused - Events.tsx uses hardcoded data)
 DROP TABLE IF EXISTS public.events CASCADE;
-
 -- Media (2 rows, unused - Laravel media library)
 DROP TABLE IF EXISTS public.media CASCADE;
-
 -- ============================================================================
 -- PHASE 3: DROP LARAVEL PERMISSION SYSTEM (in dependency order)
 -- ============================================================================
@@ -610,34 +521,27 @@ DROP TABLE IF EXISTS public.media CASCADE;
 DROP TABLE IF EXISTS public.model_has_permissions CASCADE;
 DROP TABLE IF EXISTS public.model_has_roles CASCADE;
 DROP TABLE IF EXISTS public.role_has_permissions CASCADE;
-
 -- Parent tables
 DROP TABLE IF EXISTS public.permissions CASCADE;
 DROP TABLE IF EXISTS public.roles CASCADE;
-
 -- ============================================================================
 -- PHASE 4: DROP LARAVEL INFRASTRUCTURE TABLES
 -- ============================================================================
 
 -- Laravel migration tracking (35 rows - replaced by Supabase migrations)
 DROP TABLE IF EXISTS public.migrations CASCADE;
-
 -- Laravel cache system (0 rows, unused)
 DROP TABLE IF EXISTS public.cache CASCADE;
 DROP TABLE IF EXISTS public.cache_locks CASCADE;
-
 -- Laravel session management (0 rows, unused - Supabase Auth handles sessions)
 DROP TABLE IF EXISTS public.sessions CASCADE;
-
 -- Laravel queue system (0 rows, unused)
 DROP TABLE IF EXISTS public.failed_jobs CASCADE;
 DROP TABLE IF EXISTS public.jobs CASCADE;
 DROP TABLE IF EXISTS public.job_batches CASCADE;
-
 -- Laravel password reset (0 rows, unused - Supabase Auth handles password resets)
 DROP TABLE IF EXISTS public.password_reset_tokens CASCADE;
 DROP TABLE IF EXISTS public.password_resets CASCADE;
-
 -- ============================================================================
 -- PHASE 5: DROP LEGACY USER TABLE
 -- ============================================================================
@@ -646,7 +550,6 @@ DROP TABLE IF EXISTS public.password_resets CASCADE;
 -- Safe to drop: all FK dependencies removed in previous phases
 -- Note: user_id_mapping table kept for debugging (can be dropped later)
 DROP TABLE IF EXISTS public.users CASCADE;
-
 -- ============================================================================
 -- VERIFICATION QUERIES (commented out - run manually if needed)
 -- ============================================================================
@@ -718,8 +621,6 @@ VALUES
   ('Beauty', 'beauty', true, NOW(), NOW()),
   ('Other', 'other', true, NOW(), NOW())
 ON CONFLICT (slug) DO NOTHING;
-
-
 -- ============================================================================
 -- PHASE 2: MIGRATE PRODUCTS.TYPE TO CATEGORY_ID
 -- ============================================================================
@@ -731,7 +632,6 @@ FROM public.categories c
 WHERE c.slug = 'fashion'
   AND p.type = 'fashion'
   AND p.category_id IS NULL;
-
 -- Update products with type='beauty' to Beauty category (only if category_id is null)
 UPDATE public.products p
 SET category_id = c.id, updated_at = NOW()
@@ -739,7 +639,6 @@ FROM public.categories c
 WHERE c.slug = 'beauty'
   AND p.type = 'beauty'
   AND p.category_id IS NULL;
-
 -- Update products with type='other' to Other category (only if category_id is null)
 UPDATE public.products p
 SET category_id = c.id, updated_at = NOW()
@@ -747,18 +646,13 @@ FROM public.categories c
 WHERE c.slug = 'other'
   AND p.type = 'other'
   AND p.category_id IS NULL;
-
-
 -- ============================================================================
 -- PHASE 3: ADD PRICE COLUMN TO PRODUCT_VARIANTS
 -- ============================================================================
 
 ALTER TABLE public.product_variants 
 ADD COLUMN IF NOT EXISTS price DECIMAL(10,2);
-
 CREATE INDEX IF NOT EXISTS product_variants_price_idx ON public.product_variants(price);
-
-
 -- ============================================================================
 -- PHASE 4: MIGRATE PRICING DATA
 -- ============================================================================
@@ -770,8 +664,6 @@ SET price = COALESCE(
   CASE WHEN offline_price IS NOT NULL AND offline_price > 0 THEN offline_price ELSE NULL END,
   0
 );
-
-
 -- ============================================================================
 -- PHASE 5: DROP OLD COLUMNS
 -- ============================================================================
@@ -779,14 +671,10 @@ SET price = COALESCE(
 ALTER TABLE public.product_variants 
 DROP COLUMN IF EXISTS online_price,
 DROP COLUMN IF EXISTS offline_price;
-
 ALTER TABLE public.products 
 DROP COLUMN IF EXISTS type;
-
 DROP INDEX IF EXISTS product_variants_online_price_idx;
 DROP INDEX IF EXISTS product_variants_offline_price_idx;
-
-
 -- ============================================================================
 -- PHASE 6: ADD CONSTRAINTS AND OPTIMIZE
 -- ============================================================================
@@ -794,21 +682,17 @@ DROP INDEX IF EXISTS product_variants_offline_price_idx;
 -- Make category_id NOT NULL (all products must have category)
 ALTER TABLE public.products 
 ALTER COLUMN category_id SET NOT NULL;
-
 -- Add check constraint: price must be >= 0
 ALTER TABLE public.product_variants
 ADD CONSTRAINT product_variants_price_check CHECK (price >= 0);
-
 -- Create composite index for common queries
 CREATE INDEX IF NOT EXISTS product_variants_product_price_idx 
 ON public.product_variants(product_id, price) 
 WHERE is_active = true;
-
 -- Create storage bucket
 INSERT INTO storage.buckets (id, name, public) 
 VALUES ('product-images', 'product-images', true)
 ON CONFLICT (id) DO NOTHING;
-
 -- Create product_images table
 CREATE TABLE product_images (
   id BIGSERIAL PRIMARY KEY,
@@ -819,25 +703,21 @@ CREATE TABLE product_images (
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
-
 -- Indexes
 CREATE INDEX idx_product_images_product_id ON product_images(product_id);
 CREATE INDEX idx_product_images_display_order ON product_images(product_id, display_order);
 CREATE UNIQUE INDEX idx_product_images_one_primary ON product_images(product_id) WHERE is_primary = true;
-
 -- RLS
 ALTER TABLE product_images ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Public read" ON product_images FOR SELECT TO public USING (true);
 CREATE POLICY "Auth insert" ON product_images FOR INSERT TO authenticated WITH CHECK (true);
 CREATE POLICY "Auth update" ON product_images FOR UPDATE TO authenticated USING (true);
 CREATE POLICY "Auth delete" ON product_images FOR DELETE TO authenticated USING (true);
-
 -- Migrate existing images
 INSERT INTO product_images (product_id, image_url, display_order, is_primary)
 SELECT id, image_url, 0, true
 FROM products
 WHERE image_url IS NOT NULL AND image_url != '';
-
 -- ============================================
 -- Migration: Create user_role_assignments
 -- Date: 2026-02-01
@@ -852,34 +732,26 @@ CREATE TABLE IF NOT EXISTS public.user_role_assignments (
   role_name TEXT NOT NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
-
 CREATE INDEX IF NOT EXISTS user_role_assignments_user_id_idx
   ON public.user_role_assignments(user_id);
-
 CREATE UNIQUE INDEX IF NOT EXISTS user_role_assignments_user_role_unique
   ON public.user_role_assignments(user_id, role_name);
-
 ALTER TABLE public.user_role_assignments ENABLE ROW LEVEL SECURITY;
-
 DROP POLICY IF EXISTS "user_role_assignments_select_own" ON public.user_role_assignments;
 CREATE POLICY "user_role_assignments_select_own"
   ON public.user_role_assignments
   FOR SELECT
   TO authenticated
   USING (auth.uid() = user_id);
-
 -- Add 'events', 'fashion', and 'beauty' to banner_type enum
 -- Note: Remote DB already has these values, this migration ensures consistency
 ALTER TABLE public.banners 
 DROP CONSTRAINT IF EXISTS banners_banner_type_check;
-
 ALTER TABLE public.banners 
 ADD CONSTRAINT banners_banner_type_check 
 CHECK (banner_type IN ('hero', 'stage', 'promo', 'events', 'fashion', 'beauty'));
-
 -- Update comment
 COMMENT ON TABLE public.banners IS 'Stores banner images for hero sliders, stage carousels, events, fashion, beauty, and promotional content';
-
 create or replace function public.reserve_ticket_capacity(
   p_ticket_id bigint,
   p_date date,
@@ -907,7 +779,6 @@ begin
   return found;
 end;
 $$;
-
 create or replace function public.release_ticket_capacity(
   p_ticket_id bigint,
   p_date date,
@@ -934,7 +805,6 @@ begin
   return found;
 end;
 $$;
-
 create or replace function public.finalize_ticket_capacity(
   p_ticket_id bigint,
   p_date date,
@@ -962,7 +832,6 @@ begin
   return found;
 end;
 $$;
-
 -- ============================================================================
 -- LOCKDOWN RLS + PRIVILEGES (CORE TABLES)
 -- ============================================================================
@@ -988,7 +857,6 @@ as $$
       and ura.role_name = 'admin'
   );
 $$;
-
 -- ============================================================================
 -- Public catalog tables (read-only for anon/authenticated)
 -- ============================================================================
@@ -996,25 +864,21 @@ $$;
 alter table public.tickets enable row level security;
 revoke all on table public.tickets from anon, authenticated;
 grant select on table public.tickets to anon, authenticated;
-
 drop policy if exists tickets_public_read on public.tickets;
 create policy tickets_public_read
   on public.tickets
   for select
   to anon, authenticated
   using (true);
-
 alter table public.ticket_availabilities enable row level security;
 revoke all on table public.ticket_availabilities from anon, authenticated;
 grant select on table public.ticket_availabilities to anon, authenticated;
-
 drop policy if exists ticket_availabilities_public_read on public.ticket_availabilities;
 create policy ticket_availabilities_public_read
   on public.ticket_availabilities
   for select
   to anon, authenticated
   using (true);
-
 -- ============================================================================
 -- Core user tables (private by default)
 -- ============================================================================
@@ -1022,18 +886,15 @@ create policy ticket_availabilities_public_read
 alter table public.orders enable row level security;
 revoke all on table public.orders from anon, authenticated;
 grant select on table public.orders to authenticated;
-
 drop policy if exists orders_select_own on public.orders;
 create policy orders_select_own
   on public.orders
   for select
   to authenticated
   using (user_id = (select auth.uid()) or public.is_admin());
-
 alter table public.order_items enable row level security;
 revoke all on table public.order_items from anon, authenticated;
 grant select on table public.order_items to authenticated;
-
 drop policy if exists order_items_select_own on public.order_items;
 create policy order_items_select_own
   on public.order_items
@@ -1047,18 +908,15 @@ create policy order_items_select_own
         and (o.user_id = (select auth.uid()) or public.is_admin())
     )
   );
-
 alter table public.purchased_tickets enable row level security;
 revoke all on table public.purchased_tickets from anon, authenticated;
 grant select, update on table public.purchased_tickets to authenticated;
-
 drop policy if exists purchased_tickets_select_own_or_admin on public.purchased_tickets;
 create policy purchased_tickets_select_own_or_admin
   on public.purchased_tickets
   for select
   to authenticated
   using (user_id = (select auth.uid()) or public.is_admin());
-
 drop policy if exists purchased_tickets_update_admin on public.purchased_tickets;
 create policy purchased_tickets_update_admin
   on public.purchased_tickets
@@ -1066,18 +924,15 @@ create policy purchased_tickets_update_admin
   to authenticated
   using (public.is_admin())
   with check (public.is_admin());
-
 alter table public.profiles enable row level security;
 revoke all on table public.profiles from anon, authenticated;
 grant select on table public.profiles to authenticated;
-
 drop policy if exists profiles_select_own_or_admin on public.profiles;
 create policy profiles_select_own_or_admin
   on public.profiles
   for select
   to authenticated
   using (id = (select auth.uid()) or public.is_admin());
-
 -- ============================================================================
 -- Product images: allow public read, restrict write to admins
 -- ============================================================================
@@ -1086,18 +941,15 @@ alter table public.product_images enable row level security;
 revoke all on table public.product_images from anon, authenticated;
 grant select on table public.product_images to anon, authenticated;
 grant insert, update, delete on table public.product_images to authenticated;
-
 drop policy if exists "Auth insert" on public.product_images;
 drop policy if exists "Auth update" on public.product_images;
 drop policy if exists "Auth delete" on public.product_images;
-
 drop policy if exists product_images_public_read on public.product_images;
 create policy product_images_public_read
   on public.product_images
   for select
   to anon, authenticated
   using (true);
-
 drop policy if exists product_images_admin_write on public.product_images;
 create policy product_images_admin_write
   on public.product_images
@@ -1105,7 +957,6 @@ create policy product_images_admin_write
   to authenticated
   using (public.is_admin())
   with check (public.is_admin());
-
 -- ============================================================================
 -- SECURITY & PERFORMANCE FIX MIGRATION
 -- ============================================================================
@@ -1148,7 +999,6 @@ AS $$
   GROUP BY s.id, s.code, s.name
   ORDER BY total_scans DESC;
 $$;
-
 -- Fix update_updated_at_column
 CREATE OR REPLACE FUNCTION public.update_updated_at_column()
 RETURNS TRIGGER
@@ -1161,8 +1011,6 @@ BEGIN
   RETURN NEW;
 END;
 $$;
-
-
 -- ============================================================================
 -- PHASE 2: ENABLE RLS ON UNPROTECTED TABLES
 -- ============================================================================
@@ -1171,7 +1019,6 @@ $$;
 ALTER TABLE public.payments ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON TABLE public.payments FROM anon, authenticated;
 GRANT SELECT ON TABLE public.payments TO authenticated;
-
 DROP POLICY IF EXISTS payments_user_read ON public.payments;
 CREATE POLICY payments_user_read ON public.payments
   FOR SELECT TO authenticated
@@ -1182,89 +1029,68 @@ CREATE POLICY payments_user_read ON public.payments
         AND (op.user_id = (SELECT auth.uid()) OR public.is_admin())
     )
   );
-
-
 -- ---- USER_ADDRESSES (CRITICAL - PII) ----
 ALTER TABLE public.user_addresses ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON TABLE public.user_addresses FROM anon, authenticated;
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.user_addresses TO authenticated;
-
 DROP POLICY IF EXISTS user_addresses_own ON public.user_addresses;
 CREATE POLICY user_addresses_own ON public.user_addresses
   FOR ALL TO authenticated
   USING (user_id = (SELECT auth.uid()) OR public.is_admin())
   WITH CHECK (user_id = (SELECT auth.uid()) OR public.is_admin());
-
-
 -- ---- RESERVATIONS ----
 ALTER TABLE public.reservations ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON TABLE public.reservations FROM anon, authenticated;
 GRANT SELECT, INSERT, UPDATE ON TABLE public.reservations TO authenticated;
-
 DROP POLICY IF EXISTS reservations_own ON public.reservations;
 CREATE POLICY reservations_own ON public.reservations
   FOR ALL TO authenticated
   USING (user_id = (SELECT auth.uid()) OR public.is_admin())
   WITH CHECK (user_id = (SELECT auth.uid()) OR public.is_admin());
-
-
 -- ---- TICKET_REVIEWS ----
 ALTER TABLE public.ticket_reviews ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON TABLE public.ticket_reviews FROM anon, authenticated;
 GRANT SELECT ON TABLE public.ticket_reviews TO anon, authenticated;
 GRANT INSERT, UPDATE, DELETE ON TABLE public.ticket_reviews TO authenticated;
-
 DROP POLICY IF EXISTS ticket_reviews_public_read ON public.ticket_reviews;
 CREATE POLICY ticket_reviews_public_read ON public.ticket_reviews
   FOR SELECT USING (is_approved = true OR user_id = (SELECT auth.uid()) OR public.is_admin());
-
 DROP POLICY IF EXISTS ticket_reviews_user_write ON public.ticket_reviews;
 CREATE POLICY ticket_reviews_user_write ON public.ticket_reviews
   FOR ALL TO authenticated
   USING (user_id = (SELECT auth.uid()) OR public.is_admin())
   WITH CHECK (user_id = (SELECT auth.uid()) OR public.is_admin());
-
-
 -- ---- CATEGORIES (Public read, admin write) ----
 ALTER TABLE public.categories ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON TABLE public.categories FROM anon, authenticated;
 GRANT SELECT ON TABLE public.categories TO anon, authenticated;
 GRANT ALL ON TABLE public.categories TO authenticated;
-
 DROP POLICY IF EXISTS categories_public_read ON public.categories;
 CREATE POLICY categories_public_read ON public.categories
   FOR SELECT USING (is_active = true OR public.is_admin());
-
 DROP POLICY IF EXISTS categories_admin_write ON public.categories;
 CREATE POLICY categories_admin_write ON public.categories
   FOR ALL TO authenticated
   USING (public.is_admin())
   WITH CHECK (public.is_admin());
-
-
 -- ---- DISCOUNTS (Admin only) ----
 ALTER TABLE public.discounts ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON TABLE public.discounts FROM anon, authenticated;
 GRANT SELECT ON TABLE public.discounts TO authenticated;
 GRANT ALL ON TABLE public.discounts TO authenticated;
-
 DROP POLICY IF EXISTS discounts_read_active ON public.discounts;
 CREATE POLICY discounts_read_active ON public.discounts
   FOR SELECT TO authenticated
   USING (is_active = true OR public.is_admin());
-
 DROP POLICY IF EXISTS discounts_admin_write ON public.discounts;
 CREATE POLICY discounts_admin_write ON public.discounts
   FOR ALL TO authenticated
   USING (public.is_admin())
   WITH CHECK (public.is_admin());
-
-
 -- ---- DISCOUNT_PRODUCTS (Admin only) ----
 ALTER TABLE public.discount_products ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON TABLE public.discount_products FROM anon, authenticated;
 GRANT SELECT ON TABLE public.discount_products TO authenticated;
-
 DROP POLICY IF EXISTS discount_products_read ON public.discount_products;
 CREATE POLICY discount_products_read ON public.discount_products
   FOR SELECT TO authenticated
@@ -1275,47 +1101,36 @@ CREATE POLICY discount_products_read ON public.discount_products
         AND (d.is_active = true OR public.is_admin())
     )
   );
-
 DROP POLICY IF EXISTS discount_products_admin_write ON public.discount_products;
 CREATE POLICY discount_products_admin_write ON public.discount_products
   FOR ALL TO authenticated
   USING (public.is_admin())
   WITH CHECK (public.is_admin());
-
-
 -- ---- SHIPPING_VOUCHERS (Admin only) ----
 ALTER TABLE public.shipping_vouchers ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON TABLE public.shipping_vouchers FROM anon, authenticated;
 GRANT SELECT ON TABLE public.shipping_vouchers TO authenticated;
-
 DROP POLICY IF EXISTS shipping_vouchers_read ON public.shipping_vouchers;
 CREATE POLICY shipping_vouchers_read ON public.shipping_vouchers
   FOR SELECT TO authenticated
   USING (is_active = true OR public.is_admin());
-
 DROP POLICY IF EXISTS shipping_vouchers_admin_write ON public.shipping_vouchers;
 CREATE POLICY shipping_vouchers_admin_write ON public.shipping_vouchers
   FOR ALL TO authenticated
   USING (public.is_admin())
   WITH CHECK (public.is_admin());
-
-
 -- ---- SHIPPING_VOUCHER_USAGE ----
 ALTER TABLE public.shipping_voucher_usage ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON TABLE public.shipping_voucher_usage FROM anon, authenticated;
 GRANT SELECT ON TABLE public.shipping_voucher_usage TO authenticated;
-
 DROP POLICY IF EXISTS shipping_voucher_usage_read ON public.shipping_voucher_usage;
 CREATE POLICY shipping_voucher_usage_read ON public.shipping_voucher_usage
   FOR SELECT TO authenticated
   USING (user_id = (SELECT auth.uid()) OR public.is_admin());
-
-
 -- ---- SHIPMENTS ----
 ALTER TABLE public.shipments ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON TABLE public.shipments FROM anon, authenticated;
 GRANT SELECT ON TABLE public.shipments TO authenticated;
-
 DROP POLICY IF EXISTS shipments_read ON public.shipments;
 CREATE POLICY shipments_read ON public.shipments
   FOR SELECT TO authenticated
@@ -1326,85 +1141,64 @@ CREATE POLICY shipments_read ON public.shipments
         AND (op.user_id = (SELECT auth.uid()) OR public.is_admin())
     )
   );
-
 DROP POLICY IF EXISTS shipments_admin_write ON public.shipments;
 CREATE POLICY shipments_admin_write ON public.shipments
   FOR ALL TO authenticated
   USING (public.is_admin())
   WITH CHECK (public.is_admin());
-
-
 -- ---- STOCK_RESERVATIONS (Admin/System only) ----
 ALTER TABLE public.stock_reservations ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON TABLE public.stock_reservations FROM anon, authenticated;
 GRANT SELECT ON TABLE public.stock_reservations TO authenticated;
-
 DROP POLICY IF EXISTS stock_reservations_admin_read ON public.stock_reservations;
 CREATE POLICY stock_reservations_admin_read ON public.stock_reservations
   FOR SELECT TO authenticated
   USING (public.is_admin());
-
-
 -- ---- PRODUCT_REVIEWS ----
 ALTER TABLE public.product_reviews ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON TABLE public.product_reviews FROM anon, authenticated;
 GRANT SELECT ON TABLE public.product_reviews TO anon, authenticated;
 GRANT INSERT, UPDATE, DELETE ON TABLE public.product_reviews TO authenticated;
-
 DROP POLICY IF EXISTS product_reviews_public_read ON public.product_reviews;
 CREATE POLICY product_reviews_public_read ON public.product_reviews
   FOR SELECT USING (is_approved = true OR user_id = (SELECT auth.uid()) OR public.is_admin());
-
 DROP POLICY IF EXISTS product_reviews_user_write ON public.product_reviews;
 CREATE POLICY product_reviews_user_write ON public.product_reviews
   FOR ALL TO authenticated
   USING (user_id = (SELECT auth.uid()) OR public.is_admin())
   WITH CHECK (user_id = (SELECT auth.uid()) OR public.is_admin());
-
-
 -- ---- SHIPPING_SETTINGS (Admin only) ----
 ALTER TABLE public.shipping_settings ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON TABLE public.shipping_settings FROM anon, authenticated;
 GRANT SELECT ON TABLE public.shipping_settings TO authenticated;
-
 DROP POLICY IF EXISTS shipping_settings_read ON public.shipping_settings;
 CREATE POLICY shipping_settings_read ON public.shipping_settings
   FOR SELECT TO authenticated USING (true);
-
 DROP POLICY IF EXISTS shipping_settings_admin_write ON public.shipping_settings;
 CREATE POLICY shipping_settings_admin_write ON public.shipping_settings
   FOR ALL TO authenticated
   USING (public.is_admin())
   WITH CHECK (public.is_admin());
-
-
 -- ---- APP_CONFIGS (Admin only) ----
 ALTER TABLE public.app_configs ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON TABLE public.app_configs FROM anon, authenticated;
 GRANT SELECT ON TABLE public.app_configs TO anon, authenticated;
-
 DROP POLICY IF EXISTS app_configs_public_read ON public.app_configs;
 CREATE POLICY app_configs_public_read ON public.app_configs
   FOR SELECT USING (true);
-
 DROP POLICY IF EXISTS app_configs_admin_write ON public.app_configs;
 CREATE POLICY app_configs_admin_write ON public.app_configs
   FOR ALL TO authenticated
   USING (public.is_admin())
   WITH CHECK (public.is_admin());
-
-
 -- ---- USER_ID_MAPPING (Admin only - legacy migration table) ----
 ALTER TABLE public.user_id_mapping ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON TABLE public.user_id_mapping FROM anon, authenticated;
 GRANT SELECT ON TABLE public.user_id_mapping TO authenticated;
-
 DROP POLICY IF EXISTS user_id_mapping_admin_only ON public.user_id_mapping;
 CREATE POLICY user_id_mapping_admin_only ON public.user_id_mapping
   FOR SELECT TO authenticated
   USING (public.is_admin());
-
-
 -- ============================================================================
 -- PHASE 3: ADD CRITICAL FK INDEXES
 -- ============================================================================
@@ -1412,56 +1206,40 @@ CREATE POLICY user_id_mapping_admin_only ON public.user_id_mapping
 -- Core booking flow indexes
 CREATE INDEX IF NOT EXISTS idx_order_items_order_id 
   ON public.order_items(order_id);
-
 CREATE INDEX IF NOT EXISTS idx_order_items_ticket_id 
   ON public.order_items(ticket_id);
-
 CREATE INDEX IF NOT EXISTS idx_purchased_tickets_order_item_id 
   ON public.purchased_tickets(order_item_id);
-
 CREATE INDEX IF NOT EXISTS idx_purchased_tickets_ticket_id 
   ON public.purchased_tickets(ticket_id);
-
 -- Product ordering flow indexes
 CREATE INDEX IF NOT EXISTS idx_order_product_items_order_product_id 
   ON public.order_product_items(order_product_id);
-
 CREATE INDEX IF NOT EXISTS idx_order_product_items_product_variant_id 
   ON public.order_product_items(product_variant_id);
-
 -- Product catalog indexes
 CREATE INDEX IF NOT EXISTS idx_products_category_id 
   ON public.products(category_id);
-
 CREATE INDEX IF NOT EXISTS idx_product_variants_product_id 
   ON public.product_variants(product_id);
-
 -- Stage scan indexes
 CREATE INDEX IF NOT EXISTS idx_stage_scans_purchased_ticket_id 
   ON public.stage_scans(purchased_ticket_id);
-
 -- Other useful indexes
 CREATE INDEX IF NOT EXISTS idx_categories_parent_id 
   ON public.categories(parent_id);
-
 CREATE INDEX IF NOT EXISTS idx_shipments_order_product_id 
   ON public.shipments(order_product_id);
-
 CREATE INDEX IF NOT EXISTS idx_stock_reservations_product_variant_id 
   ON public.stock_reservations(product_variant_id);
-
 CREATE INDEX IF NOT EXISTS idx_stock_reservations_order_product_id 
   ON public.stock_reservations(order_product_id);
-
-
 -- ============================================================================
 -- PHASE 4: DROP DUPLICATE INDEX
 -- ============================================================================
 
 -- user_role_assignments has duplicate indexes
 DROP INDEX IF EXISTS public.user_role_assignments_user_role_unique;
-
-
 -- ============================================================================
 -- VERIFICATION
 -- ============================================================================
@@ -1492,11 +1270,9 @@ BEGIN
   RAISE NOTICE '- Removed 1 duplicate index';
   RAISE NOTICE '========================================';
 END $$;
-
 alter table public.purchased_tickets
   add column if not exists queue_number integer,
   add column if not exists queue_overflow boolean not null default false;
-
 create or replace function public.assign_purchased_ticket_queue_number()
 returns trigger
 language plpgsql
@@ -1545,20 +1321,16 @@ begin
   return new;
 end;
 $$;
-
 drop trigger if exists purchased_tickets_assign_queue_number on public.purchased_tickets;
 create trigger purchased_tickets_assign_queue_number
 before insert on public.purchased_tickets
 for each row
 execute function public.assign_purchased_ticket_queue_number();
-
 create index if not exists idx_purchased_tickets_session_queue
   on public.purchased_tickets (ticket_id, valid_date, time_slot, queue_number);
-
 create unique index if not exists ux_purchased_tickets_session_queue
   on public.purchased_tickets (ticket_id, valid_date, time_slot, queue_number)
   where time_slot is not null and queue_number is not null;
-
 with sessions_with_numbers as (
   select distinct pt.ticket_id, pt.valid_date, pt.time_slot
   from public.purchased_tickets pt
@@ -1598,17 +1370,14 @@ set
   end
 from target
 where pt.id = target.id;
-
 create index if not exists idx_webhook_logs_processed_at
   on public.webhook_logs (processed_at);
-
 -- Migration to consolidate 'fashion' and 'beauty' banner types into 'shop'
 -- Run this in your Supabase SQL Editor
 
 -- 1. Drop the existing check constraint validation (to allow modifications)
 ALTER TABLE public.banners 
 DROP CONSTRAINT IF EXISTS banners_banner_type_check;
-
 -- 2. If 'banner_type' is an ENUM, we need to add 'shop'. 
 -- We wrap this in a DO block to safely ignore if it's not an ENUM or if 'shop' already exists.
 DO $$
@@ -1620,29 +1389,23 @@ BEGIN
         WHEN undefined_object THEN NULL; -- banner_type is not an enum
     END;
 END $$;
-
 -- 3. Update existing data: Convert 'fashion' and 'beauty' banners to 'shop'
 UPDATE public.banners 
 SET banner_type = 'shop' 
 WHERE banner_type IN ('fashion', 'beauty');
-
 -- 4. Add the new check constraint with the updated allowed values
 ALTER TABLE public.banners 
 ADD CONSTRAINT banners_banner_type_check 
 CHECK (banner_type IN ('hero', 'stage', 'promo', 'events', 'shop'));
-
 -- Add idempotency markers for payment side-effects hardening
 
 alter table public.orders
   add column if not exists tickets_issued_at timestamp without time zone,
   add column if not exists capacity_released_at timestamp without time zone;
-
 alter table public.order_products
   add column if not exists stock_released_at timestamp without time zone;
-
 alter table public.order_products
   add column if not exists payment_data jsonb;
-
 -- Fix type mismatch in ticket capacity RPC functions
 -- The p_time_slot parameter was TEXT but column is TIME WITHOUT TIME ZONE
 -- This caused silent failures when comparing time_slot values
@@ -1675,7 +1438,6 @@ BEGIN
   RETURN FOUND;
 END;
 $$;
-
 -- Fix release_ticket_capacity
 CREATE OR REPLACE FUNCTION public.release_ticket_capacity(
   p_ticket_id bigint,
@@ -1703,7 +1465,6 @@ BEGIN
   RETURN FOUND;
 END;
 $$;
-
 -- Fix finalize_ticket_capacity
 CREATE OR REPLACE FUNCTION public.finalize_ticket_capacity(
   p_ticket_id bigint,
@@ -1732,7 +1493,6 @@ BEGIN
   RETURN FOUND;
 END;
 $$;
-
 -- Grant execute permissions
 GRANT EXECUTE ON FUNCTION public.reserve_ticket_capacity(bigint, date, text, integer) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.release_ticket_capacity(bigint, date, text, integer) TO authenticated;

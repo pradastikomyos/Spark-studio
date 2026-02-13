@@ -6,6 +6,15 @@ import { getMidtransBasicAuthHeader, getStatusBaseUrl } from '../_shared/midtran
 import { mapMidtransStatus } from '../_shared/tickets.ts'
 import { ensureProductPaidSideEffects, releaseProductReservedStockIfNeeded } from '../_shared/payment-effects.ts'
 
+const toNumber = (value: unknown, fallback: number) => {
+    if (typeof value === 'number') return Number.isFinite(value) ? value : fallback
+    if (typeof value === 'string' && value.trim() !== '') {
+        const parsed = Number(value)
+        return Number.isFinite(parsed) ? parsed : fallback
+    }
+    return fallback
+}
+
 /**
  * sync-midtrans-product-status
  * 
@@ -62,7 +71,7 @@ serve(async (req) => {
         // 2. Fetch order from order_products table
         const { data: order, error: orderError } = await supabase
             .from('order_products')
-            .select('id, user_id, order_number, status, payment_status, pickup_code, pickup_status, pickup_expires_at, total, stock_released_at')
+            .select('id, user_id, order_number, status, payment_status, pickup_code, pickup_status, pickup_expires_at, total, stock_released_at, voucher_id, voucher_code, discount_amount')
             .eq('order_number', orderNumber)
             .single()
 
@@ -141,7 +150,7 @@ serve(async (req) => {
             .from('order_products')
             .update(updateFields)
             .eq('id', order.id)
-            .select('id, order_number, status, payment_status, pickup_code, pickup_status, pickup_expires_at, paid_at, total, stock_released_at')
+            .select('id, order_number, status, payment_status, pickup_code, pickup_status, pickup_expires_at, paid_at, total, stock_released_at, voucher_id, voucher_code, discount_amount')
             .single()
 
         if (updateError || !updatedOrder) {
@@ -170,6 +179,32 @@ serve(async (req) => {
                 defaultStatus: orderStatus,
                 shouldSetPaidAt: true,
             })
+        }
+
+        const voucherId = (updatedOrder as { voucher_id?: string | null }).voucher_id ?? null
+        const voucherUserId = order.user_id ?? null
+        const voucherDiscountAmount = toNumber((updatedOrder as { discount_amount?: unknown }).discount_amount, 0)
+
+        if (midtransStatus === 'paid' && voucherId && voucherUserId) {
+            await supabase
+                .from('voucher_usage')
+                .upsert(
+                    {
+                        voucher_id: voucherId,
+                        user_id: voucherUserId,
+                        order_product_id: updatedOrder.id,
+                        discount_amount: voucherDiscountAmount,
+                        used_at: nowIso,
+                    },
+                    { onConflict: 'order_product_id' }
+                )
+        }
+
+        const shouldReleaseVoucherQuota =
+            (midtransStatus === 'expired' || midtransStatus === 'failed') && previousPaymentStatus !== 'paid'
+
+        if (shouldReleaseVoucherQuota && voucherId) {
+            await supabase.rpc('release_voucher_quota', { p_voucher_id: voucherId })
         }
 
         if (midtransStatus === 'expired' || midtransStatus === 'failed' || midtransStatus === 'refunded') {

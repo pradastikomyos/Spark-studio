@@ -157,8 +157,14 @@
         "pickedUp": "This order has been picked up",
         "expired": "Pickup code expired",
         "cancelled": "This order was cancelled",
-        "pendingReview": "Payment confirmed. Pickup is under review"
-      }
+        "pendingReview": "Payment confirmed. Pickup is under review",
+        "cashier": "Show this QR to the cashier. Pay in cash after admin scans it."
+      },
+      "cashierNote": "Cashier orders cannot be cancelled in the app. Contact staff for changes."
+    },
+    "voucher": {
+      "badge": "Voucher {{code}}",
+      "discount": "Voucher Discount ({{code}})"
     },
     "actions": {
       "viewItems": "View Items",
@@ -184,6 +190,128 @@
     },
     "toast": {
       "syncSuccess": "Order status updated"
+    }
+  },
+  "voucher": {
+    "label": "Voucher Code",
+    "placeholder": "Enter voucher code",
+    "apply": "Apply",
+    "applying": "Applying...",
+    "remove": "Remove",
+    "applied": "Applied",
+    "success": "Voucher {{code}} applied (-{{amount}})",
+    "errors": {
+      "empty": "Enter a voucher code.",
+      "invalid": "Voucher code is invalid.",
+      "inactive": "Voucher is inactive.",
+      "notYetValid": "Voucher is not yet valid.",
+      "expired": "Voucher has expired.",
+      "quotaExceeded": "Voucher quota has been used up.",
+      "minPurchase": "Minimum purchase {{amount}}.",
+      "categoryMismatch": "Voucher is not valid for these items.",
+      "applyFailed": "Failed to apply voucher.",
+      "validation": "Voucher validation failed.",
+      "timeout": "Request timeout. Please try again.",
+      "generic": "Voucher cannot be applied."
+    },
+    "summary": {
+      "subtotal": "Subtotal",
+      "discount": "Discount ({{code}})",
+      "total": "Total Amount",
+      "taxes": "Inclusive of all taxes"
+    }
+  },
+  "admin": {
+    "vouchers": {
+      "title": "Voucher Manager",
+      "subtitle": "Create, manage, and monitor discount vouchers",
+      "loading": "Loading vouchers...",
+      "empty": "No vouchers found.",
+      "filters": {
+        "status": "Status",
+        "all": "All",
+        "active": "Active",
+        "inactive": "Inactive",
+        "expired": "Expired"
+      },
+      "table": {
+        "code": "Code",
+        "type": "Type",
+        "value": "Value",
+        "validity": "Validity",
+        "quota": "Quota",
+        "used": "Used",
+        "remaining": "Remaining",
+        "redemptions": "Redemptions",
+        "discountTotal": "Discount Given",
+        "status": "Status",
+        "actions": "Actions"
+      },
+      "types": {
+        "percentage": "Percentage",
+        "fixed": "Fixed Amount"
+      },
+      "status": {
+        "active": "Active",
+        "inactive": "Inactive",
+        "expired": "Expired"
+      },
+      "pagination": {
+        "rows": "Rows",
+        "summary": "Page {{page}} of {{total}} ({{count}} vouchers)",
+        "prev": "Previous",
+        "next": "Next"
+      },
+      "actions": {
+        "create": "Create Voucher",
+        "edit": "Edit",
+        "delete": "Delete",
+        "activate": "Activate",
+        "deactivate": "Deactivate",
+        "save": "Save",
+        "saving": "Saving...",
+        "cancel": "Cancel"
+      },
+      "form": {
+        "createTitle": "Create Voucher",
+        "editTitle": "Edit Voucher",
+        "code": "Voucher Code",
+        "codePlaceholder": "PROMO2026",
+        "type": "Discount Type",
+        "value": "Discount Value",
+        "quota": "Quota",
+        "validFrom": "Valid From",
+        "validUntil": "Valid Until",
+        "minPurchase": "Minimum Purchase",
+        "maxDiscount": "Maximum Discount",
+        "optional": "Optional",
+        "categories": "Applicable Categories",
+        "categoriesHint": "Leave empty to apply to all categories.",
+        "noCategories": "No categories found.",
+        "active": "Active Status",
+        "activeOn": "Active",
+        "activeOff": "Inactive",
+        "errors": {
+          "code": "Voucher code is required.",
+          "discountValue": "Discount value must be greater than zero.",
+          "validity": "Validity dates are required.",
+          "dateRange": "Valid until must be after valid from.",
+          "quota": "Quota must be greater than zero.",
+          "minPurchase": "Minimum purchase must be zero or positive.",
+          "maxDiscount": "Maximum discount must be zero or positive."
+        }
+      },
+      "toast": {
+        "createSuccess": "Voucher created successfully.",
+        "updateSuccess": "Voucher updated successfully.",
+        "deleteSuccess": "Voucher deleted successfully.",
+        "toggleSuccess": "Voucher status updated."
+      },
+      "errors": {
+        "loadFailed": "Failed to load vouchers.",
+        "saveFailed": "Failed to save voucher."
+      },
+      "confirmDelete": "Delete this voucher? This will also remove related usage records."
     }
   }
 }

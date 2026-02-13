@@ -22,6 +22,8 @@ interface ProductOrder {
   pickup_status: string | null;
   pickup_expires_at: string | null;
   paid_at: string | null;
+  voucher_code?: string | null;
+  discount_amount?: number | null;
   total: number;
   created_at: string;
   itemCount: number;
@@ -509,6 +511,11 @@ export default function MyProductOrdersPage() {
                         </span>
                         <span className="w-1 h-1 rounded-full bg-gray-300"></span>
                         {getStatusBadge(order)}
+                        {order.voucher_code && (
+                          <span className="inline-flex items-center rounded-full bg-emerald-100 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-emerald-700">
+                            {t('myOrders.voucher.badge', { code: order.voucher_code })}
+                          </span>
+                        )}
                       </div>
                       <div className="flex items-center gap-2 text-sm text-gray-600">
                         <span className="material-symbols-outlined text-base">schedule</span>
@@ -541,7 +548,7 @@ export default function MyProductOrdersPage() {
                           <p className="font-display text-2xl text-main-600 mb-2">{order.pickup_code}</p>
                           <p className="text-sm text-gray-600">
                             {String(order.channel || '').toLowerCase() === 'cashier'
-                              ? 'Tunjukkan QR ini ke kasir. Pembayaran cash dilakukan setelah QR discan admin.'
+                              ? t('myOrders.pickup.instructions.cashier')
                               : getPickupInstruction(order)}
                           </p>
                           {shouldShowPickupExpiry(order) && order.pickup_expires_at && (
@@ -551,7 +558,7 @@ export default function MyProductOrdersPage() {
                           )}
                           {String(order.channel || '').toLowerCase() === 'cashier' && (
                             <p className="text-xs text-gray-500 mt-2">
-                              Pesanan kasir tidak bisa dibatalkan via aplikasi. Jika perlu perubahan, hubungi staff.
+                              {t('myOrders.pickup.cashierNote')}
                             </p>
                           )}
                         </div>
@@ -648,6 +655,12 @@ export default function MyProductOrdersPage() {
                         </div>
                       ))}
                     </div>
+                    {order.discount_amount && order.discount_amount > 0 && (
+                      <div className="mt-4 flex items-center justify-between text-sm text-emerald-700">
+                        <span>{t('myOrders.voucher.discount', { code: order.voucher_code || '' })}</span>
+                        <span>-{formatCurrency(order.discount_amount)}</span>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

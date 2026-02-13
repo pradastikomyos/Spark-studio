@@ -31,7 +31,6 @@ BEGIN
   RETURN FOUND;
 END;
 $$;
-
 -- ============================================================================
 -- release_product_stock: Release previously reserved stock
 -- Used for rollback when order creation fails or order expires
@@ -59,7 +58,6 @@ BEGIN
   RETURN FOUND;
 END;
 $$;
-
 -- Grant execute permissions
 GRANT EXECUTE ON FUNCTION public.reserve_product_stock(BIGINT, INTEGER) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.release_product_stock(BIGINT, INTEGER) TO authenticated;

@@ -11,7 +11,6 @@ BEGIN
       ADD COLUMN parent_id BIGINT;
   END IF;
 END $$;
-
 DO $$
 BEGIN
   IF NOT EXISTS (
@@ -24,9 +23,7 @@ BEGIN
       FOREIGN KEY (parent_id) REFERENCES public.categories(id) ON DELETE SET NULL;
   END IF;
 END $$;
-
 CREATE INDEX IF NOT EXISTS idx_categories_parent_id ON public.categories(parent_id);
-
 INSERT INTO public.categories (name, slug, is_active, created_at, updated_at, parent_id)
 VALUES
   ('Fashion', 'fashion', true, NOW(), NOW(), NULL),

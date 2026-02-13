@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '../contexts/AuthContext';
 import { useCart } from '../contexts/cartStore';
 import { useToast } from '../components/Toast';
@@ -14,6 +15,7 @@ import { ensureFreshToken } from '../utils/auth';
 type CreateProductTokenResponse = {
   token: string;
   order_number: string;
+  discount_amount?: number;
 };
 
 type CreateCashierOrderResponse = {
@@ -39,10 +41,31 @@ const getInvokeStatus = (invokeError: unknown) => {
   );
 };
 
+type AppliedVoucher = {
+  id: string;
+  code: string;
+  discountAmount: number;
+  discountType?: string | null;
+  discountValue?: number | null;
+};
+
+const mapVoucherErrorCode = (message?: string | null, code?: string | null) => {
+  const normalized = String(message || '').toLowerCase();
+  if (code === 'VOUCHER_INACTIVE' || normalized.includes('tidak aktif')) return 'voucher.errors.inactive';
+  if (code === 'VOUCHER_NOT_YET_VALID' || normalized.includes('belum berlaku')) return 'voucher.errors.notYetValid';
+  if (code === 'VOUCHER_EXPIRED' || normalized.includes('kadaluarsa')) return 'voucher.errors.expired';
+  if (code === 'VOUCHER_QUOTA_EXCEEDED' || normalized.includes('kuota')) return 'voucher.errors.quotaExceeded';
+  if (code === 'VOUCHER_MIN_PURCHASE' || normalized.includes('minimum')) return 'voucher.errors.minPurchase';
+  if (code === 'VOUCHER_CATEGORY_MISMATCH' || normalized.includes('kategori')) return 'voucher.errors.categoryMismatch';
+  if (code === 'VOUCHER_INVALID' || normalized.includes('voucher')) return 'voucher.errors.invalid';
+  return null;
+};
+
 export default function ProductCheckoutPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const queryClient = useQueryClient();
+  const { t } = useTranslation();
   const { user, session, initialized } = useAuth();
   const { items: allItems, removeItem } = useCart();
   const { showToast } = useToast();
@@ -53,6 +76,10 @@ export default function ProductCheckoutPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [snapLoaded, setSnapLoaded] = useState(false);
+  const [voucherCode, setVoucherCode] = useState('');
+  const [appliedVoucher, setAppliedVoucher] = useState<AppliedVoucher | null>(null);
+  const [voucherError, setVoucherError] = useState<string | null>(null);
+  const [applyingVoucher, setApplyingVoucher] = useState(false);
   const skipEmptyCartRedirectRef = useRef(false);
 
   useEffect(() => {
@@ -82,6 +109,8 @@ export default function ProductCheckoutPage() {
   }, [allItems, location.state]);
 
   const subtotal = useMemo(() => items.reduce((sum, i) => sum + i.unitPrice * i.quantity, 0), [items]);
+  const discountAmount = appliedVoucher?.discountAmount ?? 0;
+  const finalTotal = Math.max(0, subtotal - discountAmount);
 
   useEffect(() => {
     if (items.length === 0 && !skipEmptyCartRedirectRef.current) navigate('/cart');
@@ -101,6 +130,111 @@ export default function ProductCheckoutPage() {
   );
 
   const canCheckout = initialized && Boolean(session?.access_token) && snapLoaded && items.length > 0;
+
+  const fetchCategoryIds = async () => {
+    const variantIds = items.map((item) => item.variantId);
+    if (variantIds.length === 0) return [];
+
+    const { data: variantRows, error: variantError } = await supabase
+      .from('product_variants')
+      .select('product_id')
+      .in('id', variantIds);
+    if (variantError) throw variantError;
+
+    const productIds = Array.from(
+      new Set(
+        (variantRows || [])
+          .map((row) => Number((row as { product_id?: number }).product_id))
+          .filter((id) => id > 0)
+      )
+    );
+    if (productIds.length === 0) return [];
+
+    const { data: productRows, error: productError } = await supabase
+      .from('products')
+      .select('category_id')
+      .in('id', productIds);
+    if (productError) throw productError;
+
+    return Array.from(
+      new Set(
+        (productRows || [])
+          .map((row) => Number((row as { category_id?: number }).category_id))
+          .filter((id) => id > 0)
+      )
+    );
+  };
+
+  const resolveVoucherErrorMessage = (message?: string | null, code?: string | null) => {
+    const key = mapVoucherErrorCode(message, code);
+    if (key === 'voucher.errors.minPurchase' && message) {
+      const match = message.match(/Rp\s*([0-9.,]+)/i);
+      const amount = match ? `Rp ${match[1]}` : message;
+      return t(key, { amount });
+    }
+    if (key) return t(key);
+    return message || t('voucher.errors.generic');
+  };
+
+  const handleApplyVoucher = async () => {
+    const trimmed = voucherCode.trim().toUpperCase();
+    if (!trimmed) {
+      setVoucherError(t('voucher.errors.empty'));
+      return;
+    }
+
+    setApplyingVoucher(true);
+    setVoucherError(null);
+
+    try {
+      const categoryIds = await fetchCategoryIds();
+      const { data, error: voucherError } = await withTimeout(
+        supabase.rpc('validate_and_reserve_voucher', {
+          p_code: trimmed,
+          p_user_id: user?.id ?? null,
+          p_subtotal: subtotal,
+          p_category_ids: categoryIds,
+        }),
+        15000,
+        t('voucher.errors.timeout')
+      );
+
+      if (voucherError) throw voucherError;
+
+      const result = Array.isArray(data) ? data[0] : data;
+      if (result?.error_message) {
+        setAppliedVoucher(null);
+        setVoucherError(resolveVoucherErrorMessage(result.error_message, null));
+        return;
+      }
+
+      const voucherId = String(result?.voucher_id || '');
+      const discountAmountValue = Number(result?.discount_amount ?? 0);
+      setAppliedVoucher({
+        id: voucherId,
+        code: trimmed,
+        discountAmount: discountAmountValue,
+        discountType: result?.discount_type ?? null,
+        discountValue: result?.discount_value ?? null,
+      });
+
+      // Immediately release quota so we don't double-reserve before checkout
+      if (voucherId) {
+        await supabase.rpc('release_voucher_quota', { p_voucher_id: voucherId });
+      }
+    } catch (e) {
+      setAppliedVoucher(null);
+      setVoucherError(e instanceof Error ? e.message : t('voucher.errors.applyFailed'));
+    } finally {
+      setApplyingVoucher(false);
+    }
+  };
+
+  const handleRemoveVoucher = () => {
+    setAppliedVoucher(null);
+    setVoucherCode('');
+    setVoucherError(null);
+  };
 
   const handlePay = async () => {
     if (!user) {
@@ -142,6 +276,7 @@ export default function ProductCheckoutPage() {
               customerName: customerName.trim(),
               customerEmail: user.email,
               customerPhone: customerPhone.trim() || undefined,
+              voucherCode: appliedVoucher?.code || undefined,
             },
             headers: { Authorization: `Bearer ${accessToken}` },
           }),
@@ -173,10 +308,22 @@ export default function ProductCheckoutPage() {
       }
 
       if (invokeError) {
+        const rawContext = (invokeError as { context?: { error?: unknown } }).context?.error;
         const contextError =
-          typeof (invokeError as { context?: { error?: unknown } }).context?.error === 'string'
-            ? String((invokeError as { context?: { error?: unknown } }).context?.error)
-            : null;
+          typeof rawContext === 'string'
+            ? rawContext
+            : rawContext && typeof rawContext === 'object'
+              ? String((rawContext as { error?: string }).error || (rawContext as { message?: string }).message || '')
+              : null;
+        const contextCode =
+          rawContext && typeof rawContext === 'object' ? (rawContext as { code?: string }).code : null;
+
+        if (contextCode?.startsWith('VOUCHER_') || String(contextError || '').toLowerCase().includes('voucher')) {
+          setVoucherError(resolveVoucherErrorMessage(contextError, contextCode));
+          setAppliedVoucher(null);
+          return;
+        }
+
         throw new Error(contextError || invokeError.message || 'Failed to create payment');
       }
 
@@ -208,6 +355,7 @@ export default function ProductCheckoutPage() {
         onError: () => {
           showToast('error', 'Payment failed. Please try again.');
           setError('Payment failed. Please try again.');
+          setAppliedVoucher(null);
         },
         onClose: () => {
           setLoading(false);
@@ -291,6 +439,7 @@ export default function ProductCheckoutPage() {
             customerName: customerName.trim(),
             customerEmail: user.email,
             customerPhone: customerPhone.trim() || undefined,
+            voucherCode: appliedVoucher?.code || undefined,
           },
         }),
         15000,
@@ -298,10 +447,22 @@ export default function ProductCheckoutPage() {
       );
 
       if (invokeError) {
+        const rawContext = (invokeError as { context?: { error?: unknown } }).context?.error;
         const contextError =
-          typeof (invokeError as { context?: { error?: unknown } }).context?.error === 'string'
-            ? String((invokeError as { context?: { error?: unknown } }).context?.error)
-            : null;
+          typeof rawContext === 'string'
+            ? rawContext
+            : rawContext && typeof rawContext === 'object'
+              ? String((rawContext as { error?: string }).error || (rawContext as { message?: string }).message || '')
+              : null;
+        const contextCode =
+          rawContext && typeof rawContext === 'object' ? (rawContext as { code?: string }).code : null;
+
+        if (contextCode?.startsWith('VOUCHER_') || String(contextError || '').toLowerCase().includes('voucher')) {
+          setVoucherError(resolveVoucherErrorMessage(contextError, contextCode));
+          setAppliedVoucher(null);
+          return;
+        }
+
         throw new Error(contextError || invokeError.message || 'Failed to create cashier order');
       }
 
@@ -376,15 +537,27 @@ export default function ProductCheckoutPage() {
                     </div>
                 ))}
 
-                <div className="pt-6 flex justify-between items-end border-t border-rose-100 mt-4">
-                  <p className="text-lg font-bold">Total Amount</p>
-                  <div className="text-right">
-                    <p className="text-2xl font-black text-primary tracking-tight">
-                      {formatCurrency(subtotal)}
-                    </p>
-                    <p className="text-[10px] text-rose-700 uppercase tracking-wider">
-                      Inclusive of all taxes
-                    </p>
+                <div className="pt-6 border-t border-rose-100 mt-4 space-y-2">
+                  <div className="flex justify-between text-sm text-rose-700">
+                    <span>{t('voucher.summary.subtotal')}</span>
+                    <span>{formatCurrency(subtotal)}</span>
+                  </div>
+                  {appliedVoucher && discountAmount > 0 && (
+                    <div className="flex justify-between text-sm text-green-700">
+                      <span>{t('voucher.summary.discount', { code: appliedVoucher.code })}</span>
+                      <span>-{formatCurrency(discountAmount)}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between items-end">
+                    <p className="text-lg font-bold">{t('voucher.summary.total')}</p>
+                    <div className="text-right">
+                      <p className="text-2xl font-black text-primary tracking-tight">
+                        {formatCurrency(finalTotal)}
+                      </p>
+                      <p className="text-[10px] text-rose-700 uppercase tracking-wider">
+                        {t('voucher.summary.taxes')}
+                      </p>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -446,6 +619,51 @@ export default function ProductCheckoutPage() {
                 </div>
               </div>
 
+              {/* Voucher Section */}
+              <div className="mb-6 rounded-lg border border-amber-200 bg-amber-50 p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-sm font-semibold text-amber-900">{t('voucher.label')}</p>
+                  {appliedVoucher && (
+                    <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase text-amber-700">
+                      {t('voucher.applied')}
+                    </span>
+                  )}
+                </div>
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <input
+                    type="text"
+                    value={voucherCode}
+                    onChange={(e) => setVoucherCode(e.target.value.toUpperCase())}
+                    className="flex-1 rounded-lg border border-amber-200 bg-white text-sm py-3 px-4 outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400"
+                    placeholder={t('voucher.placeholder')}
+                    disabled={loading || applyingVoucher}
+                  />
+                  <button
+                    onClick={handleApplyVoucher}
+                    disabled={loading || applyingVoucher || !voucherCode.trim()}
+                    className="rounded-lg bg-amber-500 px-4 py-3 text-sm font-bold text-white hover:bg-amber-600 disabled:bg-amber-200 disabled:cursor-not-allowed"
+                  >
+                    {applyingVoucher ? t('voucher.applying') : t('voucher.apply')}
+                  </button>
+                </div>
+                {voucherError && (
+                  <p className="mt-2 text-xs text-red-600">{voucherError}</p>
+                )}
+                {appliedVoucher && (
+                  <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-amber-800">
+                    <span>
+                      {t('voucher.success', { code: appliedVoucher.code, amount: formatCurrency(appliedVoucher.discountAmount) })}
+                    </span>
+                    <button
+                      onClick={handleRemoveVoucher}
+                      className="text-amber-700 underline hover:text-amber-900"
+                    >
+                      {t('voucher.remove')}
+                    </button>
+                  </div>
+                )}
+              </div>
+
               {/* Midtrans Payment Info */}
               <div className="mb-6 p-4 bg-blue-50 rounded-lg border border-blue-100">
                 <div className="flex items-start gap-3">
@@ -474,7 +692,7 @@ export default function ProductCheckoutPage() {
                 ) : (
                   <>
                     <span className="material-symbols-outlined text-[20px]">lock</span>
-                    Pay {formatCurrency(subtotal)} Now
+                    Pay {formatCurrency(finalTotal)} Now
                   </>
                 )}
               </button>

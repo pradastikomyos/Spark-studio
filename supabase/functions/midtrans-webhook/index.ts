@@ -12,6 +12,15 @@ import {
   releaseTicketCapacityIfNeeded,
 } from '../_shared/payment-effects.ts'
 
+const toNumber = (value: unknown, fallback: number) => {
+  if (typeof value === 'number') return Number.isFinite(value) ? value : fallback
+  if (typeof value === 'string' && value.trim() !== '') {
+    const parsed = Number(value)
+    return Number.isFinite(parsed) ? parsed : fallback
+  }
+  return fallback
+}
+
 serve(async (req) => {
   const corsResponse = handleCors(req)
   if (corsResponse) return corsResponse
@@ -149,7 +158,7 @@ serve(async (req) => {
 
     const { data: productOrder } = await supabase
       .from('order_products')
-      .select('id, status, payment_status, pickup_code, pickup_status, pickup_expires_at, total, stock_released_at')
+      .select('id, user_id, status, payment_status, pickup_code, pickup_status, pickup_expires_at, total, stock_released_at, voucher_id, voucher_code, discount_amount')
       .eq('order_number', orderId)
       .single()
 
@@ -157,6 +166,10 @@ serve(async (req) => {
       const currentPaymentStatus = String((productOrder as { payment_status?: string }).payment_status || '').toLowerCase()
       const currentStatus = String((productOrder as { status?: string }).status || '').toLowerCase()
       const currentPickupStatus = String((productOrder as { pickup_status?: string | null }).pickup_status || '').toLowerCase()
+      const voucherId = (productOrder as { voucher_id?: string | null }).voucher_id ?? null
+      const voucherCode = (productOrder as { voucher_code?: string | null }).voucher_code ?? null
+      const voucherUserId = (productOrder as { user_id?: string | null }).user_id ?? null
+      const voucherDiscountAmount = toNumber((productOrder as { discount_amount?: unknown }).discount_amount, 0)
 
       const paymentStatus =
         newStatus === 'paid'
@@ -207,6 +220,55 @@ serve(async (req) => {
           .from('order_products')
           .update(updateFields)
           .eq('id', (productOrder as { id: number }).id)
+      }
+
+      if (newStatus === 'paid' && voucherId && voucherUserId) {
+        const { error: voucherUsageError } = await supabase
+          .from('voucher_usage')
+          .upsert(
+            {
+              voucher_id: voucherId,
+              user_id: voucherUserId,
+              order_product_id: (productOrder as { id: number }).id,
+              discount_amount: voucherDiscountAmount,
+              used_at: nowIso,
+            },
+            { onConflict: 'order_product_id' }
+          )
+
+        if (voucherUsageError) {
+          await logWebhookEvent(supabase, {
+            orderNumber: orderId,
+            eventType: 'voucher_usage_create_failed',
+            payload: { voucher_id: voucherId, voucher_code: voucherCode, error: voucherUsageError.message },
+            success: false,
+            errorMessage: voucherUsageError.message,
+            processedAt: nowIso,
+          })
+        }
+      }
+
+      const shouldReleaseVoucherQuota =
+        (newStatus === 'expired' || newStatus === 'failed') && currentPaymentStatus !== 'paid'
+
+      if (shouldReleaseVoucherQuota && voucherId) {
+        const { data: released, error: releaseError } = await supabase.rpc('release_voucher_quota', {
+          p_voucher_id: voucherId,
+        })
+        await logWebhookEvent(supabase, {
+          orderNumber: orderId,
+          eventType: 'voucher_quota_released',
+          payload: {
+            voucher_id: voucherId,
+            voucher_code: voucherCode,
+            result: released,
+            status: newStatus,
+            error: releaseError?.message,
+          },
+          success: !releaseError,
+          errorMessage: releaseError?.message ?? null,
+          processedAt: nowIso,
+        })
       }
 
       const shouldReleaseReserve =

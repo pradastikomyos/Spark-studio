@@ -157,8 +157,14 @@
         "pickedUp": "Pesanan ini sudah diambil",
         "expired": "Kode pengambilan sudah kadaluarsa",
         "cancelled": "Pesanan ini dibatalkan",
-        "pendingReview": "Pembayaran terkonfirmasi. Pengambilan sedang ditinjau"
-      }
+        "pendingReview": "Pembayaran terkonfirmasi. Pengambilan sedang ditinjau",
+        "cashier": "Tunjukkan QR ini ke kasir. Pembayaran cash dilakukan setelah QR discan admin."
+      },
+      "cashierNote": "Pesanan kasir tidak bisa dibatalkan via aplikasi. Jika perlu perubahan, hubungi staff."
+    },
+    "voucher": {
+      "badge": "Voucher {{code}}",
+      "discount": "Diskon Voucher ({{code}})"
     },
     "actions": {
       "viewItems": "Lihat Item",
@@ -184,6 +190,128 @@
     },
     "toast": {
       "syncSuccess": "Status pesanan berhasil diperbarui"
+    }
+  },
+  "voucher": {
+    "label": "Kode Voucher",
+    "placeholder": "Masukkan kode voucher",
+    "apply": "Gunakan",
+    "applying": "Menerapkan...",
+    "remove": "Hapus",
+    "applied": "Digunakan",
+    "success": "Voucher {{code}} digunakan (-{{amount}})",
+    "errors": {
+      "empty": "Masukkan kode voucher.",
+      "invalid": "Kode voucher tidak valid.",
+      "inactive": "Voucher tidak aktif.",
+      "notYetValid": "Voucher belum berlaku.",
+      "expired": "Voucher sudah kadaluarsa.",
+      "quotaExceeded": "Kuota voucher habis.",
+      "minPurchase": "Minimum pembelian {{amount}}.",
+      "categoryMismatch": "Voucher tidak berlaku untuk produk ini.",
+      "applyFailed": "Gagal menggunakan voucher.",
+      "validation": "Validasi voucher gagal.",
+      "timeout": "Permintaan timeout. Coba lagi.",
+      "generic": "Voucher tidak dapat digunakan."
+    },
+    "summary": {
+      "subtotal": "Subtotal",
+      "discount": "Diskon ({{code}})",
+      "total": "Total Pembayaran",
+      "taxes": "Termasuk semua pajak"
+    }
+  },
+  "admin": {
+    "vouchers": {
+      "title": "Manajer Voucher",
+      "subtitle": "Buat, kelola, dan pantau voucher diskon",
+      "loading": "Memuat voucher...",
+      "empty": "Belum ada voucher.",
+      "filters": {
+        "status": "Status",
+        "all": "Semua",
+        "active": "Aktif",
+        "inactive": "Nonaktif",
+        "expired": "Kadaluarsa"
+      },
+      "table": {
+        "code": "Kode",
+        "type": "Tipe",
+        "value": "Nilai",
+        "validity": "Periode",
+        "quota": "Kuota",
+        "used": "Terpakai",
+        "remaining": "Sisa",
+        "redemptions": "Penukaran",
+        "discountTotal": "Total Diskon",
+        "status": "Status",
+        "actions": "Aksi"
+      },
+      "types": {
+        "percentage": "Persentase",
+        "fixed": "Nominal"
+      },
+      "status": {
+        "active": "Aktif",
+        "inactive": "Nonaktif",
+        "expired": "Kadaluarsa"
+      },
+      "pagination": {
+        "rows": "Baris",
+        "summary": "Halaman {{page}} dari {{total}} ({{count}} voucher)",
+        "prev": "Sebelumnya",
+        "next": "Berikutnya"
+      },
+      "actions": {
+        "create": "Buat Voucher",
+        "edit": "Ubah",
+        "delete": "Hapus",
+        "activate": "Aktifkan",
+        "deactivate": "Nonaktifkan",
+        "save": "Simpan",
+        "saving": "Menyimpan...",
+        "cancel": "Batal"
+      },
+      "form": {
+        "createTitle": "Buat Voucher",
+        "editTitle": "Ubah Voucher",
+        "code": "Kode Voucher",
+        "codePlaceholder": "PROMO2026",
+        "type": "Tipe Diskon",
+        "value": "Nilai Diskon",
+        "quota": "Kuota",
+        "validFrom": "Berlaku Mulai",
+        "validUntil": "Berlaku Sampai",
+        "minPurchase": "Minimum Pembelian",
+        "maxDiscount": "Maksimum Diskon",
+        "optional": "Opsional",
+        "categories": "Kategori Berlaku",
+        "categoriesHint": "Kosongkan untuk berlaku di semua kategori.",
+        "noCategories": "Tidak ada kategori.",
+        "active": "Status Aktif",
+        "activeOn": "Aktif",
+        "activeOff": "Nonaktif",
+        "errors": {
+          "code": "Kode voucher wajib diisi.",
+          "discountValue": "Nilai diskon harus lebih besar dari nol.",
+          "validity": "Tanggal berlaku wajib diisi.",
+          "dateRange": "Tanggal akhir harus setelah tanggal mulai.",
+          "quota": "Kuota harus lebih besar dari nol.",
+          "minPurchase": "Minimum pembelian harus nol atau lebih.",
+          "maxDiscount": "Maksimum diskon harus nol atau lebih."
+        }
+      },
+      "toast": {
+        "createSuccess": "Voucher berhasil dibuat.",
+        "updateSuccess": "Voucher berhasil diperbarui.",
+        "deleteSuccess": "Voucher berhasil dihapus.",
+        "toggleSuccess": "Status voucher diperbarui."
+      },
+      "errors": {
+        "loadFailed": "Gagal memuat voucher.",
+        "saveFailed": "Gagal menyimpan voucher."
+      },
+      "confirmDelete": "Hapus voucher ini? Data penggunaan terkait juga akan dihapus."
     }
   }
 }

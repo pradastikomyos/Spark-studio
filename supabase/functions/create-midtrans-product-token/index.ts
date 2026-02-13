@@ -16,6 +16,7 @@ type CreateTokenRequest = {
   customerName: string
   customerEmail: string
   customerPhone?: string
+  voucherCode?: string  // NEW: Optional voucher code for discount
 }
 
 function toNumber(value: unknown, fallback: number) {
@@ -167,6 +168,97 @@ serve(async (req) => {
 
     const now = new Date()
 
+    // VOUCHER VALIDATION: Extract category IDs and validate voucher if provided
+    let voucherId: string | null = null
+    let voucherCode: string | null = null
+    let discountAmount = 0
+
+    if (payload.voucherCode?.trim()) {
+      // Extract category IDs from product variants
+      const { data: variantCategories, error: categoryError } = await supabase
+        .from('product_variants')
+        .select('product_id')
+        .in('id', variantIds)
+
+      if (categoryError || !variantCategories) {
+        return new Response(JSON.stringify({ error: 'Failed to load product categories' }), {
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        })
+      }
+
+      const productIds = variantCategories.map((v: { product_id: number }) => v.product_id)
+      const { data: products, error: productsError } = await supabase
+        .from('products')
+        .select('category_id')
+        .in('id', productIds)
+
+      if (productsError || !products) {
+        return new Response(JSON.stringify({ error: 'Failed to load product categories' }), {
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        })
+      }
+
+      const categoryIds = products.map((p: { category_id: number }) => p.category_id).filter((id: number) => id != null)
+
+      // Call validate_and_reserve_voucher RPC
+      const { data: voucherResult, error: voucherError } = await supabase.rpc('validate_and_reserve_voucher', {
+        p_code: payload.voucherCode.trim(),
+        p_user_id: userId,
+        p_subtotal: totalAmount,
+        p_category_ids: categoryIds,
+      })
+
+      if (voucherError) {
+        return new Response(
+          JSON.stringify({
+            error: 'Failed to validate voucher',
+            code: 'VOUCHER_VALIDATION_ERROR',
+            details: voucherError.message,
+          }),
+          {
+            status: 500,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          }
+        )
+      }
+
+      // RPC returns array with single row
+      const result = Array.isArray(voucherResult) ? voucherResult[0] : voucherResult
+
+      if (result?.error_message) {
+        // Voucher validation failed - return specific error
+        let errorCode = 'VOUCHER_INVALID'
+        const errorMsg = result.error_message
+
+        if (errorMsg.includes('tidak aktif')) errorCode = 'VOUCHER_INACTIVE'
+        else if (errorMsg.includes('belum berlaku')) errorCode = 'VOUCHER_NOT_YET_VALID'
+        else if (errorMsg.includes('kadaluarsa')) errorCode = 'VOUCHER_EXPIRED'
+        else if (errorMsg.includes('Kuota')) errorCode = 'VOUCHER_QUOTA_EXCEEDED'
+        else if (errorMsg.includes('Minimum')) errorCode = 'VOUCHER_MIN_PURCHASE'
+        else if (errorMsg.includes('kategori')) errorCode = 'VOUCHER_CATEGORY_MISMATCH'
+
+        return new Response(
+          JSON.stringify({
+            error: errorMsg,
+            code: errorCode,
+          }),
+          {
+            status: 400,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          }
+        )
+      }
+
+      // Voucher validated successfully - store details
+      voucherId = result.voucher_id
+      voucherCode = payload.voucherCode.trim().toUpperCase()
+      discountAmount = toNumber(result.discount_amount, 0)
+
+      console.log(`Voucher applied: ${voucherCode}, discount: ${discountAmount}`)
+    }
+
     // Dynamic payment expiry based on stock scarcity
     // Industry standard: Scarce inventory requires faster payment
     let minStockLevel = Infinity
@@ -220,6 +312,11 @@ serve(async (req) => {
       })
 
       if (reserveError || reserved !== true) {
+        // Rollback voucher quota if it was reserved
+        if (voucherId) {
+          await supabase.rpc('release_voucher_quota', { p_voucher_id: voucherId })
+        }
+        
         // Rollback previously reserved items
         for (const previous of reservedAdjustments) {
           await supabase.rpc('release_product_stock', {
@@ -236,6 +333,8 @@ serve(async (req) => {
       reservedAdjustments.push({ variantId: item.productVariantId, quantity: item.quantity })
     }
 
+    const finalTotal = totalAmount - discountAmount
+
     const { data: order, error: orderError } = await supabase
       .from('order_products')
       .insert({
@@ -245,10 +344,12 @@ serve(async (req) => {
         status: 'awaiting_payment',
         payment_status: 'unpaid',
         subtotal: totalAmount,
-        discount_amount: 0,
+        discount_amount: discountAmount,
         shipping_cost: 0,
         shipping_discount: 0,
-        total: totalAmount,
+        total: finalTotal,
+        voucher_id: voucherId,
+        voucher_code: voucherCode,
         payment_expired_at: paymentExpiredAt.toISOString(),
         created_at: now.toISOString(),
         updated_at: now.toISOString(),
@@ -257,6 +358,11 @@ serve(async (req) => {
       .single()
 
     if (orderError || !order) {
+      // Rollback voucher quota if it was reserved
+      if (voucherId) {
+        await supabase.rpc('release_voucher_quota', { p_voucher_id: voucherId })
+      }
+      
       for (const a of reservedAdjustments) {
         await supabase.rpc('release_product_stock', {
           p_variant_id: a.variantId,
@@ -287,6 +393,12 @@ serve(async (req) => {
     const { error: itemsError } = await supabase.from('order_product_items').insert(orderItems)
     if (itemsError) {
       await supabase.from('order_products').delete().eq('id', orderId)
+      
+      // Rollback voucher quota if it was reserved
+      if (voucherId) {
+        await supabase.rpc('release_voucher_quota', { p_voucher_id: voucherId })
+      }
+      
       for (const a of reservedAdjustments) {
         await supabase.rpc('release_product_stock', {
           p_variant_id: a.variantId,
@@ -312,6 +424,19 @@ serve(async (req) => {
 
     const appUrl = getPublicAppUrl() ?? req.headers.get('origin') ?? ''
     if (!appUrl) {
+      // Rollback voucher quota if it was reserved
+      if (voucherId) {
+        await supabase.rpc('release_voucher_quota', { p_voucher_id: voucherId })
+      }
+
+      // Rollback reserved stock
+      for (const a of reservedAdjustments) {
+        await supabase.rpc('release_product_stock', {
+          p_variant_id: a.variantId,
+          p_quantity: a.quantity,
+        })
+      }
+
       return new Response(JSON.stringify({ error: 'Missing app url' }), {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -321,7 +446,7 @@ serve(async (req) => {
     const midtransPayload = {
       transaction_details: {
         order_id: orderNumber,
-        gross_amount: totalAmount,
+        gross_amount: finalTotal,  // Use discounted total
       },
       item_details: itemDetails,
       customer_details: {
@@ -351,6 +476,12 @@ serve(async (req) => {
     if (!midtransResponse.ok) {
       await supabase.from('order_product_items').delete().eq('order_product_id', orderId)
       await supabase.from('order_products').delete().eq('id', orderId)
+      
+      // Rollback voucher quota if it was reserved
+      if (voucherId) {
+        await supabase.rpc('release_voucher_quota', { p_voucher_id: voucherId })
+      }
+      
       for (const a of reservedAdjustments) {
         await supabase.rpc('release_product_stock', {
           p_variant_id: a.variantId,
@@ -378,6 +509,7 @@ serve(async (req) => {
         redirect_url: (midtransData as { redirect_url?: string }).redirect_url,
         order_number: orderNumber,
         order_id: orderId,
+        discount_amount: discountAmount,  // Include discount for frontend display
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )

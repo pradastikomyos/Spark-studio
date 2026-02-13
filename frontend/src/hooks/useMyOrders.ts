@@ -24,6 +24,8 @@ export interface ProductOrder {
   pickup_status: string | null;
   pickup_expires_at: string | null;
   paid_at: string | null;
+  voucher_code?: string | null;
+  discount_amount?: number | null;
   total: number;
   created_at: string;
   itemCount: number;
@@ -70,6 +72,8 @@ export function useMyOrders(userId: string | null | undefined) {
             pickup_status,
             pickup_expires_at,
             paid_at,
+            voucher_code,
+            discount_amount,
             total,
             created_at
           `

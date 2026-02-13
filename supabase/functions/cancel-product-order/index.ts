@@ -32,7 +32,7 @@ serve(async (req) => {
 
     const { data: order, error: orderError } = await supabase
       .from('order_products')
-      .select('id, user_id, order_number, status, payment_status')
+      .select('id, user_id, order_number, status, payment_status, voucher_id')
       .eq('order_number', orderNumber)
       .single()
 
@@ -107,6 +107,11 @@ serve(async (req) => {
       }
     }
 
+    const voucherId = (order as { voucher_id?: string | null }).voucher_id ?? null
+    if (voucherId) {
+      await supabase.rpc('release_voucher_quota', { p_voucher_id: voucherId })
+    }
+
     return json({ status: 'ok', result: 'cancelled', order: updated })
   } catch (e) {
     return new Response(JSON.stringify({ error: 'Internal server error', details: e instanceof Error ? e.message : String(e) }), {
@@ -115,4 +120,3 @@ serve(async (req) => {
     })
   }
 })
-
