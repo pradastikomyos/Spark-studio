@@ -13,6 +13,8 @@ import { PageTransition } from '../components/PageTransition';
 import ProductCardSkeleton from '../components/skeletons/ProductCardSkeleton';
 import { queryKeys } from '../lib/queryKeys';
 
+const PRODUCTS_PER_PAGE = 20;
+
 const Shop = () => {
     const queryClient = useQueryClient();
     const { addItem } = useCart();
@@ -21,6 +23,7 @@ const Shop = () => {
     const [activeSubcategory, setActiveSubcategory] = useState<string>('all');
     const [searchQuery, setSearchQuery] = useState('');
     const [currentHeroSlide, setCurrentHeroSlide] = useState(0);
+    const [currentPage, setCurrentPage] = useState(1);
 
     const { data: products = [], error: productsError, isLoading: productsLoading, refetch: refetchProducts } = useProducts();
     const { data: categories = [], error: categoriesError, isLoading: categoriesLoading, refetch: refetchCategories } = useCategories();
@@ -144,6 +147,23 @@ const Shop = () => {
 
         return currentProducts;
     }, [products, activeCategory, activeSubcategory, allowedSlugMap, searchQuery]);
+
+    const totalProducts = filteredProducts.length;
+    const totalPages = Math.max(1, Math.ceil(totalProducts / PRODUCTS_PER_PAGE));
+    const paginatedProducts = useMemo(() => {
+        const start = (currentPage - 1) * PRODUCTS_PER_PAGE;
+        return filteredProducts.slice(start, start + PRODUCTS_PER_PAGE);
+    }, [filteredProducts, currentPage]);
+
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [activeCategory, activeSubcategory, searchQuery]);
+
+    useEffect(() => {
+        if (currentPage > totalPages) {
+            setCurrentPage(totalPages);
+        }
+    }, [currentPage, totalPages]);
 
 
 
@@ -398,85 +418,114 @@ const Shop = () => {
                             ))}
                         </div>
                     ) : (
-                        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-                            {filteredProducts.map((product) => (
-                                <Link
-                                    key={product.id}
-                                    to={`/shop/product/${product.id}`}
-                                    className="group cursor-pointer"
-                                    onMouseEnter={() => prefetchProduct(product.id)}
-                                >
-                                    <div className="rounded-xl border-2 border-gray-100 hover:border-[#ff4b86] bg-white overflow-hidden transition-all duration-300 hover:shadow-lg hover:shadow-pink-100">
-                                        {/* Product Image */}
-                                        <div className="relative overflow-hidden aspect-square bg-gray-50">
-                                            {product.image ? (
-                                                <img
-                                                    alt={product.name}
-                                                    className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
-                                                    src={product.image}
-                                                    loading="lazy"
-                                                />
-                                            ) : (
-                                                <div className="w-full h-full bg-gray-100 flex items-center justify-center text-gray-300">
-                                                    <span className="material-symbols-outlined text-5xl">{product.placeholder}</span>
+                        <>
+                            {totalProducts === 0 ? (
+                                <div className="rounded-xl border border-gray-200 bg-gray-50 px-6 py-10 text-center">
+                                    <p className="text-sm text-gray-500">No products found for this filter.</p>
+                                </div>
+                            ) : (
+                                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+                                    {paginatedProducts.map((product) => (
+                                        <Link
+                                            key={product.id}
+                                            to={`/shop/product/${product.id}`}
+                                            className="group cursor-pointer"
+                                            onMouseEnter={() => prefetchProduct(product.id)}
+                                        >
+                                            <div className="rounded-xl border-2 border-gray-100 hover:border-[#ff4b86] bg-white overflow-hidden transition-all duration-300 hover:shadow-lg hover:shadow-pink-100">
+                                                {/* Product Image */}
+                                                <div className="relative overflow-hidden aspect-square bg-gray-50">
+                                                    {product.image ? (
+                                                        <img
+                                                            alt={product.name}
+                                                            className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                                                            src={product.image}
+                                                            loading="lazy"
+                                                        />
+                                                    ) : (
+                                                        <div className="w-full h-full bg-gray-100 flex items-center justify-center text-gray-300">
+                                                            <span className="material-symbols-outlined text-5xl">{product.placeholder}</span>
+                                                        </div>
+                                                    )}
+                                                    {/* Out of Stock Overlay */}
+                                                    {!product.defaultVariantId && (
+                                                        <div className="absolute inset-0 bg-black/50 flex items-center justify-center z-10">
+                                                            <span className="text-white text-xs font-bold uppercase tracking-widest px-3 py-1 border border-white/50 bg-black/20 backdrop-blur-sm">
+                                                                Out of Stock
+                                                            </span>
+                                                        </div>
+                                                    )}
+                                                    {/* Quick Add Button */}
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.preventDefault();
+                                                            e.stopPropagation();
+                                                            handleAddToCart(product);
+                                                        }}
+                                                        disabled={!product.defaultVariantId}
+                                                        className="absolute bottom-3 right-3 bg-[#ff4b86] text-white p-2.5 rounded-full opacity-0 scale-75 group-hover:opacity-100 group-hover:scale-100 transition-all duration-300 shadow-lg hover:bg-[#e63d75] disabled:opacity-0 disabled:cursor-not-allowed"
+                                                    >
+                                                        <span className="material-symbols-outlined text-lg">add_shopping_cart</span>
+                                                    </button>
+                                                    {/* Badge */}
+                                                    {product.badge && (
+                                                        <span className="absolute top-3 left-3 bg-[#ff4b86] text-white px-2.5 py-1 text-[10px] uppercase tracking-wider font-bold rounded-full shadow-sm">
+                                                            {product.badge}
+                                                        </span>
+                                                    )}
                                                 </div>
-                                            )}
-                                            {/* Out of Stock Overlay */}
-                                            {!product.defaultVariantId && (
-                                                <div className="absolute inset-0 bg-black/50 flex items-center justify-center z-10">
-                                                    <span className="text-white text-xs font-bold uppercase tracking-widest px-3 py-1 border border-white/50 bg-black/20 backdrop-blur-sm">
-                                                        Out of Stock
-                                                    </span>
+                                                {/* Product Info */}
+                                                <div className="p-3">
+                                                    <h3 className="font-bold text-sm text-gray-900 mb-1 line-clamp-1 group-hover:text-[#ff4b86] transition-colors">
+                                                        {product.name}
+                                                    </h3>
+                                                    <p className="text-[11px] text-gray-400 mb-2 line-clamp-1 font-light">
+                                                        {product.description}
+                                                    </p>
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="text-base font-black text-[#ff4b86]">{formatCurrency(product.price)}</span>
+                                                        {product.originalPrice && (
+                                                            <span className="text-xs text-gray-400 line-through font-light">
+                                                                {formatCurrency(product.originalPrice)}
+                                                            </span>
+                                                        )}
+                                                    </div>
                                                 </div>
-                                            )}
-                                            {/* Quick Add Button */}
-                                            <button
-                                                onClick={(e) => {
-                                                    e.preventDefault();
-                                                    e.stopPropagation();
-                                                    handleAddToCart(product);
-                                                }}
-                                                disabled={!product.defaultVariantId}
-                                                className="absolute bottom-3 right-3 bg-[#ff4b86] text-white p-2.5 rounded-full opacity-0 scale-75 group-hover:opacity-100 group-hover:scale-100 transition-all duration-300 shadow-lg hover:bg-[#e63d75] disabled:opacity-0 disabled:cursor-not-allowed"
-                                            >
-                                                <span className="material-symbols-outlined text-lg">add_shopping_cart</span>
-                                            </button>
-                                            {/* Badge */}
-                                            {product.badge && (
-                                                <span className="absolute top-3 left-3 bg-[#ff4b86] text-white px-2.5 py-1 text-[10px] uppercase tracking-wider font-bold rounded-full shadow-sm">
-                                                    {product.badge}
-                                                </span>
-                                            )}
-                                        </div>
-                                        {/* Product Info */}
-                                        <div className="p-3">
-                                            <h3 className="font-bold text-sm text-gray-900 mb-1 line-clamp-1 group-hover:text-[#ff4b86] transition-colors">
-                                                {product.name}
-                                            </h3>
-                                            <p className="text-[11px] text-gray-400 mb-2 line-clamp-1 font-light">
-                                                {product.description}
-                                            </p>
-                                            <div className="flex items-center gap-2">
-                                                <span className="text-base font-black text-[#ff4b86]">{formatCurrency(product.price)}</span>
-                                                {product.originalPrice && (
-                                                    <span className="text-xs text-gray-400 line-through font-light">
-                                                        {formatCurrency(product.originalPrice)}
-                                                    </span>
-                                                )}
                                             </div>
-                                        </div>
-                                    </div>
-                                </Link>
-                            ))}
-                        </div>
+                                        </Link>
+                                    ))}
+                                </div>
+                            )}
+                        </>
                     )}
 
-                    {/* Load More Button */}
-                    <div className="flex justify-center mt-20">
-                        <button className="px-8 py-3 border border-primary text-primary hover:bg-[#ff4b86] hover:text-white transition-colors duration-300 text-sm tracking-widest uppercase rounded-sm font-medium">
-                            Load More Products
-                        </button>
-                    </div>
+                    {!loading && totalProducts > 0 && (
+                        <div className="mt-14 flex flex-col items-center gap-4">
+                            <p className="text-sm text-gray-500">
+                                Page {currentPage} of {totalPages} ({totalProducts} products)
+                            </p>
+                            <div className="flex items-center gap-3">
+                                <button
+                                    type="button"
+                                    onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
+                                    disabled={currentPage <= 1}
+                                    className="inline-flex items-center gap-2 rounded-full border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 transition hover:border-[#ff4b86] hover:text-[#ff4b86] disabled:cursor-not-allowed disabled:opacity-40"
+                                >
+                                    <ChevronLeft className="h-4 w-4" />
+                                    Prev
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
+                                    disabled={currentPage >= totalPages}
+                                    className="inline-flex items-center gap-2 rounded-full border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 transition hover:border-[#ff4b86] hover:text-[#ff4b86] disabled:cursor-not-allowed disabled:opacity-40"
+                                >
+                                    Next
+                                    <ChevronRight className="h-4 w-4" />
+                                </button>
+                            </div>
+                        </div>
+                    )}
                 </main>
             </div>
         </PageTransition>
