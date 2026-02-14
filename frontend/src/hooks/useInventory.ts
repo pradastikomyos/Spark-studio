@@ -44,6 +44,64 @@ export type CategoryRow = {
   parent_id: number | null;
 };
 
+const INVENTORY_PRODUCTS_PAGE_SIZE = 500;
+const INVENTORY_PRODUCTS_SELECT = `
+  id,
+  name,
+  slug,
+  description,
+  category_id,
+  sku,
+  is_active,
+  deleted_at,
+  categories(id, name, slug, is_active),
+  product_images(image_url, is_primary, display_order),
+  product_variants(
+    id,
+    product_id,
+    name,
+    sku,
+    price,
+    stock,
+    reserved_stock,
+    attributes,
+    is_active
+  )
+`;
+
+async function fetchAllInventoryProducts(signal: AbortSignal): Promise<{ data: ProductRow[] | null; error: unknown }> {
+  const products: ProductRow[] = [];
+  let from = 0;
+
+  // PostgREST responses are capped; fetch products in pages to avoid silent truncation.
+  while (true) {
+    const to = from + INVENTORY_PRODUCTS_PAGE_SIZE - 1;
+    const { data, error } = await supabase
+      .from('products')
+      .select(INVENTORY_PRODUCTS_SELECT)
+      .abortSignal(signal)
+      .is('deleted_at', null)
+      .order('name', { ascending: true })
+      .order('id', { ascending: true })
+      .range(from, to);
+
+    if (error) {
+      return { data: null, error };
+    }
+
+    const chunk = (data || []) as unknown as ProductRow[];
+    products.push(...chunk);
+
+    if (chunk.length < INVENTORY_PRODUCTS_PAGE_SIZE) {
+      break;
+    }
+
+    from += INVENTORY_PRODUCTS_PAGE_SIZE;
+  }
+
+  return { data: products, error: null };
+}
+
 export function useInventory() {
   const queryClient = useQueryClient();
   const query = useQuery({
@@ -52,36 +110,7 @@ export function useInventory() {
       const { signal: timeoutSignal, cleanup, didTimeout } = createQuerySignal(signal);
       try {
         const [productsResult, categoriesResult] = await Promise.all([
-          supabase
-            .from('products')
-            .select(
-              `
-                id,
-                name,
-                slug,
-                description,
-                category_id,
-                sku,
-                is_active,
-                deleted_at,
-                categories(id, name, slug, is_active),
-                product_images(image_url, is_primary, display_order),
-                product_variants(
-                  id,
-                  product_id,
-                  name,
-                  sku,
-                  price,
-                  stock,
-                  reserved_stock,
-                  attributes,
-                  is_active
-                )
-              `
-            )
-            .abortSignal(timeoutSignal)
-            .is('deleted_at', null)
-            .order('name', { ascending: true }),
+          fetchAllInventoryProducts(timeoutSignal),
           supabase
             .from('categories')
             .select('id, name, slug, is_active, parent_id')
@@ -91,7 +120,11 @@ export function useInventory() {
 
         if (productsResult.error || categoriesResult.error) {
           const err = new Error('Failed to load inventory') as APIError;
-          err.status = productsResult.error?.code === '409' ? 409 : 500;
+          const productsErrorCode =
+            productsResult.error && typeof productsResult.error === 'object' && 'code' in productsResult.error
+              ? String((productsResult.error as { code: unknown }).code)
+              : null;
+          err.status = productsErrorCode === '409' ? 409 : 500;
           err.info = { products: productsResult.error, categories: categoriesResult.error };
           throw err;
         }
