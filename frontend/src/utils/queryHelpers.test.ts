@@ -16,10 +16,11 @@ describe('queryHelpers.withTimeout', () => {
     })
 
     const resultPromise = withTimeout(promise, 1000, 'timeout')
+    const expectation = expect(resultPromise).resolves.toBe('ok')
     await vi.advanceTimersByTimeAsync(60)
     await flushPromises()
 
-    await expect(resultPromise).resolves.toBe('ok')
+    await expectation
   })
 
   it('rejects with timeout error when deadline is exceeded', async () => {
@@ -30,9 +31,10 @@ describe('queryHelpers.withTimeout', () => {
     })
 
     const resultPromise = withTimeout(promise, 100, 'timeout')
+    const expectation = expect(resultPromise).rejects.toThrow('timeout')
     await vi.advanceTimersByTimeAsync(150)
     await flushPromises()
 
-    await expect(resultPromise).rejects.toThrow('timeout')
+    await expectation
   })
 })

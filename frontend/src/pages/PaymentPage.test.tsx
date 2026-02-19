@@ -181,7 +181,10 @@ describe('PaymentPage', () => {
 
             await waitFor(() => {
                 expect(clearBookingState).toHaveBeenCalled()
-                expect(mockNavigate).toHaveBeenCalledWith('/booking-success', expect.anything())
+                expect(mockNavigate).toHaveBeenCalledWith(
+                    expect.stringContaining('/booking-success?order_id=ORD-123'),
+                    expect.anything()
+                )
             })
         })
 
@@ -210,7 +213,8 @@ describe('PaymentPage', () => {
             fireEvent.click(payButton)
 
             await waitFor(() => {
-                expect(mockNavigate).toHaveBeenCalledWith('/booking-success', 
+                expect(mockNavigate).toHaveBeenCalledWith(
+                    expect.stringContaining('/booking-success?order_id=ORD-123'),
                     expect.objectContaining({
                         state: expect.objectContaining({
                             isPending: true

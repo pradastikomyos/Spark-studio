@@ -52,6 +52,7 @@ const TAB_RETURN_EVENT = 'tab-returned-from-idle';
 const ADMIN_PRODUCT_DRAFT_KEY = 'admin-product-form:draft:v1';
 const REQUEST_TIMEOUT_MS = 60000;
 const UPLOAD_TIMEOUT_MS = 120000;
+const INVENTORY_PRODUCTS_PER_PAGE = 24;
 
 const StoreInventory = () => {
   const { signOut, session } = useAuth();
@@ -64,6 +65,7 @@ const StoreInventory = () => {
   const [stockFilter, setStockFilter] = useState('');
   const [orderCode, setOrderCode] = useState('');
   const [showScanner, setShowScanner] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
   const [productsRaw, setProductsRaw] = useState<ProductRow[]>([]);
   const [showProductForm, setShowProductForm] = useState(false);
   const [editingProductId, setEditingProductId] = useState<number | null>(null);
@@ -73,7 +75,7 @@ const StoreInventory = () => {
   const [saveError, setSaveError] = useState<string | null>(null);
   const [showCategoryManager, setShowCategoryManager] = useState(false);
   const { data, error, isLoading, refetch } = useInventory();
-  const inventoryCategories = data?.categories ?? [];
+  const inventoryCategories = useMemo(() => data?.categories ?? [], [data?.categories]);
   const categoryOptions = useMemo((): CategoryOption[] => {
     return inventoryCategories.map((c) => ({
       id: c.id,
@@ -227,6 +229,23 @@ const StoreInventory = () => {
       return matchesSearch && matchesCategory && matchesStock;
     });
   }, [inventoryProducts, searchQuery, categoryFilter, stockFilter]);
+
+  const totalProducts = filteredProducts.length;
+  const totalPages = Math.max(1, Math.ceil(totalProducts / INVENTORY_PRODUCTS_PER_PAGE));
+  const paginatedProducts = useMemo(() => {
+    const start = (currentPage - 1) * INVENTORY_PRODUCTS_PER_PAGE;
+    return filteredProducts.slice(start, start + INVENTORY_PRODUCTS_PER_PAGE);
+  }, [filteredProducts, currentPage]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, categoryFilter, stockFilter]);
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [currentPage, totalPages]);
 
   const editingProduct = useMemo(() => {
     if (!editingProductId) return null;
@@ -794,83 +813,113 @@ const StoreInventory = () => {
             </button>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {filteredProducts.map((product) => (
-              <div
-                key={product.id}
-                className={`group flex flex-col rounded-xl border border-gray-200 bg-white overflow-hidden shadow-sm hover:shadow-md transition-all duration-200 hover:border-primary/30 ${product.stock_status === 'out' ? 'opacity-75 hover:opacity-100' : ''
-                  }`}
-              >
-                <div className="aspect-[4/3] w-full bg-gray-100 relative overflow-hidden">
-                  {product.image_url ? (
-                    <img alt={product.name} src={product.image_url} className="h-full w-full object-cover" />
-                  ) : (
-                    <div className="absolute inset-0 flex items-center justify-center text-gray-700">
-                      <span className="material-symbols-outlined text-6xl">inventory_2</span>
+          <>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+              {paginatedProducts.map((product) => (
+                <div
+                  key={product.id}
+                  className={`group flex flex-col rounded-xl border border-gray-200 bg-white overflow-hidden shadow-sm hover:shadow-md transition-all duration-200 hover:border-primary/30 ${product.stock_status === 'out' ? 'opacity-75 hover:opacity-100' : ''
+                    }`}
+                >
+                  <div className="aspect-[4/3] w-full bg-gray-100 relative overflow-hidden">
+                    {product.image_url ? (
+                      <img alt={product.name} src={product.image_url} className="h-full w-full object-cover" />
+                    ) : (
+                      <div className="absolute inset-0 flex items-center justify-center text-gray-700">
+                        <span className="material-symbols-outlined text-6xl">inventory_2</span>
+                      </div>
+                    )}
+                    {product.stock_status === 'out' && (
+                      <div className="absolute top-0 right-0 bg-neutral-800 text-gray-900 text-[10px] font-bold px-2 py-1 rounded-bl-lg z-10">
+                        SOLD OUT
+                      </div>
+                    )}
+                    {product.stock_status === 'low' && (
+                      <div className="absolute top-0 right-0 bg-primary text-gray-900 text-[10px] font-bold px-2 py-1 rounded-bl-lg z-10">
+                        LOW STOCK
+                      </div>
+                    )}
+                    <div className="absolute right-3 top-3 flex items-center gap-2 z-20">
+                      <button
+                        onClick={() => handleOpenEdit(product.id)}
+                        className="rounded-lg bg-white/90 px-2 py-1 text-[10px] font-bold text-neutral-900 hover:bg-white"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => setDeletingProduct({ id: product.id, name: product.name })}
+                        className="rounded-lg bg-[#ff4b86]/90 px-2 py-1 text-[10px] font-bold text-white hover:bg-[#ff4b86]"
+                      >
+                        Delete
+                      </button>
                     </div>
-                  )}
-                  {product.stock_status === 'out' && (
-                    <div className="absolute top-0 right-0 bg-neutral-800 text-gray-900 text-[10px] font-bold px-2 py-1 rounded-bl-lg z-10">
-                      SOLD OUT
+                  </div>
+                  <div className="p-4 flex flex-col gap-3 flex-1">
+                    <div>
+                      <div className="flex justify-between items-start">
+                        <h4 className="text-base font-bold text-neutral-900 leading-tight font-display">{product.name}</h4>
+                        <span className="text-sm font-bold text-neutral-900">
+                          {formatCurrency(product.price_min)}
+                          {product.price_max !== product.price_min ? `–${formatCurrency(product.price_max)}` : ''}
+                        </span>
+                      </div>
+                      <p className="text-xs text-gray-500 mt-1 font-sans">
+                        {product.category} • {product.variant_count} variants
+                      </p>
+                      <p className="mt-1 text-[10px] text-gray-600 font-mono">{product.sku}</p>
+                      {!product.is_active && (
+                        <p className="mt-1 text-[10px] font-bold text-yellow-500">INACTIVE</p>
+                      )}
                     </div>
-                  )}
-                  {product.stock_status === 'low' && (
-                    <div className="absolute top-0 right-0 bg-primary text-gray-900 text-[10px] font-bold px-2 py-1 rounded-bl-lg z-10">
-                      LOW STOCK
+                    <div className="mt-auto">
+                      <div className="flex justify-between items-center mb-1.5">
+                        <span
+                          className={`text-xs font-medium font-sans ${product.stock_status === 'low' ? 'text-primary' : product.stock_status === 'out' ? 'text-gray-600' : 'text-gray-500'}`}
+                        >
+                          {product.stock_available} in stock
+                        </span>
+                        {getStockBadge(product.stock_status, getStockLabel(product.stock_status))}
+                      </div>
+                      <div className="h-1.5 w-full bg-gray-100 rounded-full overflow-hidden">
+                        <div
+                          className={`h-full ${getStockBarColor(product.stock_status)} rounded-full`}
+                          style={{ width: `${getStockPercent(product.stock_available)}%` }}
+                        ></div>
+                      </div>
                     </div>
-                  )}
-                  <div className="absolute right-3 top-3 flex items-center gap-2 z-20">
-                    <button
-                      onClick={() => handleOpenEdit(product.id)}
-                      className="rounded-lg bg-white/90 px-2 py-1 text-[10px] font-bold text-neutral-900 hover:bg-white"
-                    >
-                      Edit
-                    </button>
-                    <button
-                      onClick={() => setDeletingProduct({ id: product.id, name: product.name })}
-                      className="rounded-lg bg-[#ff4b86]/90 px-2 py-1 text-[10px] font-bold text-white hover:bg-[#ff4b86]"
-                    >
-                      Delete
-                    </button>
                   </div>
                 </div>
-                <div className="p-4 flex flex-col gap-3 flex-1">
-                  <div>
-                    <div className="flex justify-between items-start">
-                      <h4 className="text-base font-bold text-neutral-900 leading-tight font-display">{product.name}</h4>
-                      <span className="text-sm font-bold text-neutral-900">
-                        {formatCurrency(product.price_min)}
-                        {product.price_max !== product.price_min ? `–${formatCurrency(product.price_max)}` : ''}
-                      </span>
-                    </div>
-                    <p className="text-xs text-gray-500 mt-1 font-sans">
-                      {product.category} • {product.variant_count} variants
-                    </p>
-                    <p className="mt-1 text-[10px] text-gray-600 font-mono">{product.sku}</p>
-                    {!product.is_active && (
-                      <p className="mt-1 text-[10px] font-bold text-yellow-500">INACTIVE</p>
-                    )}
-                  </div>
-                  <div className="mt-auto">
-                    <div className="flex justify-between items-center mb-1.5">
-                      <span
-                        className={`text-xs font-medium font-sans ${product.stock_status === 'low' ? 'text-primary' : product.stock_status === 'out' ? 'text-gray-600' : 'text-gray-500'}`}
-                      >
-                        {product.stock_available} in stock
-                      </span>
-                      {getStockBadge(product.stock_status, getStockLabel(product.stock_status))}
-                    </div>
-                    <div className="h-1.5 w-full bg-gray-100 rounded-full overflow-hidden">
-                      <div
-                        className={`h-full ${getStockBarColor(product.stock_status)} rounded-full`}
-                        style={{ width: `${getStockPercent(product.stock_available)}%` }}
-                      ></div>
-                    </div>
-                  </div>
+              ))}
+            </div>
+
+            {totalProducts > 0 && totalPages > 1 && (
+              <div className="mt-10 flex flex-col items-center gap-4">
+                <p className="text-sm text-gray-500 font-sans">
+                  Page {currentPage} of {totalPages} ({totalProducts} items)
+                </p>
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
+                    disabled={currentPage <= 1}
+                    className="inline-flex items-center gap-2 rounded-full border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 transition hover:border-[#ff4b86] hover:text-[#ff4b86] disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    <span className="material-symbols-outlined text-[18px]">chevron_left</span>
+                    Prev
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
+                    disabled={currentPage >= totalPages}
+                    className="inline-flex items-center gap-2 rounded-full border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 transition hover:border-[#ff4b86] hover:text-[#ff4b86] disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    Next
+                    <span className="material-symbols-outlined text-[18px]">chevron_right</span>
+                  </button>
                 </div>
               </div>
-            ))}
-          </div>
+            )}
+          </>
         )}
       </section>
 
