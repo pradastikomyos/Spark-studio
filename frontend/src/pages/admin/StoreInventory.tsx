@@ -1,4 +1,5 @@
 import { useMemo, useRef, useState, useEffect } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
 import AdminLayout from '../../components/AdminLayout';
@@ -29,6 +30,7 @@ type InventoryProduct = {
   price_max: number;
   variant_count: number;
   image_url?: string | null;
+  image_url_original?: string | null;
 };
 
 const toNumber = (value: unknown, fallback: number = 0) => {
@@ -51,19 +53,49 @@ const TAB_RETURN_EVENT = 'tab-returned-from-idle';
 const ADMIN_PRODUCT_DRAFT_KEY = 'admin-product-form:draft:v1';
 const REQUEST_TIMEOUT_MS = 60000;
 const UPLOAD_TIMEOUT_MS = 120000;
+type StockFilter = '' | 'in' | 'low' | 'out';
+
 const INVENTORY_PRODUCTS_PER_PAGE = 24;
+const STOCK_FILTER_VALUES: ReadonlySet<StockFilter> = new Set(['in', 'low', 'out']);
+
+const parseQueryInt = (value: string | null, fallback: number) => {
+  if (!value) return fallback;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : fallback;
+};
+
+const parseSearchParams = (search: string) => {
+  const params = new URLSearchParams(search);
+  const page = parseQueryInt(params.get('page'), 1);
+  const searchQuery = params.get('q')?.trim() ?? '';
+  const categoryFilter = params.get('category')?.trim() ?? '';
+  const stockRaw = params.get('stock')?.trim() ?? '';
+  const stockFilter: StockFilter = STOCK_FILTER_VALUES.has(stockRaw as StockFilter)
+    ? (stockRaw as StockFilter)
+    : '';
+
+  return {
+    page,
+    searchQuery,
+    categoryFilter,
+    stockFilter,
+  };
+};
 
 const StoreInventory = () => {
   const { signOut, session } = useAuth();
   const { showToast } = useToast();
   useSessionRefresh();
-  const [searchInput, setSearchInput] = useState('');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [categoryFilter, setCategoryFilter] = useState('');
-  const [stockFilter, setStockFilter] = useState<'' | 'in' | 'low' | 'out'>('');
+  const location = useLocation();
+  const navigate = useNavigate();
+  const initialParams = parseSearchParams(location.search);
+  const [searchInput, setSearchInput] = useState(initialParams.searchQuery);
+  const [searchQuery, setSearchQuery] = useState(initialParams.searchQuery);
+  const [categoryFilter, setCategoryFilter] = useState(initialParams.categoryFilter);
+  const [stockFilter, setStockFilter] = useState<StockFilter>(initialParams.stockFilter);
   const [orderCode, setOrderCode] = useState('');
   const [showScanner, setShowScanner] = useState(false);
-  const [currentPage, setCurrentPage] = useState(1);
+  const [currentPage, setCurrentPage] = useState(initialParams.page);
   const [productsRaw, setProductsRaw] = useState<ProductRow[]>([]);
   const [showProductForm, setShowProductForm] = useState(false);
   const [editingProductId, setEditingProductId] = useState<number | null>(null);
@@ -72,10 +104,9 @@ const StoreInventory = () => {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [showCategoryManager, setShowCategoryManager] = useState(false);
-  const [imageLoadedCount, setImageLoadedCount] = useState(0);
-  const [imageErrorCount, setImageErrorCount] = useState(0);
-  const [imageExpectedCount, setImageExpectedCount] = useState(0);
-  const didLogImageMetricsRef = useRef(false);
+  const imageMetricsRef = useRef({ expected: 0, loaded: 0, errors: 0, logged: false, page: 1 });
+  const [thumbFallbackIds, setThumbFallbackIds] = useState<Record<number, true>>({});
+  const [totalProducts, setTotalProducts] = useState<number | null>(null);
   const { data, error, isLoading, isFetching, refetch } = useInventory({
     page: currentPage,
     pageSize: INVENTORY_PRODUCTS_PER_PAGE,
@@ -101,6 +132,21 @@ const StoreInventory = () => {
   }, [data]);
 
   useEffect(() => {
+    const params = parseSearchParams(location.search);
+    setSearchInput(params.searchQuery);
+    setSearchQuery(params.searchQuery);
+    setCategoryFilter(params.categoryFilter);
+    setStockFilter(params.stockFilter);
+    setCurrentPage(params.page);
+  }, [location.search]);
+
+  useEffect(() => {
+    if (typeof data?.totalCount === 'number') {
+      setTotalProducts(data.totalCount);
+    }
+  }, [data?.totalCount]);
+
+  useEffect(() => {
     const debounceId = window.setTimeout(() => {
       setSearchQuery(searchInput.trim());
     }, 250);
@@ -108,6 +154,20 @@ const StoreInventory = () => {
       window.clearTimeout(debounceId);
     };
   }, [searchInput]);
+
+  useEffect(() => {
+    const params = new URLSearchParams();
+    if (searchQuery) params.set('q', searchQuery);
+    if (categoryFilter) params.set('category', categoryFilter);
+    if (stockFilter) params.set('stock', stockFilter);
+    if (currentPage > 1) params.set('page', String(currentPage));
+
+    const nextSearch = params.toString();
+    const nextSearchWithPrefix = nextSearch ? `?${nextSearch}` : '';
+    if (nextSearchWithPrefix === location.search) return;
+
+    navigate({ pathname: location.pathname, search: nextSearchWithPrefix }, { replace: true });
+  }, [searchQuery, categoryFilter, stockFilter, currentPage, location.pathname, location.search, navigate]);
 
   useEffect(() => {
     if (error) {
@@ -223,6 +283,9 @@ const StoreInventory = () => {
 
       if (!Number.isFinite(priceMin)) priceMin = 0;
 
+      const imageUrlOriginal = imageUrl;
+      const imageUrlThumb = imageUrl ? toInventoryThumbUrl(imageUrl) : null;
+
       return {
         id: row.id,
         name: row.name,
@@ -235,47 +298,59 @@ const StoreInventory = () => {
         price_min: priceMin,
         price_max: priceMax,
         variant_count: variants.length,
-        image_url: imageUrl ? toInventoryThumbUrl(imageUrl) : null,
+        image_url: imageUrlThumb,
+        image_url_original: imageUrlOriginal,
       };
     });
   }, [productsRaw]);
 
-  const totalProducts = data?.totalCount ?? 0;
-  const totalPages = Math.max(1, Math.ceil(totalProducts / INVENTORY_PRODUCTS_PER_PAGE));
+  const resolvedTotalProducts = totalProducts ?? 0;
+  const totalPages = Math.max(1, Math.ceil(resolvedTotalProducts / INVENTORY_PRODUCTS_PER_PAGE));
   const paginatedProducts = inventoryProducts;
 
   useEffect(() => {
-    setCurrentPage(1);
-  }, [searchInput, categoryFilter, stockFilter]);
-
-  useEffect(() => {
+    if (isFetching) return;
+    if (totalProducts == null) return;
+    if (totalProducts === 0 && currentPage !== 1) {
+      setCurrentPage(1);
+      return;
+    }
     if (currentPage > totalPages) {
       setCurrentPage(totalPages);
     }
-  }, [currentPage, totalPages]);
+  }, [currentPage, totalPages, totalProducts, isFetching]);
 
   useEffect(() => {
     const expected = paginatedProducts.reduce((acc, product) => acc + (product.image_url ? 1 : 0), 0);
-    setImageExpectedCount(expected);
-    setImageLoadedCount(0);
-    setImageErrorCount(0);
-    didLogImageMetricsRef.current = false;
-  }, [paginatedProducts]);
+    imageMetricsRef.current = {
+      expected,
+      loaded: 0,
+      errors: 0,
+      logged: false,
+      page: currentPage,
+    };
+  }, [paginatedProducts, currentPage]);
 
-  useEffect(() => {
-    if (didLogImageMetricsRef.current) return;
-    const resolvedCount = imageLoadedCount + imageErrorCount;
-    if (resolvedCount < imageExpectedCount) return;
+  const trackImageResult = (result: 'loaded' | 'error') => {
+    const metrics = imageMetricsRef.current;
+    if (result === 'loaded') {
+      metrics.loaded += 1;
+    } else {
+      metrics.errors += 1;
+    }
+
+    const resolvedCount = metrics.loaded + metrics.errors;
+    if (metrics.logged || resolvedCount < metrics.expected) return;
 
     console.debug('[InventoryPerf]', {
       metric: 'inventory_image_load',
-      expected: imageExpectedCount,
-      loaded: imageLoadedCount,
-      errors: imageErrorCount,
-      page: currentPage,
+      expected: metrics.expected,
+      loaded: metrics.loaded,
+      errors: metrics.errors,
+      page: metrics.page,
     });
-    didLogImageMetricsRef.current = true;
-  }, [imageExpectedCount, imageLoadedCount, imageErrorCount, currentPage]);
+    metrics.logged = true;
+  };
 
   const editingProduct = useMemo(() => {
     if (!editingProductId) return null;
@@ -774,7 +849,7 @@ const StoreInventory = () => {
           <div className="flex items-center gap-2">
             <h3 className="text-xl font-bold text-neutral-900">Product Inventory</h3>
             <span className="rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-bold text-gray-600 font-sans">
-              {totalProducts} Items
+              {resolvedTotalProducts} Items
             </span>
             {isFetching && <span className="text-xs font-medium text-gray-500 font-sans">Updating...</span>}
           </div>
@@ -786,13 +861,19 @@ const StoreInventory = () => {
                 placeholder="Search products..."
                 type="text"
                 value={searchInput}
-                onChange={(e) => setSearchInput(e.target.value)}
+                onChange={(e) => {
+                  setSearchInput(e.target.value);
+                  setCurrentPage(1);
+                }}
               />
             </div>
             <select
               className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary font-sans cursor-pointer"
               value={categoryFilter}
-              onChange={(e) => setCategoryFilter(e.target.value)}
+              onChange={(e) => {
+                setCategoryFilter(e.target.value);
+                setCurrentPage(1);
+              }}
             >
               <option value="">All Categories</option>
               {categoryOptions.map((c) => (
@@ -804,7 +885,10 @@ const StoreInventory = () => {
             <select
               className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary font-sans cursor-pointer"
               value={stockFilter}
-              onChange={(e) => setStockFilter(e.target.value as '' | 'in' | 'low' | 'out')}
+              onChange={(e) => {
+                setStockFilter(e.target.value as '' | 'in' | 'low' | 'out');
+                setCurrentPage(1);
+              }}
             >
               <option value="">Any Stock Status</option>
               <option value="in">In Stock</option>
@@ -824,7 +908,7 @@ const StoreInventory = () => {
               </tbody>
             </table>
           </div>
-        ) : totalProducts === 0 ? (
+        ) : resolvedTotalProducts === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 px-4 rounded-xl border-2 border-dashed border-gray-200 bg-gray-50/50">
             <span className="material-symbols-outlined text-6xl text-gray-700 mb-4">inventory_2</span>
             <h3 className="text-lg font-bold text-neutral-900 mb-2">No Products Found</h3>
@@ -852,12 +936,17 @@ const StoreInventory = () => {
                     {product.image_url ? (
                       <img
                         alt={product.name}
-                        src={product.image_url}
+                        src={thumbFallbackIds[product.id] ? product.image_url_original ?? product.image_url : product.image_url}
                         className="h-full w-full object-cover"
                         loading="lazy"
                         decoding="async"
-                        onLoad={() => setImageLoadedCount((prev) => prev + 1)}
-                        onError={() => setImageErrorCount((prev) => prev + 1)}
+                        onLoad={() => trackImageResult('loaded')}
+                        onError={() => {
+                          trackImageResult('error');
+                          if (product.image_url_original) {
+                            setThumbFallbackIds((prev) => (prev[product.id] ? prev : { ...prev, [product.id]: true }));
+                          }
+                        }}
                       />
                     ) : (
                       <div className="absolute inset-0 flex items-center justify-center text-gray-700">
@@ -927,10 +1016,10 @@ const StoreInventory = () => {
               ))}
             </div>
 
-            {totalProducts > 0 && totalPages > 1 && (
+            {resolvedTotalProducts > 0 && totalPages > 1 && (
               <div className="mt-10 flex flex-col items-center gap-4">
                 <p className="text-sm text-gray-500 font-sans">
-                  Page {currentPage} of {totalPages} ({totalProducts} items)
+                  Page {currentPage} of {totalPages} ({resolvedTotalProducts} items)
                 </p>
                 <div className="flex items-center gap-3">
                   <button
