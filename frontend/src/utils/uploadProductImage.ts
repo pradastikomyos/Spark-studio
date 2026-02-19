@@ -74,7 +74,7 @@ export async function uploadProductImage(file: File, productId: string, options:
   }
 
   const uploadOptions: { contentType?: string; cacheControl: string; upsert: boolean } = {
-    cacheControl: '3600',
+    cacheControl: '31536000',
     upsert: false,
   };
   if (contentType) uploadOptions.contentType = contentType;

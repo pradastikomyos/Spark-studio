@@ -1,8 +1,6 @@
-import { useMemo, useState, useEffect } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
+import { useMemo, useRef, useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
-import { queryKeys } from '../../lib/queryKeys';
 import AdminLayout from '../../components/AdminLayout';
 import CategoryManager from '../../components/admin/CategoryManager';
 import QRScannerModal from '../../components/admin/QRScannerModal';
@@ -16,6 +14,7 @@ import { useToast } from '../../components/Toast';
 import { useSessionRefresh } from '../../hooks/useSessionRefresh';
 import { ensureFreshToken } from '../../utils/auth';
 import { withTimeout } from '../../utils/queryHelpers';
+import { toInventoryThumbUrl } from '../../utils/inventoryImage';
 
 type InventoryProduct = {
   id: number;
@@ -58,11 +57,10 @@ const StoreInventory = () => {
   const { signOut, session } = useAuth();
   const { showToast } = useToast();
   useSessionRefresh();
-  const queryClient = useQueryClient();
-  const inventoryKey = queryKeys.inventory();
+  const [searchInput, setSearchInput] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
-  const [stockFilter, setStockFilter] = useState('');
+  const [stockFilter, setStockFilter] = useState<'' | 'in' | 'low' | 'out'>('');
   const [orderCode, setOrderCode] = useState('');
   const [showScanner, setShowScanner] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
@@ -74,7 +72,17 @@ const StoreInventory = () => {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [showCategoryManager, setShowCategoryManager] = useState(false);
-  const { data, error, isLoading, refetch } = useInventory();
+  const [imageLoadedCount, setImageLoadedCount] = useState(0);
+  const [imageErrorCount, setImageErrorCount] = useState(0);
+  const [imageExpectedCount, setImageExpectedCount] = useState(0);
+  const didLogImageMetricsRef = useRef(false);
+  const { data, error, isLoading, isFetching, refetch } = useInventory({
+    page: currentPage,
+    pageSize: INVENTORY_PRODUCTS_PER_PAGE,
+    searchQuery,
+    categoryFilter,
+    stockFilter,
+  });
   const inventoryCategories = useMemo(() => data?.categories ?? [], [data?.categories]);
   const categoryOptions = useMemo((): CategoryOption[] => {
     return inventoryCategories.map((c) => ({
@@ -93,10 +101,36 @@ const StoreInventory = () => {
   }, [data]);
 
   useEffect(() => {
+    const debounceId = window.setTimeout(() => {
+      setSearchQuery(searchInput.trim());
+    }, 250);
+    return () => {
+      window.clearTimeout(debounceId);
+    };
+  }, [searchInput]);
+
+  useEffect(() => {
     if (error) {
       showToast('error', error instanceof Error ? error.message : 'Failed to load inventory');
     }
   }, [error, showToast]);
+
+  useEffect(() => {
+    if (!data) return;
+    console.debug('[InventoryPerf]', {
+      metric: 'inventory_list_fetch',
+      fetchMs: Math.round(data.diagnostics.fetchMs),
+      fullScan: data.diagnostics.fullScan,
+      page: currentPage,
+      pageSize: INVENTORY_PRODUCTS_PER_PAGE,
+      totalCount: data.totalCount,
+      filters: {
+        search: searchQuery,
+        category: categoryFilter,
+        stock: stockFilter,
+      },
+    });
+  }, [data, currentPage, searchQuery, categoryFilter, stockFilter]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -166,7 +200,7 @@ const StoreInventory = () => {
       let priceMax = 0;
 
       // Get primary image from product_images table
-      const sortedImages = (row.product_images || [])
+      const sortedImages = [...(row.product_images || [])]
         .sort((a, b) => {
           // Primary images first, then by display_order
           if (a.is_primary !== b.is_primary) return a.is_primary ? -1 : 1;
@@ -201,51 +235,47 @@ const StoreInventory = () => {
         price_min: priceMin,
         price_max: priceMax,
         variant_count: variants.length,
-        image_url: imageUrl,
+        image_url: imageUrl ? toInventoryThumbUrl(imageUrl) : null,
       };
     });
   }, [productsRaw]);
 
-  const filteredProducts = useMemo(() => {
-    const normalizedSearch = searchQuery.trim().toLowerCase();
-    const normalizedCategoryFilter = categoryFilter.trim().toLowerCase();
-
-    return inventoryProducts.filter((product) => {
-      const matchesSearch =
-        normalizedSearch === '' ||
-        [product.name, product.category, product.sku].filter(Boolean).some((v) => v.toLowerCase().includes(normalizedSearch));
-
-      const matchesCategory =
-        normalizedCategoryFilter === '' ||
-        product.category.toLowerCase().includes(normalizedCategoryFilter) ||
-        (product.category_slug || '').toLowerCase().includes(normalizedCategoryFilter);
-
-      const matchesStock =
-        stockFilter === '' ||
-        (stockFilter === 'in' && product.stock_status !== 'out') ||
-        (stockFilter === 'low' && product.stock_status === 'low') ||
-        (stockFilter === 'out' && product.stock_status === 'out');
-
-      return matchesSearch && matchesCategory && matchesStock;
-    });
-  }, [inventoryProducts, searchQuery, categoryFilter, stockFilter]);
-
-  const totalProducts = filteredProducts.length;
+  const totalProducts = data?.totalCount ?? 0;
   const totalPages = Math.max(1, Math.ceil(totalProducts / INVENTORY_PRODUCTS_PER_PAGE));
-  const paginatedProducts = useMemo(() => {
-    const start = (currentPage - 1) * INVENTORY_PRODUCTS_PER_PAGE;
-    return filteredProducts.slice(start, start + INVENTORY_PRODUCTS_PER_PAGE);
-  }, [filteredProducts, currentPage]);
+  const paginatedProducts = inventoryProducts;
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchQuery, categoryFilter, stockFilter]);
+  }, [searchInput, categoryFilter, stockFilter]);
 
   useEffect(() => {
     if (currentPage > totalPages) {
       setCurrentPage(totalPages);
     }
   }, [currentPage, totalPages]);
+
+  useEffect(() => {
+    const expected = paginatedProducts.reduce((acc, product) => acc + (product.image_url ? 1 : 0), 0);
+    setImageExpectedCount(expected);
+    setImageLoadedCount(0);
+    setImageErrorCount(0);
+    didLogImageMetricsRef.current = false;
+  }, [paginatedProducts]);
+
+  useEffect(() => {
+    if (didLogImageMetricsRef.current) return;
+    const resolvedCount = imageLoadedCount + imageErrorCount;
+    if (resolvedCount < imageExpectedCount) return;
+
+    console.debug('[InventoryPerf]', {
+      metric: 'inventory_image_load',
+      expected: imageExpectedCount,
+      loaded: imageLoadedCount,
+      errors: imageErrorCount,
+      page: currentPage,
+    });
+    didLogImageMetricsRef.current = true;
+  }, [imageExpectedCount, imageLoadedCount, imageErrorCount, currentPage]);
 
   const editingProduct = useMemo(() => {
     if (!editingProductId) return null;
@@ -311,7 +341,6 @@ const StoreInventory = () => {
     const previousProducts = productsRaw;
     const optimisticProducts = productsRaw.filter((product) => product.id !== deletingProduct.id);
     setProductsRaw(optimisticProducts);
-    queryClient.setQueryData(inventoryKey, { products: optimisticProducts, categories: inventoryCategories });
     try {
       const token = await ensureFreshToken(session);
       if (!token) throw new Error('Session expired. Please refresh and log in again.');
@@ -335,7 +364,6 @@ const StoreInventory = () => {
       setSaveError(message);
       showToast('error', message);
       setProductsRaw(previousProducts);
-      queryClient.setQueryData(inventoryKey, { products: previousProducts, categories: inventoryCategories });
     } finally {
       setSaving(false);
     }
@@ -411,7 +439,6 @@ const StoreInventory = () => {
         );
         rollbackProducts = productsRaw;
         setProductsRaw(optimisticProducts);
-        queryClient.setQueryData(inventoryKey, { products: optimisticProducts, categories: inventoryCategories });
       }
 
       if (!productId) {
@@ -622,7 +649,6 @@ const StoreInventory = () => {
     } catch (e) {
       if (rollbackProducts) {
         setProductsRaw(rollbackProducts);
-        queryClient.setQueryData(inventoryKey, { products: rollbackProducts, categories: inventoryCategories });
       }
       const formatError = (err: unknown): string => {
         if (err instanceof Error && err.message) return err.message;
@@ -748,8 +774,9 @@ const StoreInventory = () => {
           <div className="flex items-center gap-2">
             <h3 className="text-xl font-bold text-neutral-900">Product Inventory</h3>
             <span className="rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-bold text-gray-600 font-sans">
-              {filteredProducts.length} Items
+              {totalProducts} Items
             </span>
+            {isFetching && <span className="text-xs font-medium text-gray-500 font-sans">Updating...</span>}
           </div>
           <div className="flex flex-wrap items-center gap-3">
             <div className="relative">
@@ -758,8 +785,8 @@ const StoreInventory = () => {
                 className="w-full sm:w-64 rounded-lg border border-gray-200 bg-white pl-10 pr-4 py-2 text-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary font-sans"
                 placeholder="Search products..."
                 type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
               />
             </div>
             <select
@@ -777,7 +804,7 @@ const StoreInventory = () => {
             <select
               className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary font-sans cursor-pointer"
               value={stockFilter}
-              onChange={(e) => setStockFilter(e.target.value)}
+              onChange={(e) => setStockFilter(e.target.value as '' | 'in' | 'low' | 'out')}
             >
               <option value="">Any Stock Status</option>
               <option value="in">In Stock</option>
@@ -797,7 +824,7 @@ const StoreInventory = () => {
               </tbody>
             </table>
           </div>
-        ) : filteredProducts.length === 0 ? (
+        ) : totalProducts === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 px-4 rounded-xl border-2 border-dashed border-gray-200 bg-gray-50/50">
             <span className="material-symbols-outlined text-6xl text-gray-700 mb-4">inventory_2</span>
             <h3 className="text-lg font-bold text-neutral-900 mb-2">No Products Found</h3>
@@ -823,7 +850,15 @@ const StoreInventory = () => {
                 >
                   <div className="aspect-[4/3] w-full bg-gray-100 relative overflow-hidden">
                     {product.image_url ? (
-                      <img alt={product.name} src={product.image_url} className="h-full w-full object-cover" />
+                      <img
+                        alt={product.name}
+                        src={product.image_url}
+                        className="h-full w-full object-cover"
+                        loading="lazy"
+                        decoding="async"
+                        onLoad={() => setImageLoadedCount((prev) => prev + 1)}
+                        onError={() => setImageErrorCount((prev) => prev + 1)}
+                      />
                     ) : (
                       <div className="absolute inset-0 flex items-center justify-center text-gray-700">
                         <span className="material-symbols-outlined text-6xl">inventory_2</span>
