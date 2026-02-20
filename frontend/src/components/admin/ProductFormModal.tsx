@@ -52,6 +52,7 @@ type ProductFormModalProps = {
   categories: CategoryOption[];
   initialValue?: ProductDraft | null;
   existingImages?: ExistingImage[];
+  existingImagesLoading?: boolean;
   onClose: () => void;
   onSave: (payload: {
     draft: ProductDraft;
@@ -136,7 +137,7 @@ const clearStoredImages = async (key: string): Promise<void> => {
 };
 
 export default function ProductFormModal(props: ProductFormModalProps) {
-  const { isOpen, categories, initialValue, existingImages = [], onClose, onSave } = props;
+  const { isOpen, categories, initialValue, existingImages = [], existingImagesLoading = false, onClose, onSave } = props;
   const [draft, setDraft] = useState<ProductDraft>(emptyDraft);
   const [images, setImages] = useState<ImagePreview[]>([]);
   const [removedImageUrls, setRemovedImageUrls] = useState<string[]>([]);
@@ -396,10 +397,10 @@ export default function ProductFormModal(props: ProductFormModalProps) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center px-4 py-6">
       <div
-        className="absolute inset-0 bg-black/60"
+        className="absolute inset-0 bg-black/60 animate-fade-in"
         onClick={handleRequestClose}
       ></div>
-      <div className="relative flex max-h-[90vh] w-full max-w-5xl flex-col rounded-xl border border-gray-200 bg-white shadow-2xl">
+      <div className="relative flex max-h-[90vh] w-full max-w-5xl flex-col rounded-xl border border-gray-200 bg-white shadow-2xl animate-fade-in-scale">
         <div className="flex shrink-0 items-start justify-between border-b border-gray-200 px-6 py-5">
           <div>
             <h3 className="text-lg font-bold">{draft.id ? 'Edit Product' : 'Add Product'}</h3>
@@ -429,13 +430,20 @@ export default function ProductFormModal(props: ProductFormModalProps) {
 
             {/* IMAGE SECTION - NOW AT TOP */}
             <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
-              <ProductImageUpload
-                images={images}
-                existingImages={activeExistingImages}
-                maxImages={3}
-                onChange={setImages}
-                onRemoveExisting={handleRemoveExisting}
-              />
+              {existingImagesLoading ? (
+                <div className="flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-gray-200 bg-white/70 py-8 text-center">
+                  <div className="h-6 w-6 animate-spin rounded-full border-2 border-gray-300 border-t-primary"></div>
+                  <p className="text-xs font-medium text-gray-500">Loading images...</p>
+                </div>
+              ) : (
+                <ProductImageUpload
+                  images={images}
+                  existingImages={activeExistingImages}
+                  maxImages={3}
+                  onChange={setImages}
+                  onRemoveExisting={handleRemoveExisting}
+                />
+              )}
             </div>
 
             {/* PRODUCT DETAILS */}

@@ -100,6 +100,7 @@ const StoreInventory = () => {
   const [showProductForm, setShowProductForm] = useState(false);
   const [editingProductId, setEditingProductId] = useState<number | null>(null);
   const [existingImages, setExistingImages] = useState<ExistingImage[]>([]);
+  const [existingImagesLoading, setExistingImagesLoading] = useState(false);
   const [deletingProduct, setDeletingProduct] = useState<{ id: number; name: string } | null>(null);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -389,24 +390,38 @@ const StoreInventory = () => {
     setSaveError(null);
     setEditingProductId(null);
     setExistingImages([]);
+    setExistingImagesLoading(false);
     setShowProductForm(true);
   };
 
   const handleOpenEdit = async (productId: number) => {
     setSaveError(null);
     setEditingProductId(productId);
-
-    // Fetch existing images
-    const { data } = await withTimeout(
-      supabase.from('product_images').select('image_url, is_primary').eq('product_id', productId).order('display_order'),
-      REQUEST_TIMEOUT_MS,
-      'Request timeout. Please try again.'
-    );
-
-    setExistingImages(
-      data?.map((img: { image_url: string; is_primary: boolean }) => ({ url: img.image_url, is_primary: img.is_primary })) || []
-    );
+    setExistingImages([]);
+    setExistingImagesLoading(true);
     setShowProductForm(true);
+
+    try {
+      // Fetch existing images
+      const { data } = await withTimeout(
+        supabase
+          .from('product_images')
+          .select('image_url, is_primary')
+          .eq('product_id', productId)
+          .order('display_order'),
+        REQUEST_TIMEOUT_MS,
+        'Request timeout. Please try again.'
+      );
+
+      setExistingImages(
+        data?.map((img: { image_url: string; is_primary: boolean }) => ({ url: img.image_url, is_primary: img.is_primary })) || []
+      );
+    } catch (e) {
+      const message = e instanceof Error ? e.message : 'Failed to load product images';
+      showToast('error', message);
+    } finally {
+      setExistingImagesLoading(false);
+    }
   };
 
   const handleDelete = async () => {
@@ -932,12 +947,12 @@ const StoreInventory = () => {
                   className={`group flex flex-col rounded-xl border border-gray-200 bg-white overflow-hidden shadow-sm hover:shadow-md transition-all duration-200 hover:border-primary/30 ${product.stock_status === 'out' ? 'opacity-75 hover:opacity-100' : ''
                     }`}
                 >
-                  <div className="aspect-[4/3] w-full bg-gray-100 relative overflow-hidden">
+                  <div className="group aspect-[4/3] w-full bg-gray-100 relative overflow-hidden">
                     {product.image_url ? (
                       <img
                         alt={product.name}
                         src={thumbFallbackIds[product.id] ? product.image_url_original ?? product.image_url : product.image_url}
-                        className="h-full w-full object-cover"
+                        className="h-full w-full object-cover transition-transform duration-150 ease-out group-active:scale-[0.99]"
                         loading="lazy"
                         decoding="async"
                         onLoad={() => trackImageResult('loaded')}
@@ -949,33 +964,49 @@ const StoreInventory = () => {
                         }}
                       />
                     ) : (
-                      <div className="absolute inset-0 flex items-center justify-center text-gray-700">
+                      <div className="absolute inset-0 flex items-center justify-center text-gray-700 transition-transform duration-150 ease-out group-active:scale-[0.99]">
                         <span className="material-symbols-outlined text-6xl">inventory_2</span>
                       </div>
                     )}
-                    {product.stock_status === 'out' && (
-                      <div className="absolute top-0 right-0 bg-neutral-800 text-gray-900 text-[10px] font-bold px-2 py-1 rounded-bl-lg z-10">
-                        SOLD OUT
+                    <button
+                      type="button"
+                      onClick={() => handleOpenEdit(product.id)}
+                      aria-label={`Edit ${product.name}`}
+                      title="Edit product"
+                      className="absolute inset-0 z-10 cursor-pointer bg-transparent transition-colors active:bg-black/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
+                    />
+                    <div className="absolute left-3 bottom-3 z-20 sm:hidden">
+                      <span className="inline-flex items-center rounded-full bg-white/90 px-2 py-1 text-[10px] font-semibold text-gray-700 shadow-sm">
+                        Tap image to edit
+                      </span>
+                    </div>
+                    <div className="absolute inset-x-3 top-3 flex items-start justify-between gap-2 z-20">
+                      <div className="flex flex-col items-start gap-1">
+                        {product.stock_status === 'out' && (
+                          <div className="bg-neutral-800 text-gray-900 text-[10px] font-bold px-2 py-1 rounded-br-lg">
+                            SOLD OUT
+                          </div>
+                        )}
+                        {product.stock_status === 'low' && (
+                          <div className="bg-primary text-gray-900 text-[10px] font-bold px-2 py-1 rounded-br-lg">
+                            LOW STOCK
+                          </div>
+                        )}
                       </div>
-                    )}
-                    {product.stock_status === 'low' && (
-                      <div className="absolute top-0 right-0 bg-primary text-gray-900 text-[10px] font-bold px-2 py-1 rounded-bl-lg z-10">
-                        LOW STOCK
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => handleOpenEdit(product.id)}
+                          className="rounded-lg bg-white/90 px-2 py-1 text-[10px] font-bold text-neutral-900 hover:bg-white"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => setDeletingProduct({ id: product.id, name: product.name })}
+                          className="rounded-lg bg-[#ff4b86]/90 px-2 py-1 text-[10px] font-bold text-white hover:bg-[#ff4b86]"
+                        >
+                          Delete
+                        </button>
                       </div>
-                    )}
-                    <div className="absolute right-3 top-3 flex items-center gap-2 z-20">
-                      <button
-                        onClick={() => handleOpenEdit(product.id)}
-                        className="rounded-lg bg-white/90 px-2 py-1 text-[10px] font-bold text-neutral-900 hover:bg-white"
-                      >
-                        Edit
-                      </button>
-                      <button
-                        onClick={() => setDeletingProduct({ id: product.id, name: product.name })}
-                        className="rounded-lg bg-[#ff4b86]/90 px-2 py-1 text-[10px] font-bold text-white hover:bg-[#ff4b86]"
-                      >
-                        Delete
-                      </button>
                     </div>
                   </div>
                   <div className="p-4 flex flex-col gap-3 flex-1">
@@ -1058,11 +1089,13 @@ const StoreInventory = () => {
         categories={categoryOptions}
         initialValue={editingProduct}
         existingImages={existingImages}
+        existingImagesLoading={existingImagesLoading}
         onClose={() => {
           if (saving) return;
           setShowProductForm(false);
           setEditingProductId(null);
           setExistingImages([]);
+          setExistingImagesLoading(false);
         }}
         onSave={handleSaveProduct}
       />
