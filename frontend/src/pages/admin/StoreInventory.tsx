@@ -7,6 +7,7 @@ import CategoryManager from '../../components/admin/CategoryManager';
 import QRScannerModal from '../../components/admin/QRScannerModal';
 import ProductFormModal, { type CategoryOption, type ProductDraft, type ExistingImage } from '../../components/admin/ProductFormModal';
 import { ADMIN_MENU_ITEMS, ADMIN_MENU_SECTIONS } from '../../constants/adminMenu';
+import { MAX_PRODUCT_IMAGE_SIZE_MB, PRODUCT_IMAGE_UPLOAD_CONCURRENCY, PRODUCT_IMAGE_UPLOAD_TIMEOUT_MS } from '../../constants/productImages';
 import { getStockBadge, getStockBarColor } from '../../utils/statusHelpers';
 import { formatCurrency } from '../../utils/formatters';
 import { useInventory, type ProductRow } from '../../hooks/useInventory';
@@ -52,7 +53,6 @@ const computeStockStatus = (stock: number): InventoryProduct['stock_status'] => 
 const TAB_RETURN_EVENT = 'tab-returned-from-idle';
 const ADMIN_PRODUCT_DRAFT_KEY = 'admin-product-form:draft:v1';
 const REQUEST_TIMEOUT_MS = 60000;
-const UPLOAD_TIMEOUT_MS = 120000;
 type StockFilter = '' | 'in' | 'low' | 'out';
 
 const INVENTORY_PRODUCTS_PER_PAGE = 24;
@@ -650,8 +650,9 @@ const StoreInventory = () => {
           : 0;
 
         const uploadedUrls = await uploadProductImages(newImages, productId, {
-          maxSizeMb: 2,
-          timeoutMs: UPLOAD_TIMEOUT_MS,
+          maxSizeMb: MAX_PRODUCT_IMAGE_SIZE_MB,
+          timeoutMs: PRODUCT_IMAGE_UPLOAD_TIMEOUT_MS,
+          concurrency: PRODUCT_IMAGE_UPLOAD_CONCURRENCY,
         });
         await saveProductImages(productId, uploadedUrls, startOrder);
       }

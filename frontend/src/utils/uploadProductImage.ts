@@ -1,11 +1,13 @@
 import { supabase } from '../lib/supabase';
 import { bytesToMb } from './merchant';
+import { MAX_PRODUCT_IMAGE_SIZE_MB, PRODUCT_IMAGE_UPLOAD_CONCURRENCY } from '../constants/productImages';
 
 type UploadProductImageOptions = {
   maxSizeMb?: number;
   retryAttempts?: number;
   retryDelayMs?: number;
   timeoutMs?: number;
+  concurrency?: number;
 };
 
 const withTimeout = async <T>(promise: Promise<T>, ms: number, message: string): Promise<T> => {
@@ -21,7 +23,7 @@ const withTimeout = async <T>(promise: Promise<T>, ms: number, message: string):
 };
 
 export async function uploadProductImage(file: File, productId: string, options: UploadProductImageOptions = {}): Promise<string> {
-  const maxSizeMb = options.maxSizeMb ?? 2;
+  const maxSizeMb = options.maxSizeMb ?? MAX_PRODUCT_IMAGE_SIZE_MB;
   const timeoutMs = options.timeoutMs ?? 120000;
   
   // Cross-platform MIME type validation
@@ -114,6 +116,7 @@ export async function uploadProductImages(
 ): Promise<string[]> {
   const maxAttempts = options.retryAttempts ?? 3;
   const baseDelayMs = options.retryDelayMs ?? 1000;
+  const concurrency = Math.max(1, Math.floor(options.concurrency ?? PRODUCT_IMAGE_UPLOAD_CONCURRENCY));
   const uploadWithRetry = async (file: File): Promise<string> => {
     let lastError: unknown;
     for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
@@ -129,8 +132,26 @@ export async function uploadProductImages(
     if (lastError instanceof Error) throw lastError;
     throw new Error('Failed to upload image');
   };
-  const uploadPromises = files.map((file) => uploadWithRetry(file));
-  return Promise.all(uploadPromises);
+
+  if (files.length === 0) return [];
+  if (concurrency >= files.length) {
+    const uploadPromises = files.map((file) => uploadWithRetry(file));
+    return Promise.all(uploadPromises);
+  }
+
+  const results = new Array<string>(files.length);
+  let nextIndex = 0;
+  const worker = async () => {
+    while (true) {
+      const current = nextIndex;
+      nextIndex += 1;
+      if (current >= files.length) break;
+      results[current] = await uploadWithRetry(files[current]);
+    }
+  };
+  const workers = Array.from({ length: Math.min(concurrency, files.length) }, () => worker());
+  await Promise.all(workers);
+  return results;
 }
 
 /**

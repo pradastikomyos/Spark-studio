@@ -1,4 +1,5 @@
 import { useState, useCallback, useRef } from 'react';
+import { MAX_PRODUCT_IMAGE_SIZE_MB, MAX_PRODUCT_IMAGES } from '../../constants/productImages';
 
 export type ImagePreview = {
   file: File;
@@ -15,7 +16,7 @@ type ProductImageUploadProps = {
 };
 
 export default function ProductImageUpload(props: ProductImageUploadProps) {
-  const { images, existingImages = [], maxImages = 3, onChange, onRemoveExisting } = props;
+  const { images, existingImages = [], maxImages = MAX_PRODUCT_IMAGES, onChange, onRemoveExisting } = props;
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -188,7 +189,7 @@ export default function ProductImageUpload(props: ProductImageUploadProps) {
 
       {/* Helper Text */}
       <p className="text-xs text-gray-400">
-        Click on empty slots or use the Add Image button. JPG/PNG/WEBP, max 2MB per image.
+        Click on empty slots or use the Add Image button. JPG/PNG/WEBP, max {MAX_PRODUCT_IMAGE_SIZE_MB}MB per image.
       </p>
     </div>
   );

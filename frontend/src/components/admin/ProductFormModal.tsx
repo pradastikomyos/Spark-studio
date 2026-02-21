@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { slugify } from '../../utils/merchant';
 import ProductImageUpload, { ImagePreview } from './ProductImageUpload';
+import { MAX_PRODUCT_IMAGES, PRODUCT_IMAGE_UPLOAD_CONCURRENCY, PRODUCT_IMAGE_UPLOAD_TIMEOUT_MS } from '../../constants/productImages';
 
 // Currency formatting utilities
 const formatCurrency = (value: string | number): string => {
@@ -328,6 +329,7 @@ export default function ProductFormModal(props: ProductFormModalProps) {
 
     const totalImages = images.length + existingImages.length - removedImageUrls.length;
     if (totalImages === 0) return 'At least one product image is required.';
+    if (totalImages > MAX_PRODUCT_IMAGES) return `Max ${MAX_PRODUCT_IMAGES} product images allowed.`;
 
     for (const v of draft.variants) {
       if (!v.name.trim()) return 'Variant name is required.';
@@ -349,7 +351,8 @@ export default function ProductFormModal(props: ProductFormModalProps) {
     setError(null);
     try {
       const newImageFiles = images.map(img => img.file);
-      const timeoutMs = 90_000 + newImageFiles.length * 30_000;
+      const batches = Math.max(1, Math.ceil(newImageFiles.length / PRODUCT_IMAGE_UPLOAD_CONCURRENCY));
+      const timeoutMs = 90_000 + batches * (PRODUCT_IMAGE_UPLOAD_TIMEOUT_MS + 30_000);
       await Promise.race([
         Promise.resolve(onSave({ draft, newImages: newImageFiles, removedImageUrls })),
         new Promise<void>((_, reject) => {
@@ -439,7 +442,7 @@ export default function ProductFormModal(props: ProductFormModalProps) {
                 <ProductImageUpload
                   images={images}
                   existingImages={activeExistingImages}
-                  maxImages={3}
+                  maxImages={MAX_PRODUCT_IMAGES}
                   onChange={setImages}
                   onRemoveExisting={handleRemoveExisting}
                 />
