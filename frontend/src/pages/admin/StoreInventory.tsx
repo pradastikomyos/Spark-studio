@@ -789,28 +789,34 @@ const StoreInventory = () => {
       defaultActiveMenuId="store-inventory"
       title="Store & Inventory"
       subtitle="Manage products, stock levels, and pickup verification."
-      headerActions={
-        <>
-          <button
-            onClick={() => setShowCategoryManager(true)}
-            className="flex items-center justify-center gap-2 rounded-lg bg-white border border-gray-200 px-4 py-2.5 text-sm font-bold text-neutral-900 hover:bg-gray-50 transition-colors shadow-sm"
-          >
-            <span className="material-symbols-outlined text-[20px]">category</span>
-            <span>Categories</span>
-          </button>
-          <button className="flex items-center justify-center gap-2 rounded-lg bg-white border border-gray-200 px-4 py-2.5 text-sm font-bold text-neutral-900 hover:bg-gray-50 transition-colors shadow-sm">
-            <span className="material-symbols-outlined text-[20px]">inventory_2</span>
-            <span>Stock Report</span>
-          </button>
-          <button
-            onClick={handleOpenCreate}
-            className="flex items-center justify-center gap-2 rounded-lg bg-[#ff4b86] px-4 py-2.5 text-sm font-bold text-white hover:bg-[#ff6a9a] transition-colors shadow-md"
-          >
-            <span className="material-symbols-outlined text-[20px]">add</span>
-            <span>Add Product</span>
-          </button>
-        </>
-      }
+	      headerActions={
+	        <>
+	          <button
+	            onClick={() => setShowCategoryManager(true)}
+	            aria-label="Categories"
+	            className="flex shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm font-bold text-neutral-900 shadow-sm transition-colors hover:bg-gray-50 sm:px-4"
+	          >
+	            <span className="material-symbols-outlined text-[20px]">category</span>
+	            <span className="hidden sm:inline">Categories</span>
+	          </button>
+	          <button
+	            aria-label="Stock Report"
+	            className="flex shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm font-bold text-neutral-900 shadow-sm transition-colors hover:bg-gray-50 sm:px-4"
+	          >
+	            <span className="material-symbols-outlined text-[20px]">inventory_2</span>
+	            <span className="hidden sm:inline">Stock Report</span>
+	          </button>
+	          <button
+	            onClick={handleOpenCreate}
+	            aria-label="Add Product"
+	            className="flex shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-lg bg-[#ff4b86] px-3 py-2.5 text-sm font-bold text-white shadow-md transition-colors hover:bg-[#ff6a9a] sm:px-4"
+	          >
+	            <span className="material-symbols-outlined text-[20px]">add</span>
+	            <span className="sm:hidden">Add</span>
+	            <span className="hidden sm:inline">Add Product</span>
+	          </button>
+	        </>
+	      }
       onLogout={signOut}
       mainClassName="relative"
     >

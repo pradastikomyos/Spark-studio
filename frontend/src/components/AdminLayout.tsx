@@ -262,12 +262,16 @@ const AdminLayout = ({
               {subtitle ? <p className="hidden md:block text-xs text-gray-500 truncate">{subtitle}</p> : null}
             </div>
           </div>
-          <div className="flex items-center gap-3 flex-shrink-0">
-            {headerActions ? <div className="flex items-center gap-3">{headerActions}</div> : null}
-            <div className="relative w-full max-w-xs hidden sm:block">
-              <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">
-                search
-              </span>
+	          <div className="flex items-center gap-3 min-w-0">
+	            {headerActions ? (
+	              <div className="max-w-[60vw] overflow-x-auto sm:max-w-none sm:overflow-visible">
+	                <div className="flex items-center gap-3 whitespace-nowrap pr-1">{headerActions}</div>
+	              </div>
+	            ) : null}
+	            <div className="relative w-full max-w-xs hidden sm:block">
+	              <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">
+	                search
+	              </span>
               <input
                 className="w-full bg-white border border-gray-200 rounded-lg py-2 pl-9 pr-4 text-sm text-gray-900 focus:ring-1 focus:ring-main-500 focus:border-main-500 placeholder-gray-400"
                 placeholder="Search..."
