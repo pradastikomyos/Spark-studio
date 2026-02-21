@@ -11,8 +11,8 @@ describe('Skeleton Components - Property Tests', () => {
     fc.assert(
       fc.property(fc.integer({ min: 1, max: 20 }), () => {
         const { container, unmount } = render(<ProductCardSkeleton />);
-        const image = container.querySelector('.aspect-\\[3\\/4\\]');
-        const title = container.querySelector('.h-6');
+        const image = container.querySelector('.aspect-square');
+        const title = container.querySelector('.h-4');
         const price = container.querySelector('.h-5');
         expect(image).not.toBeNull();
         expect(title).not.toBeNull();

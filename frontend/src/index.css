@@ -84,6 +84,28 @@
 
 
 @layer utilities {
+  .ux-transition-color {
+    transition-property: color, background-color, border-color;
+    transition-duration: 180ms;
+    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .ux-transition-transform {
+    transition-property: transform;
+    transition-duration: 220ms;
+    transition-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  .ux-transition-opacity {
+    transition-property: opacity;
+    transition-duration: 220ms;
+    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .ux-motion-safe {
+    will-change: transform, opacity;
+  }
+
   .animate-fade-in-up {
     animation: fadeInUp 0.8s ease-out forwards;
   }
@@ -132,6 +154,18 @@
   .animate-sparkle-3 {
     animation: sparkle 2s ease-in-out infinite;
     animation-delay: 1.4s;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ux-transition-color,
+  .ux-transition-transform,
+  .ux-transition-opacity {
+    transition-duration: 1ms !important;
+  }
+
+  .ux-motion-safe {
+    will-change: auto;
   }
 }
 

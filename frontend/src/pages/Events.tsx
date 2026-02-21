@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { useState } from 'react';
 import { useBanners } from '../hooks/useBanners';
+import { HeroBannerCarousel } from '../components/HeroBannerCarousel';
 
 interface Event {
   id: number;
@@ -19,7 +19,6 @@ interface Event {
 
 const Events = () => {
   const [activeFilter, setActiveFilter] = useState('All Events');
-  const [currentHeroSlide, setCurrentHeroSlide] = useState(0);
 
   const { data: eventsBanners = [], isLoading: bannersLoading } = useBanners('events');
 
@@ -76,23 +75,6 @@ const Events = () => {
     },
   ];
 
-  // Auto-advance hero slider every 5 seconds
-  useEffect(() => {
-    if (eventsBanners.length === 0) return;
-    const timer = setInterval(() => {
-      setCurrentHeroSlide((prev) => (prev + 1) % eventsBanners.length);
-    }, 5000);
-    return () => clearInterval(timer);
-  }, [eventsBanners.length]);
-
-  const nextHeroSlide = () => {
-    setCurrentHeroSlide((prev) => (prev + 1) % eventsBanners.length);
-  };
-
-  const prevHeroSlide = () => {
-    setCurrentHeroSlide((prev) => (prev - 1 + eventsBanners.length) % eventsBanners.length);
-  };
-
   const filters = ['Events'];
   // , 'Workshops', 'Exhibitions', 'Masterclass' (punya atas)
 
@@ -109,78 +91,35 @@ const Events = () => {
       {/* Hero Header with Slider */}
       <header className="relative w-full h-[500px] overflow-hidden">
         {eventsBanners.length > 0 ? (
-          <>
-            {/* Hero Slides */}
-            <div className="relative h-full">
-              {eventsBanners.map((slide, index) => (
-                <div
-                  key={slide.id}
-                  className={`absolute inset-0 transition-opacity duration-1000 ${
-                    index === currentHeroSlide ? 'opacity-100' : 'opacity-0'
-                  }`}
-                >
-                  {/* Background Image */}
-                  <img
-                    src={slide.image_url}
-                    alt={slide.title}
-                    className="w-full h-full object-cover opacity-80"
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-r from-white/90 via-white/50 to-transparent"></div>
-
-                  {/* Hero Content */}
-                  <div className="absolute inset-0 flex flex-col justify-center px-4 max-w-7xl mx-auto">
-                    <div className="max-w-3xl pl-4 sm:pl-6 lg:pl-8">
-                      <span className="inline-block py-1 px-3 border border-primary/30 rounded-full text-primary text-[11px] font-bold uppercase tracking-widest mb-6 bg-white/80 backdrop-blur-sm shadow-sm">
-                        Curated Experiences
-                      </span>
-                      <h1 className="font-display text-6xl md:text-7xl text-text-light font-bold mb-6 leading-tight animate-fade-in">
-                        {slide.title}
-                      </h1>
-                      {slide.subtitle && (
-                        <p className="text-subtext-light text-lg font-light max-w-lg leading-relaxed animate-fade-in-delay">
-                          {slide.subtitle}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            {/* Hero Navigation Buttons */}
-            {eventsBanners.length > 1 && (
+          <HeroBannerCarousel
+            slides={eventsBanners}
+            intervalMs={5000}
+            containerClassName="relative h-full"
+            imageClassName="w-full h-full object-cover opacity-80"
+            prevButtonClassName="absolute left-4 top-1/2 -translate-y-1/2 z-10 bg-white/20 hover:bg-white/30 backdrop-blur-sm text-gray-900 p-3 rounded-full ux-transition-color"
+            nextButtonClassName="absolute right-4 top-1/2 -translate-y-1/2 z-10 bg-white/20 hover:bg-white/30 backdrop-blur-sm text-gray-900 p-3 rounded-full ux-transition-color"
+            indicatorActiveClassName="bg-primary"
+            indicatorInactiveClassName="bg-white/50 hover:bg-white/70"
+            overlayClassName="absolute inset-0"
+            renderOverlay={(slide) => (
               <>
-                <button
-                  onClick={prevHeroSlide}
-                  className="absolute left-4 top-1/2 -translate-y-1/2 z-10 bg-white/20 hover:bg-white/30 backdrop-blur-sm text-gray-900 p-3 rounded-full transition-all"
-                  aria-label="Previous slide"
-                >
-                  <ChevronLeft className="w-6 h-6" />
-                </button>
-                <button
-                  onClick={nextHeroSlide}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 z-10 bg-white/20 hover:bg-white/30 backdrop-blur-sm text-gray-900 p-3 rounded-full transition-all"
-                  aria-label="Next slide"
-                >
-                  <ChevronRight className="w-6 h-6" />
-                </button>
-
-                {/* Hero Indicators */}
-                <div className="absolute bottom-8 left-1/2 -translate-x-1/2 z-10 flex gap-2">
-                  {eventsBanners.map((_, index) => (
-                    <button
-                      key={index}
-                      onClick={() => setCurrentHeroSlide(index)}
-                      className={`w-2 h-2 rounded-full transition-all ${
-                        currentHeroSlide === index ? 'bg-primary w-8' : 'bg-white/50'
-                      }`}
-                      aria-label={`Go to slide ${index + 1}`}
-                    />
-                  ))}
+                <div className="absolute inset-0 bg-gradient-to-r from-white/90 via-white/50 to-transparent" />
+                <div className="absolute inset-0 flex flex-col justify-center px-4 max-w-7xl mx-auto">
+                  <div className="max-w-3xl pl-4 sm:pl-6 lg:pl-8">
+                    <span className="inline-block py-1 px-3 border border-primary/30 rounded-full text-primary text-[11px] font-bold uppercase tracking-widest mb-6 bg-white/80 backdrop-blur-sm shadow-sm">
+                      Curated Experiences
+                    </span>
+                    <h1 className="font-display text-6xl md:text-7xl text-text-light font-bold mb-6 leading-tight">
+                      {slide.title}
+                    </h1>
+                    {slide.subtitle ? (
+                      <p className="text-subtext-light text-lg font-light max-w-lg leading-relaxed">{slide.subtitle}</p>
+                    ) : null}
+                  </div>
                 </div>
               </>
             )}
-          </>
+          />
         ) : (
           // Fallback to static banner if no banners in database
           <>

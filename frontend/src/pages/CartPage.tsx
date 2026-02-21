@@ -103,7 +103,7 @@ export default function CartPage() {
                   </p>
                   <button
                     onClick={() => navigate('/shop')}
-                    className="inline-flex items-center gap-2 bg-[#e63d75] text-white px-8 py-3 rounded-full text-sm font-bold uppercase tracking-widest hover:bg-[#cc2f64] transition-all shadow-lg shadow-pink-200"
+                    className="inline-flex items-center gap-2 bg-[#e63d75] text-white px-8 py-3 rounded-full text-sm font-bold uppercase tracking-widest hover:bg-[#cc2f64] ux-transition-color shadow-lg shadow-pink-200"
                   >
                     Start Shopping
                     <ArrowRight className="w-4 h-4" />
@@ -117,7 +117,7 @@ export default function CartPage() {
                     initial={{ opacity: 0, scale: 0.95 }}
                     animate={{ opacity: 1, scale: 1 }}
                     exit={{ opacity: 0, scale: 0.95 }}
-                    className={`group bg-white p-3 sm:p-4 rounded-2xl border shadow-sm hover:shadow-md transition-all duration-300 flex gap-3 sm:gap-6 ${selectedItems.has(item.variantId) ? 'border-[#e63d75]/30 ring-1 ring-[#e63d75]/30' : 'border-gray-100'}`}
+                    className={`group bg-white p-3 sm:p-4 rounded-2xl border shadow-sm hover:shadow-md duration-300 ux-transition-color flex gap-3 sm:gap-6 ${selectedItems.has(item.variantId) ? 'border-[#e63d75]/30 ring-1 ring-[#e63d75]/30' : 'border-gray-100'}`}
                   >
                     {/* Checkbox */}
                     <div className="flex items-center">
@@ -235,7 +235,7 @@ export default function CartPage() {
                   <button
                     onClick={() => navigate('/checkout/product', { state: { selectedVariantIds: Array.from(selectedItems) } })}
                     disabled={selectedCount === 0}
-                    className="w-full bg-[#e63d75] text-white py-4 rounded-xl uppercase tracking-widest text-sm font-bold shadow-lg shadow-pink-200 hover:bg-[#cc2f64] hover:shadow-pink-300 transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed group flex items-center justify-center gap-2"
+                    className="w-full bg-[#e63d75] text-white py-4 rounded-xl uppercase tracking-widest text-sm font-bold shadow-lg shadow-pink-200 hover:bg-[#cc2f64] hover:shadow-pink-300 ux-transition-color disabled:opacity-50 disabled:cursor-not-allowed group flex items-center justify-center gap-2"
                   >
                     Checkout ({selectedCount})
                     <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />

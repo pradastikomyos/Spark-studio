@@ -5,7 +5,7 @@ import { useCart } from '../contexts/cartStore';
 import { useProduct, type ProductDetail } from '../hooks/useProduct';
 import { useToast } from '../components/Toast';
 import { PageTransition } from '../components/PageTransition';
-import { LazyMotion, m, AnimatePresence } from 'framer-motion';
+import { LazyMotion, m } from 'framer-motion';
 import { ProductImageCarousel } from '../components/ProductImageCarousel';
 import { useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '../lib/queryKeys';
@@ -202,7 +202,7 @@ export default function ProductDetailPage() {
                               onClick={() => setSelectedVariantId(variant.id)}
                               disabled={isDisabled}
                               className={`
-                                min-w-[3rem] px-4 py-3 rounded-lg text-sm font-medium border transition-all relative overflow-hidden
+                                min-w-[3rem] px-4 py-3 rounded-lg text-sm font-medium border ux-transition-color relative overflow-hidden
                                 ${isSelected
                                   ? 'border-[#e63d75] bg-[#e63d75] text-white shadow-lg shadow-pink-200'
                                   : isDisabled
@@ -226,7 +226,7 @@ export default function ProductDetailPage() {
                         <select
                           value={selectedVariantId ?? ''}
                           onChange={(e) => setSelectedVariantId(Number(e.target.value))}
-                          className="w-full appearance-none rounded-xl border border-gray-200 bg-white px-5 py-4 text-gray-900 outline-none focus:border-[#e63d75] focus:ring-1 focus:ring-[#e63d75] transition-all cursor-pointer"
+                          className="w-full appearance-none rounded-xl border border-gray-200 bg-white px-5 py-4 text-gray-900 outline-none focus:border-[#e63d75] focus:ring-1 focus:ring-[#e63d75] ux-transition-color cursor-pointer"
                         >
                           {product.variants.length === 0 && <option value="">No variants available</option>}
                           {product.variants.map((variant) => (
@@ -244,38 +244,30 @@ export default function ProductDetailPage() {
 
                   {/* Actions */}
                   <LazyMotion features={() => import('framer-motion').then((mod) => mod.domAnimation)}>
-                    <AnimatePresence>
-                      <div className="pt-4">
-                        <m.button
-                          onClick={handleAddToCart}
-                          disabled={!selectedVariant || selectedVariant.available <= 0}
-                          whileHover={{ scale: 1.02 }}
-                          whileTap={{ scale: 0.98 }}
-                          className="w-full bg-[#e63d75] text-white py-5 rounded-xl uppercase tracking-widest text-sm font-bold shadow-xl shadow-pink-200 hover:bg-[#cc2f64] hover:shadow-pink-300 active:bg-[#a32550] transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none flex items-center justify-center gap-3 disabled:bg-gray-400"
-                        >
-                          <ShoppingBag className="w-5 h-5" />
-                          {!selectedVariant || selectedVariant.available <= 0 ? (
-                            'Out of Stock'
-                          ) : (
-                            'Add to Shopping Bag'
-                          )}
-                        </m.button>
+                    <div className="pt-4">
+                      <m.button
+                        onClick={handleAddToCart}
+                        disabled={!selectedVariant || selectedVariant.available <= 0}
+                        className="w-full bg-[#e63d75] text-white py-5 rounded-xl uppercase tracking-widest text-sm font-bold shadow-xl shadow-pink-200 hover:bg-[#cc2f64] hover:shadow-pink-300 active:bg-[#a32550] ux-transition-color disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none flex items-center justify-center gap-3 disabled:bg-gray-400"
+                      >
+                        <ShoppingBag className="w-5 h-5" />
+                        {!selectedVariant || selectedVariant.available <= 0 ? 'Out of Stock' : 'Add to Shopping Bag'}
+                      </m.button>
 
-                        {!selectedVariant || selectedVariant.available <= 0 ? (
-                          <m.p
-                            initial={{ opacity: 0, y: 10 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            className="text-center text-xs text-gray-400 mt-4 uppercase tracking-wider"
-                          >
-                            Please select an available variant
-                          </m.p>
-                        ) : (
-                          <p className="text-center text-xs text-gray-400 mt-4">
-                            Free pickup at Spark Studio • Secure Payment
-                          </p>
-                        )}
-                      </div>
-                    </AnimatePresence>
+                      {!selectedVariant || selectedVariant.available <= 0 ? (
+                        <m.p
+                          initial={{ opacity: 0, y: 6 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          className="text-center text-xs text-gray-400 mt-4 uppercase tracking-wider"
+                        >
+                          Please select an available variant
+                        </m.p>
+                      ) : (
+                        <p className="text-center text-xs text-gray-400 mt-4">
+                          Free pickup at Spark Studio • Secure Payment
+                        </p>
+                      )}
+                    </div>
                   </LazyMotion>
                 </div>
               </div>
