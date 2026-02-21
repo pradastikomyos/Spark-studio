@@ -1,0 +1,5 @@
+{
+  "entry": ["frontend/src/main.tsx"],
+  "project": ["tsconfig.json"],
+  "ignore": ["dist/**", "supabase/functions/**"]
+}

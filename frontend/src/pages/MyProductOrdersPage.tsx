@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { useMutation } from '@tanstack/react-query';
 import QRCode from 'react-qr-code';
 import { formatCurrency } from '../utils/formatters';
 import { formatDateTimeWIB } from '../utils/timezone';
@@ -52,6 +53,32 @@ export default function MyProductOrdersPage() {
   const [expandedOrder, setExpandedOrder] = useState<number | null>(null);
   const [syncingOrderId, setSyncingOrderId] = useState<number | null>(null);
   const attemptedAutoSync = useState<Set<string>>(() => new Set())[0];
+  const syncMidtransProductStatusUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/sync-midtrans-product-status`;
+
+  const { mutate: autoSyncMidtransProductStatus } = useMutation({
+    mutationFn: async ({ orderNumber }: { orderNumber: string }) => {
+      const {
+        data: { session: current },
+      } = await supabase.auth.getSession();
+      const fresh = await ensureFreshToken(current ?? null);
+      const token = fresh ?? current?.access_token ?? null;
+      if (!token) return;
+
+      await withTimeout(
+        fetch(syncMidtransProductStatusUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ order_number: orderNumber }),
+        }),
+        15000,
+        'Request timeout. Please try again.'
+      );
+    },
+    retry: 0,
+  });
   
   useEffect(() => {
     if (error) {
@@ -227,7 +254,7 @@ export default function MyProductOrdersPage() {
       setSyncingOrderId(order.id);
       try {
         const response = await fetch(
-          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/sync-midtrans-product-status`,
+          syncMidtransProductStatusUrl,
           {
             method: 'POST',
             headers: {
@@ -258,7 +285,7 @@ export default function MyProductOrdersPage() {
         setSyncingOrderId(null);
       }
     },
-    [session?.access_token, showToast, t]
+    [session?.access_token, showToast, syncMidtransProductStatusUrl, t]
   );
 
   useEffect(() => {
@@ -269,40 +296,28 @@ export default function MyProductOrdersPage() {
       return status !== 'cancelled' && status !== 'expired' && payment !== 'failed' && payment !== 'refunded';
     });
 
+    const timeoutIds: Array<ReturnType<typeof setTimeout>> = [];
+
     pending.forEach((order) => {
       const key = order.order_number;
       if (attemptedAutoSync.has(key)) return;
       attemptedAutoSync.add(key);
 
-      const runAttempt = async (delayMs: number) => {
-        setTimeout(async () => {
-          try {
-            const { data: { session: current } } = await supabase.auth.getSession();
-            const fresh = await ensureFreshToken(current ?? null);
-            const token = fresh ?? current?.access_token ?? null;
-            if (!token) return;
-            await withTimeout(
-              fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/sync-midtrans-product-status`, {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                  Authorization: `Bearer ${token}`,
-                },
-                body: JSON.stringify({ order_number: order.order_number }),
-              }),
-              15000,
-              'Request timeout. Please try again.'
-            ).catch(() => null);
-          } catch {
-            return;
-          }
+      const runAttempt = (delayMs: number) => {
+        const timeoutId = setTimeout(() => {
+          autoSyncMidtransProductStatus({ orderNumber: order.order_number });
         }, delayMs);
+        timeoutIds.push(timeoutId);
       };
 
       runAttempt(0);
       runAttempt(20000);
     });
-  }, [pendingOrders, user?.id, attemptedAutoSync]);
+
+    return () => {
+      timeoutIds.forEach(clearTimeout);
+    };
+  }, [pendingOrders, user?.id, attemptedAutoSync, autoSyncMidtransProductStatus]);
 
   const handleCancelOrder = useCallback(
     async (order: ProductOrder) => {
