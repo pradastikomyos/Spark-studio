@@ -1,5 +1,5 @@
 import { serve } from '../_shared/deps.ts'
-import { corsHeaders, handleCors } from '../_shared/http.ts'
+import { getCorsHeaders, handleCors } from '../_shared/http.ts'
 import { getMidtransEnv, getSupabaseEnv } from '../_shared/env.ts'
 import { createServiceClient, getUserFromAuthHeader } from '../_shared/supabase.ts'
 import { getMidtransBasicAuthHeader, getStatusBaseUrl } from '../_shared/midtrans.ts'
@@ -9,6 +9,7 @@ import { issueTicketsIfNeeded, releaseTicketCapacityIfNeeded } from '../_shared/
 serve(async (req) => {
   const corsResponse = handleCors(req)
   if (corsResponse) return corsResponse
+  const corsHeaders = getCorsHeaders(req)
 
   try {
     const { url: supabaseUrl, anonKey: supabaseAnonKey, serviceRoleKey: supabaseServiceKey } = getSupabaseEnv()

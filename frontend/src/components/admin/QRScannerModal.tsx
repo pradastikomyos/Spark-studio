@@ -431,7 +431,6 @@ const QRScannerModal = ({
         }
       }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [autoResumeAfterMs, autoResumeOnError, closeOnSuccess, closeDelayMs, closeOnError, closeOnErrorDelayMs, onScan, handleClose, readerId, stopScanner]);
 
   useEffect(() => {

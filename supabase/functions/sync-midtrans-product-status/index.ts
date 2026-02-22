@@ -1,19 +1,10 @@
 import { serve } from '../_shared/deps.ts'
-import { corsHeaders, handleCors } from '../_shared/http.ts'
+import { getCorsHeaders, handleCors } from '../_shared/http.ts'
 import { getMidtransEnv, getSupabaseEnv } from '../_shared/env.ts'
 import { createServiceClient, getUserFromAuthHeader } from '../_shared/supabase.ts'
 import { getMidtransBasicAuthHeader, getStatusBaseUrl } from '../_shared/midtrans.ts'
 import { mapMidtransStatus } from '../_shared/tickets.ts'
-import { ensureProductPaidSideEffects, releaseProductReservedStockIfNeeded } from '../_shared/payment-effects.ts'
-
-const toNumber = (value: unknown, fallback: number) => {
-    if (typeof value === 'number') return Number.isFinite(value) ? value : fallback
-    if (typeof value === 'string' && value.trim() !== '') {
-        const parsed = Number(value)
-        return Number.isFinite(parsed) ? parsed : fallback
-    }
-    return fallback
-}
+import { ensureProductPaidSideEffects, releaseProductReservedStockIfNeeded, toNumber } from '../_shared/payment-effects.ts'
 
 /**
  * sync-midtrans-product-status
@@ -27,8 +18,9 @@ const toNumber = (value: unknown, fallback: number) => {
  */
 
 serve(async (req) => {
-    const corsResponse = handleCors(req)
-    if (corsResponse) return corsResponse
+  const corsResponse = handleCors(req)
+  if (corsResponse) return corsResponse
+  const corsHeaders = getCorsHeaders(req)
 
     try {
         const { url: supabaseUrl, anonKey: supabaseAnonKey, serviceRoleKey: supabaseServiceKey } = getSupabaseEnv()

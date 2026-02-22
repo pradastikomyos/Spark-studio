@@ -85,6 +85,7 @@ export function useSessionRefresh() {
     } finally {
       isRefreshingRef.current = false;
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- scheduleNextRefresh depends on refreshSession; adding it creates a circular dependency.
   }, [clearTimers]);
 
   const scheduleNextRefresh = useCallback((expiresAt?: number) => {
@@ -155,7 +156,7 @@ export function useSessionRefresh() {
       console.log('[SessionRefresh] Cleaning up');
       clearTimers();
     };
-  }, [user?.id, session?.expires_at, scheduleNextRefresh, heartbeat, clearTimers]);
+  }, [user, session, scheduleNextRefresh, heartbeat, clearTimers]);
 
   // Handle visibility change - refresh when tab becomes visible
   useEffect(() => {

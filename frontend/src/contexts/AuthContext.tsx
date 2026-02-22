@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import { createContext, useContext, useEffect, useState, useCallback, useMemo } from 'react';
 import { User, Session, AuthError } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 import { isAdmin as checkIsAdmin } from '../utils/auth';
@@ -27,9 +27,13 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [isAdmin, setIsAdmin] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
 
-  const errorHandler = new SessionErrorHandler({
-    // AuthContext handles navigation/signOut manually or via onAuthStateChange
-  });
+  const errorHandler = useMemo(
+    () =>
+      new SessionErrorHandler({
+        // AuthContext handles navigation/signOut manually or via onAuthStateChange
+      }),
+    []
+  );
 
   // NEW: Manual session refresh
   const refreshSession = useCallback(async () => {
@@ -246,7 +250,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       isMounted = false;
       subscription?.unsubscribe();
     };
-  }, [checkAdminStatus]);
+  }, [checkAdminStatus, errorHandler]);
 
   const signIn = async (email: string, password: string) => {
     const { error } = await supabase.auth.signInWithPassword({

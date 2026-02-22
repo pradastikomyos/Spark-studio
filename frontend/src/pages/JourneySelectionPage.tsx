@@ -175,7 +175,7 @@ export default function JourneySelectionPage() {
     });
 
     return filtered.map((avail) => {
-      const isPast = isToday && avail.time_slot ? !isTimeSlotBookable(dateString, avail.time_slot) : false;
+      const isPast = isToday && avail.time_slot ? !isTimeSlotBookable(dateString, avail.time_slot, currentTime) : false;
 
       return {
         time: avail.time_slot as string,

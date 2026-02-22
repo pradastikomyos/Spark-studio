@@ -5,7 +5,7 @@ import reactRefresh from 'eslint-plugin-react-refresh';
 import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
-  { ignores: ['dist', 'frontend lama/**', 'frontend baru/**'] },
+  { ignores: ['dist', 'frontend lama/**', 'frontend baru/**', 'react-doctor/**'] },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {

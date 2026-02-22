@@ -1,5 +1,5 @@
 import { serve } from '../_shared/deps.ts'
-import { corsHeaders, handleCors } from '../_shared/http.ts'
+import { getCorsHeaders, handleCors } from '../_shared/http.ts'
 import { getSupabaseEnv } from '../_shared/env.ts'
 import { createServiceClient, getUserFromAuthHeader } from '../_shared/supabase.ts'
 import { ensureProductPaidSideEffects } from '../_shared/payment-effects.ts'
@@ -11,6 +11,7 @@ type RequestBody = {
 serve(async (req) => {
   const corsResponse = handleCors(req)
   if (corsResponse) return corsResponse
+  const corsHeaders = getCorsHeaders(req)
 
   const { url: supabaseUrl, anonKey: supabaseAnonKey, serviceRoleKey: supabaseServiceKey } = getSupabaseEnv()
 

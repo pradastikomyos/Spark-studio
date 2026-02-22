@@ -1,5 +1,5 @@
 import { serve } from '../_shared/deps.ts'
-import { corsHeaders, handleCors } from '../_shared/http.ts'
+import { getCorsHeaders, handleCors } from '../_shared/http.ts'
 import { getMidtransEnv, getSupabaseEnv } from '../_shared/env.ts'
 import { createServiceClient } from '../_shared/supabase.ts'
 import { generateSignature } from '../_shared/midtrans.ts'
@@ -10,20 +10,13 @@ import {
   logWebhookEvent,
   releaseProductReservedStockIfNeeded,
   releaseTicketCapacityIfNeeded,
+  toNumber,
 } from '../_shared/payment-effects.ts'
 
-const toNumber = (value: unknown, fallback: number) => {
-  if (typeof value === 'number') return Number.isFinite(value) ? value : fallback
-  if (typeof value === 'string' && value.trim() !== '') {
-    const parsed = Number(value)
-    return Number.isFinite(parsed) ? parsed : fallback
-  }
-  return fallback
-}
-
 serve(async (req) => {
-  const corsResponse = handleCors(req)
+  const corsResponse = handleCors(req, { allowAllOrigins: true })
   if (corsResponse) return corsResponse
+  const corsHeaders = getCorsHeaders(req, { allowAllOrigins: true })
 
   let supabase: ReturnType<typeof createServiceClient> | null = null
   let orderId = ''
@@ -42,6 +35,7 @@ serve(async (req) => {
         : {}
     orderId = String(payload.order_id || '')
     const transactionStatus = String(payload.transaction_status || '')
+    const transactionStatusKey = transactionStatus.toLowerCase() || 'unknown'
     const fraudStatus = payload.fraud_status ?? null
     const nowIso = new Date().toISOString()
 
@@ -74,6 +68,21 @@ serve(async (req) => {
       })
       return new Response(JSON.stringify({ error: 'Invalid signature' }), {
         status: 403,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
+    const idempotencyEventType = `midtrans_status:${transactionStatusKey}`
+    const { data: existingWebhook } = await supabase
+      .from('webhook_logs')
+      .select('id')
+      .eq('order_number', orderId)
+      .eq('event_type', idempotencyEventType)
+      .eq('success', true)
+      .limit(1)
+
+    if (Array.isArray(existingWebhook) && existingWebhook.length > 0) {
+      return new Response(JSON.stringify({ status: 'ok', idempotent: true }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
     }
@@ -148,6 +157,14 @@ serve(async (req) => {
       }
       
       console.log(`[WEBHOOK] Successfully updated print order ${orderId} to ${printStatus}`)
+      await logWebhookEvent(supabase, {
+        orderNumber: orderId,
+        eventType: idempotencyEventType,
+        payload: notification,
+        success: true,
+        processedAt: nowIso,
+      })
+
       return new Response(JSON.stringify({ status: 'ok', project: 'spark-print', order_status: printStatus }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
@@ -279,26 +296,50 @@ serve(async (req) => {
         currentPickupStatus !== 'completed'
 
       if (shouldReleaseReserve) {
-        await releaseProductReservedStockIfNeeded({
-          supabase,
-          order: productOrder as unknown as {
-            id: number
-            order_number: string
-            status?: string | null
-            payment_status?: string | null
-            total?: unknown
-            pickup_code?: string | null
-            pickup_status?: string | null
-            pickup_expires_at?: string | null
-            stock_released_at?: string | null
-          },
-          nowIso,
-        })
+        try {
+          await releaseProductReservedStockIfNeeded({
+            supabase,
+            order: productOrder as unknown as {
+              id: number
+              order_number: string
+              status?: string | null
+              payment_status?: string | null
+              total?: unknown
+              pickup_code?: string | null
+              pickup_status?: string | null
+              pickup_expires_at?: string | null
+              stock_released_at?: string | null
+            },
+            nowIso,
+          })
+        } catch (error) {
+          const message = error instanceof Error ? error.message : 'Failed to release reserved stock'
+          await logWebhookEvent(supabase, {
+            orderNumber: orderId,
+            eventType: 'stock_release_failed',
+            payload: { error: message },
+            success: false,
+            errorMessage: message,
+            processedAt: nowIso,
+          })
+          await supabase
+            .from('order_products')
+            .update({ status: 'requires_review', pickup_status: 'pending_review', updated_at: nowIso })
+            .eq('id', (productOrder as { id: number }).id)
+        }
       }
 
       await logWebhookEvent(supabase, {
         orderNumber: orderId,
         eventType: 'product_order_processed',
+        payload: notification,
+        success: true,
+        processedAt: nowIso,
+      })
+
+      await logWebhookEvent(supabase, {
+        orderNumber: orderId,
+        eventType: idempotencyEventType,
         payload: notification,
         success: true,
         processedAt: nowIso,
@@ -371,25 +412,50 @@ serve(async (req) => {
       const { data: orderItems, error: itemsError } = await supabase.from('order_items').select('*').eq('order_id', order.id)
 
       if (!itemsError && Array.isArray(orderItems)) {
-        await issueTicketsIfNeeded({
-          supabase,
-          order: order as unknown as {
-            id: number
-            order_number: string
-            user_id: string | null
-            status?: string | null
-            tickets_issued_at?: string | null
-            capacity_released_at?: string | null
-          },
-          orderItems: orderItems as Array<{ id: number; ticket_id: number; selected_date: string; selected_time_slots: unknown; quantity: number }>,
-          nowIso,
-        })
+        try {
+          await issueTicketsIfNeeded({
+            supabase,
+            order: order as unknown as {
+              id: number
+              order_number: string
+              user_id: string | null
+              status?: string | null
+              tickets_issued_at?: string | null
+              capacity_released_at?: string | null
+            },
+            orderItems: orderItems as Array<{ id: number; ticket_id: number; selected_date: string; selected_time_slots: unknown; quantity: number }>,
+            nowIso,
+          })
+        } catch (error) {
+          const message = error instanceof Error ? error.message : 'Failed to issue tickets'
+          await logWebhookEvent(supabase, {
+            orderNumber: orderId,
+            eventType: 'ticket_issue_failed',
+            payload: { error: message },
+            success: false,
+            errorMessage: message,
+            processedAt: nowIso,
+          })
+          await supabase
+            .from('orders')
+            .update({ status: 'requires_review', updated_at: nowIso })
+            .eq('id', order.id)
+        }
       }
     }
 
     await logWebhookEvent(supabase, {
       orderNumber: orderId,
       eventType: 'ticket_order_processed',
+      payload: notification,
+      success: !updateError,
+      errorMessage: updateError?.message ?? null,
+      processedAt: nowIso,
+    })
+
+    await logWebhookEvent(supabase, {
+      orderNumber: orderId,
+      eventType: idempotencyEventType,
       payload: notification,
       success: !updateError,
       errorMessage: updateError?.message ?? null,

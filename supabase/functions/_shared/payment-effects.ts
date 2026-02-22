@@ -1,44 +1,27 @@
+import type { SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2.90.1'
+import type { Database, Json } from '../../../frontend/src/types/database.types.ts'
 import { normalizeAvailabilityTimeSlot, normalizeSelectedTimeSlots } from './tickets.ts'
 
-type SupabaseQueryResult = {
-  data?: unknown
-  error?: { message?: string }
-}
-
-type SupabaseQuery = PromiseLike<SupabaseQueryResult> & {
-  select: (columns?: string, options?: Record<string, unknown>) => SupabaseQuery
-  eq: (column: string, value: unknown) => SupabaseQuery
-  order: (column: string, options?: Record<string, unknown>) => SupabaseQuery
-  in: (column: string, values: unknown[]) => SupabaseQuery
-  update: (values: Record<string, unknown>) => SupabaseQuery
-  insert: (values: unknown) => SupabaseQuery
-  delete: () => SupabaseQuery
-  single: () => SupabaseQuery
-}
-
-type SupabaseClient = {
-  from: (table: string) => SupabaseQuery
-  rpc: (fn: string, params: Record<string, unknown>) => SupabaseQuery
-}
-
-type TicketOrder = {
+type OrdersRow = {
   id: number
   order_number: string
   user_id: string | null
   status?: string | null
   tickets_issued_at?: string | null
   capacity_released_at?: string | null
+  updated_at?: string | null
 }
 
-type TicketOrderItem = {
+type OrderItemsRow = {
   id: number
+  order_id: number
   ticket_id: number
   selected_date: string
-  selected_time_slots: unknown
+  selected_time_slots: Json | null
   quantity: number
 }
 
-type ProductOrder = {
+type OrderProductsRow = {
   id: number
   order_number: string
   status?: string | null
@@ -48,14 +31,85 @@ type ProductOrder = {
   pickup_status?: string | null
   pickup_expires_at?: string | null
   stock_released_at?: string | null
+  paid_at?: string | null
+  updated_at?: string | null
 }
 
-type ProductOrderItem = {
+type OrderProductItemsRow = {
+  id?: number
+  order_product_id: number
   product_variant_id: number
   quantity: number
 }
 
-function toNumber(value: unknown, fallback: number) {
+type PurchasedTicketsRow = {
+  id?: number
+  order_item_id: number
+  user_id: string | null
+  ticket_id: number
+  valid_date: string
+  time_slot: string | null
+  status: string
+  ticket_code?: string
+  queue_number?: number | null
+  queue_overflow?: boolean | null
+  created_at?: string | null
+  updated_at?: string | null
+}
+
+type WebhookLogsRow = {
+  id?: number
+  order_number: string | null
+  event_type: string
+  payload: Json | null
+  processed_at: string
+  success: boolean
+  error_message?: string | null
+}
+
+type ExtendedDatabase = Database & {
+  public: {
+    Tables: Database['public']['Tables'] & {
+      orders: {
+        Row: OrdersRow
+        Insert: Partial<OrdersRow>
+        Update: Partial<OrdersRow>
+      }
+      order_items: {
+        Row: OrderItemsRow
+        Insert: Partial<OrderItemsRow>
+        Update: Partial<OrderItemsRow>
+      }
+      order_products: {
+        Row: OrderProductsRow
+        Insert: Partial<OrderProductsRow>
+        Update: Partial<OrderProductsRow>
+      }
+      order_product_items: {
+        Row: OrderProductItemsRow
+        Insert: Partial<OrderProductItemsRow>
+        Update: Partial<OrderProductItemsRow>
+      }
+      purchased_tickets: {
+        Row: PurchasedTicketsRow
+        Insert: Partial<PurchasedTicketsRow>
+        Update: Partial<PurchasedTicketsRow>
+      }
+      webhook_logs: {
+        Row: WebhookLogsRow
+        Insert: Partial<WebhookLogsRow>
+        Update: Partial<WebhookLogsRow>
+      }
+    }
+  }
+}
+
+type TicketOrder = ExtendedDatabase['public']['Tables']['orders']['Row']
+type TicketOrderItem = ExtendedDatabase['public']['Tables']['order_items']['Row']
+type ProductOrder = ExtendedDatabase['public']['Tables']['order_products']['Row']
+type ProductOrderItem = ExtendedDatabase['public']['Tables']['order_product_items']['Row']
+
+export function toNumber(value: unknown, fallback: number) {
   if (typeof value === 'number') return Number.isFinite(value) ? value : fallback
   if (typeof value === 'string' && value.trim() !== '') {
     const parsed = Number(value)
@@ -74,7 +128,7 @@ export function generateTicketCode(): string {
 }
 
 export async function logWebhookEvent(
-  supabase: SupabaseClient,
+  supabase: SupabaseClient<ExtendedDatabase>,
   params: {
     orderNumber: string
     eventType: string
@@ -100,7 +154,7 @@ export async function logWebhookEvent(
 }
 
 export async function issueTicketsIfNeeded(params: {
-  supabase: SupabaseClient
+  supabase: SupabaseClient<ExtendedDatabase>
   order: TicketOrder
   orderItems?: TicketOrderItem[]
   nowIso: string
@@ -241,7 +295,7 @@ export async function issueTicketsIfNeeded(params: {
 }
 
 export async function releaseTicketCapacityIfNeeded(params: {
-  supabase: SupabaseClient
+  supabase: SupabaseClient<ExtendedDatabase>
   order: TicketOrder
   orderItems?: TicketOrderItem[]
   nowIso: string
@@ -299,7 +353,7 @@ export async function releaseTicketCapacityIfNeeded(params: {
 }
 
 export async function ensureProductPaidSideEffects(params: {
-  supabase: SupabaseClient
+  supabase: SupabaseClient<ExtendedDatabase>
   order: ProductOrder
   nowIso: string
   grossAmount?: unknown
@@ -428,7 +482,7 @@ export async function ensureProductPaidSideEffects(params: {
 }
 
 export async function releaseProductReservedStockIfNeeded(params: {
-  supabase: SupabaseClient
+  supabase: SupabaseClient<ExtendedDatabase>
   order: ProductOrder
   nowIso: string
 }) {
@@ -452,26 +506,11 @@ export async function releaseProductReservedStockIfNeeded(params: {
     qtyByVariantId.set(variantId, (qtyByVariantId.get(variantId) ?? 0) + qty)
   }
 
-  const variantIds = Array.from(qtyByVariantId.keys())
-  const { data: variantRows } = variantIds.length
-    ? await supabase.from('product_variants').select('id, reserved_stock').in('id', variantIds)
-    : { data: [] as unknown[] }
-
-  const reservedById = new Map<number, number>()
-  if (Array.isArray(variantRows)) {
-    for (const v of variantRows) {
-      const id = Number((v as { id?: number | string }).id ?? 0)
-      if (!id) continue
-      reservedById.set(id, Number((v as { reserved_stock?: unknown }).reserved_stock ?? 0))
-    }
-  }
-
   for (const [variantId, qty] of qtyByVariantId.entries()) {
-    const currentReserved = reservedById.get(variantId) ?? 0
-    await supabase
-      .from('product_variants')
-      .update({ reserved_stock: Math.max(0, currentReserved - qty), updated_at: nowIso })
-      .eq('id', variantId)
+    await supabase.rpc('release_product_stock', {
+      p_variant_id: variantId,
+      p_quantity: qty,
+    })
   }
 
   await supabase

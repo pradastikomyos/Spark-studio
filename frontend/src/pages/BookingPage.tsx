@@ -244,9 +244,9 @@ export default function BookingPage() {
   }, [availableTimeSlots]);
 
   // Month navigation handlers for 30-day rolling booking
-  const today = todayWIB();
-  const maxBookingDate = new Date(today);
-  maxBookingDate.setDate(today.getDate() + 30);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- keep today in sync with currentTime ticks for time-based UI updates.
+  const today = useMemo(() => todayWIB(), [currentTime]);
+  const maxBookingDate = useMemo(() => addDays(today, 30), [today]);
 
   const canGoPrevMonth = useMemo(() => {
     const lastDayOfPrevMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 0);

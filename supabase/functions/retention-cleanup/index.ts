@@ -1,9 +1,5 @@
 import { createClient } from 'jsr:@supabase/supabase-js@2'
-
-const corsHeaders: Record<string, string> = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-}
+import { getCorsHeaders, handleCors } from '../_shared/http.ts'
 
 function getEnvNumber(key: string, fallback: number) {
   const raw = Deno.env.get(key)
@@ -17,7 +13,9 @@ function daysAgoIso(days: number) {
 }
 
 Deno.serve(async (req) => {
-  if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
+  const corsResponse = handleCors(req)
+  if (corsResponse) return corsResponse
+  const corsHeaders = getCorsHeaders(req)
 
   const supabaseUrl = Deno.env.get('SUPABASE_URL')
   const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
@@ -82,13 +80,13 @@ Deno.serve(async (req) => {
     error:
       reservationsPendingDelete.error || reservationsStaleDelete.error
         ? {
-            pending: reservationsPendingDelete.error
-              ? String((reservationsPendingDelete.error as { message?: unknown }).message ?? reservationsPendingDelete.error)
-              : null,
-            stale: reservationsStaleDelete.error
-              ? String((reservationsStaleDelete.error as { message?: unknown }).message ?? reservationsStaleDelete.error)
-              : null,
-          }
+          pending: reservationsPendingDelete.error
+            ? String((reservationsPendingDelete.error as { message?: unknown }).message ?? reservationsPendingDelete.error)
+            : null,
+          stale: reservationsStaleDelete.error
+            ? String((reservationsStaleDelete.error as { message?: unknown }).message ?? reservationsStaleDelete.error)
+            : null,
+        }
         : null,
   }
 

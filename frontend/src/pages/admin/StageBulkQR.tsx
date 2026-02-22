@@ -7,6 +7,7 @@ import { useToast } from '../../components/Toast';
 import { useStageQRCodes, type StageQRCode } from '../../hooks/useStageQRCodes';
 
 const TAB_RETURN_EVENT = 'tab-returned-from-idle';
+const EMPTY_STAGES: StageQRCode[] = [];
 
 const StageBulkQR = () => {
     const { signOut } = useAuth();
@@ -17,7 +18,7 @@ const StageBulkQR = () => {
     const lastToastErrorRef = useRef<string | null>(null);
 
     const { data, error, isLoading, refetch } = useStageQRCodes();
-    const stages = data ?? [];
+    const stages = data ?? EMPTY_STAGES;
 
     useEffect(() => {
         if (!error) return;

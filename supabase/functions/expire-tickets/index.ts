@@ -10,24 +10,22 @@
  */
 
 import { createClient } from 'jsr:@supabase/supabase-js@2';
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+import { getCorsHeaders, handleCors } from '../_shared/http.ts';
+import { logWebhookEvent } from '../_shared/payment-effects.ts';
 
 Deno.serve(async (req) => {
-  // Handle CORS preflight
-  if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
-  }
+  const corsResponse = handleCors(req);
+  if (corsResponse) return corsResponse;
+  const corsHeaders = getCorsHeaders(req);
+
+  let supabase: ReturnType<typeof createClient> | null = null;
 
   try {
     // Initialize Supabase client with service role key for admin access
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     console.log('[Expire Tickets] Starting auto-expiry process...');
 
@@ -72,6 +70,14 @@ Deno.serve(async (req) => {
       console.log('[Expire Tickets] Expired ticket codes:', data.map(t => t.ticket_code).join(', '));
     }
 
+    await logWebhookEvent(supabase, {
+      orderNumber: 'expire-tickets',
+      eventType: 'expire_tickets_summary',
+      payload: { expired_count: expiredCount, current_date_wib: todayWIB },
+      success: true,
+      processedAt: new Date().toISOString(),
+    });
+
     return new Response(
       JSON.stringify({
         success: true,
@@ -89,6 +95,17 @@ Deno.serve(async (req) => {
 
   } catch (err) {
     console.error('[Expire Tickets] Unexpected error:', err);
+    if (supabase) {
+      await logWebhookEvent(supabase, {
+        orderNumber: 'expire-tickets',
+        eventType: 'expire_tickets_failed',
+        payload: { error: err instanceof Error ? err.message : 'Unknown error' },
+        success: false,
+        errorMessage: err instanceof Error ? err.message : 'Unknown error',
+        processedAt: new Date().toISOString(),
+      });
+    }
+
     return new Response(
       JSON.stringify({ 
         success: false, 

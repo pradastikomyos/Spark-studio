@@ -1,32 +1,33 @@
 import { serve } from '../_shared/deps.ts'
-import { corsHeaders, handleCors, json } from '../_shared/http.ts'
+import { getCorsHeaders, handleCors, json } from '../_shared/http.ts'
 import { getSupabaseEnv } from '../_shared/env.ts'
 import { createServiceClient, getUserFromAuthHeader } from '../_shared/supabase.ts'
 
 serve(async (req) => {
   const corsResponse = handleCors(req)
   if (corsResponse) return corsResponse
+  const corsHeaders = getCorsHeaders(req)
 
   if (req.method !== 'POST') {
-    return json({ error: 'Method not allowed' }, { status: 405 })
+    return json(req, { error: 'Method not allowed' }, { status: 405 })
   }
 
   try {
     const { url: supabaseUrl, anonKey: supabaseAnonKey, serviceRoleKey: supabaseServiceKey } = getSupabaseEnv()
 
     const authHeader = req.headers.get('Authorization')
-    if (!authHeader) return json({ error: 'Missing authorization header' }, { status: 401 })
+    if (!authHeader) return json(req, { error: 'Missing authorization header' }, { status: 401 })
 
     const { user, error: authError } = await getUserFromAuthHeader({
       url: supabaseUrl,
       anonKey: supabaseAnonKey,
       authHeader,
     })
-    if (authError || !user?.id) return json({ error: 'Invalid token' }, { status: 401 })
+    if (authError || !user?.id) return json(req, { error: 'Invalid token' }, { status: 401 })
 
     const body = await req.json().catch(() => ({}))
     const orderNumber = String(body?.order_number || '').trim()
-    if (!orderNumber) return json({ error: 'Missing order_number' }, { status: 400 })
+    if (!orderNumber) return json(req, { error: 'Missing order_number' }, { status: 400 })
 
     const supabase = createServiceClient(supabaseUrl, supabaseServiceKey)
 
@@ -36,18 +37,18 @@ serve(async (req) => {
       .eq('order_number', orderNumber)
       .single()
 
-    if (orderError || !order) return json({ error: 'Order not found' }, { status: 404 })
-    if (String(order.user_id) !== user.id) return json({ error: 'Forbidden' }, { status: 403 })
+    if (orderError || !order) return json(req, { error: 'Order not found' }, { status: 404 })
+    if (String(order.user_id) !== user.id) return json(req, { error: 'Forbidden' }, { status: 403 })
 
     const currentStatus = String((order as { status?: unknown }).status || '').toLowerCase()
     const currentPaymentStatus = String((order as { payment_status?: unknown }).payment_status || '').toLowerCase()
 
     if (currentPaymentStatus === 'paid') {
-      return json({ status: 'ok', result: 'noop', reason: 'already_paid', order: { order_number: orderNumber } })
+      return json(req, { status: 'ok', result: 'noop', reason: 'already_paid', order: { order_number: orderNumber } })
     }
 
     if (currentStatus === 'cancelled' || currentStatus === 'expired') {
-      return json({ status: 'ok', result: 'noop', reason: 'already_final', order: { order_number: orderNumber } })
+      return json(req, { status: 'ok', result: 'noop', reason: 'already_final', order: { order_number: orderNumber } })
     }
 
     const nowIso = new Date().toISOString()
@@ -67,7 +68,7 @@ serve(async (req) => {
     }
 
     if (!updated) {
-      return json({ status: 'ok', result: 'noop', reason: 'already_final', order: { order_number: orderNumber } })
+      return json(req, { status: 'ok', result: 'noop', reason: 'already_final', order: { order_number: orderNumber } })
     }
 
     const { data: orderItems } = await supabase
@@ -112,7 +113,7 @@ serve(async (req) => {
       await supabase.rpc('release_voucher_quota', { p_voucher_id: voucherId })
     }
 
-    return json({ status: 'ok', result: 'cancelled', order: updated })
+    return json(req, { status: 'ok', result: 'cancelled', order: updated })
   } catch (e) {
     return new Response(JSON.stringify({ error: 'Internal server error', details: e instanceof Error ? e.message : String(e) }), {
       status: 500,

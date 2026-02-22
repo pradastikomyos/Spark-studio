@@ -1,7 +1,8 @@
 import { serve } from '../_shared/deps.ts'
-import { corsHeaders, handleCors } from '../_shared/http.ts'
+import { getCorsHeaders, handleCors } from '../_shared/http.ts'
 import { getSupabaseEnv } from '../_shared/env.ts'
 import { createServiceClient, getUserFromAuthHeader } from '../_shared/supabase.ts'
+import { toNumber } from '../_shared/payment-effects.ts'
 
 type ProductItem = {
   productVariantId: number
@@ -45,18 +46,10 @@ async function getUniquePickupCode(supabase: ReturnType<typeof createServiceClie
   return null
 }
 
-function toNumber(value: unknown, fallback: number) {
-  if (typeof value === 'number') return Number.isFinite(value) ? value : fallback
-  if (typeof value === 'string' && value.trim() !== '') {
-    const parsed = Number(value)
-    return Number.isFinite(parsed) ? parsed : fallback
-  }
-  return fallback
-}
-
 serve(async (req) => {
   const corsResponse = handleCors(req)
   if (corsResponse) return corsResponse
+  const corsHeaders = getCorsHeaders(req)
 
   const { url: supabaseUrl, anonKey: supabaseAnonKey, serviceRoleKey: supabaseServiceKey } = getSupabaseEnv()
 
@@ -315,10 +308,12 @@ serve(async (req) => {
         })
       }
 
-      const stock = toNumber((row as { stock: unknown }).stock, 0)
-      const reserved = toNumber((row as { reserved_stock: unknown }).reserved_stock, 0)
-      const available = stock - reserved
-      if (available < item.quantity) {
+      const { data: reservedOk, error: reserveError } = await supabase.rpc('reserve_product_stock', {
+        p_variant_id: item.productVariantId,
+        p_quantity: item.quantity,
+      })
+
+      if (reserveError || reservedOk !== true) {
         // Rollback voucher quota if it was reserved
         if (voucherId) {
           await supabase.rpc('release_voucher_quota', { p_voucher_id: voucherId })
@@ -326,50 +321,14 @@ serve(async (req) => {
 
         // Rollback previously reserved items
         for (const previous of reservedAdjustments) {
-          const { data: variantRow } = await supabase
-            .from('product_variants')
-            .select('reserved_stock')
-            .eq('id', previous.variantId)
-            .single()
-          const currentReserved = (variantRow as { reserved_stock?: number } | null)?.reserved_stock ?? 0
-          await supabase
-            .from('product_variants')
-            .update({ reserved_stock: Math.max(0, currentReserved - previous.quantity), updated_at: new Date().toISOString() })
-            .eq('id', previous.variantId)
+          await supabase.rpc('release_product_stock', {
+            p_variant_id: previous.variantId,
+            p_quantity: previous.quantity,
+          })
         }
-        return new Response(JSON.stringify({ error: `Out of stock for ${item.name}` }), {
-          status: 409,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        })
-      }
-
-      const { data: updated, error: reserveError } = await supabase
-        .from('product_variants')
-        .update({ reserved_stock: reserved + item.quantity, updated_at: new Date().toISOString() })
-        .eq('id', item.productVariantId)
-        .select('id')
-
-      if (reserveError || !updated || updated.length === 0) {
-        // Rollback voucher quota if it was reserved
-        if (voucherId) {
-          await supabase.rpc('release_voucher_quota', { p_voucher_id: voucherId })
-        }
-
-        // Rollback previously reserved items
-        for (const previous of reservedAdjustments) {
-          const { data: variantRow } = await supabase
-            .from('product_variants')
-            .select('reserved_stock')
-            .eq('id', previous.variantId)
-            .single()
-          const currentReserved = (variantRow as { reserved_stock?: number } | null)?.reserved_stock ?? 0
-          await supabase
-            .from('product_variants')
-            .update({ reserved_stock: Math.max(0, currentReserved - previous.quantity), updated_at: new Date().toISOString() })
-            .eq('id', previous.variantId)
-        }
-        return new Response(JSON.stringify({ error: 'Failed to reserve stock', details: reserveError?.message }), {
-          status: 500,
+        const status = reserveError ? 500 : 409
+        return new Response(JSON.stringify({ error: `Out of stock for ${item.name}`, details: reserveError?.message }), {
+          status,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         })
       }
@@ -387,6 +346,7 @@ serve(async (req) => {
         channel: 'offline',
         status: 'paid',
         payment_status: 'paid',
+        paid_at: now.toISOString(),
         subtotal: totalAmount,
         discount_amount: discountAmount,
         shipping_cost: 0,
@@ -411,12 +371,10 @@ serve(async (req) => {
       }
       
       for (const a of reservedAdjustments) {
-        const { data: variantRow } = await supabase.from('product_variants').select('reserved_stock').eq('id', a.variantId).single()
-        const currentReserved = (variantRow as unknown as { reserved_stock?: number } | null)?.reserved_stock ?? 0
-        await supabase
-          .from('product_variants')
-          .update({ reserved_stock: Math.max(0, currentReserved - a.quantity), updated_at: new Date().toISOString() })
-          .eq('id', a.variantId)
+        await supabase.rpc('release_product_stock', {
+          p_variant_id: a.variantId,
+          p_quantity: a.quantity,
+        })
       }
 
       return new Response(JSON.stringify({ error: 'Failed to create order', details: orderError?.message }), {
@@ -448,18 +406,34 @@ serve(async (req) => {
       }
       
       for (const a of reservedAdjustments) {
-        const { data: variantRow } = await supabase.from('product_variants').select('reserved_stock').eq('id', a.variantId).single()
-        const currentReserved = (variantRow as unknown as { reserved_stock?: number } | null)?.reserved_stock ?? 0
-        await supabase
-          .from('product_variants')
-          .update({ reserved_stock: Math.max(0, currentReserved - a.quantity), updated_at: new Date().toISOString() })
-          .eq('id', a.variantId)
+        await supabase.rpc('release_product_stock', {
+          p_variant_id: a.variantId,
+          p_quantity: a.quantity,
+        })
       }
 
       return new Response(JSON.stringify({ error: 'Failed to create order items', details: itemsError.message }), {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
+    }
+
+    if (voucherId) {
+      const { error: voucherUsageError } = await supabase
+        .from('voucher_usage')
+        .upsert(
+          {
+            voucher_id: voucherId,
+            user_id: userId,
+            order_product_id: orderId,
+            discount_amount: discountAmount,
+            used_at: now.toISOString(),
+          },
+          { onConflict: 'order_product_id' }
+        )
+      if (voucherUsageError) {
+        console.error('[CashierOrder] Failed to create voucher usage:', voucherUsageError.message)
+      }
     }
 
     return new Response(JSON.stringify({ order_number: orderNumber, discount_amount: discountAmount }), {

@@ -1,8 +1,9 @@
 import { serve } from '../_shared/deps.ts'
 import { getMidtransBasicAuthHeader, getSnapUrl } from '../_shared/midtrans.ts'
-import { corsHeaders, handleCors } from '../_shared/http.ts'
+import { getCorsHeaders, handleCors } from '../_shared/http.ts'
 import { getMidtransEnv, getPublicAppUrl, getSupabaseEnv } from '../_shared/env.ts'
 import { createServiceClient, getUserFromAuthHeader } from '../_shared/supabase.ts'
+import { toNumber } from '../_shared/payment-effects.ts'
 
 interface OrderItem {
   ticketId: number
@@ -20,18 +21,10 @@ interface CreateTokenRequest {
   customerPhone?: string
 }
 
-function toNumber(value: unknown, fallback: number) {
-  if (typeof value === 'number') return Number.isFinite(value) ? value : fallback
-  if (typeof value === 'string' && value.trim() !== '') {
-    const parsed = Number(value)
-    return Number.isFinite(parsed) ? parsed : fallback
-  }
-  return fallback
-}
-
 serve(async (req) => {
   const corsResponse = handleCors(req)
   if (corsResponse) return corsResponse
+  const corsHeaders = getCorsHeaders(req)
 
   try {
     const { url: supabaseUrl, anonKey: supabaseAnonKey, serviceRoleKey: supabaseServiceKey } = getSupabaseEnv()

@@ -42,4 +42,5 @@ enabled = true
 enabled = false
 
 [functions.create-cashier-product-order]
-verify_jwt = false
+# Cashier app provides a valid Supabase JWT; keep verify_jwt enabled for platform-level auth gate.
+verify_jwt = true

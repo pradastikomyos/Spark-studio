@@ -204,11 +204,12 @@ export function getBookingBufferTime(bufferMinutes: number = 30): Date {
  */
 export function isTimeSlotBookable(
   dateString: string,
-  timeSlot: string
+  timeSlot: string,
+  referenceTime?: Date
 ): boolean {
   const slotStartTime = createWIBDate(dateString, timeSlot);
   const slotEndTime = addMinutes(slotStartTime, SESSION_DURATION_MINUTES);
-  const currentTime = nowWIB();
+  const currentTime = referenceTime ? new Date(referenceTime) : nowWIB();
   
   // Allow booking if session hasn't ended yet
   return slotEndTime > currentTime;

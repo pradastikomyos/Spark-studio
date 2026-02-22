@@ -1,5 +1,5 @@
 import { serve } from '../_shared/deps.ts'
-import { corsHeaders, handleCors, json } from '../_shared/http.ts'
+import { getCorsHeaders, handleCors, json } from '../_shared/http.ts'
 import { getSupabaseEnv } from '../_shared/env.ts'
 import { createServiceClient } from '../_shared/supabase.ts'
 import {
@@ -13,9 +13,10 @@ import {
 serve(async (req) => {
   const corsResponse = handleCors(req)
   if (corsResponse) return corsResponse
+  const corsHeaders = getCorsHeaders(req)
 
   if (req.method !== 'POST') {
-    return json({ error: 'Method not allowed' }, { status: 405 })
+    return json(req, { error: 'Method not allowed' }, { status: 405 })
   }
 
   try {
@@ -162,6 +163,7 @@ serve(async (req) => {
     })
 
     return json(
+      req,
       {
         status: 'ok',
         ticket_fix_count: ticketFixCount,
@@ -173,6 +175,7 @@ serve(async (req) => {
     )
   } catch (error) {
     return json(
+      req,
       { error: error instanceof Error ? error.message : 'Internal server error' },
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )

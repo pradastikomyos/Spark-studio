@@ -20,7 +20,7 @@ export default function CartPage() {
     if (selectedItems.size === 0 && items.length > 0) {
       setSelectedItems(new Set(items.map((i) => i.variantId)));
     }
-  }, [items.length]); // Dependency on length so if items are added we might re-evaluate? Ideally we typically select new items.
+  }, [items, selectedItems.size]); // Re-evaluate when cart contents or current selection changes.
 
   const toggleSelection = (id: number) => {
     const newSet = new Set(selectedItems);

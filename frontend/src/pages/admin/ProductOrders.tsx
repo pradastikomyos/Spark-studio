@@ -30,6 +30,7 @@ type OrderDetails = {
 };
 
 const TAB_RETURN_EVENT = 'tab-returned-from-idle';
+const EMPTY_ORDERS: OrderSummaryRow[] = [];
 
 export default function ProductOrders() {
   const { signOut, session } = useAuth();
@@ -48,7 +49,7 @@ export default function ProductOrders() {
   const inputRef = useRef<HTMLInputElement>(null);
 
   const { data, error, isLoading, isFetching, refetch } = useProductOrders();
-  const orders = data?.orders ?? [];
+  const orders = data?.orders ?? EMPTY_ORDERS;
   const pendingCount = data?.pendingCount ?? 0;
   const ordersError = error instanceof Error ? error.message : error ? 'Gagal memuat daftar pesanan' : null;
 

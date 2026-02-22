@@ -8,11 +8,8 @@
  */
 
 import { createClient } from 'jsr:@supabase/supabase-js@2';
-
-const corsHeaders = {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+import { getCorsHeaders, handleCors } from '../_shared/http.ts';
+import { logWebhookEvent } from '../_shared/payment-effects.ts';
 
 interface OrderItem {
     product_variant_id: number;
@@ -20,10 +17,9 @@ interface OrderItem {
 }
 
 Deno.serve(async (req) => {
-    // Handle CORS preflight
-    if (req.method === 'OPTIONS') {
-        return new Response('ok', { headers: corsHeaders });
-    }
+    const corsResponse = handleCors(req);
+    if (corsResponse) return corsResponse;
+    const corsHeaders = getCorsHeaders(req);
 
     try {
         const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
@@ -38,8 +34,8 @@ Deno.serve(async (req) => {
         // Find orders that are pending pickup and past expiry
         const { data: expiredOrders, error: fetchError } = await supabase
             .from('order_products')
-            .select('id, order_number, pickup_status, pickup_expires_at')
-            .eq('pickup_status', 'pending')
+            .select('id, order_number, pickup_status, pickup_expires_at, voucher_id')
+            .in('pickup_status', ['pending', 'pending_pickup'])
             .eq('payment_status', 'paid')
             .lt('pickup_expires_at', now);
 
@@ -85,10 +81,18 @@ Deno.serve(async (req) => {
                 const { data: orderItems, error: itemsError } = await supabase
                     .from('order_product_items')
                     .select('product_variant_id, quantity')
-                    .eq('order_id', order.id);
+                    .eq('order_product_id', order.id);
 
                 if (itemsError) {
                     console.error(`[Expire Product Orders] Error fetching items for order ${order.order_number}:`, itemsError);
+                    await logWebhookEvent(supabase, {
+                        orderNumber: order.order_number,
+                        eventType: 'expire_product_items_fetch_failed',
+                        payload: { error: itemsError.message },
+                        success: false,
+                        errorMessage: itemsError.message,
+                        processedAt: now,
+                    });
                     failedOrders.push(order.order_number);
                     continue;
                 }
@@ -103,7 +107,32 @@ Deno.serve(async (req) => {
 
                         if (releaseError) {
                             console.error(`[Expire Product Orders] Error releasing stock for variant ${item.product_variant_id}:`, releaseError);
+                            await logWebhookEvent(supabase, {
+                                orderNumber: order.order_number,
+                                eventType: 'expire_product_stock_release_failed',
+                                payload: { variant_id: item.product_variant_id, error: releaseError.message },
+                                success: false,
+                                errorMessage: releaseError.message,
+                                processedAt: now,
+                            });
                         }
+                    }
+                }
+
+                if (order.voucher_id) {
+                    const { error: voucherReleaseError } = await supabase.rpc('release_voucher_quota', {
+                        p_voucher_id: order.voucher_id,
+                    });
+                    if (voucherReleaseError) {
+                        console.error(`[Expire Product Orders] Error releasing voucher ${order.voucher_id}:`, voucherReleaseError);
+                        await logWebhookEvent(supabase, {
+                            orderNumber: order.order_number,
+                            eventType: 'expire_voucher_release_failed',
+                            payload: { voucher_id: order.voucher_id, error: voucherReleaseError.message },
+                            success: false,
+                            errorMessage: voucherReleaseError.message,
+                            processedAt: now,
+                        });
                     }
                 }
 
@@ -113,7 +142,8 @@ Deno.serve(async (req) => {
                     .update({
                         pickup_status: 'expired',
                         status: 'expired',
-                        stock_released_at: now
+                        stock_released_at: now,
+                        updated_at: now,
                     })
                     .eq('id', order.id);
 
@@ -125,9 +155,24 @@ Deno.serve(async (req) => {
 
                 expiredCount++;
                 console.log(`[Expire Product Orders] Expired order: ${order.order_number}`);
+                await logWebhookEvent(supabase, {
+                    orderNumber: order.order_number,
+                    eventType: 'expire_product_order',
+                    payload: { order_id: order.id },
+                    success: true,
+                    processedAt: now,
+                });
 
             } catch (orderErr) {
                 console.error(`[Expire Product Orders] Error processing order ${order.order_number}:`, orderErr);
+                await logWebhookEvent(supabase, {
+                    orderNumber: order.order_number,
+                    eventType: 'expire_product_order_failed',
+                    payload: { error: orderErr instanceof Error ? orderErr.message : String(orderErr) },
+                    success: false,
+                    errorMessage: orderErr instanceof Error ? orderErr.message : 'Unknown error',
+                    processedAt: now,
+                });
                 failedOrders.push(order.order_number);
             }
         }
