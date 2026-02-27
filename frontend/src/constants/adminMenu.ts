@@ -32,4 +32,11 @@ export const ADMIN_MENU_SECTIONS: AdminMenuSection[] = [
       { id: 'store-inventory', label: 'Stok & Produk', icon: 'inventory_2', path: '/admin/store' },
     ],
   },
+  {
+    id: 'fashion',
+    label: 'Fashion',
+    items: [
+      { id: 'fashion-lookbook', label: 'Lookbook Manager', icon: 'styler', path: '/admin/fashion' },
+    ],
+  },
 ];

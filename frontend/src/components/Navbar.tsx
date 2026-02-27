@@ -39,6 +39,7 @@ const Navbar = () => {
     if (path.startsWith('/on-stage')) return 'on-stage';
     if (path.startsWith('/events')) return 'event';
     if (path.startsWith('/shop')) return 'shop';
+    if (path.startsWith('/fashion')) return 'fashion';
     if (path.startsWith('/spark-club')) return 'spark-club';
     if (path.startsWith('/news')) return 'news';
     return '';
@@ -48,6 +49,7 @@ const Navbar = () => {
     { key: 'on-stage', label: 'ON STAGE', to: '/on-stage' },
     { key: 'event', label: 'EVENT', to: '/events' },
     { key: 'shop', label: 'SHOP', to: '/shop' },
+    { key: 'fashion', label: 'FASHION', to: '/fashion' },
     { key: 'spark-club', label: 'SPARK CLUB', to: '/spark-club' },
     { key: 'news', label: 'NEWS', to: '/news' },
   ] as const;
@@ -100,7 +102,7 @@ const Navbar = () => {
           <div className="md:w-1/3 flex items-center justify-end gap-4">
             {/* Stage 55 Logo - Desktop */}
             <div className="hidden md:block">
-              <img src="/images/landing/stage55.png" alt="Stage 55" className="h-14 w-auto md:h-18 object-contain" /> 
+              <img src="/images/landing/stage55.png" alt="Stage 55" className="h-14 w-auto md:h-18 object-contain" />
             </div>
 
             {user ? (
@@ -196,7 +198,7 @@ const Navbar = () => {
             <div className="md:hidden flex items-center gap-3">
               {/* Stage 55 Logo - Mobile */}
               <img src="/images/landing/stage55.png" alt="Stage 55" className="h-12 w-auto object-contain" />
-              
+
               <Link to="/cart" className="relative p-2 text-gray-700 active:text-main-600" aria-label={t('nav.cart')} onClick={closeMobileMenu}>
                 <ShoppingCart className="h-6 w-6" />
                 {totalQuantity > 0 && (
@@ -235,9 +237,9 @@ const Navbar = () => {
                 zIndex: 0
               }}
             >
-              <img 
-                src="/images/landing/ICON%20STAR-01.svg" 
-                alt="Active" 
+              <img
+                src="/images/landing/ICON%20STAR-01.svg"
+                alt="Active"
                 className="w-full h-full object-contain"
               />
             </div>
@@ -317,6 +319,13 @@ const Navbar = () => {
               className="block text-sm uppercase tracking-widest font-bold text-gray-900 active:text-main-600 py-3 px-2 active:bg-gray-50 rounded-lg transition-colors"
             >
               Shop
+            </Link>
+            <Link
+              to="/fashion"
+              onClick={closeMobileMenu}
+              className="block text-sm uppercase tracking-widest font-bold text-gray-900 active:text-main-600 py-3 px-2 active:bg-gray-50 rounded-lg transition-colors"
+            >
+              Fashion
             </Link>
             <Link
               to="/spark-club"

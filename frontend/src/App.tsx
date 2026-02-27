@@ -32,6 +32,7 @@ const OrderTicket = lazy(() => import('./pages/admin/OrderTicket'));
 const ProductOrders = lazy(() => import('./pages/admin/ProductOrders'));
 const VoucherManager = lazy(() => import('./pages/admin/VoucherManager'));
 const BannerManager = lazy(() => import('./pages/admin/BannerManager'));
+const FashionManager = lazy(() => import('./pages/admin/FashionManager'));
 const BookingPage = lazy(() => import('./pages/BookingPage'));
 const JourneySelectionPage = lazy(() => import('./pages/JourneySelectionPage'));
 const PaymentPage = lazy(() => import('./pages/PaymentPage'));
@@ -46,6 +47,7 @@ const MyProductOrdersPage = lazy(() => import('./pages/MyProductOrdersPage'));
 const MyTicketsPage = lazy(() => import('./pages/MyTicketsPage'));
 const StageScanPage = lazy(() => import('./pages/StageScanPage'));
 const StageDetailPage = lazy(() => import('./pages/StageDetailPage'));
+const FashionPage = lazy(() => import('./pages/FashionPage'));
 const NotFound = lazy(() => import('./pages/NotFound'));
 
 // App-level loading screen - shown until auth is initialized
@@ -286,6 +288,18 @@ function AppRoutes() {
             )
           }
         />
+        <Route
+          path="/admin/fashion"
+          element={
+            wrap(
+              <ProtectedRoute adminOnly>
+                <Suspense fallback={<RouteLoading />}>
+                  <FashionManager />
+                </Suspense>
+              </ProtectedRoute>
+            )
+          }
+        />
         <Route element={<PublicLayout />}>
           <Route index element={<Home />} />
           <Route
@@ -304,6 +318,26 @@ function AppRoutes() {
               wrap(
                 <Suspense fallback={<RouteLoading />}>
                   <Shop />
+                </Suspense>
+              )
+            }
+          />
+          <Route
+            path="fashion"
+            element={
+              wrap(
+                <Suspense fallback={<RouteLoading />}>
+                  <FashionPage />
+                </Suspense>
+              )
+            }
+          />
+          <Route
+            path="fashion/:collectionSlug"
+            element={
+              wrap(
+                <Suspense fallback={<RouteLoading />}>
+                  <FashionPage />
                 </Suspense>
               )
             }

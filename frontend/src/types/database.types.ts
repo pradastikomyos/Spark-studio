@@ -181,6 +181,96 @@ export type Database = {
           updated_at?: string | null
         }
       }
+      fashion_collections: {
+        Row: {
+          id: number
+          title: string
+          slug: string
+          description: string | null
+          cover_image_url: string | null
+          is_active: boolean
+          sort_order: number
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: number
+          title: string
+          slug: string
+          description?: string | null
+          cover_image_url?: string | null
+          is_active?: boolean
+          sort_order?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: number
+          title?: string
+          slug?: string
+          description?: string | null
+          cover_image_url?: string | null
+          is_active?: boolean
+          sort_order?: number
+          updated_at?: string
+        }
+      }
+      fashion_looks: {
+        Row: {
+          id: number
+          collection_id: number
+          look_number: number
+          model_image_url: string
+          model_name: string | null
+          sort_order: number
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: number
+          collection_id: number
+          look_number: number
+          model_image_url: string
+          model_name?: string | null
+          sort_order?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: number
+          collection_id?: number
+          look_number?: number
+          model_image_url?: string
+          model_name?: string | null
+          sort_order?: number
+          updated_at?: string
+        }
+      }
+      fashion_look_items: {
+        Row: {
+          id: number
+          look_id: number
+          product_variant_id: number
+          label: string | null
+          sort_order: number
+          created_at: string
+        }
+        Insert: {
+          id?: number
+          look_id: number
+          product_variant_id: number
+          label?: string | null
+          sort_order?: number
+          created_at?: string
+        }
+        Update: {
+          id?: number
+          look_id?: number
+          product_variant_id?: number
+          label?: string | null
+          sort_order?: number
+        }
+      }
     }
   }
 }
