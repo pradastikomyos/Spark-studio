@@ -1109,8 +1109,8 @@ const StoreInventory = () => {
 
       {deletingProduct && (
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
-          <div className="absolute inset-0 bg-black/60" onClick={() => !saving && setDeletingProduct(null)}></div>
-          <div className="relative w-full max-w-md rounded-xl border border-gray-200 bg-white p-6 shadow-2xl">
+          <div className="absolute inset-0 bg-black/60 animate-fade-in" onClick={() => !saving && setDeletingProduct(null)}></div>
+          <div className="relative w-full max-w-md rounded-xl border border-gray-200 bg-white p-6 shadow-2xl animate-fade-in-scale">
             <h3 className="text-lg font-bold text-gray-900">Delete product?</h3>
             <p className="mt-2 text-sm text-gray-600">
               This will soft-delete <span className="font-bold text-gray-900">{deletingProduct.name}</span>.

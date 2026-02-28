@@ -126,9 +126,13 @@ export default function StageGalleryModal({ isOpen, onClose, stage }: StageGalle
     if (!isOpen) return null;
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
             <div 
-                className="w-full max-w-4xl rounded-xl bg-white shadow-xl max-h-[90vh] overflow-hidden flex flex-col" 
+                className="absolute inset-0 bg-black/60 animate-fade-in" 
+                onClick={onClose}
+            ></div>
+            <div 
+                className="relative w-full max-w-4xl rounded-xl bg-white shadow-xl max-h-[90vh] overflow-hidden flex flex-col animate-fade-in-scale" 
                 onClick={e => e.stopPropagation()}
             >
                 {/* Header */}

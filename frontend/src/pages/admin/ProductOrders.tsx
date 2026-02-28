@@ -485,8 +485,12 @@ export default function ProductOrders() {
       />
 
       {details && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={() => setDetails(null)}>
-          <div className="w-full max-w-2xl rounded-xl bg-white border border-gray-200 shadow-xl" onClick={(e) => e.stopPropagation()}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div 
+            className="absolute inset-0 bg-black/60 animate-fade-in" 
+            onClick={() => setDetails(null)}
+          ></div>
+          <div className="relative w-full max-w-2xl rounded-xl bg-white border border-gray-200 shadow-xl animate-fade-in-scale" onClick={(e) => e.stopPropagation()}>
             <div className="p-6 border-b border-gray-200 flex items-start justify-between gap-4">
               <div className="min-w-0">
                 <p className="text-xs uppercase tracking-widest text-gray-500">Pickup Code</p>

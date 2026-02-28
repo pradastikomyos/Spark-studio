@@ -7,6 +7,7 @@ import { createQuerySignal } from '../lib/fetchers';
 import { withTimeout } from '../utils/queryHelpers';
 import { getOrderStatusPresentation } from '../utils/midtransStatus';
 import { useAuth } from '../contexts/AuthContext';
+import BrandedLoader from '../components/BrandedLoader';
 import BookingSuccessSkeleton from '../components/skeletons/BookingSuccessSkeleton';
 import { incrementMetric, METRIC_KEYS, readMetric } from '../utils/metrics';
 
@@ -951,21 +952,15 @@ export default function BookingSuccessPage() {
               <div className="p-8 md:p-12 text-center">
                 {effectiveStatus === 'pending' ? (
                   <div className="flex flex-col items-center justify-center py-4">
-                    {/* Magic/Spark Animation Container */}
-                    <div className="relative mb-6">
-                      <div className="absolute inset-0 bg-primary/30 blur-2xl rounded-full animate-pulse"></div>
-                      <div className="relative bg-white p-5 rounded-full border-2 border-primary/20 shadow-xl shadow-primary/20">
-                        <span className="material-symbols-outlined text-5xl text-primary animate-spin" style={{ animationDuration: '2s' }}>
-                          auto_awesome
-                        </span>
-                      </div>
-                    </div>
+                    {/* Branded Logo Loader */}
+                    <BrandedLoader 
+                      text="Summoning Your Pass..."
+                      size="lg"
+                      className="py-8"
+                    />
 
                     {/* Experience Text */}
-                    <h2 className="text-2xl font-display font-bold text-neutral-900 mb-2">
-                      Summoning Your Pass...
-                    </h2>
-                    <p className="text-gray-500 font-medium animate-pulse">
+                    <p className="text-gray-500 font-medium mt-4">
                       Finalizing your magical journey to the stage.
                     </p>
 

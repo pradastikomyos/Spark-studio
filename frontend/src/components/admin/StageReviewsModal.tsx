@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useToast } from '../Toast';
 import { StageRow } from '../../hooks/useStages';
+import BrandedLoader from '../BrandedLoader';
 
 interface StageReviewsModalProps {
     isOpen: boolean;
@@ -102,9 +103,13 @@ export default function StageReviewsModal({ isOpen, onClose, stage }: StageRevie
     if (!isOpen) return null;
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
-             <div 
-                className="w-full max-w-2xl rounded-xl bg-white shadow-xl max-h-[90vh] overflow-hidden flex flex-col" 
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div 
+                className="absolute inset-0 bg-black/60 animate-fade-in" 
+                onClick={onClose}
+            ></div>
+            <div 
+                className="relative w-full max-w-2xl rounded-xl bg-white shadow-xl max-h-[90vh] overflow-hidden flex flex-col animate-fade-in-scale" 
                 onClick={e => e.stopPropagation()}
             >
                 {/* Header */}
@@ -121,9 +126,7 @@ export default function StageReviewsModal({ isOpen, onClose, stage }: StageRevie
                 {/* Content */}
                 <div className="p-6 flex-1 overflow-y-auto">
                     {loading ? (
-                        <div className="flex justify-center py-12">
-                            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-                        </div>
+                        <BrandedLoader text="Loading reviews..." size="md" className="py-12" />
                     ) : reviews.length === 0 ? (
                         <div className="text-center py-12">
                             <span className="material-symbols-outlined text-4xl text-gray-300 mb-2">rate_review</span>

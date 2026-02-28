@@ -207,8 +207,8 @@ export default function CategoryManager({ isOpen, onClose, onUpdate }: CategoryM
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center px-4 py-6">
-      <div className="absolute inset-0 bg-black/60" onClick={onClose}></div>
-      <div className="relative flex max-h-[90vh] w-full max-w-3xl flex-col rounded-xl border border-gray-200 bg-white shadow-2xl">
+      <div className="absolute inset-0 bg-black/60 animate-fade-in" onClick={onClose}></div>
+      <div className="relative flex max-h-[90vh] w-full max-w-3xl flex-col rounded-xl border border-gray-200 bg-white shadow-2xl animate-fade-in-scale">
         <div className="flex shrink-0 items-start justify-between border-b border-gray-200 px-6 py-5">
           <div>
             <h3 className="text-lg font-bold">Category Management</h3>

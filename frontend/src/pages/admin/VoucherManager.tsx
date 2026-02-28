@@ -524,8 +524,12 @@ export default function VoucherManager() {
       </div>
 
       {showForm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={() => setShowForm(false)}>
-          <div className="w-full max-w-3xl rounded-xl bg-white shadow-xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div 
+            className="absolute inset-0 bg-black/60 animate-fade-in" 
+            onClick={() => setShowForm(false)}
+          ></div>
+          <div className="relative w-full max-w-3xl rounded-xl bg-white shadow-xl max-h-[90vh] overflow-y-auto animate-fade-in-scale" onClick={(e) => e.stopPropagation()}>
             <div className="p-6 border-b border-gray-200 flex items-center justify-between sticky top-0 bg-white z-10">
               <h3 className="text-xl font-bold text-gray-900">
                 {editingVoucher ? t('admin.vouchers.form.editTitle') : t('admin.vouchers.form.createTitle')}
