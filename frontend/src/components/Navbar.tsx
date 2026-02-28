@@ -443,16 +443,6 @@ const Navbar = () => {
             </>
           )}
 
-          {!user && (
-            <Link
-              to="/login"
-              className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full bg-main-600 text-white px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider active:bg-main-700"
-            >
-              <UserRound className="h-3.5 w-3.5" />
-              {t('auth.signIn')}
-            </Link>
-          )}
-
         </div>
       </div>
 
