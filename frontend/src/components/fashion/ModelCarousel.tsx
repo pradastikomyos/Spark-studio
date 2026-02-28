@@ -1,11 +1,14 @@
-import { useState, useCallback, useEffect } from 'react';
-import { motion, AnimatePresence, type PanInfo } from 'framer-motion';
+import { useRef, useState, useCallback, useEffect } from 'react';
+import { motion, AnimatePresence, useReducedMotion, type PanInfo } from 'framer-motion';
 import type { FashionLook } from '../../hooks/useFashionCollection';
+import { getOptimizedFashionModelUrl } from '../../utils/fashionImageUrl';
 
 interface ModelCarouselProps {
     looks: FashionLook[];
     activeIndex: number;
     onActiveChange: (index: number) => void;
+    productsCount?: number;
+    onOpenProducts?: () => void;
 }
 
 // How many upcoming models to preview behind (to the left of) the active one
@@ -47,7 +50,7 @@ function getModelTransform(offset: number, containerWidth: number) {
     const opacityMap = [1, 0.84, 0.58, 0.34];
     const opacity = opacityMap[absOffset] ?? 0.26;
 
-    // Blur
+    // Blur (expensive on mobile)
     const blurMap = [0, 2.5, 5.5, 8.5];
     const blur = blurMap[absOffset] ?? 10.5;
 
@@ -62,20 +65,35 @@ function getModelTransform(offset: number, containerWidth: number) {
     return { scaleX, scaleY, opacity, x, blur, zIndex, display: true };
 }
 
-export default function ModelCarousel({ looks, activeIndex, onActiveChange }: ModelCarouselProps) {
+export default function ModelCarousel({ looks, activeIndex, onActiveChange, productsCount, onOpenProducts }: ModelCarouselProps) {
     const [containerWidth, setContainerWidth] = useState(800);
+    const [windowHeight, setWindowHeight] = useState(() => (typeof window !== 'undefined' ? window.innerHeight : 900));
     const [isDragging, setIsDragging] = useState(false);
+    const prefersReducedMotion = useReducedMotion();
+    const resizeObserverRef = useRef<ResizeObserver | null>(null);
 
     // Measure container
     const containerRef = useCallback((node: HTMLDivElement | null) => {
+        resizeObserverRef.current?.disconnect();
+        resizeObserverRef.current = null;
+
         if (!node) return;
+
         const ro = new ResizeObserver((entries) => {
-            for (const entry of entries) {
-                setContainerWidth(entry.contentRect.width);
-            }
+            for (const entry of entries) setContainerWidth(entry.contentRect.width);
         });
         ro.observe(node);
-        return () => ro.disconnect();
+        resizeObserverRef.current = ro;
+    }, []);
+
+    useEffect(() => {
+        return () => resizeObserverRef.current?.disconnect();
+    }, []);
+
+    useEffect(() => {
+        const onResize = () => setWindowHeight(window.innerHeight);
+        window.addEventListener('resize', onResize, { passive: true });
+        return () => window.removeEventListener('resize', onResize);
     }, []);
 
     const goNext = useCallback(() => {
@@ -107,6 +125,27 @@ export default function ModelCarousel({ looks, activeIndex, onActiveChange }: Mo
         if (info.offset.x > threshold) goNext();       // swipe right = advance
         else if (info.offset.x < -threshold) goPrev(); // swipe left = go back
     };
+
+    const isMobileWidth = containerWidth < 640;
+    const shouldUseBlur = !prefersReducedMotion && !isMobileWidth;
+
+    const devicePixelRatio = typeof window !== 'undefined' ? (window.devicePixelRatio || 1) : 1;
+    const chromeOffset = isMobileWidth ? 270 : 220;
+    const maxCssHeight = Math.max(200, windowHeight - chromeOffset);
+    const activeHeightPx = Math.min(2200, Math.max(1200, Math.round(maxCssHeight * devicePixelRatio)));
+    const previewHeightPx = Math.min(1800, Math.max(900, Math.round(activeHeightPx * 0.75)));
+
+    useEffect(() => {
+        if (looks.length === 0) return;
+        if (activeIndex !== 0) return;
+        const active = looks[0];
+        if (!active?.model_image_url) return;
+
+        const src = getOptimizedFashionModelUrl(active.model_image_url, { height: activeHeightPx });
+        const img = new Image();
+        img.decoding = 'async';
+        img.src = src;
+    }, [activeHeightPx, activeIndex, looks]);
 
     if (looks.length === 0) {
         return (
@@ -141,6 +180,10 @@ export default function ModelCarousel({ looks, activeIndex, onActiveChange }: Mo
                         const t = getModelTransform(offset, containerWidth);
                         if (!t.display) return null;
 
+                        const originalSrc = look.model_image_url;
+                        const targetHeight = offset === 0 ? activeHeightPx : previewHeightPx;
+                        const optimizedSrc = getOptimizedFashionModelUrl(originalSrc, { height: targetHeight });
+
                         return (
                             <motion.div
                                 key={look.id}
@@ -151,25 +194,32 @@ export default function ModelCarousel({ looks, activeIndex, onActiveChange }: Mo
                                     scaleY: t.scaleY,
                                     opacity: t.opacity,
                                     x: t.x,
-                                    filter: `blur(${t.blur}px)`,
-                                    zIndex: t.zIndex,
                                 }}
                                 exit={{ scaleX: 0.35, scaleY: 0.3, opacity: 0, x: containerWidth + 200 }}
-                                transition={SPRING}
+                                transition={prefersReducedMotion ? { duration: 0.01 } : SPRING}
                                 onClick={() => {
                                     if (!isDragging && offset !== 0) onActiveChange(index);
                                 }}
                                 style={{
-                                    willChange: 'transform, filter, opacity',
+                                    willChange: shouldUseBlur ? 'transform, filter, opacity' : 'transform, opacity',
                                     cursor: offset !== 0 ? 'pointer' : 'default',
                                     transformOrigin: 'bottom center',
+                                    zIndex: t.zIndex,
+                                    filter: shouldUseBlur ? `blur(${t.blur}px)` : undefined,
                                 }}
                             >
                                 <img
-                                    src={look.model_image_url}
+                                    src={optimizedSrc}
                                     alt={look.model_name || `Look ${look.look_number}`}
-                                    className="h-full max-h-[calc(100vh-270px)] sm:max-h-[calc(100vh-220px)] w-auto max-w-none object-contain pointer-events-none select-none"
+                                    className="h-full max-h-[calc(100vh-270px)] max-h-[calc(100dvh-270px)] sm:max-h-[calc(100vh-220px)] sm:max-h-[calc(100dvh-220px)] w-auto max-w-none object-contain pointer-events-none select-none"
                                     draggable={false}
+                                    loading={offset === 0 ? 'eager' : 'lazy'}
+                                    decoding="async"
+                                    onError={(event) => {
+                                        const img = event.currentTarget;
+                                        if ((img.getAttribute('src') ?? '') === originalSrc) return;
+                                        img.setAttribute('src', originalSrc);
+                                    }}
                                 />
                             </motion.div>
                         );
@@ -178,7 +228,7 @@ export default function ModelCarousel({ looks, activeIndex, onActiveChange }: Mo
             </motion.div>
 
             {/* Bottom bar: look number + nav */}
-            <div className="flex items-center justify-between py-3 px-1 flex-shrink-0">
+            <div className="flex items-center justify-between py-3 px-1 flex-shrink-0 pb-[calc(env(safe-area-inset-bottom)+12px)]">
                 <div>
                     <h2 className="text-xl md:text-2xl font-display tracking-[0.15em] text-gray-900 uppercase">
                         Look {String(looks[activeIndex]?.look_number ?? 0).padStart(2, '0')}
@@ -195,7 +245,7 @@ export default function ModelCarousel({ looks, activeIndex, onActiveChange }: Mo
                     <button
                         onClick={goPrev}
                         disabled={activeIndex === 0}
-                        className="p-1.5 text-gray-400 hover:text-gray-900 disabled:opacity-20 disabled:cursor-not-allowed transition-colors"
+                        className="h-11 w-11 inline-flex items-center justify-center text-gray-400 hover:text-gray-900 disabled:opacity-20 disabled:cursor-not-allowed transition-colors"
                         aria-label="Previous look"
                     >
                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-4 h-4">
@@ -203,30 +253,45 @@ export default function ModelCarousel({ looks, activeIndex, onActiveChange }: Mo
                         </svg>
                     </button>
 
-                    <div className="flex gap-1.5 flex-row-reverse">
+                    <div className="flex gap-0.5 flex-row-reverse">
                         {looks.map((_, idx) => (
                             <button
                                 key={idx}
                                 onClick={() => onActiveChange(idx)}
-                                className={`rounded-full transition-all duration-300 ${idx === activeIndex
-                                    ? 'bg-gray-800 w-5 h-1.5'
-                                    : 'bg-gray-300 hover:bg-gray-400 w-1.5 h-1.5'
-                                    }`}
+                                className="group h-11 w-9 inline-flex items-center justify-center"
                                 aria-label={`Go to Look ${idx + 1}`}
-                            />
+                            >
+                                <span
+                                    className={`rounded-full transition-all duration-300 ${idx === activeIndex
+                                        ? 'bg-gray-800 w-5 h-1.5'
+                                        : 'bg-gray-300 group-hover:bg-gray-400 w-1.5 h-1.5'
+                                        }`.trim()}
+                                />
+                            </button>
                         ))}
                     </div>
 
                     <button
                         onClick={goNext}
                         disabled={activeIndex === looks.length - 1}
-                        className="p-1.5 text-gray-400 hover:text-gray-900 disabled:opacity-20 disabled:cursor-not-allowed transition-colors"
+                        className="h-11 w-11 inline-flex items-center justify-center text-gray-400 hover:text-gray-900 disabled:opacity-20 disabled:cursor-not-allowed transition-colors"
                         aria-label="Next look"
                     >
                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-4 h-4">
                             <path d="M9 18l6-6-6-6" />
                         </svg>
                     </button>
+
+                    {onOpenProducts && productsCount !== undefined && (
+                        <button
+                            type="button"
+                            onClick={onOpenProducts}
+                            className="md:hidden h-11 px-3 rounded-full bg-white/70 hover:bg-white text-gray-800 border border-black/10 shadow-sm text-xs tracking-wide"
+                            aria-label="Open products"
+                        >
+                            {productsCount > 0 ? `Products (${productsCount})` : 'Products'}
+                        </button>
+                    )}
                 </div>
             </div>
         </div>

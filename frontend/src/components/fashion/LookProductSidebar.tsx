@@ -6,6 +6,7 @@ import { Heart, Plus } from 'lucide-react';
 interface LookProductSidebarProps {
     items: FashionLookItem[];
     lookNumber: number;
+    density?: 'compact' | 'comfortable';
 }
 
 function formatPrice(price: number | null): string {
@@ -18,7 +19,9 @@ function formatPrice(price: number | null): string {
     }).format(price);
 }
 
-export default function LookProductSidebar({ items, lookNumber }: LookProductSidebarProps) {
+export default function LookProductSidebar({ items, lookNumber, density = 'compact' }: LookProductSidebarProps) {
+    const isComfortable = density === 'comfortable';
+
     if (items.length === 0) {
         return (
             <div className="flex items-center justify-center h-full text-gray-400 p-4 sm:p-6">
@@ -37,7 +40,9 @@ export default function LookProductSidebar({ items, lookNumber }: LookProductSid
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -20 }}
                 transition={{ duration: 0.3 }}
-                className="px-2 sm:px-3 md:px-4 lg:px-5 py-3 sm:py-4 space-y-3 sm:space-y-4 lg:space-y-5"
+                className={[
+                    isComfortable ? 'px-4 py-4 space-y-4' : 'px-2 sm:px-3 md:px-4 lg:px-5 py-3 sm:py-4 space-y-3 sm:space-y-4 lg:space-y-5',
+                ].join(' ')}
             >
                 {items.map((item, idx) => {
                     const variant = item.product_variant;
@@ -58,12 +63,12 @@ export default function LookProductSidebar({ items, lookNumber }: LookProductSid
                             {/* === SINGLE CARD: heart, image, name, price, + all inside === */}
 
                             {/* Heart — top-left inside card */}
-                            <div className="flex justify-start px-2 sm:px-3 md:px-4 pt-2 sm:pt-3">
+                            <div className={isComfortable ? 'flex justify-start px-3 pt-3' : 'flex justify-start px-2 sm:px-3 md:px-4 pt-2 sm:pt-3'}>
                                 <button
-                                    className="text-gray-500 hover:text-red-400 transition-colors"
+                                    className="h-11 w-11 -ml-2 -mt-2 inline-flex items-center justify-center text-gray-500 hover:text-red-400 transition-colors"
                                     aria-label="Add to wishlist"
                                 >
-                                    <Heart className="w-3.5 h-3.5 sm:w-4 sm:h-4 lg:w-[18px] lg:h-[18px]" strokeWidth={1.8} />
+                                    <Heart className={isComfortable ? 'w-5 h-5' : 'w-3.5 h-3.5 sm:w-4 sm:h-4 lg:w-[18px] lg:h-[18px]'} strokeWidth={1.8} />
                                 </button>
                             </div>
 
@@ -72,13 +77,14 @@ export default function LookProductSidebar({ items, lookNumber }: LookProductSid
                                 to={product?.id ? `/shop/product/${product.id}` : '#'}
                                 className="block"
                             >
-                                <div className="aspect-square overflow-hidden px-2 sm:px-3 md:px-4 lg:px-5 py-1.5 sm:py-2">
+                                <div className={isComfortable ? 'aspect-square overflow-hidden px-3 py-2' : 'aspect-square overflow-hidden px-2 sm:px-3 md:px-4 lg:px-5 py-1.5 sm:py-2'}>
                                     {imageUrl ? (
                                         <img
                                             src={imageUrl}
                                             alt={displayName}
-                                            className="w-full h-full object-contain hover:scale-105 transition-transform duration-500"
+                                            className="w-full h-full object-contain hover:scale-105 transition-transform duration-500 motion-reduce:transition-none motion-reduce:hover:scale-100"
                                             loading="lazy"
+                                            decoding="async"
                                         />
                                     ) : (
                                         <div className="w-full h-full flex items-center justify-center text-gray-200">
@@ -93,25 +99,30 @@ export default function LookProductSidebar({ items, lookNumber }: LookProductSid
                             </Link>
 
                             {/* Name */}
-                            <div className="px-2 sm:px-3 md:px-4 pt-1.5 sm:pt-2">
-                                <p className="text-[9px] sm:text-[9.5px] md:text-[10px] font-medium uppercase tracking-[0.08em] text-gray-700 leading-snug">
+                            <div className={isComfortable ? 'px-3 pt-2.5' : 'px-2 sm:px-3 md:px-4 pt-1.5 sm:pt-2'}>
+                                <p
+                                    className={[
+                                        isComfortable ? 'text-xs' : 'text-[9px] sm:text-[9.5px] md:text-[10px]',
+                                        'font-medium uppercase tracking-[0.08em] text-gray-700 leading-snug',
+                                    ].join(' ')}
+                                >
                                     {displayName}
                                 </p>
                             </div>
 
                             {/* Price + Add button — bottom row */}
-                            <div className="flex items-center justify-between px-2 sm:px-3 md:px-4 pt-1 pb-2 sm:pb-3">
+                            <div className={isComfortable ? 'flex items-center justify-between px-3 pt-1.5 pb-3' : 'flex items-center justify-between px-2 sm:px-3 md:px-4 pt-1 pb-2 sm:pb-3'}>
                                 {variant.price !== null ? (
-                                    <p className="text-[9px] sm:text-[9.5px] md:text-[10px] text-gray-400">
+                                    <p className={isComfortable ? 'text-xs text-gray-500' : 'text-[9px] sm:text-[9.5px] md:text-[10px] text-gray-400'}>
                                         {formatPrice(variant.price)}
                                     </p>
                                 ) : <span />}
 
                                 <button
-                                    className="text-gray-500 hover:text-gray-900 transition-colors"
+                                    className="h-11 w-11 inline-flex items-center justify-center text-gray-500 hover:text-gray-900 transition-colors"
                                     aria-label="Add to bag"
                                 >
-                                    <Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4" strokeWidth={2} />
+                                    <Plus className={isComfortable ? 'w-5 h-5' : 'w-3.5 h-3.5 sm:w-4 sm:h-4'} strokeWidth={2} />
                                 </button>
                             </div>
                         </motion.div>

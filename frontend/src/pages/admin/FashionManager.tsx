@@ -6,6 +6,7 @@ import AdminLayout from '../../components/AdminLayout';
 import { ADMIN_MENU_ITEMS, ADMIN_MENU_SECTIONS } from '../../constants/adminMenu';
 import { supabase } from '../../lib/supabase';
 import { uploadFashionImage, deleteFashionImage } from '../../utils/uploadFashionImage';
+import { getOptimizedFashionModelUrl } from '../../utils/fashionImageUrl';
 
 // ─── Types ──────────────────────────────────────────────────────────────
 interface FashionCollection {
@@ -547,6 +548,8 @@ export default function FashionManager() {
                                             const t = getModelTransform(offset, containerWidth);
                                             if (!t.display) return null;
                                             const isActive = offset === 0;
+                                            const originalSrc = look.model_image_url;
+                                            const optimizedSrc = originalSrc ? getOptimizedFashionModelUrl(originalSrc, { height: 900 }) : '';
                                             return (
                                                 <motion.div
                                                     key={look.id}
@@ -560,9 +563,19 @@ export default function FashionManager() {
                                                 >
                                                     {look.model_image_url ? (
                                                         <div className="relative group">
-                                                            <img src={look.model_image_url} alt={`Look ${look.look_number}`}
+                                                            <img
+                                                                src={optimizedSrc}
+                                                                alt={`Look ${look.look_number}`}
                                                                 className="h-full max-h-[400px] w-auto max-w-none object-contain pointer-events-none select-none"
-                                                                draggable={false} />
+                                                                draggable={false}
+                                                                decoding="async"
+                                                                loading={isActive ? 'eager' : 'lazy'}
+                                                                onError={(event) => {
+                                                                    const img = event.currentTarget;
+                                                                    if ((img.getAttribute('src') ?? '') === originalSrc) return;
+                                                                    img.setAttribute('src', originalSrc);
+                                                                }}
+                                                            />
                                                             {/* Overlay on active: click to re-upload */}
                                                             {isActive && (
                                                                 <button
