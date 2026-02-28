@@ -1,84 +1,19 @@
 import { useState } from 'react';
 import { useBanners } from '../hooks/useBanners';
 import { HeroBannerCarousel } from '../components/HeroBannerCarousel';
-
-interface Event {
-  id: number;
-  title: string;
-  description: string;
-  date: {
-    month: string;
-    day: number;
-  };
-  time: string;
-  category: string;
-  image?: string;
-  placeholder?: string;
-  buttonText: string;
-}
+import { useEventSchedule } from '../hooks/useEventSchedule';
+import { EventScheduleCard } from '../components/events/EventScheduleCard';
 
 const Events = () => {
-  const [activeFilter, setActiveFilter] = useState('All Events');
+  const [activeFilter, setActiveFilter] = useState('Events');
 
   const { data: eventsBanners = [], isLoading: bannersLoading } = useBanners('events');
-
-  const events: Event[] = [
-    {
-      id: 1,
-      title: 'Fashion Editorial Lighting',
-      description: 'Master the art of high-fashion lighting setups with our lead studio director. Learn to shape light for dramatic effect.',
-      date: { month: 'Oct', day: 12 },
-      time: '10:00 AM - 4:00 PM',
-      category: 'Workshop',
-      image: 'https://lh3.googleusercontent.com/aida-public/AB6AXuA588h4jJ4oHsovcFrCVzPKpp_UEjMxSSaafs_xzNqq498XDUCQpkVffgJCVjBFT85Msi-UXYkt5KQ8ZcHb6fzvA8mtRH7-hX0l8f1xMsXecfiYvU83maNSDjKeTD0W5bbAOX6LQyDRPar2Jpzg31Y5y9IwBfo7TkmpZbNGwcViuL7c7dOk0sa29H3Io-qLVN_XkNZwg_tVz3gP2wvtVBkmz-H-HRqYu8-JLTHlXNR3wZM_jcd8DttsIZO2CVe4K7GQadHKa6EfjYA',
-      buttonText: 'Register',
-    },
-    {
-      id: 2,
-      title: 'Beauty & Skin Retouching',
-      description: 'A comprehensive guide to natural skin retouching and color grading for beauty photography.',
-      date: { month: 'Oct', day: 18 },
-      time: '1:00 PM - 5:00 PM',
-      category: 'Seminar',
-      image: 'https://lh3.googleusercontent.com/aida-public/AB6AXuCkJ5TljbcL9JErzdImZpHysbVXEAVI6KflXWpPCI9Bl6k0ajJt___aOnK4LFmj6UfRmrolcZFtgA2hqaWEw7N58b9DfHSOSSvzQz9Qld-YEePxFI-i7tFQnCs17and8i1b9mxb70Dn7WAaQT1HMG8AHXeq9Tdrb1XKGBLB5AWXu9lccyaLz9HSMeO-JT0eTAKii9eqrjAx64mn1XBl0YkrRe8yhzdMVdiBmy97UQzlQFjsQiLXmTMWruIXzBdZgT4D4oZq9cmXgfg',
-      buttonText: 'Register',
-    },
-    {
-      id: 3,
-      title: 'The Analog Experience',
-      description: 'Return to the roots of photography. Hands-on film development session in our darkroom.',
-      date: { month: 'Nov', day: 5 },
-      time: '11:00 AM - 6:00 PM',
-      category: 'Masterclass',
-      placeholder: 'photo_camera',
-      buttonText: 'Register',
-    },
-    {
-      id: 4,
-      title: 'Shadows & Light Gallery',
-      description: 'Opening night for our resident artists. Wine and cheese reception included.',
-      date: { month: 'Nov', day: 12 },
-      time: '7:00 PM - 10:00 PM',
-      category: 'Exhibition',
-      image: 'https://lh3.googleusercontent.com/aida-public/AB6AXuBXsDj0az3zzKzPuGWFNVkv93Z05vEWEttTgUqh4SS7iW-kLSNN2_0jvc-v4pho8kz2OqrqnpiQWh4vBzn87isw1yCP1VE1HXsHHOHubRuhCY6LmQpM3KdjfATKhPb2413xZu1naHDWVkwgWTK9sWUI-jwpMrYUO-6Uad1Qcq7NStqNGjpzbzTLH7nXSLD8e_CIiD6qurTg-eVxRwpK34LWyWrNCYPlMJqhFEbs2rUPPUn2uOz-B8JOZCi3FsjDK7b_ExLsUFMJyrA',
-      buttonText: 'RSVP',
-    },
-    {
-      id: 5,
-      title: 'Color Theory in Set Design',
-      description: 'Understanding how color palettes influence the mood of your photography.',
-      date: { month: 'Nov', day: 24 },
-      time: '2:00 PM - 5:00 PM',
-      category: 'Workshop',
-      placeholder: 'palette',
-      buttonText: 'Register',
-    },
-  ];
+  const { data: schedule = [], isLoading: scheduleLoading, error: scheduleError } = useEventSchedule();
 
   const filters = ['Events'];
   // , 'Workshops', 'Exhibitions', 'Masterclass' (punya atas)
 
-  if (bannersLoading) {
+  if (bannersLoading || scheduleLoading) {
     return (
       <div className="bg-white min-h-screen flex items-center justify-center">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-main-600"></div>
@@ -179,86 +114,19 @@ const Events = () => {
 
         {/* Events Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 mb-24">
-          {events.map((event) => (
-            <article
-              key={event.id}
-              className="group bg-white rounded-2xl overflow-hidden border border-gray-100 shadow-sm hover:shadow-xl hover:shadow-primary/10:shadow-primary/5 transition-all duration-500 flex flex-col relative"
-            >
-              {/* Coming Soon Badge */}
-              <div className="absolute top-4 right-4 z-10 bg-yellow-500 text-black text-xs font-bold uppercase tracking-widest px-3 py-1 rounded-full shadow-lg">
-                Coming Soon
-              </div>
-              
-              <div className="relative h-64 overflow-hidden">
-                {event.image ? (
-                  <img
-                    alt={event.title}
-                    className={`w-full h-full object-cover transition-transform duration-700 group-hover:scale-105 ${event.id === 4 ? 'grayscale hover:grayscale-0' : ''
-                      }`}
-                    src={event.image}
-                  />
-                ) : (
-                  <div className="w-full h-full bg-gray-50 flex items-center justify-center relative">
-                    {event.placeholder === 'photo_camera' && (
-                      <div
-                        className="absolute inset-0 opacity-10"
-                        style={{
-                          backgroundImage: 'radial-gradient(#ff4b86 1px, transparent 1px)',
-                          backgroundSize: '20px 20px',
-                        }}
-                      ></div>
-                    )}
-                    <div className="text-center z-10">
-                      <span className="material-symbols-outlined text-6xl text-primary/40">
-                        {event.placeholder}
-                      </span>
-                    </div>
-                  </div>
-                )}
-                <div className="absolute top-4 left-4 bg-white/95 backdrop-blur text-center py-2 px-3 rounded-lg shadow-sm border border-gray-100">
-                  <span className="block text-xs uppercase font-bold text-gray-400">
-                    {event.date.month}
-                  </span>
-                  <span className="block text-xl font-display font-bold text-primary">{event.date.day}</span>
-                </div>
-                <div className="absolute bottom-4 right-4">
-                  <span
-                    className={`${event.category === 'Workshop' || event.category === 'Masterclass'
-                      ? 'bg-primary'
-                      : 'bg-gray-900'
-                      } text-white text-[10px] font-bold uppercase tracking-widest px-3 py-1 rounded-full shadow-md`}
-                  >
-                    {event.category}
-                  </span>
-                </div>
-              </div>
-              <div className="p-8 flex-grow flex flex-col">
-                <div className="mb-4">
-                  <h3 className="font-display text-2xl font-bold text-text-light mb-2 group-hover:text-primary transition-colors">
-                    {event.title}
-                  </h3>
-                  <p className="text-sm font-light text-subtext-light line-clamp-2">
-                    {event.description}
-                  </p>
-                </div>
-                <div className="mt-auto pt-6 border-t border-gray-50 flex items-center justify-between">
-                  <div className="flex items-center text-gray-400 text-xs font-bold uppercase tracking-wider">
-                    <span className="material-symbols-outlined text-base mr-1">schedule</span>
-                    {event.time}
-                  </div>
-                  <button 
-                    disabled
-                    className="text-gray-400 font-bold text-sm cursor-not-allowed flex items-center gap-1 opacity-50"
-                  >
-                    {event.buttonText}
-                    <span className="material-symbols-outlined text-sm">
-                      arrow_forward
-                    </span>
-                  </button>
-                </div>
-              </div>
-            </article>
-          ))}
+          {scheduleError ? (
+            <div className="md:col-span-2 lg:col-span-3 rounded-2xl border border-red-500/20 bg-red-500/10 p-6 text-center">
+              <p className="text-sm text-red-700">
+                {scheduleError instanceof Error ? scheduleError.message : 'Failed to load events schedule'}
+              </p>
+            </div>
+          ) : schedule.length === 0 ? (
+            <div className="md:col-span-2 lg:col-span-3 rounded-2xl border border-gray-100 bg-gray-50 p-10 text-center">
+              <p className="text-sm text-gray-500">No upcoming schedule yet.</p>
+            </div>
+          ) : (
+            schedule.map((item) => <EventScheduleCard key={item.id} item={item} />)
+          )}
 
           {/* Private Session Card */}
           <article className="group bg-white rounded-2xl overflow-hidden border border-dashed border-gray-200 hover:border-solid hover:border-primary/20 shadow-sm hover:shadow-xl hover:shadow-primary/10:shadow-primary/5 transition-all duration-500 flex flex-col justify-center items-center p-8">

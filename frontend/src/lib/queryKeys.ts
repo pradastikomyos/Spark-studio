@@ -20,4 +20,5 @@ export const queryKeys = {
   ticketsManagement: () => ['tickets-management'] as const,
 
   banners: (type?: 'hero' | 'stage' | 'promo' | 'events' | 'shop') => ['banners', type ?? 'all'] as const,
+  eventSchedule: (scope?: 'public' | 'admin') => ['event-schedule', scope ?? 'public'] as const,
 } as const

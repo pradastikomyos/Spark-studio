@@ -452,6 +452,7 @@ const Navbar = () => {
               {t('auth.signIn')}
             </Link>
           )}
+
         </div>
       </div>
 

@@ -314,20 +314,6 @@ const Shop = () => {
               nextButtonClassName="absolute right-4 top-1/2 -translate-y-1/2 z-10 bg-white/20 hover:bg-white/30 backdrop-blur-sm text-gray-900 p-3 rounded-full ux-transition-color"
               indicatorActiveClassName="bg-primary"
               indicatorInactiveClassName="bg-white/50 hover:bg-white/70"
-              overlayClassName="absolute inset-0"
-              renderOverlay={(slide) => (
-                <>
-                  <div className="absolute inset-0 bg-white/20 mix-blend-overlay" />
-                  <div className="absolute inset-0 bg-gradient-to-t from-white via-white/20 to-transparent" />
-                  <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-4">
-                    <span className="text-xs uppercase tracking-[0.3em] text-primary font-medium mb-4">Fall / Winter 2025</span>
-                    <h1 className="font-display text-5xl md:text-7xl text-text-light font-medium mb-6">{slide.title}</h1>
-                    {slide.subtitle ? (
-                      <p className="text-subtext-light text-lg max-w-lg font-light mb-8">{slide.subtitle}</p>
-                    ) : null}
-                  </div>
-                </>
-              )}
             />
           ) : (
             <>
@@ -336,15 +322,6 @@ const Shop = () => {
                 className="w-full h-full object-cover object-center opacity-90"
                 src="https://lh3.googleusercontent.com/aida-public/AB6AXuBXsDj0az3zzKzPuGWFNVkv93Z05vEWEttTgUqh4SS7iW-kLSNN2_0jvc-v4pho8kz2OqrqnpiQWh4vBzn87isw1yCP1VE1HXsHHOHubRuhCY6LmQpM3KdjfATKhPb2413xZu1naHDWVkwgWTK9sWUI-jwpMrYUO-6Uad1Qcq7NStqNGjpzbzTLH7nXSLD8e_CIiD6qurTg-eVxRwpK34LWyWrNCYPlMJqhFEbs2rUPPUn2uOz-B8JOZCi3FsjDK7b_ExLsUFMJyrA"
               />
-              <div className="absolute inset-0 bg-white/20 mix-blend-overlay" />
-              <div className="absolute inset-0 bg-gradient-to-t from-white via-white/20 to-transparent" />
-              <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-4">
-                <span className="text-xs uppercase tracking-[0.3em] text-primary font-medium mb-4">Fall / Winter 2025</span>
-                <h1 className="font-display text-5xl md:text-7xl text-text-light font-medium mb-6">The Collection</h1>
-                <p className="text-subtext-light text-lg max-w-lg font-light mb-8">
-                  Curated apparel, accessories, and beauty essentials for the modern creative.
-                </p>
-              </div>
             </>
           )}
         </header>
