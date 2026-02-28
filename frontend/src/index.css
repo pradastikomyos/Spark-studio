@@ -155,6 +155,10 @@
     animation: sparkle 2s ease-in-out infinite;
     animation-delay: 1.4s;
   }
+
+  .animate-nav-star-breathe {
+    animation: nav-star-breathe 2.8s ease-in-out infinite;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -166,6 +170,10 @@
 
   .ux-motion-safe {
     will-change: auto;
+  }
+
+  .animate-nav-star-breathe {
+    animation: none !important;
   }
 }
 
@@ -228,6 +236,17 @@
   }
   to {
     transform: translateY(0);
+  }
+}
+
+@keyframes nav-star-breathe {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 0.94;
+  }
+  50% {
+    transform: scale(1.035);
+    opacity: 1;
   }
 }
 

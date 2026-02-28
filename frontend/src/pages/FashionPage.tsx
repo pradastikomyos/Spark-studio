@@ -70,7 +70,7 @@ export default function FashionPage() {
                 <div className="h-[calc(100vh-64px)] flex flex-col overflow-hidden">
                     <div className="flex-1 min-h-0 flex">
                         {/* LEFT: Title + Model Carousel */}
-                        <div className="flex-1 min-w-0 flex flex-col px-6 lg:px-10 pt-5 pb-2">
+                        <div className="flex-1 min-w-0 flex flex-col pl-3 pr-2 sm:px-4 md:px-6 lg:px-10 pt-4 md:pt-5 pb-2">
                             <motion.div
                                 initial={{ opacity: 0, y: -10 }}
                                 animate={{ opacity: 1, y: 0 }}
@@ -105,7 +105,7 @@ export default function FashionPage() {
                         {/* RIGHT: Product sidebar */}
                         {looks.length > 0 && (
                             <div
-                                className="hidden lg:block w-[280px] xl:w-[320px] border-l border-gray-200/50 bg-[#f0eeeb]/60 h-full overflow-y-auto"
+                                className="w-[132px] sm:w-[168px] md:w-[220px] lg:w-[280px] xl:w-[320px] shrink-0 border-l border-gray-200/50 bg-[#f0eeeb]/60 h-full overflow-y-auto"
                                 style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
                             >
                                 <LookProductSidebar
@@ -115,36 +115,6 @@ export default function FashionPage() {
                             </div>
                         )}
                     </div>
-
-                    {/* Mobile products */}
-                    {looks.length > 0 && activeLook && activeLook.items.length > 0 && (
-                        <div className="lg:hidden flex-shrink-0 border-t border-gray-200/60 bg-white/40 px-4 py-3">
-                            <div className="flex gap-4 overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
-                                {activeLook.items.map((item) => {
-                                    const variant = item.product_variant;
-                                    if (!variant) return null;
-                                    return (
-                                        <div key={item.id} className="flex-shrink-0 w-28">
-                                            {item.resolved_image_url ? (
-                                                <div className="aspect-square bg-gray-50 rounded overflow-hidden mb-1">
-                                                    <img
-                                                        src={item.resolved_image_url}
-                                                        alt={item.label || variant.name}
-                                                        className="w-full h-full object-contain p-1"
-                                                    />
-                                                </div>
-                                            ) : (
-                                                <div className="aspect-square bg-gray-100 rounded mb-1" />
-                                            )}
-                                            <p className="text-[9px] uppercase tracking-wide text-gray-600 truncate">
-                                                {item.label || variant.name}
-                                            </p>
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                        </div>
-                    )}
 
                     {/* Scroll hint arrow */}
                     <div className="flex-shrink-0 flex justify-center pb-3">

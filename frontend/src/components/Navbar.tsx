@@ -1,7 +1,7 @@
-import { useEffect, useState, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { LogOut, ReceiptText, Search, ShoppingCart, Ticket, UserRound, X } from 'lucide-react';
+import { LogOut, ReceiptText, Search, ShoppingCart, Ticket, UserRound } from 'lucide-react';
 import Logo from './Logo';
 import LanguageSwitcher from './LanguageSwitcher';
 import { useAuth } from '../contexts/AuthContext';
@@ -11,18 +11,24 @@ import { useCart } from '../contexts/cartStore';
 import { getUserDisplayName } from '../utils/auth';
 
 const Navbar = () => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { user, signOut, isAdmin, loggingOut } = useAuth();
   const { count: ticketCount } = useTicketCount();
   const { count: orderCount } = useOrderCount();
   const { totalQuantity } = useCart();
   const navigate = useNavigate();
   const location = useLocation();
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
   const [scrolled, setScrolled] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
-  const navItemsRef = useRef<(HTMLAnchorElement | null)[]>([]);
-  const [starPosition, setStarPosition] = useState(0);
+  const [desktopStarPosition, setDesktopStarPosition] = useState(0);
+
+  const desktopNavItemsRef = useRef<(HTMLAnchorElement | null)[]>([]);
+  const mobileNavItemsRef = useRef<(HTMLAnchorElement | null)[]>([]);
+  const mobileNavScrollerRef = useRef<HTMLDivElement | null>(null);
+  const pointerStartRef = useRef<{ id: number; x: number; y: number } | null>(null);
+  const hasNavigatedThisGestureRef = useRef(false);
+  const hasCenteredMobileItemRef = useRef(false);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 8);
@@ -33,8 +39,6 @@ const Navbar = () => {
 
   const activeNavKey = (() => {
     const path = location.pathname;
-
-
     if (path === '/') return 'on-stage';
     if (path.startsWith('/on-stage')) return 'on-stage';
     if (path.startsWith('/events')) return 'event';
@@ -54,18 +58,88 @@ const Navbar = () => {
     { key: 'news', label: 'NEWS', to: '/news' },
   ] as const;
 
-  const activeIndex = Math.max(0, navItems.findIndex((i) => i.key === activeNavKey));
+  const activeIndex = Math.max(0, navItems.findIndex((item) => item.key === activeNavKey));
+  const currentLanguage = (i18n.resolvedLanguage ?? i18n.language ?? 'en').toLowerCase();
+  const isIndonesian = currentLanguage.startsWith('id');
 
-  // Calculate star position based on active nav item
-  useEffect(() => {
-    const activeItem = navItemsRef.current[activeIndex];
-    if (activeItem) {
-      const left = activeItem.offsetLeft + (activeItem.offsetWidth / 2);
-      setStarPosition(left);
-    }
+  const updateDesktopStarPosition = useCallback(() => {
+    const activeItem = desktopNavItemsRef.current[activeIndex];
+    if (!activeItem) return;
+
+    const left = activeItem.offsetLeft + (activeItem.offsetWidth / 2);
+    setDesktopStarPosition(left);
   }, [activeIndex]);
 
-  const closeMobileMenu = () => setMobileMenuOpen(false);
+  const centerMobileActiveItem = useCallback((behavior: ScrollBehavior = 'smooth') => {
+    const scroller = mobileNavScrollerRef.current;
+    const activeItem = mobileNavItemsRef.current[activeIndex];
+    if (!scroller || !activeItem) return;
+
+    const targetLeft = activeItem.offsetLeft - ((scroller.clientWidth - activeItem.offsetWidth) / 2);
+    scroller.scrollTo({
+      left: Math.max(0, targetLeft),
+      behavior,
+    });
+  }, [activeIndex]);
+
+  useEffect(() => {
+    updateDesktopStarPosition();
+    const behavior: ScrollBehavior = hasCenteredMobileItemRef.current ? 'smooth' : 'auto';
+    centerMobileActiveItem(behavior);
+    hasCenteredMobileItemRef.current = true;
+  }, [centerMobileActiveItem, updateDesktopStarPosition]);
+
+  useEffect(() => {
+    const onResize = () => {
+      updateDesktopStarPosition();
+      centerMobileActiveItem('auto');
+    };
+
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, [centerMobileActiveItem, updateDesktopStarPosition]);
+
+  const handleMobilePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (event.pointerType !== 'touch') return;
+    pointerStartRef.current = { id: event.pointerId, x: event.clientX, y: event.clientY };
+    hasNavigatedThisGestureRef.current = false;
+  };
+
+  const handleMobilePointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
+    const start = pointerStartRef.current;
+    if (!start) return;
+    if (event.pointerType !== 'touch') return;
+    if (hasNavigatedThisGestureRef.current) return;
+    if (event.pointerId !== start.id) return;
+
+    const deltaX = event.clientX - start.x;
+    const deltaY = event.clientY - start.y;
+
+    if (Math.abs(deltaX) < 48) return;
+    // Keep vertical scroll feeling natural; only act on clearly horizontal swipes.
+    if (Math.abs(deltaX) <= Math.abs(deltaY) + 12) return;
+
+    const direction = deltaX < 0 ? 1 : -1;
+    const nextIndex = activeIndex + direction;
+    if (nextIndex < 0 || nextIndex >= navItems.length) return;
+
+    hasNavigatedThisGestureRef.current = true;
+    pointerStartRef.current = null;
+    event.preventDefault();
+    navigate(navItems[nextIndex].to);
+  };
+
+  const handleMobilePointerEnd = (event: React.PointerEvent<HTMLDivElement>) => {
+    const start = pointerStartRef.current;
+    if (!start) return;
+    if (event.pointerType !== 'touch') return;
+    if (event.pointerId !== start.id) return;
+    pointerStartRef.current = null;
+  };
+
+  const handleMobileLanguageToggle = () => {
+    void i18n.changeLanguage(isIndonesian ? 'en' : 'id');
+  };
 
   const handleSignOutClick = () => {
     setShowLogoutConfirm(true);
@@ -77,7 +151,6 @@ const Navbar = () => {
     const { error } = await signOut();
     if (!error) {
       navigate('/login');
-      setMobileMenuOpen(false);
     }
   };
 
@@ -88,25 +161,24 @@ const Navbar = () => {
   return (
     <nav className={`w-full z-[100] bg-white border-b border-gray-300 transition-shadow ${scrolled ? 'shadow-sm' : ''}`.trim()}>
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between py-3 md:py-4">
-          <div className="hidden md:flex items-center gap-3 w-1/3">
+        <div className="flex items-center justify-between py-3 lg:py-4">
+          <div className="hidden lg:flex items-center gap-3 w-1/3">
             <LanguageSwitcher />
           </div>
 
-          <div className="md:w-1/3 flex justify-start md:justify-center">
-            <Link to="/" className="inline-flex items-center" onClick={closeMobileMenu} aria-label="Home">
+          <div className="lg:w-1/3 flex justify-start lg:justify-center">
+            <Link to="/" className="inline-flex items-center" aria-label="Home">
               <Logo className="text-4xl md:text-5xl" />
             </Link>
           </div>
 
-          <div className="md:w-1/3 flex items-center justify-end gap-4">
-            {/* Stage 55 Logo - Desktop */}
-            <div className="hidden md:block">
+          <div className="ml-auto lg:w-1/3 flex items-center justify-end gap-4">
+            <div className="hidden lg:block">
               <img src="/images/landing/stage55.png" alt="Stage 55" className="h-14 w-auto md:h-18 object-contain" />
             </div>
 
             {user ? (
-              <div className="hidden md:flex items-center gap-5">
+              <div className="hidden lg:flex items-center gap-5">
                 <span className="text-sm font-medium text-gray-900">
                   {getUserDisplayName(user)}
                 </span>
@@ -171,7 +243,7 @@ const Navbar = () => {
                 </button>
               </div>
             ) : (
-              <div className="hidden md:flex items-center gap-4">
+              <div className="hidden lg:flex items-center gap-4">
                 <Link
                   to="/login"
                   className="inline-flex items-center gap-2 px-4 py-2 text-sm font-bold uppercase tracking-widest bg-main-600 text-white rounded-md hover:bg-main-700 transition-colors shadow-sm"
@@ -195,11 +267,31 @@ const Navbar = () => {
               </div>
             )}
 
-            <div className="md:hidden flex items-center gap-3">
-              {/* Stage 55 Logo - Mobile */}
-              <img src="/images/landing/stage55.png" alt="Stage 55" className="h-12 w-auto object-contain" />
+            <div className="lg:hidden flex items-center gap-2">
+              <img src="/images/landing/stage55.png" alt="Stage 55" className="h-10 w-auto object-contain" />
 
-              <Link to="/cart" className="relative p-2 text-gray-700 active:text-main-600" aria-label={t('nav.cart')} onClick={closeMobileMenu}>
+              <button
+                type="button"
+                onClick={handleMobileLanguageToggle}
+                className="px-2.5 py-1.5 rounded-md border border-gray-300 text-[11px] font-black uppercase tracking-wider text-gray-800 active:bg-gray-50"
+                aria-label={t('language.switch')}
+                title={`${t('language.switch')}: ${isIndonesian ? 'English' : 'Bahasa Indonesia'}`}
+              >
+                {isIndonesian ? 'ID' : 'EN'}
+              </button>
+
+              {!user && (
+                <Link
+                  to="/login"
+                  className="p-2 rounded-md border border-gray-300 text-gray-700 active:bg-gray-50"
+                  aria-label={t('auth.signIn')}
+                  title={t('auth.signIn')}
+                >
+                  <UserRound className="h-5 w-5" />
+                </Link>
+              )}
+
+              <Link to="/cart" className="relative p-2 text-gray-700 active:text-main-600" aria-label={t('nav.cart')}>
                 <ShoppingCart className="h-6 w-6" />
                 {totalQuantity > 0 && (
                   <span className="absolute -top-0.5 -right-0.5 bg-main-600 text-white text-[10px] w-4 h-4 flex items-center justify-center rounded-full">
@@ -207,14 +299,6 @@ const Navbar = () => {
                   </span>
                 )}
               </Link>
-              <button
-                onClick={() => setMobileMenuOpen((v) => !v)}
-                className="px-4 py-2.5 rounded-md border border-gray-300 text-xs font-black uppercase tracking-widest text-gray-900 active:bg-gray-50 min-w-[70px]"
-                aria-label="Toggle mobile menu"
-                type="button"
-              >
-                {mobileMenuOpen ? 'Close' : 'Menu'}
-              </button>
             </div>
           </div>
         </div>
@@ -222,19 +306,18 @@ const Navbar = () => {
 
       <div className="border-t border-gray-300" />
 
-      <div className="hidden md:block">
+      <div className="hidden lg:block">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="relative py-6">
-            {/* Large star background behind active nav item */}
             <div
-              className="absolute transition-all duration-300 ease-out pointer-events-none"
+              className="absolute transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] pointer-events-none"
               style={{
-                left: `${starPosition}px`,
+                left: `${desktopStarPosition}px`,
                 top: '50%',
                 transform: 'translate(-50%, -50%)',
                 width: '100px',
                 height: '100px',
-                zIndex: 0
+                zIndex: 0,
               }}
             >
               <img
@@ -244,7 +327,6 @@ const Navbar = () => {
               />
             </div>
 
-            {/* Navigation items */}
             <div className="flex justify-evenly items-center relative z-10">
               {navItems.map((item, idx) => {
                 const isActive = idx === activeIndex;
@@ -252,7 +334,7 @@ const Navbar = () => {
                 return (
                   <Link
                     key={item.key}
-                    ref={(el) => (navItemsRef.current[idx] = el)}
+                    ref={(el) => (desktopNavItemsRef.current[idx] = el)}
                     to={item.to}
                     className={`text-sm font-semibold uppercase px-4 py-2 transition-colors ${isActive ? 'text-white' : 'text-gray-600 hover:text-gray-900'
                       }`}
@@ -266,150 +348,113 @@ const Navbar = () => {
         </div>
       </div>
 
-      {/* Mobile Menu Overlay */}
-      {mobileMenuOpen && (
+      <div className="lg:hidden">
         <div
-          className="fixed inset-0 bg-black/50 z-40 md:hidden"
-          onClick={closeMobileMenu}
-        />
-      )}
-
-      {/* Mobile Menu Drawer */}
-      <div className={`fixed top-0 right-0 h-full w-80 bg-white z-50 transform transition-transform duration-300 ease-out md:hidden border-l border-gray-100 overflow-y-auto ${mobileMenuOpen ? 'translate-x-0' : 'translate-x-full'}`}>
-        <div className="p-6 space-y-6">
-          {/* Close button for mobile */}
-          <button
-            onClick={closeMobileMenu}
-            className="absolute top-4 right-4 p-2 text-gray-500 hover:text-gray-900 active:bg-gray-100 rounded-lg"
-            aria-label="Close menu"
-          >
-            <X className="h-5 w-5" />
-          </button>
-
-          {/* Language Switcher - Top Priority on Mobile */}
-          <div className="pt-2 pb-4 border-b border-gray-100 pr-10">
-            <LanguageSwitcher />
-          </div>
-
-          {user && (
-            <div className="pb-4 border-b border-gray-100 pr-10">
-              <p className="text-sm font-black uppercase tracking-widest text-gray-900">{getUserDisplayName(user)}</p>
-              <p className="text-xs text-gray-500 mt-1 break-all">{user.email}</p>
+          className="relative flex items-center justify-center min-h-[92px] py-2 sm:min-h-[96px] md:min-h-[104px]"
+          onPointerDown={handleMobilePointerDown}
+          onPointerMove={handleMobilePointerMove}
+          onPointerUp={handleMobilePointerEnd}
+          onPointerCancel={handleMobilePointerEnd}
+        >
+          <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none z-0" aria-hidden>
+            <div className="animate-nav-star-breathe w-[72px] h-[72px] sm:w-[84px] sm:h-[84px] md:w-[92px] md:h-[92px]">
+              <img
+                src="/images/landing/ICON%20STAR-01.svg"
+                alt=""
+                className="w-full h-full object-contain"
+              />
             </div>
-          )}
-
-          <div className="space-y-2">
-            <Link
-              to="/on-stage"
-              onClick={closeMobileMenu}
-              className="block text-sm uppercase tracking-widest font-bold text-gray-900 active:text-main-600 py-3 px-2 active:bg-gray-50 rounded-lg transition-colors"
-            >
-              {t('nav.onStage')}
-            </Link>
-            <Link
-              to="/events"
-              onClick={closeMobileMenu}
-              className="block text-sm uppercase tracking-widest font-bold text-gray-900 active:text-main-600 py-3 px-2 active:bg-gray-50 rounded-lg transition-colors"
-            >
-              {t('nav.events')}
-            </Link>
-            <Link
-              to="/shop"
-              onClick={closeMobileMenu}
-              className="block text-sm uppercase tracking-widest font-bold text-gray-900 active:text-main-600 py-3 px-2 active:bg-gray-50 rounded-lg transition-colors"
-            >
-              Shop
-            </Link>
-            <Link
-              to="/fashion"
-              onClick={closeMobileMenu}
-              className="block text-sm uppercase tracking-widest font-bold text-gray-900 active:text-main-600 py-3 px-2 active:bg-gray-50 rounded-lg transition-colors"
-            >
-              Fashion
-            </Link>
-            <Link
-              to="/spark-club"
-              onClick={closeMobileMenu}
-              className="block text-sm uppercase tracking-widest font-bold text-gray-900 active:text-main-600 py-3 px-2 active:bg-gray-50 rounded-lg transition-colors"
-            >
-              {t('nav.sparkClub')}
-            </Link>
-            <Link
-              to="/news"
-              onClick={closeMobileMenu}
-              className="block text-sm uppercase tracking-widest font-bold text-gray-900 active:text-main-600 py-3 px-2 active:bg-gray-50 rounded-lg transition-colors"
-            >
-              {t('nav.news')}
-            </Link>
           </div>
 
-          <div className="border-t border-gray-100" />
+          <div
+            ref={mobileNavScrollerRef}
+            className="w-full relative z-10 flex items-center gap-1 overflow-x-auto scroll-smooth snap-x snap-mandatory [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+          >
+            <div className="w-[34vw] shrink-0" aria-hidden />
+            {navItems.map((item, idx) => {
+              const isActive = idx === activeIndex;
 
-          <div className="space-y-1">
-            {isAdmin && (
-              <Link
-                to="/admin/dashboard"
-                onClick={closeMobileMenu}
-                className="flex items-center gap-3 py-3 px-2 text-sm font-bold text-neutral-900 active:text-main-600 active:bg-gray-50 rounded-lg transition-colors"
-              >
-                <span className="material-symbols-outlined text-[22px]">dashboard</span>
-                <span>{t('nav.dashboard')}</span>
-              </Link>
-            )}
-            <Link
-              to="/my-tickets"
-              onClick={closeMobileMenu}
-              className="flex items-center gap-3 py-3 px-2 text-sm text-gray-900 active:text-main-600 active:bg-gray-50 rounded-lg transition-colors"
-            >
-              <span className="material-symbols-outlined text-[22px]">confirmation_number</span>
-              <span>{t('nav.myTickets')}</span>
-              {ticketCount > 0 && (
-                <span className="ml-auto bg-main-600 text-white text-[10px] px-2 py-0.5 rounded-full">
-                  {ticketCount}
-                </span>
-              )}
-            </Link>
-            <Link
-              to="/my-orders"
-              onClick={closeMobileMenu}
-              className="flex items-center gap-3 py-3 px-2 text-sm text-gray-900 active:text-main-600 active:bg-gray-50 rounded-lg transition-colors"
-            >
-              <span className="material-symbols-outlined text-[22px]">receipt_long</span>
-              <span>{t('nav.myOrders')}</span>
-              {orderCount > 0 && (
-                <span className="ml-auto bg-main-600 text-white text-[10px] px-2 py-0.5 rounded-full">
-                  {orderCount}
-                </span>
-              )}
-            </Link>
-          </div>
-
-          <div className="pt-4 border-t border-gray-100">
-            {user ? (
-              <button
-                onClick={handleSignOutClick}
-                disabled={loggingOut}
-                className="w-full flex items-center justify-center gap-2 py-3.5 text-sm font-bold uppercase tracking-widest text-[#ff4b86] hover:bg-pink-50 active:bg-pink-100 rounded-lg transition-colors disabled:opacity-50"
-                type="button"
-              >
-                <LogOut className="h-4 w-4" />
-                <span>{t('auth.signOut')}</span>
-              </button>
-            ) : (
-              <Link
-                to="/login"
-                onClick={closeMobileMenu}
-                className="w-full flex items-center justify-center gap-2 py-3.5 text-sm font-black uppercase tracking-widest bg-main-600 text-white rounded-lg hover:bg-main-700 active:bg-main-800 transition-colors"
-              >
-                <UserRound className="h-4 w-4" />
-                <span>{t('auth.signIn')}</span>
-              </Link>
-            )}
+              return (
+                <Link
+                  key={item.key}
+                  ref={(el) => (mobileNavItemsRef.current[idx] = el)}
+                  to={item.to}
+                  className={`relative z-10 shrink-0 snap-center min-w-[106px] text-center text-xs font-semibold uppercase px-3 py-2 transition-all duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${isActive ? 'text-white drop-shadow-[0_2px_6px_rgba(0,0,0,0.18)] -translate-y-[1px] scale-[1.03]' : 'text-gray-600 active:text-gray-900'
+                    }`}
+                >
+                  {item.label}
+                </Link>
+              );
+            })}
+            <div className="w-[34vw] shrink-0" aria-hidden />
           </div>
         </div>
       </div>
 
-      {/* Logout Confirmation Modal */}
+      <div className="lg:hidden border-t border-gray-200 bg-white">
+        <div className="px-4 sm:px-6 py-2 flex items-center gap-2 overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+          {isAdmin && (
+            <Link
+              to="/admin/dashboard"
+              className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border border-gray-300 px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider text-gray-800 active:bg-gray-50"
+            >
+              <span className="material-symbols-outlined text-[16px]">dashboard</span>
+              Dashboard
+            </Link>
+          )}
+
+          {user && (
+            <>
+              <Link
+                to="/my-tickets"
+                className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border border-gray-300 px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider text-gray-800 active:bg-gray-50"
+              >
+                <Ticket className="h-3.5 w-3.5" />
+                {t('nav.myTickets')}
+                {ticketCount > 0 && (
+                  <span className="bg-main-600 text-white text-[10px] px-1.5 py-0.5 rounded-full">
+                    {ticketCount}
+                  </span>
+                )}
+              </Link>
+
+              <Link
+                to="/my-orders"
+                className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border border-gray-300 px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider text-gray-800 active:bg-gray-50"
+              >
+                <ReceiptText className="h-3.5 w-3.5" />
+                {t('nav.myOrders')}
+                {orderCount > 0 && (
+                  <span className="bg-main-600 text-white text-[10px] px-1.5 py-0.5 rounded-full">
+                    {orderCount}
+                  </span>
+                )}
+              </Link>
+
+              <button
+                type="button"
+                onClick={handleSignOutClick}
+                disabled={loggingOut}
+                className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border border-pink-300 px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider text-[#ff4b86] active:bg-pink-50 disabled:opacity-50"
+              >
+                <LogOut className="h-3.5 w-3.5" />
+                {t('auth.signOut')}
+              </button>
+            </>
+          )}
+
+          {!user && (
+            <Link
+              to="/login"
+              className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full bg-main-600 text-white px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider active:bg-main-700"
+            >
+              <UserRound className="h-3.5 w-3.5" />
+              {t('auth.signIn')}
+            </Link>
+          )}
+        </div>
+      </div>
+
       {showLogoutConfirm && (
         <>
           <div
@@ -418,7 +463,7 @@ const Navbar = () => {
           >
             <div
               className="bg-white rounded-t-3xl md:rounded-xl shadow-2xl w-full md:max-w-sm md:w-full p-6 space-y-5 animate-slide-up md:animate-none"
-              onClick={(e) => e.stopPropagation()}
+              onClick={(event) => event.stopPropagation()}
             >
               <div className="flex flex-col items-center gap-4 text-center">
                 <div className="flex-shrink-0 w-16 h-16 rounded-full bg-pink-100 flex items-center justify-center">

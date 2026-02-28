@@ -24,29 +24,42 @@ function getModelTransform(offset: number, containerWidth: number) {
 
     if (offset < 0 || absOffset > VISIBLE_AHEAD) {
         // Already-viewed looks (past) or too far ahead — hide
-        return { scale: 0, opacity: 0, x: containerWidth + 100, blur: 14, zIndex: 0, display: false };
+        return {
+            scaleX: 0,
+            scaleY: 0,
+            opacity: 0,
+            x: containerWidth + 100,
+            blur: 14,
+            zIndex: 0,
+            display: false,
+        };
     }
 
-    // Scale: active = 1.0, upcoming trail down
-    const scaleMap = [1, 0.75, 0.55, 0.4];
-    const scale = scaleMap[absOffset] ?? 0.35;
+    // Vertical scale (height presence)
+    const scaleYMap = [1, 0.86, 0.72, 0.62];
+    const scaleY = scaleYMap[absOffset] ?? 0.58;
+
+    // Horizontal stretch for upcoming previews so the blurred tail feels fuller.
+    const scaleXMap = [1, 1.1, 1.24, 1.38];
+    const scaleX = scaleXMap[absOffset] ?? 1.42;
 
     // Opacity
-    const opacityMap = [1, 0.85, 0.55, 0.3];
-    const opacity = opacityMap[absOffset] ?? 0.2;
+    const opacityMap = [1, 0.84, 0.58, 0.34];
+    const opacity = opacityMap[absOffset] ?? 0.26;
 
     // Blur
-    const blurMap = [0, 2.5, 5, 8];
-    const blur = blurMap[absOffset] ?? 10;
+    const blurMap = [0, 2.5, 5.5, 8.5];
+    const blur = blurMap[absOffset] ?? 10.5;
 
-    // Position: active model at right side, upcoming models spread to the LEFT
-    const rightEdge = containerWidth * 0.62;
-    const spacing = containerWidth * 0.22;
+    // Position: push trail further left so the last blurred preview fills the side space.
+    const isMobileWidth = containerWidth < 640;
+    const rightEdge = containerWidth * (isMobileWidth ? 0.48 : 0.69);
+    const spacing = containerWidth * (isMobileWidth ? 0.22 : 0.255);
     const x = rightEdge - (absOffset * spacing);
 
     const zIndex = 10 - absOffset;
 
-    return { scale, opacity, x, blur, zIndex, display: true };
+    return { scaleX, scaleY, opacity, x, blur, zIndex, display: true };
 }
 
 export default function ModelCarousel({ looks, activeIndex, onActiveChange }: ModelCarouselProps) {
@@ -132,15 +145,16 @@ export default function ModelCarousel({ looks, activeIndex, onActiveChange }: Mo
                             <motion.div
                                 key={look.id}
                                 className="absolute bottom-0 origin-bottom-center"
-                                initial={{ scale: 0.3, opacity: 0, x: containerWidth + 100 }}
+                                initial={{ scaleX: 0.35, scaleY: 0.3, opacity: 0, x: containerWidth + 100 }}
                                 animate={{
-                                    scale: t.scale,
+                                    scaleX: t.scaleX,
+                                    scaleY: t.scaleY,
                                     opacity: t.opacity,
                                     x: t.x,
                                     filter: `blur(${t.blur}px)`,
                                     zIndex: t.zIndex,
                                 }}
-                                exit={{ scale: 0.3, opacity: 0, x: containerWidth + 200 }}
+                                exit={{ scaleX: 0.35, scaleY: 0.3, opacity: 0, x: containerWidth + 200 }}
                                 transition={SPRING}
                                 onClick={() => {
                                     if (!isDragging && offset !== 0) onActiveChange(index);
@@ -154,7 +168,7 @@ export default function ModelCarousel({ looks, activeIndex, onActiveChange }: Mo
                                 <img
                                     src={look.model_image_url}
                                     alt={look.model_name || `Look ${look.look_number}`}
-                                    className="h-full max-h-[calc(100vh-220px)] w-auto max-w-none object-contain pointer-events-none select-none"
+                                    className="h-full max-h-[calc(100vh-270px)] sm:max-h-[calc(100vh-220px)] w-auto max-w-none object-contain pointer-events-none select-none"
                                     draggable={false}
                                 />
                             </motion.div>

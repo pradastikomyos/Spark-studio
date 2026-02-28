@@ -21,8 +21,10 @@ function formatPrice(price: number | null): string {
 export default function LookProductSidebar({ items, lookNumber }: LookProductSidebarProps) {
     if (items.length === 0) {
         return (
-            <div className="flex items-center justify-center h-full text-gray-400 p-8">
-                <p className="text-sm italic text-center">No products linked to this look yet.</p>
+            <div className="flex items-center justify-center h-full text-gray-400 p-4 sm:p-6">
+                <p className="text-[11px] sm:text-xs md:text-sm italic text-center">
+                    No products linked to this look yet.
+                </p>
             </div>
         );
     }
@@ -35,7 +37,7 @@ export default function LookProductSidebar({ items, lookNumber }: LookProductSid
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -20 }}
                 transition={{ duration: 0.3 }}
-                className="px-5 py-4 space-y-5"
+                className="px-2 sm:px-3 md:px-4 lg:px-5 py-3 sm:py-4 space-y-3 sm:space-y-4 lg:space-y-5"
             >
                 {items.map((item, idx) => {
                     const variant = item.product_variant;
@@ -56,12 +58,12 @@ export default function LookProductSidebar({ items, lookNumber }: LookProductSid
                             {/* === SINGLE CARD: heart, image, name, price, + all inside === */}
 
                             {/* Heart — top-left inside card */}
-                            <div className="flex justify-start px-4 pt-3">
+                            <div className="flex justify-start px-2 sm:px-3 md:px-4 pt-2 sm:pt-3">
                                 <button
                                     className="text-gray-500 hover:text-red-400 transition-colors"
                                     aria-label="Add to wishlist"
                                 >
-                                    <Heart className="w-[18px] h-[18px]" strokeWidth={1.8} />
+                                    <Heart className="w-3.5 h-3.5 sm:w-4 sm:h-4 lg:w-[18px] lg:h-[18px]" strokeWidth={1.8} />
                                 </button>
                             </div>
 
@@ -70,7 +72,7 @@ export default function LookProductSidebar({ items, lookNumber }: LookProductSid
                                 to={product?.id ? `/shop/product/${product.id}` : '#'}
                                 className="block"
                             >
-                                <div className="aspect-square overflow-hidden px-5 py-2">
+                                <div className="aspect-square overflow-hidden px-2 sm:px-3 md:px-4 lg:px-5 py-1.5 sm:py-2">
                                     {imageUrl ? (
                                         <img
                                             src={imageUrl}
@@ -91,16 +93,16 @@ export default function LookProductSidebar({ items, lookNumber }: LookProductSid
                             </Link>
 
                             {/* Name */}
-                            <div className="px-4 pt-2">
-                                <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-gray-700 leading-snug">
+                            <div className="px-2 sm:px-3 md:px-4 pt-1.5 sm:pt-2">
+                                <p className="text-[9px] sm:text-[9.5px] md:text-[10px] font-medium uppercase tracking-[0.08em] text-gray-700 leading-snug">
                                     {displayName}
                                 </p>
                             </div>
 
                             {/* Price + Add button — bottom row */}
-                            <div className="flex items-center justify-between px-4 pt-1 pb-3">
+                            <div className="flex items-center justify-between px-2 sm:px-3 md:px-4 pt-1 pb-2 sm:pb-3">
                                 {variant.price !== null ? (
-                                    <p className="text-[10px] text-gray-400">
+                                    <p className="text-[9px] sm:text-[9.5px] md:text-[10px] text-gray-400">
                                         {formatPrice(variant.price)}
                                     </p>
                                 ) : <span />}
@@ -109,7 +111,7 @@ export default function LookProductSidebar({ items, lookNumber }: LookProductSid
                                     className="text-gray-500 hover:text-gray-900 transition-colors"
                                     aria-label="Add to bag"
                                 >
-                                    <Plus className="w-4 h-4" strokeWidth={2} />
+                                    <Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4" strokeWidth={2} />
                                 </button>
                             </div>
                         </motion.div>
