@@ -13,6 +13,7 @@ import PublicLayout from './components/PublicLayout';
 import Home from './pages/Home';
 import { supabase } from './lib/supabase';
 import { queryClient } from './lib/queryClient';
+import BrandedLoader from './components/BrandedLoader';
 
 const OnStage = lazy(() => import('./pages/OnStage'));
 const Shop = lazy(() => import('./pages/Shop'));
@@ -55,21 +56,7 @@ const NotFound = lazy(() => import('./pages/NotFound'));
 function AppLoadingScreen() {
   return (
     <div className="fixed inset-0 flex items-center justify-center bg-background-light z-50">
-      <div className="text-center">
-        <div className="relative">
-          {/* Spark Logo Animation */}
-          <div className="flex h-16 w-16 mx-auto items-center justify-center rounded-xl bg-primary text-white shadow-2xl shadow-red-900/30 animate-pulse">
-            <span className="material-symbols-outlined text-3xl">shutter_speed</span>
-          </div>
-          {/* Loading spinner ring */}
-          <div className="absolute inset-0 -m-2">
-            <div className="h-20 w-20 rounded-full border-4 border-primary/20 border-t-primary animate-spin"></div>
-          </div>
-        </div>
-        <p className="mt-6 text-sm font-medium text-gray-500 tracking-wide uppercase">
-          Loading Spark Stage...
-        </p>
-      </div>
+      <BrandedLoader text="Loading Spark Stage..." size="lg" />
     </div>
   );
 }
@@ -77,7 +64,7 @@ function AppLoadingScreen() {
 function RouteLoading() {
   return (
     <div className="flex items-center justify-center py-16">
-      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      <BrandedLoader size="sm" />
     </div>
   );
 }
