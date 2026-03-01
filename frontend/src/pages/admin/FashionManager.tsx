@@ -7,6 +7,7 @@ import { ADMIN_MENU_ITEMS, ADMIN_MENU_SECTIONS } from '../../constants/adminMenu
 import { supabase } from '../../lib/supabase';
 import { uploadFashionImage, deleteFashionImage } from '../../utils/uploadFashionImage';
 import { getOptimizedFashionModelUrl } from '../../utils/fashionImageUrl';
+import { searchProductVariants } from '../../utils/productVariantSearch';
 
 // ─── Types ──────────────────────────────────────────────────────────────
 interface FashionCollection {
@@ -337,14 +338,18 @@ export default function FashionManager() {
         setProductSearch(query);
         if (query.length < 2) { setProductResults([]); return; }
         setSearchingProducts(true);
-        const { data } = await supabase.from('product_variants')
-            .select('id, name, sku, price, products!inner ( id, name )')
-            .ilike('name', `%${query}%`).eq('is_active', true).limit(10);
-        if (data) {
-            setProductResults((data as unknown as Array<Record<string, unknown>>).map((d) => {
-                const prod = d.products as Record<string, unknown>;
-                return { id: d.id as number, name: d.name as string, sku: d.sku as string, price: d.price as number | null, product_name: prod.name as string, product_id: prod.id as number };
-            }));
+        try {
+            const results = await searchProductVariants(query, 10);
+            setProductResults(results.map((r) => ({
+                id: r.id,
+                name: r.name,
+                sku: r.sku,
+                price: r.price,
+                product_name: r.productName,
+                product_id: r.productId,
+            })));
+        } catch (err) {
+            showToast('error', err instanceof Error ? `Error: ${err.message}` : 'Error searching products');
         }
         setSearchingProducts(false);
     };

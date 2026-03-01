@@ -9,6 +9,8 @@ type Variant = {
   price: number;
   available: number;
   imageUrl?: string;
+  color?: string;
+  size?: string;
 };
 
 type ProductImageRow = {
@@ -78,12 +80,16 @@ export async function fetchProductDetail(numericId: number, signal: AbortSignal)
       const price = typeof v.price === 'number' ? v.price : Number(v.price ?? 0);
       const available = Math.max(0, (v.stock ?? 0) - (v.reserved_stock ?? 0));
       const imageUrl = typeof v.attributes?.image_url === 'string' ? v.attributes.image_url : undefined;
+      const color = typeof v.attributes?.color === 'string' ? v.attributes.color : undefined;
+      const size = typeof v.attributes?.size === 'string' ? v.attributes.size : undefined;
       return {
         id: Number(v.id),
         name: String(v.name),
         price: Number.isFinite(price) ? price : 0,
         available,
         imageUrl: imageUrl ?? primaryImageUrl,
+        color,
+        size,
       };
     });
 
