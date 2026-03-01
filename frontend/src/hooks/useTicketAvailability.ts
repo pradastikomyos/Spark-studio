@@ -1,4 +1,5 @@
-import { useQuery } from '@tanstack/react-query';
+import { useEffect } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { toLocalDateString } from '../utils/timezone';
 import { APIError, createQuerySignal } from '../lib/fetchers';
@@ -24,7 +25,32 @@ type RawAvailability = {
 };
 
 export function useTicketAvailability(ticketId: number | null) {
+  const queryClient = useQueryClient();
   const enabled = typeof ticketId === 'number' && Number.isFinite(ticketId);
+
+  useEffect(() => {
+    if (!enabled) return;
+
+    const channel = supabase
+      .channel(`ticket_availabilities:${ticketId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'ticket_availabilities',
+          filter: `ticket_id=eq.${ticketId}`,
+        },
+        () => {
+          queryClient.invalidateQueries({ queryKey: queryKeys.ticketAvailability(ticketId) });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [enabled, queryClient, ticketId]);
 
   return useQuery({
     queryKey: enabled ? queryKeys.ticketAvailability(ticketId) : ['ticket-availability', 'invalid'],
@@ -63,7 +89,9 @@ export function useTicketAvailability(ticketId: number | null) {
     },
     refetchOnWindowFocus: true,
     refetchOnReconnect: true,
-    refetchInterval: 30000,
+    // Fallback polling in case realtime disconnects/misses events.
+    refetchInterval: enabled ? 2 * 60 * 1000 : false,
+    refetchIntervalInBackground: false,
     staleTime: 10000,
   });
 }
