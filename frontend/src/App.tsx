@@ -35,6 +35,7 @@ const VoucherManager = lazy(() => import('./pages/admin/VoucherManager'));
 const BannerManager = lazy(() => import('./pages/admin/BannerManager'));
 const EventsScheduleManager = lazy(() => import('./pages/admin/EventsScheduleManager'));
 const FashionManager = lazy(() => import('./pages/admin/FashionManager'));
+const BeautyPosterManager = lazy(() => import('./pages/admin/BeautyPosterManager'));
 const BookingPage = lazy(() => import('./pages/BookingPage'));
 const JourneySelectionPage = lazy(() => import('./pages/JourneySelectionPage'));
 const PaymentPage = lazy(() => import('./pages/PaymentPage'));
@@ -297,6 +298,18 @@ function AppRoutes() {
               <ProtectedRoute adminOnly>
                 <Suspense fallback={<RouteLoading />}>
                   <FashionManager />
+                </Suspense>
+              </ProtectedRoute>
+            )
+          }
+        />
+        <Route
+          path="/admin/beauty-posters"
+          element={
+            wrap(
+              <ProtectedRoute adminOnly>
+                <Suspense fallback={<RouteLoading />}>
+                  <BeautyPosterManager />
                 </Suspense>
               </ProtectedRoute>
             )

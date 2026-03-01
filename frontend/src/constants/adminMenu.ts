@@ -40,4 +40,11 @@ export const ADMIN_MENU_SECTIONS: AdminMenuSection[] = [
       { id: 'fashion-lookbook', label: 'Lookbook Manager', icon: 'styler', path: '/admin/fashion' },
     ],
   },
+  {
+    id: 'beauty',
+    label: 'Beauty',
+    items: [
+      { id: 'beauty-posters', label: 'Poster Tagger', icon: 'auto_awesome', path: '/admin/beauty-posters' },
+    ],
+  },
 ];
