@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom';
 import { CollectionItem } from '../types';
 
 const FeaturedCollections = () => {
@@ -14,6 +15,12 @@ const FeaturedCollections = () => {
     },
   ];
 
+  const toPath = (title: string) => {
+    if (title.toLowerCase() === 'fashion') return '/fashion';
+    if (title.toLowerCase() === 'beauty') return '/beauty';
+    return '/';
+  };
+
   return (
     <section className="py-24 bg-background-light">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -25,9 +32,10 @@ const FeaturedCollections = () => {
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
           {collections.map((collection, index) => (
-            <div
+            <Link
               key={index}
-              className="group relative h-[500px] overflow-hidden cursor-pointer"
+              to={toPath(collection.title)}
+              className="group relative h-[500px] overflow-hidden cursor-pointer block"
             >
               <img
                 alt={`${collection.title} collection`}
@@ -44,7 +52,7 @@ const FeaturedCollections = () => {
                   {collection.subtitle}
                 </p>
               </div>
-            </div>
+            </Link>
           ))}
         </div>
       </div>

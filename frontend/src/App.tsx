@@ -50,6 +50,8 @@ const MyTicketsPage = lazy(() => import('./pages/MyTicketsPage'));
 const StageScanPage = lazy(() => import('./pages/StageScanPage'));
 const StageDetailPage = lazy(() => import('./pages/StageDetailPage'));
 const FashionPage = lazy(() => import('./pages/FashionPage'));
+const BeautyPage = lazy(() => import('./pages/BeautyPage'));
+const BeautyPosterPage = lazy(() => import('./pages/BeautyPosterPage'));
 const NotFound = lazy(() => import('./pages/NotFound'));
 
 // App-level loading screen - shown until auth is initialized
@@ -338,6 +340,26 @@ function AppRoutes() {
               wrap(
                 <Suspense fallback={<RouteLoading />}>
                   <FashionPage />
+                </Suspense>
+              )
+            }
+          />
+          <Route
+            path="beauty"
+            element={
+              wrap(
+                <Suspense fallback={<RouteLoading />}>
+                  <BeautyPage />
+                </Suspense>
+              )
+            }
+          />
+          <Route
+            path="beauty/:posterSlug"
+            element={
+              wrap(
+                <Suspense fallback={<RouteLoading />}>
+                  <BeautyPosterPage />
                 </Suspense>
               )
             }

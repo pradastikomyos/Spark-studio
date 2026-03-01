@@ -44,6 +44,7 @@ const Navbar = () => {
     if (path.startsWith('/events')) return 'event';
     if (path.startsWith('/shop')) return 'shop';
     if (path.startsWith('/fashion')) return 'fashion';
+    if (path.startsWith('/beauty')) return 'beauty';
     if (path.startsWith('/spark-club')) return 'spark-club';
     if (path.startsWith('/news')) return 'news';
     return '';
@@ -54,6 +55,7 @@ const Navbar = () => {
     { key: 'event', label: 'EVENT', to: '/events' },
     { key: 'shop', label: 'SHOP', to: '/shop' },
     { key: 'fashion', label: 'FASHION', to: '/fashion' },
+    { key: 'beauty', label: 'BEAUTY', to: '/beauty' },
     { key: 'spark-club', label: 'SPARK CLUB', to: '/spark-club' },
     { key: 'news', label: 'NEWS', to: '/news' },
   ] as const;
