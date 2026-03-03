@@ -181,7 +181,7 @@ export type Database = {
           updated_at?: string | null
         }
       }
-      fashion_collections: {
+      dressing_room_collections: {
         Row: {
           id: number
           title: string
@@ -215,7 +215,7 @@ export type Database = {
           updated_at?: string
         }
       }
-      fashion_looks: {
+      dressing_room_looks: {
         Row: {
           id: number
           collection_id: number
@@ -246,7 +246,7 @@ export type Database = {
           updated_at?: string
         }
       }
-      fashion_look_items: {
+      dressing_room_look_items: {
         Row: {
           id: number
           look_id: number
@@ -267,6 +267,31 @@ export type Database = {
           id?: number
           look_id?: number
           product_variant_id?: number
+          label?: string | null
+          sort_order?: number
+        }
+      }
+      dressing_room_look_photos: {
+        Row: {
+          id: number
+          look_id: number
+          image_url: string
+          label: string | null
+          sort_order: number
+          created_at: string
+        }
+        Insert: {
+          id?: number
+          look_id: number
+          image_url: string
+          label?: string | null
+          sort_order?: number
+          created_at?: string
+        }
+        Update: {
+          id?: number
+          look_id?: number
+          image_url?: string
           label?: string | null
           sort_order?: number
         }

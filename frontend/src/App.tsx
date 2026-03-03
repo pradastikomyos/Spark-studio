@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useRef, type ReactNode } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation, useParams } from 'react-router-dom';
 import { AnimatePresence } from 'framer-motion';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
@@ -34,7 +34,7 @@ const ProductOrders = lazy(() => import('./pages/admin/ProductOrders'));
 const VoucherManager = lazy(() => import('./pages/admin/VoucherManager'));
 const BannerManager = lazy(() => import('./pages/admin/BannerManager'));
 const EventsScheduleManager = lazy(() => import('./pages/admin/EventsScheduleManager'));
-const FashionManager = lazy(() => import('./pages/admin/FashionManager'));
+const DressingRoomManager = lazy(() => import('./pages/admin/DressingRoomManager'));
 const BeautyPosterManager = lazy(() => import('./pages/admin/BeautyPosterManager'));
 const BookingPage = lazy(() => import('./pages/BookingPage'));
 const JourneySelectionPage = lazy(() => import('./pages/JourneySelectionPage'));
@@ -50,7 +50,9 @@ const MyProductOrdersPage = lazy(() => import('./pages/MyProductOrdersPage'));
 const MyTicketsPage = lazy(() => import('./pages/MyTicketsPage'));
 const StageScanPage = lazy(() => import('./pages/StageScanPage'));
 const StageDetailPage = lazy(() => import('./pages/StageDetailPage'));
-const FashionPage = lazy(() => import('./pages/FashionPage'));
+const DressingRoomCollectionPage = lazy(() => import('./pages/DressingRoomCollectionPage'));
+const DressingRoomLandingPage = lazy(() => import('./pages/DressingRoomLandingPage'));
+const DressingRoomLookPage = lazy(() => import('./pages/DressingRoomLookPage'));
 const BeautyPage = lazy(() => import('./pages/BeautyPage'));
 const BeautyPosterPage = lazy(() => import('./pages/BeautyPosterPage'));
 const NotFound = lazy(() => import('./pages/NotFound'));
@@ -78,6 +80,16 @@ const TAB_IDLE_THRESHOLD_MS = 2 * 60 * 1000;
 
 function AppRoutes() {
   const location = useLocation();
+  const LegacyFashionLookRedirect = () => {
+    const { lookNumber } = useParams<{ lookNumber: string }>();
+    return <Navigate to={`/dressing-room/look/${lookNumber ?? ''}`} replace />;
+  };
+
+  const LegacyFashionCollectionRedirect = () => {
+    const { collectionSlug } = useParams<{ collectionSlug: string }>();
+    return <Navigate to={`/dressing-room/${collectionSlug ?? ''}`} replace />;
+  };
+
   const wrap = (node: ReactNode) => {
     const path = location.pathname;
     const isSuccessPage =
@@ -293,11 +305,15 @@ function AppRoutes() {
         />
         <Route
           path="/admin/fashion"
+          element={wrap(<Navigate to="/admin/dressing-room" replace />)}
+        />
+        <Route
+          path="/admin/dressing-room"
           element={
             wrap(
               <ProtectedRoute adminOnly>
                 <Suspense fallback={<RouteLoading />}>
-                  <FashionManager />
+                  <DressingRoomManager />
                 </Suspense>
               </ProtectedRoute>
             )
@@ -339,20 +355,42 @@ function AppRoutes() {
           />
           <Route
             path="fashion"
+            element={wrap(<Navigate to="/dressing-room" replace />)}
+          />
+          <Route
+            path="fashion/look/:lookNumber"
+            element={wrap(<LegacyFashionLookRedirect />)}
+          />
+          <Route
+            path="fashion/:collectionSlug"
+            element={wrap(<LegacyFashionCollectionRedirect />)}
+          />
+          <Route
+            path="dressing-room"
             element={
               wrap(
                 <Suspense fallback={<RouteLoading />}>
-                  <FashionPage />
+                  <DressingRoomLandingPage />
                 </Suspense>
               )
             }
           />
           <Route
-            path="fashion/:collectionSlug"
+            path="dressing-room/look/:lookNumber"
             element={
               wrap(
                 <Suspense fallback={<RouteLoading />}>
-                  <FashionPage />
+                  <DressingRoomLookPage />
+                </Suspense>
+              )
+            }
+          />
+          <Route
+            path="dressing-room/:collectionSlug"
+            element={
+              wrap(
+                <Suspense fallback={<RouteLoading />}>
+                  <DressingRoomCollectionPage />
                 </Suspense>
               )
             }

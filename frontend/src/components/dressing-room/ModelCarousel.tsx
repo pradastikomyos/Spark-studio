@@ -1,17 +1,17 @@
 import { useRef, useState, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence, useReducedMotion, type PanInfo } from 'framer-motion';
-import type { FashionLook } from '../../hooks/useFashionCollection';
-import { getOptimizedFashionModelUrl } from '../../utils/fashionImageUrl';
+import type { DressingRoomLook } from '../../hooks/useDressingRoomCollection';
+import { getOptimizedDressingRoomImageUrl, normalizeDressingRoomImageUrl } from '../../utils/dressingRoomImageUrl';
 
 interface ModelCarouselProps {
-    looks: FashionLook[];
+    looks: DressingRoomLook[];
     activeIndex: number;
     onActiveChange: (index: number) => void;
     productsCount?: number;
     onOpenProducts?: () => void;
 }
 
-// How many upcoming models to preview behind (to the left of) the active one
+// How many upcoming photos to preview behind (to the left of) the active one
 const VISIBLE_AHEAD = 3;
 
 const SPRING = { type: 'spring' as const, stiffness: 260, damping: 28 };
@@ -141,7 +141,7 @@ export default function ModelCarousel({ looks, activeIndex, onActiveChange, prod
         const active = looks[0];
         if (!active?.model_image_url) return;
 
-        const src = getOptimizedFashionModelUrl(active.model_image_url, { height: activeHeightPx });
+        const src = getOptimizedDressingRoomImageUrl(active.model_image_url, { height: activeHeightPx });
         const img = new Image();
         img.decoding = 'async';
         img.src = src;
@@ -182,7 +182,7 @@ export default function ModelCarousel({ looks, activeIndex, onActiveChange, prod
 
                         const originalSrc = look.model_image_url;
                         const targetHeight = offset === 0 ? activeHeightPx : previewHeightPx;
-                        const optimizedSrc = getOptimizedFashionModelUrl(originalSrc, { height: targetHeight });
+                        const optimizedSrc = getOptimizedDressingRoomImageUrl(originalSrc, { height: targetHeight });
 
                         return (
                             <motion.div
@@ -217,8 +217,9 @@ export default function ModelCarousel({ looks, activeIndex, onActiveChange, prod
                                     decoding="async"
                                     onError={(event) => {
                                         const img = event.currentTarget;
-                                        if ((img.getAttribute('src') ?? '') === originalSrc) return;
-                                        img.setAttribute('src', originalSrc);
+                                        const fallback = normalizeDressingRoomImageUrl(originalSrc);
+                                        if ((img.getAttribute('src') ?? '') === fallback) return;
+                                        img.setAttribute('src', fallback);
                                     }}
                                 />
                             </motion.div>

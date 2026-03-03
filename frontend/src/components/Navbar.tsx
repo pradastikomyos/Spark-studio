@@ -43,7 +43,7 @@ const Navbar = () => {
     if (path.startsWith('/on-stage')) return 'on-stage';
     if (path.startsWith('/events')) return 'event';
     if (path.startsWith('/shop')) return 'shop';
-    if (path.startsWith('/fashion')) return 'fashion';
+    if (path.startsWith('/dressing-room') || path.startsWith('/fashion')) return 'dressing-room';
     if (path.startsWith('/beauty')) return 'beauty';
     if (path.startsWith('/spark-club')) return 'spark-club';
     if (path.startsWith('/news')) return 'news';
@@ -54,11 +54,24 @@ const Navbar = () => {
     { key: 'on-stage', label: 'ON STAGE', to: '/on-stage' },
     { key: 'event', label: 'EVENT', to: '/events' },
     { key: 'shop', label: 'SHOP', to: '/shop' },
-    { key: 'fashion', label: 'FASHION', to: '/fashion' },
+    { key: 'dressing-room', label: 'DRESSING ROOM', to: '/dressing-room' },
     { key: 'beauty', label: 'BEAUTY', to: '/beauty' },
     { key: 'spark-club', label: 'SPARK CLUB', to: '/spark-club' },
     { key: 'news', label: 'NEWS', to: '/news' },
   ] as const;
+
+  const renderNavItemLabel = (item: (typeof navItems)[number]) => {
+    if (item.key !== 'dressing-room') return item.label;
+    const [top, ...rest] = item.label.split(' ');
+    const bottom = rest.join(' ');
+    return (
+      <span className="block leading-tight text-center">
+        {top}
+        <br />
+        {bottom}
+      </span>
+    );
+  };
 
   const activeIndex = Math.max(0, navItems.findIndex((item) => item.key === activeNavKey));
   const currentLanguage = (i18n.resolvedLanguage ?? i18n.language ?? 'en').toLowerCase();
@@ -341,7 +354,7 @@ const Navbar = () => {
                     className={`text-sm font-semibold uppercase px-4 py-2 transition-colors ${isActive ? 'text-white' : 'text-gray-600 hover:text-gray-900'
                       }`}
                   >
-                    {item.label}
+                    {renderNavItemLabel(item)}
                   </Link>
                 );
               })}
@@ -384,7 +397,7 @@ const Navbar = () => {
                   className={`relative z-10 shrink-0 snap-center min-w-[106px] text-center text-xs font-semibold uppercase px-3 py-2 transition-all duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${isActive ? 'text-white drop-shadow-[0_2px_6px_rgba(0,0,0,0.18)] -translate-y-[1px] scale-[1.03]' : 'text-gray-600 active:text-gray-900'
                     }`}
                 >
-                  {item.label}
+                  {renderNavItemLabel(item)}
                 </Link>
               );
             })}

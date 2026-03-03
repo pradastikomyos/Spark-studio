@@ -23,13 +23,10 @@ CREATE TABLE IF NOT EXISTS public.events_schedule_items (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
-
 COMMENT ON TABLE public.events_schedule_items IS 'Editable upcoming schedule items for /events page';
-
 -- Indexes
 CREATE INDEX IF NOT EXISTS idx_events_schedule_items_active_order
   ON public.events_schedule_items (is_active, sort_order, event_date);
-
 -- updated_at trigger
 CREATE OR REPLACE FUNCTION public.update_events_schedule_items_updated_at()
 RETURNS TRIGGER AS $$
@@ -38,23 +35,19 @@ BEGIN
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
-
 DROP TRIGGER IF EXISTS trigger_events_schedule_items_updated_at ON public.events_schedule_items;
 CREATE TRIGGER trigger_events_schedule_items_updated_at
   BEFORE UPDATE ON public.events_schedule_items
   FOR EACH ROW
   EXECUTE FUNCTION public.update_events_schedule_items_updated_at();
-
 -- RLS
 ALTER TABLE public.events_schedule_items ENABLE ROW LEVEL SECURITY;
-
 DROP POLICY IF EXISTS "Public read active events schedule items" ON public.events_schedule_items;
 CREATE POLICY "Public read active events schedule items"
   ON public.events_schedule_items
   FOR SELECT
   TO public
   USING (is_active = true);
-
 DROP POLICY IF EXISTS "Admin full access for events schedule items" ON public.events_schedule_items;
 CREATE POLICY "Admin full access for events schedule items"
   ON public.events_schedule_items
@@ -62,4 +55,3 @@ CREATE POLICY "Admin full access for events schedule items"
   TO authenticated
   USING (public.is_admin())
   WITH CHECK (public.is_admin());
-

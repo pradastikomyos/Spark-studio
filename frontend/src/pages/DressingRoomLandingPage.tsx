@@ -1,0 +1,402 @@
+import { useEffect, useState, useCallback } from 'react';
+import { AnimatePresence, motion, type PanInfo } from 'framer-motion';
+import { PageTransition } from '../components/PageTransition';
+import LookProductSidebar from '../components/dressing-room/LookProductSidebar';
+import { DRESSING_ROOM_DEMO } from '../mock/dressingRoomDemo';
+import { useDressingRoomCollection, type DressingRoomLook as DBLook } from '../hooks/useDressingRoomCollection';
+import { getOptimizedDressingRoomImageUrl, normalizeDressingRoomImageUrl } from '../utils/dressingRoomImageUrl';
+
+const SPRING = { type: 'spring' as const, stiffness: 320, damping: 34 };
+const VISIBLE_AHEAD = 3;
+
+// Stacked carousel transform (same as admin panel)
+function getModelTransform(offset: number, containerWidth: number) {
+  const absOffset = Math.abs(offset);
+  if (offset < 0 || absOffset > VISIBLE_AHEAD) {
+    return { scale: 0, opacity: 0, x: containerWidth + 100, blur: 14, zIndex: 0, display: false };
+  }
+  const scaleMap = [1, 0.75, 0.55, 0.4];
+  const scale = scaleMap[absOffset] ?? 0.35;
+  const opacityMap = [1, 0.85, 0.55, 0.3];
+  const opacity = opacityMap[absOffset] ?? 0.2;
+  const blurMap = [0, 2.5, 5, 8];
+  const blur = blurMap[absOffset] ?? 10;
+  const isMobileWidth = containerWidth < 640;
+  const isTabletWidth = containerWidth >= 640 && containerWidth < 1024;
+
+  // Anchor around center for smaller screens so it doesn't stick to the far right.
+  const rightEdgeFactor = isMobileWidth ? 0.52 : isTabletWidth ? 0.56 : 0.6;
+  const spacingFactor = isMobileWidth ? 0.22 : isTabletWidth ? 0.2 : 0.2;
+  const center = containerWidth * 0.5;
+  const rightEdge = containerWidth * rightEdgeFactor;
+  const spacing = containerWidth * spacingFactor;
+  const x = (rightEdge - (absOffset * spacing)) - center;
+  const zIndex = 10 - absOffset;
+  return { scale, opacity, x, blur, zIndex, display: true };
+}
+
+// Unified look interface for display
+interface DisplayLook {
+  lookNumber: number;
+  coverImageUrl: string;
+  photos: string[];
+  items: DBLook['items'] | Array<{ id: number; label: string | null; productVariantId: number }>;
+}
+
+// Fetch photos for a look from database
+async function fetchLookPhotos(lookId: number) {
+  const { supabase } = await import('../lib/supabase');
+  const { data } = await supabase
+    .from('dressing_room_look_photos')
+    .select('image_url')
+    .eq('look_id', lookId)
+    .order('sort_order', { ascending: true });
+  return data?.map(p => p.image_url) || [];
+}
+
+export default function DressingRoomLandingPage() {
+  const { collection, looks: dbLooks, isLoading } = useDressingRoomCollection();
+  const [carouselIndex, setCarouselIndex] = useState(0);
+
+  // Convert DB looks to display format
+  const displayLooks: DisplayLook[] = dbLooks.length > 0
+    ? dbLooks.map(look => ({
+        lookNumber: look.look_number,
+        coverImageUrl: look.model_image_url,
+        photos: [look.model_image_url], // Will be fetched on demand in detail section
+        items: look.items,
+      }))
+    : DRESSING_ROOM_DEMO.looks;
+
+  const title = collection?.title || DRESSING_ROOM_DEMO.title;
+  const description = collection?.description || DRESSING_ROOM_DEMO.description;
+
+  if (isLoading) {
+    return (
+      <PageTransition>
+        <div className="min-h-screen bg-white flex items-center justify-center">
+          <div className="text-center">
+            <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-gray-900 border-r-transparent"></div>
+            <p className="mt-4 text-sm text-gray-500">Loading collection...</p>
+          </div>
+        </div>
+      </PageTransition>
+    );
+  }
+
+  const scrollToLook = (lookNumber: number) => {
+    const element = document.getElementById(`look-${lookNumber}`);
+    if (element) {
+      element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  };
+
+  const goCarouselNext = () => {
+    setCarouselIndex((i) => Math.min(displayLooks.length - 1, i + 1));
+  };
+
+  const goCarouselPrev = () => {
+    setCarouselIndex((i) => Math.max(0, i - 1));
+  };
+
+  return (
+    <PageTransition>
+      <div className="bg-white">
+        {/* Hero Section with Carousel */}
+        <section className="bg-[#f6dbe6] border-b border-gray-300">
+          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-10 md:py-14">
+            <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-6">
+              <div className="max-w-3xl">
+                <h1 className="text-5xl md:text-7xl font-black tracking-tight text-black">
+                  {title}
+                </h1>
+                <p className="mt-4 text-sm md:text-base text-gray-700 max-w-xl leading-relaxed italic">
+                  {description}
+                </p>
+              </div>
+
+              <div className="flex md:justify-end">
+                <button
+                  type="button"
+                  className="px-6 py-3 text-sm font-bold uppercase tracking-wider border border-gray-500 bg-white hover:bg-gray-50 transition-colors"
+                >
+                  FIND YOUR VIBE
+                </button>
+              </div>
+            </div>
+
+            {/* Horizontal Carousel */}
+            <div className="mt-8 md:mt-10 relative">
+              <div className="overflow-hidden">
+                <div
+                  className="flex gap-4 transition-transform duration-500 ease-out"
+                  style={{
+                    transform: `translateX(-${carouselIndex * (100 / 3 + 1.33)}%)`,
+                  }}
+                >
+                  {displayLooks.map((look) => (
+                    <button
+                      key={look.lookNumber}
+                      type="button"
+                      onClick={() => scrollToLook(look.lookNumber)}
+                      className="group bg-white/60 border border-gray-200 hover:border-gray-400 transition-colors overflow-hidden text-left flex-shrink-0 w-[calc(33.333%-0.67rem)]"
+                      aria-label={`Scroll to Look ${look.lookNumber}`}
+                    >
+                      <div className="aspect-[4/5] bg-white">
+                        <img
+                          src={look.coverImageUrl}
+                          alt={`Look ${look.lookNumber}`}
+                          className="w-full h-full object-cover group-hover:scale-[1.02] transition-transform duration-500"
+                          loading="lazy"
+                          decoding="async"
+                          onError={(event) => {
+                            event.currentTarget.src = '/images/landing/neon.png';
+                          }}
+                        />
+                      </div>
+                      <div className="px-3 py-3">
+                        <p className="text-xs font-black tracking-[0.28em] text-gray-800 uppercase">
+                          LOOK {look.lookNumber}
+                        </p>
+                        <p className="mt-1 text-[11px] text-gray-500 italic">
+                          Lorem ipsum
+                        </p>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Navigation Arrows */}
+              <button
+                type="button"
+                onClick={goCarouselPrev}
+                disabled={carouselIndex === 0}
+                className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-4 h-12 w-12 bg-white border border-gray-300 rounded-full flex items-center justify-center text-gray-600 hover:text-gray-900 hover:border-gray-400 disabled:opacity-30 disabled:cursor-not-allowed transition-all shadow-lg"
+                aria-label="Previous looks"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5">
+                  <path d="M15 18l-6-6 6-6" />
+                </svg>
+              </button>
+              <button
+                type="button"
+                onClick={goCarouselNext}
+                disabled={carouselIndex >= displayLooks.length - 3}
+                className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-4 h-12 w-12 bg-white border border-gray-300 rounded-full flex items-center justify-center text-gray-600 hover:text-gray-900 hover:border-gray-400 disabled:opacity-30 disabled:cursor-not-allowed transition-all shadow-lg"
+                aria-label="Next looks"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5">
+                  <path d="M9 18l6-6-6-6" />
+                </svg>
+              </button>
+            </div>
+          </div>
+        </section>
+
+        {/* Look Detail Sections */}
+        {displayLooks.map((look) => (
+          <LookDetailSection key={look.lookNumber} look={look} dbLook={dbLooks.find(l => l.look_number === look.lookNumber)} />
+        ))}
+      </div>
+    </PageTransition>
+  );
+}
+
+interface LookDetailSectionProps {
+  look: DisplayLook;
+  dbLook?: DBLook;
+}
+
+function LookDetailSection({ look, dbLook }: LookDetailSectionProps) {
+  const [activePhotoIndex, setActivePhotoIndex] = useState(0);
+  const [containerWidth, setContainerWidth] = useState(700);
+  const [isDragging, setIsDragging] = useState(false);
+  const [photos, setPhotos] = useState<string[]>(look.photos);
+
+  // Fetch photos on mount if we have a DB look
+  useEffect(() => {
+    if (!dbLook?.id) return;
+    let cancelled = false;
+
+    fetchLookPhotos(dbLook.id).then((fetchedPhotos) => {
+      if (cancelled) return;
+      if (fetchedPhotos.length > 0) setPhotos(fetchedPhotos);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [dbLook?.id]);
+
+  const visiblePhotos = photos.map((photo: string, index: number) => ({
+    photo,
+    index,
+    offset: index - activePhotoIndex,
+  })).filter(({ offset }: { offset: number }) => offset >= 0 && offset <= VISIBLE_AHEAD);
+
+  const goNext = () => setActivePhotoIndex((i) => Math.min(photos.length - 1, i + 1));
+  const goPrev = () => setActivePhotoIndex((i) => Math.max(0, i - 1));
+
+  const handleDragEnd = (_: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
+    setIsDragging(false);
+    const threshold = 60;
+    // Instagram-style: swipe right = next, swipe left = prev
+    if (info.offset.x > threshold) goNext();
+    else if (info.offset.x < -threshold) goPrev();
+  };
+
+  const containerRef = useCallback((node: HTMLDivElement | null) => {
+    if (!node) return;
+    const ro = new ResizeObserver((entries) => {
+      for (const e of entries) setContainerWidth(e.contentRect.width);
+    });
+    ro.observe(node);
+    return () => ro.disconnect();
+  }, []);
+
+  return (
+    <section
+      id={`look-${look.lookNumber}`}
+      className="bg-[#f5f3f0] min-h-screen border-b border-gray-300"
+    >
+      <div className="h-screen flex">
+        <div className="flex-1 min-w-0 flex flex-col px-4 sm:px-6 md:px-8 lg:px-10 pt-6 sm:pt-8 pb-4 sm:pb-6">
+          <div className="flex items-start justify-between gap-4 mb-4 sm:mb-6">
+            <div>
+              <p className="text-[10px] sm:text-[11px] uppercase tracking-[0.28em] text-gray-500 font-semibold">
+                Dressing Room
+              </p>
+              <h2 className="mt-1 text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-black tracking-tight text-gray-900">
+                LOOK {look.lookNumber}
+              </h2>
+            </div>
+            <button
+              type="button"
+              onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+              className="h-10 sm:h-11 px-3 sm:px-4 inline-flex items-center justify-center border border-gray-300 bg-white hover:bg-gray-50 text-[10px] sm:text-xs font-bold uppercase tracking-wider"
+            >
+              Back to Top
+            </button>
+          </div>
+
+          <div className="flex-1 min-h-0 relative">
+            <motion.div
+              ref={containerRef}
+              className="relative flex-1 min-h-0 overflow-hidden cursor-grab active:cursor-grabbing"
+              drag="x"
+              dragConstraints={{ left: 0, right: 0 }}
+              dragElastic={0.08}
+              onDragStart={() => setIsDragging(true)}
+              onDragEnd={handleDragEnd}
+              style={{ touchAction: 'pan-y', height: '100%' }}
+            >
+              <AnimatePresence mode="popLayout">
+                {visiblePhotos.map(({ photo, index, offset }: { photo: string; index: number; offset: number }) => {
+                  const t = getModelTransform(offset, containerWidth);
+                  if (!t.display) return null;
+                  const isActive = offset === 0;
+                  const optimizedSrc = photo ? getOptimizedDressingRoomImageUrl(photo, { height: 900 }) : '';
+                  
+                  return (
+                    <div
+                      key={index}
+                      className="absolute inset-0 flex items-center justify-center lg:items-end pointer-events-none"
+                    >
+                      <motion.div
+                        className="pointer-events-auto"
+                        initial={{ scale: 0.3, opacity: 0, x: containerWidth + 100 }}
+                        animate={{
+                          scale: t.scale,
+                          opacity: t.opacity,
+                          x: t.x,
+                          filter: `blur(${t.blur}px)`,
+                          zIndex: t.zIndex,
+                        }}
+                        exit={{ scale: 0.3, opacity: 0, x: containerWidth + 200 }}
+                        transition={SPRING}
+                        onClick={() => { if (!isDragging && !isActive) setActivePhotoIndex(index); }}
+                        style={{
+                          willChange: 'transform, filter, opacity',
+                          cursor: isActive ? 'default' : 'pointer',
+                          transformOrigin: 'bottom center',
+                        }}
+                      >
+                        <img
+                          src={optimizedSrc}
+                          alt={`Look ${look.lookNumber} photo ${index + 1}`}
+                          className="h-auto w-auto max-w-none object-contain select-none pointer-events-none max-h-[calc(100vh-270px)] sm:max-h-[calc(100vh-240px)] lg:max-h-[calc(100vh-220px)]"
+                          draggable={false}
+                          decoding="async"
+                          loading={isActive ? 'eager' : 'lazy'}
+                          onError={(event) => {
+                            const img = event.currentTarget;
+                            const fallback = normalizeDressingRoomImageUrl(photo);
+                            if ((img.getAttribute('src') ?? '') === fallback) return;
+                            img.setAttribute('src', fallback);
+                          }}
+                        />
+                      </motion.div>
+                    </div>
+                  );
+                })}
+              </AnimatePresence>
+
+              {/* Navigation arrows */}
+              <button
+                type="button"
+                onClick={goPrev}
+                disabled={activePhotoIndex === 0}
+                className="absolute left-1 sm:left-2 top-1/2 -translate-y-1/2 h-10 w-10 sm:h-12 sm:w-12 inline-flex items-center justify-center text-gray-600 hover:text-gray-900 disabled:opacity-20 bg-white/80 rounded-full border border-gray-200 hover:bg-white transition-all"
+                aria-label="Previous photo"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" className="h-4 w-4 sm:h-5 sm:w-5">
+                  <path d="M15 18l-6-6 6-6" />
+                </svg>
+              </button>
+              <button
+                type="button"
+                onClick={goNext}
+                disabled={activePhotoIndex === photos.length - 1}
+                className="absolute right-1 sm:right-2 top-1/2 -translate-y-1/2 h-10 w-10 sm:h-12 sm:w-12 inline-flex items-center justify-center text-gray-600 hover:text-gray-900 disabled:opacity-20 bg-white/80 rounded-full border border-gray-200 hover:bg-white transition-all"
+                aria-label="Next photo"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" className="h-4 w-4 sm:h-5 sm:w-5">
+                  <path d="M9 18l6-6-6-6" />
+                </svg>
+              </button>
+            </motion.div>
+          </div>
+
+          <div className="pt-3 sm:pt-4 flex items-center justify-between">
+            <p className="text-[10px] sm:text-xs text-gray-500 italic">
+              Swipe horizontally to browse photos
+            </p>
+            <div className="flex items-center gap-1 sm:gap-1.5">
+              {photos.map((_: string, idx: number) => (
+                <button
+                  key={idx}
+                  type="button"
+                  onClick={() => setActivePhotoIndex(idx)}
+                  className="h-8 sm:h-10 w-6 sm:w-8 inline-flex items-center justify-center"
+                  aria-label={`Go to photo ${idx + 1}`}
+                >
+                  <span
+                    className={[
+                      'rounded-full transition-all duration-300',
+                      idx === activePhotoIndex ? 'bg-gray-900 w-4 sm:w-5 h-1 sm:h-1.5' : 'bg-gray-300 w-1 sm:w-1.5 h-1 sm:h-1.5',
+                    ].join(' ')}
+                  />
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <div className="hidden md:block w-[220px] lg:w-[280px] xl:w-[320px] shrink-0 border-l border-gray-200/50 bg-[#f0eeeb]/60 h-full overflow-y-auto hide-scrollbar overscroll-contain">
+          <LookProductSidebar items={look.items as DBLook['items']} lookNumber={look.lookNumber} density="compact" />
+        </div>
+      </div>
+    </section>
+  );
+}

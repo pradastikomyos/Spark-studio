@@ -1,14 +1,14 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
-import { useFashionCollection } from '../hooks/useFashionCollection';
-import ModelCarousel from '../components/fashion/ModelCarousel';
-import LookProductSidebar from '../components/fashion/LookProductSidebar';
+import { useDressingRoomCollection } from '../hooks/useDressingRoomCollection';
+import ModelCarousel from '../components/dressing-room/ModelCarousel';
+import LookProductSidebar from '../components/dressing-room/LookProductSidebar';
 import { PageTransition } from '../components/PageTransition';
 
-export default function FashionPage() {
+export default function DressingRoomCollectionPage() {
     const { collectionSlug } = useParams<{ collectionSlug?: string }>();
-    const { collection, looks, isLoading, error } = useFashionCollection(collectionSlug);
+    const { collection, looks, isLoading, error } = useDressingRoomCollection(collectionSlug);
     const [activeIndex, setActiveIndex] = useState(0);
     const [mobileProductsOpen, setMobileProductsOpen] = useState(false);
 
@@ -60,7 +60,7 @@ export default function FashionPage() {
             <PageTransition>
                 <div className="min-h-[calc(100vh-64px)] h-[calc(100dvh-64px)] bg-[#f5f3f0] flex items-center justify-center">
                     <div className="text-center space-y-4">
-                        <p className="text-gray-500">Failed to load fashion collection.</p>
+                        <p className="text-gray-500">Failed to load dressing room collection.</p>
                         <button
                             onClick={() => window.location.reload()}
                             className="text-sm underline text-gray-700 hover:text-gray-900"
@@ -82,7 +82,7 @@ export default function FashionPage() {
                             COMING SOON
                         </h1>
                         <p className="text-gray-500 max-w-md mx-auto">
-                            Our fashion lookbook is being curated. Stay tuned for the latest collection.
+                            Our dressing room lookbook is being curated. Stay tuned for the latest collection.
                         </p>
                     </div>
                 </div>

@@ -34,10 +34,10 @@ export const ADMIN_MENU_SECTIONS: AdminMenuSection[] = [
     ],
   },
   {
-    id: 'fashion',
-    label: 'Fashion',
+    id: 'dressing-room',
+    label: 'Dressing Room',
     items: [
-      { id: 'fashion-lookbook', label: 'Lookbook Manager', icon: 'styler', path: '/admin/fashion' },
+      { id: 'dressing-room', label: 'Dressing Room Manager', icon: 'styler', path: '/admin/dressing-room' },
     ],
   },
   {

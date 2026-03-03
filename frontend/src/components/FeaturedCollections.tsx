@@ -4,7 +4,7 @@ import { CollectionItem } from '../types';
 const FeaturedCollections = () => {
   const collections: CollectionItem[] = [
     {
-      title: 'Fashion',
+      title: 'Dressing Room',
       subtitle: 'View Editorial',
       imageUrl: 'https://lh3.googleusercontent.com/aida-public/AB6AXuA588h4jJ4oHsovcFrCVzPKpp_UEjMxSSaafs_xzNqq498XDUCQpkVffgJCVjBFT85Msi-UXYkt5KQ8ZcHb6fzvA8mtRH7-hX0l8f1xMsXecfiYvU83maNSDjKeTD0W5bbAOX6LQyDRPar2Jpzg31Y5y9IwBfo7TkmpZbNGwcViuL7c7dOk0sa29H3Io-qLVN_XkNZwg_tVz3gP2wvtVBkmz-H-HRqYu8-JLTHlXNR3wZM_jcd8DttsIZO2CVe4K7GQadHKa6EfjYA',
     },
@@ -16,7 +16,7 @@ const FeaturedCollections = () => {
   ];
 
   const toPath = (title: string) => {
-    if (title.toLowerCase() === 'fashion') return '/fashion';
+    if (title.toLowerCase() === 'fashion' || title.toLowerCase() === 'dressing room') return '/dressing-room';
     if (title.toLowerCase() === 'beauty') return '/beauty';
     return '/';
   };

@@ -1,10 +1,10 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import { Link } from 'react-router-dom';
-import type { FashionLookItem } from '../../hooks/useFashionCollection';
+import type { DressingRoomLookItem } from '../../hooks/useDressingRoomCollection';
 import { Heart, Plus } from 'lucide-react';
 
 interface LookProductSidebarProps {
-    items: FashionLookItem[];
+    items: DressingRoomLookItem[];
     lookNumber: number;
     density?: 'compact' | 'comfortable';
 }
