@@ -106,11 +106,11 @@ export default function DressingRoomLandingPage() {
         <section className="bg-[#f6dbe6] border-b border-gray-300">
           <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-10 md:py-14">
             <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-6">
-              <div className="max-w-3xl">
+              <div className="max-w-5xl">
                 <h1 className="text-5xl md:text-7xl font-black tracking-tight text-black">
                   {title}
                 </h1>
-                <p className="mt-4 text-sm md:text-base text-gray-700 max-w-xl leading-relaxed italic">
+                <p className="mt-4 text-sm md:text-base text-gray-700 max-w-4xl leading-relaxed italic pr-4">
                   {description}
                 </p>
               </div>
@@ -131,7 +131,7 @@ export default function DressingRoomLandingPage() {
                 <div
                   className="flex gap-4 transition-transform duration-500 ease-out"
                   style={{
-                    transform: `translateX(-${carouselIndex * (100 / 3 + 1.33)}%)`,
+                    transform: `translateX(calc(-${carouselIndex} * (20% + 0.2rem)))`,
                   }}
                 >
                   {displayLooks.map((look) => (
@@ -139,10 +139,10 @@ export default function DressingRoomLandingPage() {
                       key={look.lookNumber}
                       type="button"
                       onClick={() => scrollToLook(look.lookNumber)}
-                      className="group bg-white/60 border border-gray-200 hover:border-gray-400 transition-colors overflow-hidden text-left flex-shrink-0 w-[calc(33.333%-0.67rem)]"
+                      className="group bg-white/60 border border-gray-200 hover:border-gray-400 transition-colors overflow-hidden text-left flex-shrink-0 w-[calc(20%-0.8rem)]"
                       aria-label={`Scroll to Look ${look.lookNumber}`}
                     >
-                      <div className="aspect-[4/5] bg-white">
+                      <div className="aspect-[3/4] lg:aspect-[4/5] bg-white">
                         <img
                           src={look.coverImageUrl}
                           alt={`Look ${look.lookNumber}`}
@@ -182,7 +182,7 @@ export default function DressingRoomLandingPage() {
               <button
                 type="button"
                 onClick={goCarouselNext}
-                disabled={carouselIndex >= displayLooks.length - 3}
+                disabled={carouselIndex >= Math.max(0, displayLooks.length - 5)}
                 className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-4 h-12 w-12 bg-white border border-gray-300 rounded-full flex items-center justify-center text-gray-600 hover:text-gray-900 hover:border-gray-400 disabled:opacity-30 disabled:cursor-not-allowed transition-all shadow-lg"
                 aria-label="Next looks"
               >
@@ -267,9 +267,6 @@ function LookDetailSection({ look, dbLook }: LookDetailSectionProps) {
               <p className="text-[10px] sm:text-[11px] uppercase tracking-[0.28em] text-gray-500 font-semibold">
                 Dressing Room
               </p>
-              <h2 className="mt-1 text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-black tracking-tight text-gray-900">
-                LOOK {look.lookNumber}
-              </h2>
             </div>
             <button
               type="button"
@@ -369,8 +366,8 @@ function LookDetailSection({ look, dbLook }: LookDetailSectionProps) {
           </div>
 
           <div className="pt-3 sm:pt-4 flex items-center justify-between">
-            <p className="text-[10px] sm:text-xs text-gray-500 italic">
-              Swipe horizontally to browse photos
+            <p className="text-xs sm:text-xl text-gray-900 uppercase tracking-widest font-black">
+              LOOK {look.lookNumber}
             </p>
             <div className="flex items-center gap-1 sm:gap-1.5">
               {photos.map((_: string, idx: number) => (
