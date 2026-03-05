@@ -13,7 +13,7 @@ export const ADMIN_MENU_SECTIONS: AdminMenuSection[] = [
       { id: 'qr-bulk', label: 'Kelola QR Massal', icon: 'qr_code_2', path: '/admin/qr-bulk' },
       { id: 'stage-analytics', label: 'Analitik Stage', icon: 'analytics', path: '/admin/stage-analytics' },
       { id: 'banner-manager', label: 'Kelola Banner', icon: 'image', path: '/admin/banner-manager' },
-      { id: 'events-schedule', label: 'Kelola Jadwal Events', icon: 'event', path: '/admin/events-schedule' },
+      { id: 'event-page', label: 'Event Page Config', icon: 'edit_document', path: '/admin/event-page' },
     ],
   },
   {
