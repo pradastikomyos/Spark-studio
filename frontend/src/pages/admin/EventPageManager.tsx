@@ -27,8 +27,11 @@ export default function EventPageManager() {
 
   useEffect(() => {
     if (settings) {
+      const loadedHero = settings.hero_images || [];
       setHeroImages(
-        Array(5).fill('').map((_, i) => settings.hero_images?.[i] || '')
+        loadedHero.length >= 5 
+          ? loadedHero 
+          : Array(5).fill('').map((_, i) => loadedHero[i] || '')
       );
       setMagicTitle(settings.magic_title || '');
       setMagicDescription(settings.magic_description || '');
