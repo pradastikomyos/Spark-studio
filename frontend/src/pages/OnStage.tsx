@@ -218,13 +218,13 @@ const OnStage = () => {
 
         {/* Carousel Indicators */}
         <div className="flex justify-center gap-2 mt-8">
-          {Array.from({ length: maxSlides }).map((_, index) => (
+          {Array.from({ length: maxSlides }, (_, slideNumber) => slideNumber + 1).map((slideNumber) => (
             <button
-              key={index}
-              onClick={() => setCurrentSlide(index)}
-              className={`w-2.5 h-2.5 rounded-full ux-transition-color touch-manipulation ${currentSlide === index ? 'bg-main-600' : 'bg-gray-300'
+              key={`slide-${slideNumber}`}
+              onClick={() => setCurrentSlide(slideNumber - 1)}
+              className={`w-2.5 h-2.5 rounded-full ux-transition-color touch-manipulation ${currentSlide === slideNumber - 1 ? 'bg-main-600' : 'bg-gray-300'
                 }`}
-              aria-label={`Go to slide ${index + 1}`}
+              aria-label={`Go to slide ${slideNumber}`}
             />
           ))}
         </div>

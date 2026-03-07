@@ -40,10 +40,11 @@ function ShopResults({ filteredProducts, loading, resetSignal, onPrefetchProduct
   }, [filteredProducts, page]);
 
   if (loading) {
+    const skeletonKeys = ['product-skeleton-1', 'product-skeleton-2', 'product-skeleton-3', 'product-skeleton-4', 'product-skeleton-5', 'product-skeleton-6', 'product-skeleton-7', 'product-skeleton-8', 'product-skeleton-9', 'product-skeleton-10'];
     return (
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-        {Array.from({ length: 10 }).map((_, index) => (
-          <ProductCardSkeleton key={index} />
+        {skeletonKeys.map((skeletonKey) => (
+          <ProductCardSkeleton key={skeletonKey} />
         ))}
       </div>
     );

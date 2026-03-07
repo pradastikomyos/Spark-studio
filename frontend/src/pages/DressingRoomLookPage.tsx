@@ -130,9 +130,9 @@ export default function DressingRoomLookPage() {
                 Swipe horizontally to browse photos
               </p>
               <div className="flex items-center gap-1.5">
-                {photos.map((_, idx) => (
+                {photos.map((photo, idx) => (
                   <button
-                    key={idx}
+                    key={`photo-${photo}`}
                     type="button"
                     onClick={() => setActivePhotoIndex(idx)}
                     className="h-10 w-8 inline-flex items-center justify-center"

@@ -345,9 +345,9 @@ const StageDetailPage = () => {
                                                         </span>
                                                     </div>
                                                     <div className="flex text-yellow-400 text-lg mt-1">
-                                                        {Array.from({ length: 5 }).map((_, i) => (
-                                                            <span key={i} className="drop-shadow-sm">
-                                                                {i < review.rating ? '★' : '☆'}
+                                                        {[1, 2, 3, 4, 5].map((star) => (
+                                                            <span key={`${review.id}-star-${star}`} className="drop-shadow-sm">
+                                                                {star <= review.rating ? '★' : '☆'}
                                                             </span>
                                                         ))}
                                                     </div>

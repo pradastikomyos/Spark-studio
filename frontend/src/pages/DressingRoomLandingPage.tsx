@@ -297,7 +297,7 @@ function LookDetailSection({ look, dbLook }: LookDetailSectionProps) {
                   
                   return (
                     <div
-                      key={index}
+                      key={`visible-photo-${photo}`}
                       className="absolute inset-0 flex items-center justify-center lg:items-end pointer-events-none"
                     >
                       <motion.div
@@ -370,9 +370,9 @@ function LookDetailSection({ look, dbLook }: LookDetailSectionProps) {
               LOOK {look.lookNumber}
             </p>
             <div className="flex items-center gap-1 sm:gap-1.5">
-              {photos.map((_: string, idx: number) => (
+              {photos.map((photo: string, idx: number) => (
                 <button
-                  key={idx}
+                  key={`photo-dot-${photo}`}
                   type="button"
                   onClick={() => setActivePhotoIndex(idx)}
                   className="h-8 sm:h-10 w-6 sm:w-8 inline-flex items-center justify-center"
