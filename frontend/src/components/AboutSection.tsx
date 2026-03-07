@@ -31,8 +31,8 @@ const AboutSection = () => {
               </p>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-8 pt-8 border-t border-gray-200">
-              {aboutItems.map((item, index) => (
-                <div key={index} className="flex gap-4 items-start">
+              {aboutItems.map((item) => (
+                <div key={item.title} className="flex gap-4 items-start">
                   <div className="p-2 bg-primary/10 rounded-full text-primary">
                     <span className="material-symbols-outlined">{item.icon}</span>
                   </div>

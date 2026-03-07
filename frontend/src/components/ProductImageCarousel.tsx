@@ -73,7 +73,7 @@ export function ProductImageCarousel(props: ProductImageCarouselProps) {
                 drag={false} // Drag disabled as per user request
              >
                 {safeImages.map((src, i) => (
-                    <div key={i} className="min-w-full w-full h-full flex-shrink-0 flex items-center justify-center bg-gray-50">
+                    <div key={`${alt}-${src}`} className="min-w-full w-full h-full flex-shrink-0 flex items-center justify-center bg-gray-50">
                         <img 
                             src={src} 
                             alt={`${alt} - View ${i + 1}`} 
@@ -104,9 +104,9 @@ export function ProductImageCarousel(props: ProductImageCarouselProps) {
               </button>
 
               <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-2 rounded-full bg-black/20 px-3 py-1.5 backdrop-blur">
-                {safeImages.map((_, i) => (
+                {safeImages.map((src, i) => (
                   <button
-                    key={`dot-${i}`}
+                    key={`dot-${alt}-${src}`}
                     type="button"
                     onClick={() => setSafeIndex(i)}
                     className={[

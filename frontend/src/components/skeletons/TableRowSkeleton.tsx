@@ -17,10 +17,11 @@ interface TableRowSkeletonProps {
 }
 
 const TableRowSkeleton = ({ columns = 5 }: TableRowSkeletonProps) => {
+  const columnKeys = Array.from({ length: columns }, (_, columnNumber) => `skeleton-cell-${columnNumber + 1}`);
   return (
     <tr className="border-b border-gray-100">
-      {Array.from({ length: columns }).map((_, index) => (
-        <td key={index} className="px-6 py-4">
+      {columnKeys.map((columnKey) => (
+        <td key={columnKey} className="px-6 py-4">
           <div className="h-4 bg-gray-200 rounded animate-pulse" />
         </td>
       ))}

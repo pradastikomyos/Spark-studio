@@ -31,9 +31,9 @@ const FeaturedCollections = () => {
           </h2>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-          {collections.map((collection, index) => (
+          {collections.map((collection) => (
             <Link
-              key={index}
+              key={collection.title}
               to={toPath(collection.title)}
               className="group relative h-[500px] overflow-hidden cursor-pointer block"
             >

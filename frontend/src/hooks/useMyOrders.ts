@@ -3,34 +3,10 @@ import { supabase } from '../lib/supabase';
 import { supabaseAuthFetcher, createQuerySignal } from '../lib/fetchers';
 import { useEffect } from 'react';
 import { queryKeys } from '../lib/queryKeys';
+import type { ProductOrderItem, ProductOrderListItem } from '../pages/product-orders/types';
 
-export interface OrderItem {
-  id: number;
-  quantity: number;
-  price: number;
-  subtotal: number;
-  productName: string;
-  variantName: string;
-  imageUrl?: string;
-}
-
-export interface ProductOrder {
-  id: number;
-  order_number: string;
-  channel?: string | null;
-  payment_status: string;
-  status: string;
-  pickup_code: string | null;
-  pickup_status: string | null;
-  pickup_expires_at: string | null;
-  paid_at: string | null;
-  voucher_code?: string | null;
-  discount_amount?: number | null;
-  total: number;
-  created_at: string;
-  itemCount: number;
-  items: OrderItem[];
-}
+export type OrderItem = ProductOrderItem;
+export type ProductOrder = ProductOrderListItem;
 
 type OrderItemRow = {
   id: number;
@@ -110,7 +86,7 @@ export function useMyOrders(userId: string | null | undefined) {
             .abortSignal(timeoutSignal)
             .eq('order_product_id', order.id);
 
-          const items: OrderItem[] = ((itemsData as OrderItemRow[] | null) || []).map((item) => {
+          const items: ProductOrderItem[] = ((itemsData as OrderItemRow[] | null) || []).map((item) => {
             const product = item.product_variants?.products;
             // Try to get image: 1) products.image_url, 2) primary product_image, 3) first product_image
             let imageUrl: string | undefined = product?.image_url || undefined;

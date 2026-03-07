@@ -144,9 +144,9 @@ export default function StageReviewsModal({ isOpen, onClose, stage }: StageRevie
                                             <div>
                                                 <p className="text-sm font-bold text-gray-900">{review.user?.name}</p>
                                                 <div className="flex text-yellow-400 text-xs">
-                                                    {Array.from({ length: 5 }).map((_, i) => (
-                                                        <span key={i} className="material-symbols-outlined text-[16px] leading-none">
-                                                            {i < review.rating ? 'star' : 'star_border'}
+                                                    {[1, 2, 3, 4, 5].map((star) => (
+                                                        <span key={`${review.id}-star-${star}`} className="material-symbols-outlined text-[16px] leading-none">
+                                                            {star <= review.rating ? 'star' : 'star_border'}
                                                         </span>
                                                     ))}
                                                 </div>

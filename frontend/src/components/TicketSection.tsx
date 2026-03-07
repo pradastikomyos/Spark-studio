@@ -146,9 +146,9 @@ const TicketSection = () => {
           </button>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {ticketsWithDates.map((item, index) => (
+            {ticketsWithDates.map((item) => (
               <TicketCard
-                key={index}
+                key={`${item.ticket.id}-${toLocalDateString(item.date)}`}
                 ticket={item.ticket}
                 displayDate={item.date}
                 isToday={item.isToday}

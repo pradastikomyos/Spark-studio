@@ -255,9 +255,9 @@ export default function ModelCarousel({ looks, activeIndex, onActiveChange, prod
                     </button>
 
                     <div className="flex gap-0.5 flex-row-reverse">
-                        {looks.map((_, idx) => (
+                        {looks.map((look, idx) => (
                             <button
-                                key={idx}
+                                key={`look-${look.look_number}`}
                                 onClick={() => onActiveChange(idx)}
                                 className="group h-11 w-9 inline-flex items-center justify-center"
                                 aria-label={`Go to Look ${idx + 1}`}

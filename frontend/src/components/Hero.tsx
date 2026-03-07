@@ -61,9 +61,9 @@ const Hero = () => {
             </div>
 
             <div className="absolute bottom-4 left-0 right-0 flex items-center justify-center gap-2">
-              {slides.map((_, idx) => (
+              {slides.map((slide, idx) => (
                 <button
-                  key={idx}
+                  key={slide.title}
                   type="button"
                   aria-label={`Slide ${idx + 1}`}
                   onClick={() => setActiveIndex(idx)}
