@@ -1,86 +1,27 @@
-import { useMemo, useRef, useState, useEffect } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { useAuth } from '../../contexts/AuthContext';
-import { supabase } from '../../lib/supabase';
 import AdminLayout from '../../components/AdminLayout';
 import CategoryManager from '../../components/admin/CategoryManager';
+import ProductFormModal, { type CategoryOption } from '../../components/admin/ProductFormModal';
 import QRScannerModal from '../../components/admin/QRScannerModal';
-import ProductFormModal, { type CategoryOption, type ProductDraft, type ExistingImage } from '../../components/admin/ProductFormModal';
-import { ADMIN_MENU_ITEMS, ADMIN_MENU_SECTIONS } from '../../constants/adminMenu';
-import { MAX_PRODUCT_IMAGE_SIZE_MB, PRODUCT_IMAGE_UPLOAD_CONCURRENCY, PRODUCT_IMAGE_UPLOAD_TIMEOUT_MS } from '../../constants/productImages';
-import { getStockBadge, getStockBarColor } from '../../utils/statusHelpers';
-import { formatCurrency } from '../../utils/formatters';
-import { useInventory, type ProductRow } from '../../hooks/useInventory';
 import TableRowSkeleton from '../../components/skeletons/TableRowSkeleton';
 import { useToast } from '../../components/Toast';
+import { ADMIN_MENU_ITEMS, ADMIN_MENU_SECTIONS } from '../../constants/adminMenu';
+import { useAuth } from '../../contexts/AuthContext';
+import { useInventory, type ProductRow } from '../../hooks/useInventory';
 import { useSessionRefresh } from '../../hooks/useSessionRefresh';
-import { ensureFreshToken } from '../../utils/auth';
-import { withTimeout } from '../../utils/queryHelpers';
-import { toInventoryThumbUrl } from '../../utils/inventoryImage';
-
-type InventoryProduct = {
-  id: number;
-  name: string;
-  sku: string;
-  is_active: boolean;
-  category: string;
-  category_slug?: string;
-  stock_available: number;
-  stock_status: 'good' | 'ok' | 'low' | 'out';
-  price_min: number;
-  price_max: number;
-  variant_count: number;
-  image_url?: string | null;
-  image_url_original?: string | null;
-};
-
-const toNumber = (value: unknown, fallback: number = 0) => {
-  if (typeof value === 'number') return Number.isFinite(value) ? value : fallback;
-  if (typeof value === 'string' && value.trim() !== '') {
-    const parsed = Number(value);
-    return Number.isFinite(parsed) ? parsed : fallback;
-  }
-  return fallback;
-};
-
-const computeStockStatus = (stock: number): InventoryProduct['stock_status'] => {
-  if (stock <= 0) return 'out';
-  if (stock <= 10) return 'low';
-  if (stock <= 30) return 'ok';
-  return 'good';
-};
+import { DeleteProductDialog } from './store-inventory/DeleteProductDialog';
+import { InventoryEmptyState } from './store-inventory/InventoryEmptyState';
+import { InventoryGrid } from './store-inventory/InventoryGrid';
+import { InventoryToolbar } from './store-inventory/InventoryToolbar';
+import { InventoryVerificationPanel } from './store-inventory/InventoryVerificationPanel';
+import { mapInventoryProducts } from './store-inventory/inventoryProducts';
+import { useInventoryImageMetrics } from './store-inventory/useInventoryImageMetrics';
+import { useInventoryProductActions } from './store-inventory/useInventoryProductActions';
+import { useStoreInventoryFilters } from './store-inventory/useStoreInventoryFilters';
 
 const TAB_RETURN_EVENT = 'tab-returned-from-idle';
-const ADMIN_PRODUCT_DRAFT_KEY = 'admin-product-form:draft:v1';
-const REQUEST_TIMEOUT_MS = 60000;
-type StockFilter = '' | 'in' | 'low' | 'out';
-
 const INVENTORY_PRODUCTS_PER_PAGE = 24;
-const STOCK_FILTER_VALUES: ReadonlySet<StockFilter> = new Set(['in', 'low', 'out']);
-
-const parseQueryInt = (value: string | null, fallback: number) => {
-  if (!value) return fallback;
-  const parsed = Number(value);
-  return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : fallback;
-};
-
-const parseSearchParams = (search: string) => {
-  const params = new URLSearchParams(search);
-  const page = parseQueryInt(params.get('page'), 1);
-  const searchQuery = params.get('q')?.trim() ?? '';
-  const categoryFilter = params.get('category')?.trim() ?? '';
-  const stockRaw = params.get('stock')?.trim() ?? '';
-  const stockFilter: StockFilter = STOCK_FILTER_VALUES.has(stockRaw as StockFilter)
-    ? (stockRaw as StockFilter)
-    : '';
-
-  return {
-    page,
-    searchQuery,
-    categoryFilter,
-    stockFilter,
-  };
-};
 
 const StoreInventory = () => {
   const { signOut, session } = useAuth();
@@ -88,43 +29,29 @@ const StoreInventory = () => {
   useSessionRefresh();
   const location = useLocation();
   const navigate = useNavigate();
-  const initialParams = parseSearchParams(location.search);
-  const [searchInput, setSearchInput] = useState(initialParams.searchQuery);
-  const [searchQuery, setSearchQuery] = useState(initialParams.searchQuery);
-  const [categoryFilter, setCategoryFilter] = useState(initialParams.categoryFilter);
-  const [stockFilter, setStockFilter] = useState<StockFilter>(initialParams.stockFilter);
+
   const [orderCode, setOrderCode] = useState('');
   const [showScanner, setShowScanner] = useState(false);
-  const [currentPage, setCurrentPage] = useState(initialParams.page);
-  const [productsRaw, setProductsRaw] = useState<ProductRow[]>([]);
-  const [showProductForm, setShowProductForm] = useState(false);
-  const [editingProductId, setEditingProductId] = useState<number | null>(null);
-  const [existingImages, setExistingImages] = useState<ExistingImage[]>([]);
-  const [existingImagesLoading, setExistingImagesLoading] = useState(false);
-  const [deletingProduct, setDeletingProduct] = useState<{ id: number; name: string } | null>(null);
-  const [saving, setSaving] = useState(false);
-  const [saveError, setSaveError] = useState<string | null>(null);
   const [showCategoryManager, setShowCategoryManager] = useState(false);
-  const imageMetricsRef = useRef({ expected: 0, loaded: 0, errors: 0, logged: false, page: 1 });
-  const [thumbFallbackIds, setThumbFallbackIds] = useState<Record<number, true>>({});
+  const [productsRaw, setProductsRaw] = useState<ProductRow[]>([]);
   const [totalProducts, setTotalProducts] = useState<number | null>(null);
-  const { data, error, isLoading, isFetching, refetch } = useInventory({
-    page: currentPage,
+
+  const filters = useStoreInventoryFilters({
+    pathname: location.pathname,
+    search: location.search,
+    navigate,
+    totalProducts,
+    isFetching: false,
     pageSize: INVENTORY_PRODUCTS_PER_PAGE,
-    searchQuery,
-    categoryFilter,
-    stockFilter,
   });
-  const inventoryCategories = useMemo(() => data?.categories ?? [], [data?.categories]);
-  const categoryOptions = useMemo((): CategoryOption[] => {
-    return inventoryCategories.map((c) => ({
-      id: c.id,
-      name: c.name,
-      slug: c.slug,
-      is_active: c.is_active ?? undefined,
-      parent_id: c.parent_id ?? null,
-    }));
-  }, [inventoryCategories]);
+
+  const { data, error, isLoading, isFetching, refetch } = useInventory({
+    page: filters.currentPage,
+    pageSize: INVENTORY_PRODUCTS_PER_PAGE,
+    searchQuery: filters.searchQuery,
+    categoryFilter: filters.categoryFilter,
+    stockFilter: filters.stockFilter,
+  });
 
   useEffect(() => {
     if (data) {
@@ -133,42 +60,10 @@ const StoreInventory = () => {
   }, [data]);
 
   useEffect(() => {
-    const params = parseSearchParams(location.search);
-    setSearchInput(params.searchQuery);
-    setSearchQuery(params.searchQuery);
-    setCategoryFilter(params.categoryFilter);
-    setStockFilter(params.stockFilter);
-    setCurrentPage(params.page);
-  }, [location.search]);
-
-  useEffect(() => {
     if (typeof data?.totalCount === 'number') {
       setTotalProducts(data.totalCount);
     }
   }, [data?.totalCount]);
-
-  useEffect(() => {
-    const debounceId = window.setTimeout(() => {
-      setSearchQuery(searchInput.trim());
-    }, 250);
-    return () => {
-      window.clearTimeout(debounceId);
-    };
-  }, [searchInput]);
-
-  useEffect(() => {
-    const params = new URLSearchParams();
-    if (searchQuery) params.set('q', searchQuery);
-    if (categoryFilter) params.set('category', categoryFilter);
-    if (stockFilter) params.set('stock', stockFilter);
-    if (currentPage > 1) params.set('page', String(currentPage));
-
-    const nextSearch = params.toString();
-    const nextSearchWithPrefix = nextSearch ? `?${nextSearch}` : '';
-    if (nextSearchWithPrefix === location.search) return;
-
-    navigate({ pathname: location.pathname, search: nextSearchWithPrefix }, { replace: true });
-  }, [searchQuery, categoryFilter, stockFilter, currentPage, location.pathname, location.search, navigate]);
 
   useEffect(() => {
     if (error) {
@@ -182,45 +77,51 @@ const StoreInventory = () => {
       metric: 'inventory_list_fetch',
       fetchMs: Math.round(data.diagnostics.fetchMs),
       fullScan: data.diagnostics.fullScan,
-      page: currentPage,
+      page: filters.currentPage,
       pageSize: INVENTORY_PRODUCTS_PER_PAGE,
       totalCount: data.totalCount,
       filters: {
-        search: searchQuery,
-        category: categoryFilter,
-        stock: stockFilter,
+        search: filters.searchQuery,
+        category: filters.categoryFilter,
+        stock: filters.stockFilter,
       },
     });
-  }, [data, currentPage, searchQuery, categoryFilter, stockFilter]);
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    try {
-      const raw = sessionStorage.getItem(ADMIN_PRODUCT_DRAFT_KEY);
-      if (!raw) return;
-      const parsed = JSON.parse(raw) as { mode?: string; savedAt?: number };
-      const ageMs = typeof parsed.savedAt === 'number' ? Date.now() - parsed.savedAt : Number.POSITIVE_INFINITY;
-      if (parsed.mode === 'create' && ageMs < 12 * 60 * 60 * 1000) {
-        setEditingProductId(null);
-        setExistingImages([]);
-        setShowProductForm(true);
-      }
-    } catch {
-      return;
-    }
-  }, []);
+  }, [data, filters.currentPage, filters.searchQuery, filters.categoryFilter, filters.stockFilter]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const handleTabReturn = async () => {
-      await ensureFreshToken(session);
-      refetch();
+      await refetch();
     };
     window.addEventListener(TAB_RETURN_EVENT, handleTabReturn);
     return () => {
       window.removeEventListener(TAB_RETURN_EVENT, handleTabReturn);
     };
-  }, [refetch, session]);
+  }, [refetch]);
+
+  const inventoryCategories = useMemo(() => data?.categories ?? [], [data?.categories]);
+  const categoryOptions = useMemo(
+    (): CategoryOption[] =>
+      inventoryCategories.map((category) => ({
+        id: category.id,
+        name: category.name,
+        slug: category.slug,
+        is_active: category.is_active ?? undefined,
+        parent_id: category.parent_id ?? null,
+      })),
+    [inventoryCategories]
+  );
+  const inventoryProducts = useMemo(() => mapInventoryProducts(productsRaw), [productsRaw]);
+  const resolvedTotalProducts = totalProducts ?? 0;
+  const totalPages = Math.max(1, Math.ceil(resolvedTotalProducts / INVENTORY_PRODUCTS_PER_PAGE));
+  const { thumbFallbackIds, trackImageResult, markThumbFallback } = useInventoryImageMetrics(inventoryProducts, filters.currentPage);
+  const productActions = useInventoryProductActions({
+    productsRaw,
+    setProductsRaw,
+    session,
+    refetch,
+    showToast,
+  });
 
   const handleVerify = (code?: string) => {
     const value = (code ?? orderCode).trim();
@@ -230,556 +131,9 @@ const StoreInventory = () => {
     }
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter') {
+  const handleKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === 'Enter') {
       handleVerify();
-    }
-  };
-
-  const getStockLabel = (status: string) => {
-    const labels = {
-      good: 'Good',
-      ok: 'Ok',
-      low: 'Restock',
-      out: 'Empty',
-    };
-    return labels[status as keyof typeof labels] || 'Unknown';
-  };
-
-  const getStockPercent = (stock: number, maxStock: number = 150) => {
-    return Math.min((stock / maxStock) * 100, 100);
-  };
-
-  const inventoryProducts: InventoryProduct[] = useMemo(() => {
-    return productsRaw.map((row) => {
-      const variants = (row.product_variants || []).filter((v) => v.is_active !== false);
-      const categoryName = row.categories?.name || 'Uncategorized';
-      const categorySlug = row.categories?.slug;
-
-      let stockAvailable = 0;
-      let priceMin = Number.POSITIVE_INFINITY;
-      let priceMax = 0;
-
-      // Get primary image from product_images table
-      const sortedImages = [...(row.product_images || [])]
-        .sort((a, b) => {
-          // Primary images first, then by display_order
-          if (a.is_primary !== b.is_primary) return a.is_primary ? -1 : 1;
-          return a.display_order - b.display_order;
-        });
-      let imageUrl: string | null = sortedImages[0]?.image_url ?? null;
-
-      for (const v of variants) {
-        const stock = Math.max(toNumber(v.stock, 0) - toNumber(v.reserved_stock, 0), 0);
-        stockAvailable += stock;
-        const price = toNumber(v.price, 0);
-        priceMin = Math.min(priceMin, price);
-        priceMax = Math.max(priceMax, price);
-        if (!imageUrl) {
-          const attrs = v.attributes || {};
-          const maybeImage = typeof attrs.image_url === 'string' ? attrs.image_url : null;
-          if (maybeImage) imageUrl = maybeImage;
-        }
-      }
-
-      if (!Number.isFinite(priceMin)) priceMin = 0;
-
-      const imageUrlOriginal = imageUrl;
-      const imageUrlThumb = imageUrl ? toInventoryThumbUrl(imageUrl) : null;
-
-      return {
-        id: row.id,
-        name: row.name,
-        sku: row.sku,
-        is_active: row.is_active,
-        category: categoryName,
-        category_slug: categorySlug,
-        stock_available: stockAvailable,
-        stock_status: computeStockStatus(stockAvailable),
-        price_min: priceMin,
-        price_max: priceMax,
-        variant_count: variants.length,
-        image_url: imageUrlThumb,
-        image_url_original: imageUrlOriginal,
-      };
-    });
-  }, [productsRaw]);
-
-  const resolvedTotalProducts = totalProducts ?? 0;
-  const totalPages = Math.max(1, Math.ceil(resolvedTotalProducts / INVENTORY_PRODUCTS_PER_PAGE));
-  const paginatedProducts = inventoryProducts;
-
-  useEffect(() => {
-    if (isFetching) return;
-    if (totalProducts == null) return;
-    if (totalProducts === 0 && currentPage !== 1) {
-      setCurrentPage(1);
-      return;
-    }
-    if (currentPage > totalPages) {
-      setCurrentPage(totalPages);
-    }
-  }, [currentPage, totalPages, totalProducts, isFetching]);
-
-  useEffect(() => {
-    const expected = paginatedProducts.reduce((acc, product) => acc + (product.image_url ? 1 : 0), 0);
-    imageMetricsRef.current = {
-      expected,
-      loaded: 0,
-      errors: 0,
-      logged: false,
-      page: currentPage,
-    };
-  }, [paginatedProducts, currentPage]);
-
-  const trackImageResult = (result: 'loaded' | 'error') => {
-    const metrics = imageMetricsRef.current;
-    if (result === 'loaded') {
-      metrics.loaded += 1;
-    } else {
-      metrics.errors += 1;
-    }
-
-    const resolvedCount = metrics.loaded + metrics.errors;
-    if (metrics.logged || resolvedCount < metrics.expected) return;
-
-    console.debug('[InventoryPerf]', {
-      metric: 'inventory_image_load',
-      expected: metrics.expected,
-      loaded: metrics.loaded,
-      errors: metrics.errors,
-      page: metrics.page,
-    });
-    metrics.logged = true;
-  };
-
-  const editingProduct = useMemo(() => {
-    if (!editingProductId) return null;
-    const row = productsRaw.find((p) => p.id === editingProductId);
-    if (!row) return null;
-
-    const variants = (row.product_variants || []).filter((v) => v.is_active !== false);
-    const mapped = variants.map((v) => {
-      const attrs = v.attributes || {};
-      return {
-        id: v.id,
-        name: v.name,
-        sku: v.sku,
-        price: String(v.price ?? ''),
-        stock: toNumber(v.stock, 0),
-        size: typeof attrs.size === 'string' ? attrs.size : '',
-        color: typeof attrs.color === 'string' ? attrs.color : '',
-      };
-    });
-
-    const initial: ProductDraft = {
-      id: row.id,
-      name: row.name,
-      slug: row.slug,
-      description: row.description ?? '',
-      category_id: row.category_id ?? null,
-      sku: row.sku,
-      is_active: row.is_active,
-      variants: mapped.length ? mapped : [{ name: 'Default', sku: '', price: '', stock: 0 }],
-    };
-
-    return initial;
-  }, [editingProductId, productsRaw]);
-
-  const handleOpenCreate = () => {
-    setSaveError(null);
-    setEditingProductId(null);
-    setExistingImages([]);
-    setExistingImagesLoading(false);
-    setShowProductForm(true);
-  };
-
-  const handleOpenEdit = async (productId: number) => {
-    setSaveError(null);
-    setEditingProductId(productId);
-    setExistingImages([]);
-    setExistingImagesLoading(true);
-    setShowProductForm(true);
-
-    try {
-      // Fetch existing images
-      const { data } = await withTimeout(
-        supabase
-          .from('product_images')
-          .select('image_url, is_primary')
-          .eq('product_id', productId)
-          .order('display_order'),
-        REQUEST_TIMEOUT_MS,
-        'Request timeout. Please try again.'
-      );
-
-      setExistingImages(
-        data?.map((img: { image_url: string; is_primary: boolean }) => ({ url: img.image_url, is_primary: img.is_primary })) || []
-      );
-    } catch (e) {
-      const message = e instanceof Error ? e.message : 'Failed to load product images';
-      showToast('error', message);
-    } finally {
-      setExistingImagesLoading(false);
-    }
-  };
-
-  const handleDelete = async () => {
-    if (!deletingProduct) return;
-    setSaving(true);
-    setSaveError(null);
-    const previousProducts = productsRaw;
-    const optimisticProducts = productsRaw.filter((product) => product.id !== deletingProduct.id);
-    setProductsRaw(optimisticProducts);
-    try {
-      const token = await ensureFreshToken(session);
-      if (!token) throw new Error('Session expired. Please refresh and log in again.');
-      const deletedAt = new Date().toISOString();
-      const { error } = await withTimeout(
-        supabase.from('products').update({ deleted_at: deletedAt }).eq('id', deletingProduct.id),
-        REQUEST_TIMEOUT_MS,
-        'Request timeout. Please try again.'
-      );
-      if (error) throw error;
-      const { error: cascadeError } = await withTimeout(
-        supabase.rpc('soft_delete_product_cascade', { p_product_id: deletingProduct.id, p_deleted_at: deletedAt }),
-        REQUEST_TIMEOUT_MS,
-        'Request timeout. Please try again.'
-      );
-      if (cascadeError) throw cascadeError;
-      setDeletingProduct(null);
-      await refetch();
-    } catch (e) {
-      const message = e instanceof Error ? e.message : 'Failed to delete product';
-      setSaveError(message);
-      showToast('error', message);
-      setProductsRaw(previousProducts);
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleSaveProduct = async (payload: {
-    draft: ProductDraft;
-    newImages: File[];
-    removedImageUrls: string[];
-  }) => {
-    const { draft, newImages, removedImageUrls } = payload;
-    setSaving(true);
-    setSaveError(null);
-    let rollbackProducts: ProductRow[] | null = null;
-
-    try {
-      const token = await ensureFreshToken(session);
-      if (!token) throw new Error('Session expired. Please refresh and log in again.');
-
-      const normalizeSku = (value: string) =>
-        value
-          .replace(/\u00a0/g, ' ')
-          .replace(/[\u200b-\u200d\uFEFF]/g, '')
-          .replace(/[\u2010-\u2015\u2212]/g, '-')
-          .trim()
-          .toUpperCase();
-      const normalizeSlug = (value: string) =>
-        value
-          .replace(/\u00a0/g, ' ')
-          .replace(/[\u200b-\u200d\uFEFF]/g, '')
-          .trim()
-          .toLowerCase();
-
-      const normalizedDraft: ProductDraft = {
-        ...draft,
-        name: draft.name.trim(),
-        slug: normalizeSlug(draft.slug),
-        sku: normalizeSku(draft.sku),
-        variants: draft.variants.map((v) => ({
-          ...v,
-          name: v.name.trim(),
-          sku: normalizeSku(v.sku),
-          price: typeof v.price === 'string' ? v.price.trim() : String(v.price ?? '').trim(),
-        })),
-      };
-
-      let productId = draft.id ?? null;
-      if (productId != null) {
-        const stableProductId = productId;
-        const optimisticProducts = productsRaw.map((product) =>
-          product.id === stableProductId
-            ? {
-              ...product,
-              name: normalizedDraft.name,
-              slug: normalizedDraft.slug,
-              description: normalizedDraft.description || null,
-              category_id: normalizedDraft.category_id,
-              sku: normalizedDraft.sku,
-              is_active: normalizedDraft.is_active,
-              product_variants: normalizedDraft.variants.map((variant) => ({
-                id: variant.id ?? 0,
-                product_id: stableProductId,
-                name: variant.name,
-                sku: variant.sku,
-                price: variant.price ? Number(variant.price) : null,
-                stock: variant.stock,
-                reserved_stock: 0,
-                attributes: null,
-                is_active: true,
-              })),
-            }
-            : product
-        );
-        rollbackProducts = productsRaw;
-        setProductsRaw(optimisticProducts);
-      }
-
-      if (!productId) {
-        // Check for duplicate SKU or slug before insert
-        const [slugDup, skuDup] = await Promise.all([
-          withTimeout(
-            supabase
-              .from('products')
-              .select('id, slug')
-              .eq('slug', normalizedDraft.slug)
-              .is('deleted_at', null)
-              .maybeSingle(),
-            REQUEST_TIMEOUT_MS,
-            'Request timeout. Please try again.'
-          ),
-          withTimeout(
-            supabase
-              .from('products')
-              .select('id, sku')
-              .eq('sku', normalizedDraft.sku)
-              .is('deleted_at', null)
-              .maybeSingle(),
-            REQUEST_TIMEOUT_MS,
-            'Request timeout. Please try again.'
-          ),
-        ]);
-
-        if (slugDup.error && slugDup.error.code !== 'PGRST116') throw slugDup.error;
-        if (skuDup.error && skuDup.error.code !== 'PGRST116') throw skuDup.error;
-
-        if (slugDup.data) {
-          throw new Error(
-            `⚠️ Product with slug "${normalizedDraft.slug}" already exists. Please use a different product name or edit the slug manually.`
-          );
-        }
-        if (skuDup.data) {
-          throw new Error(`⚠️ Product with SKU "${normalizedDraft.sku}" already exists. Please use a different SKU.`);
-        }
-
-        const { data, error } = await withTimeout(
-          supabase
-            .from('products')
-            .insert({
-              name: normalizedDraft.name,
-              slug: normalizedDraft.slug,
-              description: normalizedDraft.description || null,
-              category_id: normalizedDraft.category_id,
-              sku: normalizedDraft.sku,
-              is_active: normalizedDraft.is_active,
-            })
-            .select('id')
-            .single(),
-          REQUEST_TIMEOUT_MS,
-          'Request timeout. Please try again.'
-        );
-
-        if (error) {
-          // Parse error for better user messaging
-          if (error.code === '23505') { // Unique violation
-            if (error.message.includes('slug')) {
-              throw new Error(`⚠️ Product slug "${draft.slug}" is already taken. Please use a different name.`);
-            }
-            if (error.message.includes('sku')) {
-              throw new Error(`⚠️ Product SKU "${draft.sku}" is already taken. Please use a different SKU.`);
-            }
-            throw new Error('⚠️ A product with this slug or SKU already exists.');
-          }
-          throw error;
-        }
-        if (!data) throw new Error('Failed to create product');
-        productId = Number(data.id);
-      } else {
-        const { error } = await withTimeout(
-          supabase
-            .from('products')
-            .update({
-              name: normalizedDraft.name,
-              slug: normalizedDraft.slug,
-              description: normalizedDraft.description || null,
-              category_id: normalizedDraft.category_id,
-              sku: normalizedDraft.sku,
-              is_active: normalizedDraft.is_active,
-            })
-            .eq('id', productId),
-          REQUEST_TIMEOUT_MS,
-          'Request timeout. Please try again.'
-        );
-        if (error) throw error;
-      }
-
-      // Handle removed images
-      if (removedImageUrls.length > 0) {
-        const { error } = await withTimeout(
-          supabase.from('product_images').delete().eq('product_id', productId).in('image_url', removedImageUrls),
-          REQUEST_TIMEOUT_MS,
-          'Request timeout. Please try again.'
-        );
-        if (error) throw error;
-      }
-
-      // Upload new images
-      if (newImages.length > 0) {
-        const { uploadProductImages, saveProductImages } = await import('../../utils/uploadProductImage');
-
-        // Get current max display_order
-        const { data: existingImages } = await withTimeout(
-          supabase
-            .from('product_images')
-            .select('display_order')
-            .eq('product_id', productId)
-            .order('display_order', { ascending: false })
-            .limit(1),
-          REQUEST_TIMEOUT_MS,
-          'Request timeout. Please try again.'
-        );
-
-        const startOrder = existingImages && existingImages.length > 0
-          ? existingImages[0].display_order + 1
-          : 0;
-
-        const uploadedUrls = await uploadProductImages(newImages, productId, {
-          maxSizeMb: MAX_PRODUCT_IMAGE_SIZE_MB,
-          timeoutMs: PRODUCT_IMAGE_UPLOAD_TIMEOUT_MS,
-          concurrency: PRODUCT_IMAGE_UPLOAD_CONCURRENCY,
-        });
-        await saveProductImages(productId, uploadedUrls, startOrder);
-      }
-
-      const existingVariants = (productsRaw.find((p) => p.id === productId)?.product_variants || []).filter((v) => v.is_active !== false);
-      const toValidId = (value: unknown): number | null => {
-        const n = typeof value === 'number' ? value : typeof value === 'string' ? Number(value) : NaN;
-        return Number.isFinite(n) && n > 0 ? n : null;
-      };
-      const incomingIds = new Set<number>(
-        normalizedDraft.variants.flatMap((v) => {
-          const id = toValidId(v.id);
-          return id != null ? [id] : [];
-        })
-      );
-      const existingIds = existingVariants
-        .map((v) => toValidId((v as unknown as { id?: unknown }).id))
-        .filter((id): id is number => id != null);
-      const removedIds = existingIds.filter((id) => !incomingIds.has(id));
-
-      if (removedIds.length > 0) {
-        const { error } = await withTimeout(
-          supabase.from('product_variants').update({ is_active: false }).in('id', removedIds),
-          REQUEST_TIMEOUT_MS,
-          'Request timeout. Please try again.'
-        );
-        if (error) throw error;
-      }
-
-      const updates = normalizedDraft.variants.filter((v) => toValidId(v.id) != null);
-      for (const v of updates) {
-        const nextAttributes: Record<string, unknown> = {};
-        if (v.size) nextAttributes.size = v.size;
-        if (v.color) nextAttributes.color = v.color;
-
-        const { error } = await withTimeout(
-          supabase
-            .from('product_variants')
-            .update({
-              name: v.name,
-              sku: v.sku,
-              price: v.price ? Number(v.price) : null,
-              stock: v.stock,
-              is_active: true,
-              attributes: Object.keys(nextAttributes).length ? nextAttributes : null,
-            })
-            .eq('id', toValidId(v.id) as number),
-          REQUEST_TIMEOUT_MS,
-          'Request timeout. Please try again.'
-        );
-        if (error) throw error;
-      }
-
-      const inserts = normalizedDraft.variants.filter((v) => toValidId(v.id) == null);
-      if (inserts.length > 0) {
-        const rows = inserts.map((v) => {
-          const attributes: Record<string, unknown> = {};
-          if (v.size) attributes.size = v.size;
-          if (v.color) attributes.color = v.color;
-
-          return {
-            product_id: productId,
-            name: v.name,
-            sku: v.sku,
-            price: v.price ? Number(v.price) : null,
-            stock: v.stock,
-            reserved_stock: 0,
-            is_active: true,
-            attributes: Object.keys(attributes).length ? attributes : null,
-          };
-        });
-
-        const { error } = await withTimeout(
-          supabase.from('product_variants').insert(rows),
-          REQUEST_TIMEOUT_MS,
-          'Request timeout. Please try again.'
-        );
-        if (error) throw error;
-      }
-
-      setShowProductForm(false);
-      setEditingProductId(null);
-      if (typeof window !== 'undefined') sessionStorage.removeItem(ADMIN_PRODUCT_DRAFT_KEY);
-      await refetch();
-    } catch (e) {
-      if (rollbackProducts) {
-        setProductsRaw(rollbackProducts);
-      }
-      const formatError = (err: unknown): string => {
-        if (err instanceof Error && err.message) return err.message;
-        if (typeof err === 'string') return err;
-        if (err && typeof err === 'object') {
-          const maybe = err as { message?: unknown; details?: unknown; hint?: unknown; code?: unknown };
-          if (maybe.code === '23505') {
-            const message = typeof maybe.message === 'string' ? maybe.message.toLowerCase() : '';
-            if (message.includes('sku')) {
-              return '⚠️ Variant SKU already exists on an active variant. Please use a different SKU or delete the old product first.';
-            }
-            if (message.includes('slug')) {
-              return '⚠️ Product slug is already taken. Please use a different slug.';
-            }
-            return '⚠️ Duplicate data detected. Please check SKU/slug uniqueness.';
-          }
-          const parts = [maybe.message, maybe.details, maybe.hint]
-            .filter((v): v is string => typeof v === 'string' && v.trim().length > 0)
-            .slice(0, 2);
-          if (parts.length) return parts.join(' • ');
-          if (typeof maybe.code === 'string' && maybe.code.trim().length > 0) return `Error code: ${maybe.code}`;
-        }
-        return 'Failed to save product';
-      };
-
-      const message = formatError(e);
-      if (
-        message.toLowerCase().includes('failed to parse') ||
-        message.toLowerCase().includes('invalid input syntax') ||
-        message.toLowerCase().includes('schema cache')
-      ) {
-        showToast('error', `${message}. Jika baru deploy/update, coba hard refresh (Cmd+Shift+R) lalu ulangi.`);
-      } else {
-        showToast('error', message);
-      }
-      setSaveError(message);
-      console.error('Save product failed', { error: e });
-      throw e;
-    } finally {
-      setSaving(false);
     }
   };
 
@@ -790,135 +144,66 @@ const StoreInventory = () => {
       defaultActiveMenuId="store-inventory"
       title="Store & Inventory"
       subtitle="Manage products, stock levels, and pickup verification."
-	      headerActions={
-	        <>
-	          <button
-	            onClick={() => setShowCategoryManager(true)}
-	            aria-label="Categories"
-	            className="flex shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm font-bold text-neutral-900 shadow-sm transition-colors hover:bg-gray-50 sm:px-4"
-	          >
-	            <span className="material-symbols-outlined text-[20px]">category</span>
-	            <span className="hidden sm:inline">Categories</span>
-	          </button>
-	          <button
-	            aria-label="Stock Report"
-	            className="flex shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm font-bold text-neutral-900 shadow-sm transition-colors hover:bg-gray-50 sm:px-4"
-	          >
-	            <span className="material-symbols-outlined text-[20px]">inventory_2</span>
-	            <span className="hidden sm:inline">Stock Report</span>
-	          </button>
-	          <button
-	            onClick={handleOpenCreate}
-	            aria-label="Add Product"
-	            className="flex shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-lg bg-[#ff4b86] px-3 py-2.5 text-sm font-bold text-white shadow-md transition-colors hover:bg-[#ff6a9a] sm:px-4"
-	          >
-	            <span className="material-symbols-outlined text-[20px]">add</span>
-	            <span className="sm:hidden">Add</span>
-	            <span className="hidden sm:inline">Add Product</span>
-	          </button>
-	        </>
-	      }
+      headerActions={
+        <>
+          <button
+            onClick={() => setShowCategoryManager(true)}
+            aria-label="Categories"
+            className="flex shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm font-bold text-neutral-900 shadow-sm transition-colors hover:bg-gray-50 sm:px-4"
+          >
+            <span className="material-symbols-outlined text-[20px]">category</span>
+            <span className="hidden sm:inline">Categories</span>
+          </button>
+          <button
+            aria-label="Stock Report"
+            className="flex shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm font-bold text-neutral-900 shadow-sm transition-colors hover:bg-gray-50 sm:px-4"
+          >
+            <span className="material-symbols-outlined text-[20px]">inventory_2</span>
+            <span className="hidden sm:inline">Stock Report</span>
+          </button>
+          <button
+            onClick={productActions.handleOpenCreate}
+            aria-label="Add Product"
+            className="flex shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-lg bg-[#ff4b86] px-3 py-2.5 text-sm font-bold text-white shadow-md transition-colors hover:bg-[#ff6a9a] sm:px-4"
+          >
+            <span className="material-symbols-outlined text-[20px]">add</span>
+            <span className="sm:hidden">Add</span>
+            <span className="hidden sm:inline">Add Product</span>
+          </button>
+        </>
+      }
       onLogout={signOut}
       mainClassName="relative"
     >
-      <section className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
-        <div className="flex flex-col md:flex-row">
-          <div
-            onClick={() => setShowScanner(true)}
-            className="flex-1 p-8 border-b md:border-b-0 md:border-r border-gray-100 flex flex-col justify-center items-center bg-gray-50/50 relative group cursor-pointer hover:bg-gray-100 transition-colors"
-          >
-            <div className="h-24 w-24 rounded-lg border-4 border-dashed border-gray-300 flex items-center justify-center mb-4 group-hover:border-primary group-hover:text-primary transition-all text-gray-600">
-              <span className="material-symbols-outlined text-4xl">qr_code_scanner</span>
-            </div>
-            <h3 className="text-lg font-bold text-neutral-900 mb-1">Click to Activate Camera</h3>
-            <p className="text-sm text-gray-500 font-sans">Scan customer pickup code instantly</p>
-          </div>
-          <div className="flex-1 p-8 flex flex-col justify-center gap-6">
-            <div>
-              <h3 className="text-lg font-bold text-neutral-900 mb-2">Manual Verification</h3>
-              <p className="text-sm text-gray-500 font-sans mb-4">Enter the 8-digit order code if scanning fails.</p>
-              <div className="flex gap-2">
-                <input
-                  className="flex-1 rounded-lg border-gray-200 bg-white px-4 py-2.5 text-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary font-sans uppercase tracking-widest placeholder:normal-case placeholder:tracking-normal"
-                  placeholder="ORD-XXXX-XXXX"
-                  type="text"
-                  value={orderCode}
-                  onChange={(e) => setOrderCode(e.target.value.toUpperCase())}
-                  onKeyDown={handleKeyDown}
-                />
-                <button
-                  onClick={() => handleVerify()}
-                  className="rounded-lg bg-[#ff4b86] px-6 py-2.5 text-sm font-bold text-white hover:bg-[#ff6a9a] transition-opacity"
-                >
-                  Verify
-                </button>
-              </div>
-            </div>
-            <div className="flex items-center gap-4 pt-4 border-t border-gray-100">
-              <div className="flex items-center gap-2">
-                <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse"></div>
-                <span className="text-xs font-bold uppercase tracking-wide text-gray-500">Scanner Ready</span>
-              </div>
-              <div className="h-4 w-px bg-gray-200"></div>
-              <span className="text-xs font-medium text-gray-500 font-sans">0 Pickups pending today</span>
-            </div>
-          </div>
-        </div>
-      </section>
+      <InventoryVerificationPanel
+        orderCode={orderCode}
+        onOrderCodeChange={setOrderCode}
+        onOpenScanner={() => setShowScanner(true)}
+        onVerify={() => handleVerify()}
+        onKeyDown={handleKeyDown}
+      />
 
       <section className="flex flex-col gap-6">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="flex items-center gap-2">
-            <h3 className="text-xl font-bold text-neutral-900">Product Inventory</h3>
-            <span className="rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-bold text-gray-600 font-sans">
-              {resolvedTotalProducts} Items
-            </span>
-            {isFetching && <span className="text-xs font-medium text-gray-500 font-sans">Updating...</span>}
-          </div>
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="relative">
-              <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[20px] text-gray-600">search</span>
-              <input
-                className="w-full sm:w-64 rounded-lg border border-gray-200 bg-white pl-10 pr-4 py-2 text-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary font-sans"
-                placeholder="Search products..."
-                type="text"
-                value={searchInput}
-                onChange={(e) => {
-                  setSearchInput(e.target.value);
-                  setCurrentPage(1);
-                }}
-              />
-            </div>
-            <select
-              className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary font-sans cursor-pointer"
-              value={categoryFilter}
-              onChange={(e) => {
-                setCategoryFilter(e.target.value);
-                setCurrentPage(1);
-              }}
-            >
-              <option value="">All Categories</option>
-              {categoryOptions.map((c) => (
-                <option key={c.id} value={c.slug}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
-            <select
-              className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary font-sans cursor-pointer"
-              value={stockFilter}
-              onChange={(e) => {
-                setStockFilter(e.target.value as '' | 'in' | 'low' | 'out');
-                setCurrentPage(1);
-              }}
-            >
-              <option value="">Any Stock Status</option>
-              <option value="in">In Stock</option>
-              <option value="low">Low Stock</option>
-              <option value="out">Out of Stock</option>
-            </select>
-          </div>
-        </div>
+        <InventoryToolbar
+          resolvedTotalProducts={resolvedTotalProducts}
+          isFetching={isFetching}
+          searchInput={filters.searchInput}
+          categoryFilter={filters.categoryFilter}
+          stockFilter={filters.stockFilter}
+          categoryOptions={categoryOptions}
+          onSearchInputChange={(value) => {
+            filters.setSearchInput(value);
+            filters.setCurrentPage(1);
+          }}
+          onCategoryFilterChange={(value) => {
+            filters.setCategoryFilter(value);
+            filters.setCurrentPage(1);
+          }}
+          onStockFilterChange={(value) => {
+            filters.setStockFilter(value);
+            filters.setCurrentPage(1);
+          }}
+        />
 
         {isLoading ? (
           <div className="w-full overflow-hidden rounded-xl border border-gray-200 bg-white">
@@ -931,139 +216,28 @@ const StoreInventory = () => {
             </table>
           </div>
         ) : resolvedTotalProducts === 0 ? (
-          <div className="flex flex-col items-center justify-center py-16 px-4 rounded-xl border-2 border-dashed border-gray-200 bg-gray-50/50">
-            <span className="material-symbols-outlined text-6xl text-gray-700 mb-4">inventory_2</span>
-            <h3 className="text-lg font-bold text-neutral-900 mb-2">No Products Found</h3>
-            <p className="text-sm text-gray-500 text-center max-w-md mb-6">
-              Try adjusting your search or filters, or add your first product to start tracking stock and pricing.
-            </p>
-            <button
-              onClick={handleOpenCreate}
-              className="flex items-center gap-2 rounded-lg bg-[#ff4b86] px-6 py-3 text-sm font-bold text-white hover:bg-[#ff6a9a] transition-colors shadow-md"
-            >
-              <span className="material-symbols-outlined text-[20px]">add</span>
-              <span>Add Your First Product</span>
-            </button>
-          </div>
+          <InventoryEmptyState onAddProduct={productActions.handleOpenCreate} />
         ) : (
           <>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-              {paginatedProducts.map((product) => (
-                <div
-                  key={product.id}
-                  className={`group flex flex-col rounded-xl border border-gray-200 bg-white overflow-hidden shadow-sm hover:shadow-md transition-all duration-200 hover:border-primary/30 ${product.stock_status === 'out' ? 'opacity-75 hover:opacity-100' : ''
-                    }`}
-                >
-                  <div className="group aspect-[4/3] w-full bg-gray-100 relative overflow-hidden">
-                    {product.image_url ? (
-                      <img
-                        alt={product.name}
-                        src={thumbFallbackIds[product.id] ? product.image_url_original ?? product.image_url : product.image_url}
-                        className="h-full w-full object-cover transition-transform duration-150 ease-out group-active:scale-[0.99]"
-                        loading="lazy"
-                        decoding="async"
-                        onLoad={() => trackImageResult('loaded')}
-                        onError={() => {
-                          trackImageResult('error');
-                          if (product.image_url_original) {
-                            setThumbFallbackIds((prev) => (prev[product.id] ? prev : { ...prev, [product.id]: true }));
-                          }
-                        }}
-                      />
-                    ) : (
-                      <div className="absolute inset-0 flex items-center justify-center text-gray-700 transition-transform duration-150 ease-out group-active:scale-[0.99]">
-                        <span className="material-symbols-outlined text-6xl">inventory_2</span>
-                      </div>
-                    )}
-                    <button
-                      type="button"
-                      onClick={() => handleOpenEdit(product.id)}
-                      aria-label={`Edit ${product.name}`}
-                      title="Edit product"
-                      className="absolute inset-0 z-10 cursor-pointer bg-transparent transition-colors active:bg-black/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
-                    />
-                    <div className="absolute left-3 bottom-3 z-20 sm:hidden">
-                      <span className="inline-flex items-center rounded-full bg-white/90 px-2 py-1 text-[10px] font-semibold text-gray-700 shadow-sm">
-                        Tap image to edit
-                      </span>
-                    </div>
-                    <div className="absolute inset-x-3 top-3 flex items-start justify-between gap-2 z-20">
-                      <div className="flex flex-col items-start gap-1">
-                        {product.stock_status === 'out' && (
-                          <div className="bg-neutral-800 text-gray-900 text-[10px] font-bold px-2 py-1 rounded-br-lg">
-                            SOLD OUT
-                          </div>
-                        )}
-                        {product.stock_status === 'low' && (
-                          <div className="bg-primary text-gray-900 text-[10px] font-bold px-2 py-1 rounded-br-lg">
-                            LOW STOCK
-                          </div>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => handleOpenEdit(product.id)}
-                          className="rounded-lg bg-white/90 px-2 py-1 text-[10px] font-bold text-neutral-900 hover:bg-white"
-                        >
-                          Edit
-                        </button>
-                        <button
-                          onClick={() => setDeletingProduct({ id: product.id, name: product.name })}
-                          className="rounded-lg bg-[#ff4b86]/90 px-2 py-1 text-[10px] font-bold text-white hover:bg-[#ff4b86]"
-                        >
-                          Delete
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="p-4 flex flex-col gap-3 flex-1">
-                    <div>
-                      <div className="flex justify-between items-start">
-                        <h4 className="text-base font-bold text-neutral-900 leading-tight font-display">{product.name}</h4>
-                        <span className="text-sm font-bold text-neutral-900">
-                          {formatCurrency(product.price_min)}
-                          {product.price_max !== product.price_min ? `–${formatCurrency(product.price_max)}` : ''}
-                        </span>
-                      </div>
-                      <p className="text-xs text-gray-500 mt-1 font-sans">
-                        {product.category} • {product.variant_count} variants
-                      </p>
-                      <p className="mt-1 text-[10px] text-gray-600 font-mono">{product.sku}</p>
-                      {!product.is_active && (
-                        <p className="mt-1 text-[10px] font-bold text-yellow-500">INACTIVE</p>
-                      )}
-                    </div>
-                    <div className="mt-auto">
-                      <div className="flex justify-between items-center mb-1.5">
-                        <span
-                          className={`text-xs font-medium font-sans ${product.stock_status === 'low' ? 'text-primary' : product.stock_status === 'out' ? 'text-gray-600' : 'text-gray-500'}`}
-                        >
-                          {product.stock_available} in stock
-                        </span>
-                        {getStockBadge(product.stock_status, getStockLabel(product.stock_status))}
-                      </div>
-                      <div className="h-1.5 w-full bg-gray-100 rounded-full overflow-hidden">
-                        <div
-                          className={`h-full ${getStockBarColor(product.stock_status)} rounded-full`}
-                          style={{ width: `${getStockPercent(product.stock_available)}%` }}
-                        ></div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
+            <InventoryGrid
+              products={inventoryProducts}
+              thumbFallbackIds={thumbFallbackIds}
+              onEdit={productActions.handleOpenEdit}
+              onDelete={productActions.setDeletingProduct}
+              onTrackImageResult={trackImageResult}
+              onThumbFallback={markThumbFallback}
+            />
 
             {resolvedTotalProducts > 0 && totalPages > 1 && (
               <div className="mt-10 flex flex-col items-center gap-4">
                 <p className="text-sm text-gray-500 font-sans">
-                  Page {currentPage} of {totalPages} ({resolvedTotalProducts} items)
+                  Page {filters.currentPage} of {totalPages} ({resolvedTotalProducts} items)
                 </p>
                 <div className="flex items-center gap-3">
                   <button
                     type="button"
-                    onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
-                    disabled={currentPage <= 1}
+                    onClick={() => filters.setCurrentPage((prev) => Math.max(1, prev - 1))}
+                    disabled={filters.currentPage <= 1}
                     className="inline-flex items-center gap-2 rounded-full border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 transition hover:border-[#ff4b86] hover:text-[#ff4b86] disabled:cursor-not-allowed disabled:opacity-40"
                   >
                     <span className="material-symbols-outlined text-[18px]">chevron_left</span>
@@ -1071,8 +245,8 @@ const StoreInventory = () => {
                   </button>
                   <button
                     type="button"
-                    onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
-                    disabled={currentPage >= totalPages}
+                    onClick={() => filters.setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
+                    disabled={filters.currentPage >= totalPages}
                     className="inline-flex items-center gap-2 rounded-full border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 transition hover:border-[#ff4b86] hover:text-[#ff4b86] disabled:cursor-not-allowed disabled:opacity-40"
                   >
                     Next
@@ -1085,60 +259,37 @@ const StoreInventory = () => {
         )}
       </section>
 
-      {saveError && (
-        <div className="mt-6 rounded-xl border border-red-500/20 bg-red-500/10 p-4 text-sm text-red-200">
-          {saveError}
-        </div>
+      {productActions.saveError && (
+        <div className="mt-6 rounded-xl border border-red-500/20 bg-red-500/10 p-4 text-sm text-red-200">{productActions.saveError}</div>
       )}
 
       <ProductFormModal
-        isOpen={showProductForm}
+        isOpen={productActions.showProductForm}
         categories={categoryOptions}
-        initialValue={editingProduct}
-        existingImages={existingImages}
-        existingImagesLoading={existingImagesLoading}
-        onClose={() => {
-          if (saving) return;
-          setShowProductForm(false);
-          setEditingProductId(null);
-          setExistingImages([]);
-          setExistingImagesLoading(false);
-        }}
-        onSave={handleSaveProduct}
+        initialValue={productActions.editingProduct}
+        existingImages={productActions.existingImages}
+        existingImagesLoading={productActions.existingImagesLoading}
+        onClose={productActions.closeProductForm}
+        onSave={productActions.handleSaveProduct}
       />
 
-      {deletingProduct && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
-          <div className="absolute inset-0 bg-black/60 animate-fade-in" onClick={() => !saving && setDeletingProduct(null)}></div>
-          <div className="relative w-full max-w-md rounded-xl border border-gray-200 bg-white p-6 shadow-2xl animate-fade-in-scale">
-            <h3 className="text-lg font-bold text-gray-900">Delete product?</h3>
-            <p className="mt-2 text-sm text-gray-600">
-              This will soft-delete <span className="font-bold text-gray-900">{deletingProduct.name}</span>.
-            </p>
-            <div className="mt-6 flex items-center justify-end gap-3">
-              <button
-                disabled={saving}
-                onClick={() => setDeletingProduct(null)}
-                className="rounded-lg bg-gray-100 px-4 py-2 text-sm font-bold text-gray-700 hover:bg-gray-200 disabled:opacity-50"
-              >
-                Cancel
-              </button>
-              <button
-                disabled={saving}
-                onClick={handleDelete}
-                className="rounded-lg bg-primary px-4 py-2 text-sm font-bold text-gray-900 hover:bg-primary-dark disabled:opacity-50"
-              >
-                {saving ? 'Deleting...' : 'Delete'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <DeleteProductDialog
+        deletingProduct={productActions.deletingProduct}
+        saving={productActions.saving}
+        onClose={() => {
+          if (!productActions.saving) {
+            productActions.setDeletingProduct(null);
+          }
+        }}
+        onDelete={productActions.handleDelete}
+      />
 
       <CategoryManager
         isOpen={showCategoryManager}
         onClose={() => setShowCategoryManager(false)}
-        onUpdate={() => refetch()}
+        onUpdate={() => {
+          void refetch();
+        }}
       />
 
       <QRScannerModal
