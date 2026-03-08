@@ -11,6 +11,7 @@ import { useCart } from '../contexts/cartStore';
 import { getUserDisplayName } from '../utils/auth';
 
 const Navbar = () => {
+  const mobileEdgeSpacerWidth = 'max(34vw, calc(50vw - 53px))';
   const { t, i18n } = useTranslation();
   const { user, signOut, isAdmin, loggingOut } = useAuth();
   const { count: ticketCount } = useTicketCount();
@@ -385,7 +386,11 @@ const Navbar = () => {
             ref={mobileNavScrollerRef}
             className="w-full relative z-10 flex items-center gap-1 overflow-x-auto scroll-smooth snap-x snap-mandatory [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
           >
-            <div className="w-[34vw] shrink-0" aria-hidden />
+            <div
+              className="shrink-0"
+              style={{ width: mobileEdgeSpacerWidth }}
+              aria-hidden
+            />
             {navItems.map((item, idx) => {
               const isActive = idx === activeIndex;
 
@@ -401,7 +406,11 @@ const Navbar = () => {
                 </Link>
               );
             })}
-            <div className="w-[34vw] shrink-0" aria-hidden />
+            <div
+              className="shrink-0"
+              style={{ width: mobileEdgeSpacerWidth }}
+              aria-hidden
+            />
           </div>
         </div>
       </div>
