@@ -11,7 +11,10 @@ import { useCart } from '../contexts/cartStore';
 import { getUserDisplayName } from '../utils/auth';
 
 const Navbar = () => {
+  // On phones the spacer centres the active item; on tablets (md+) less
+  // spacer is needed because more items fit on screen.
   const mobileEdgeSpacerWidth = 'max(34vw, calc(50vw - 53px))';
+  const tabletEdgeSpacerWidth = 'max(18vw, calc(50vw - 180px))';
   const { t, i18n } = useTranslation();
   const { user, signOut, isAdmin, loggingOut } = useAuth();
   const { count: ticketCount } = useTicketCount();
@@ -91,11 +94,22 @@ const Navbar = () => {
     const activeItem = mobileNavItemsRef.current[activeIndex];
     if (!scroller || !activeItem) return;
 
-    const targetLeft = activeItem.offsetLeft - ((scroller.clientWidth - activeItem.offsetWidth) / 2);
-    scroller.scrollTo({
-      left: Math.max(0, targetLeft),
-      behavior,
-    });
+    const doScroll = () => {
+      const s = mobileNavScrollerRef.current;
+      const a = mobileNavItemsRef.current[activeIndex];
+      if (!s || !a) return;
+      const targetLeft = a.offsetLeft - ((s.clientWidth - a.offsetWidth) / 2);
+      try {
+        s.scrollTo({ left: Math.max(0, targetLeft), behavior });
+      } catch {
+        // Safari fallback: scrollTo with options may throw in very old versions
+        s.scrollLeft = Math.max(0, targetLeft);
+      }
+    };
+
+    // Safari iOS needs a layout flush before offsetLeft is accurate.
+    // Double-rAF ensures the browser has painted at least one frame.
+    requestAnimationFrame(() => requestAnimationFrame(doScroll));
   }, [activeIndex]);
 
   useEffect(() => {
@@ -384,11 +398,17 @@ const Navbar = () => {
 
           <div
             ref={mobileNavScrollerRef}
-            className="w-full relative z-10 flex items-center gap-1 overflow-x-auto scroll-smooth snap-x snap-mandatory [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+            className="w-full relative z-10 flex items-center overflow-x-auto scroll-smooth snap-x snap-proximity [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+            style={{ WebkitOverflowScrolling: 'touch' }}
           >
             <div
-              className="shrink-0"
+              className="shrink-0 md:hidden"
               style={{ width: mobileEdgeSpacerWidth }}
+              aria-hidden
+            />
+            <div
+              className="shrink-0 hidden md:block"
+              style={{ width: tabletEdgeSpacerWidth }}
               aria-hidden
             />
             {navItems.map((item, idx) => {
@@ -399,7 +419,7 @@ const Navbar = () => {
                   key={item.key}
                   ref={(el) => (mobileNavItemsRef.current[idx] = el)}
                   to={item.to}
-                  className={`relative z-10 shrink-0 snap-center min-w-[106px] text-center text-xs font-semibold uppercase px-3 py-2 transition-all duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${isActive ? 'text-white drop-shadow-[0_2px_6px_rgba(0,0,0,0.18)] -translate-y-[1px] scale-[1.03]' : 'text-gray-600 active:text-gray-900'
+                  className={`relative z-10 shrink-0 snap-center min-w-[106px] md:min-w-[120px] text-center text-xs md:text-sm font-semibold uppercase px-3 md:px-4 py-2 mx-0.5 transition-all duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${isActive ? 'text-white drop-shadow-[0_2px_6px_rgba(0,0,0,0.18)] -translate-y-[1px] scale-[1.03]' : 'text-gray-600 active:text-gray-900'
                     }`}
                 >
                   {renderNavItemLabel(item)}
@@ -407,8 +427,13 @@ const Navbar = () => {
               );
             })}
             <div
-              className="shrink-0"
+              className="shrink-0 md:hidden"
               style={{ width: mobileEdgeSpacerWidth }}
+              aria-hidden
+            />
+            <div
+              className="shrink-0 hidden md:block"
+              style={{ width: tabletEdgeSpacerWidth }}
               aria-hidden
             />
           </div>
