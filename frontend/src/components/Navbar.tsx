@@ -394,7 +394,7 @@ const Navbar = () => {
         >
           <div
             ref={mobileNavScrollerRef}
-            className="w-full relative z-10 flex items-center overflow-x-auto scroll-smooth snap-x snap-proximity [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+            className="w-full relative z-10 flex items-center py-8 overflow-x-auto scroll-smooth snap-x snap-proximity [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
             style={{ WebkitOverflowScrolling: 'touch' }}
           >
             <div
