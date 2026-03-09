@@ -16,7 +16,7 @@ const Navbar = () => {
   const mobileEdgeSpacerWidth = 'max(34vw, calc(50vw - 53px))';
   const tabletEdgeSpacerWidth = 'max(18vw, calc(50vw - 180px))';
   const narrowPhoneMaxWidth = 430;
-  const narrowPhoneTrailingInset = 24;
+  const narrowPhoneTrailingInset = 52;
   const { t, i18n } = useTranslation();
   const { user, signOut, isAdmin, loggingOut } = useAuth();
   const { count: ticketCount } = useTicketCount();
@@ -417,14 +417,19 @@ const Navbar = () => {
                   to={item.to}
                   className={`relative z-10 shrink-0 snap-center min-w-[106px] md:min-w-[120px] text-center text-xs md:text-sm font-semibold uppercase px-3 md:px-4 py-2 mx-0.5 transition-all duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${isActive ? 'text-white drop-shadow-[0_2px_6px_rgba(0,0,0,0.18)] -translate-y-[1px] scale-[1.03]' : 'text-gray-600 active:text-gray-900'
                     }`}
-                  style={isActive ? {
-                    backgroundImage: 'url("/images/landing/ICON%20STAR-01.svg")',
-                    backgroundPosition: 'center',
-                    backgroundRepeat: 'no-repeat',
-                    backgroundSize: 'clamp(72px, 20vw, 92px)',
-                  } : undefined}
                 >
-                  <span className={`relative z-10 block ${isActive ? 'animate-nav-star-breathe' : ''}`}>
+                  {isActive && (
+                    <span className="pointer-events-none absolute left-1/2 top-1/2 -z-10 -translate-x-1/2 -translate-y-1/2" aria-hidden>
+                      <span className="animate-nav-star-breathe block h-[72px] w-[72px] sm:h-[84px] sm:w-[84px] md:h-[92px] md:w-[92px]">
+                        <img
+                          src="/images/landing/ICON%20STAR-01.svg"
+                          alt=""
+                          className="h-full w-full object-contain"
+                        />
+                      </span>
+                    </span>
+                  )}
+                  <span className="relative z-10 block">
                     {renderNavItemLabel(item)}
                   </span>
                 </Link>
