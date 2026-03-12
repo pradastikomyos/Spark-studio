@@ -42,14 +42,13 @@ export function BannerFormModal({
 
         <form onSubmit={onSubmit} className="space-y-4 p-6">
           <div>
-            <label className="mb-2 block text-sm font-bold text-gray-900">Title *</label>
+            <label className="mb-2 block text-sm font-bold text-gray-900">Title</label>
             <input
               type="text"
               value={formData.title}
               onChange={(event) => setFormData((current) => ({ ...current, title: event.target.value }))}
               className="w-full rounded-lg border border-gray-300 px-4 py-2 text-sm focus:border-transparent focus:ring-2 focus:ring-neutral-900"
-              placeholder="Enter banner title"
-              required
+              placeholder="Enter banner title (optional)"
             />
           </div>
 
@@ -80,7 +79,7 @@ export function BannerFormModal({
           </div>
 
           <div>
-            <label className="mb-2 block text-sm font-bold text-gray-900">Image *</label>
+            <label className="mb-2 block text-sm font-bold text-gray-900">Media (Image/Video) *</label>
 
             <div className="mb-3 rounded-lg border border-blue-200 bg-blue-50 p-3">
               <div className="flex items-start gap-2">
@@ -112,9 +111,9 @@ export function BannerFormModal({
                         <li>• Best for: Promotional banners</li>
                       </>
                     ) : null}
-                    <li>• Format: JPG, PNG, or WebP</li>
-                    <li>• Max file size: <span className="font-semibold">2MB</span></li>
-                    <li>• Tip: Use high-quality images for best display on all devices</li>
+                    <li>• Format: JPG, PNG, WebP, MP4, or WebM</li>
+                    <li>• Max file size: <span className="font-semibold">10MB</span> (for video) / <span className="font-semibold">2MB</span> (for image)</li>
+                    <li>• Tip: Use high-quality media for best display on all devices</li>
                   </ul>
                 </div>
               </div>
@@ -122,16 +121,20 @@ export function BannerFormModal({
 
             {formData.image_url ? (
               <div className="mb-3 overflow-hidden rounded-lg border border-gray-200">
-                <img src={formData.image_url} alt="Preview" className="h-48 w-full object-cover" />
+                {formData.image_url.match(/\.(mp4|webm|ogg)(\?.*)?$/i) ? (
+                  <video src={formData.image_url} className="h-48 w-full object-cover" autoPlay loop muted playsInline />
+                ) : (
+                  <img src={formData.image_url} alt="Preview" className="h-48 w-full object-cover" />
+                )}
                 <div className="border-t border-gray-200 bg-gray-50 px-3 py-2">
-                  <p className="text-xs text-gray-600">✓ Image uploaded successfully</p>
+                  <p className="text-xs text-gray-600">✓ Media uploaded successfully</p>
                 </div>
               </div>
             ) : null}
 
             <input
               type="file"
-              accept="image/*"
+              accept="image/*,video/mp4,video/webm"
               onChange={onImageUpload}
               disabled={uploading}
               className="w-full text-sm text-gray-600 file:mr-4 file:cursor-pointer file:rounded-lg file:border-0 file:bg-[#ff4b86] file:px-4 file:py-2 file:text-sm file:font-bold file:text-white hover:file:bg-[#ff6a9a] disabled:opacity-50"
@@ -140,7 +143,7 @@ export function BannerFormModal({
             {uploading ? (
               <div className="mt-2 flex items-center gap-2">
                 <div className="h-4 w-4 animate-spin rounded-full border-b-2 border-neutral-900" />
-                <p className="text-sm text-gray-600">Uploading image...</p>
+                <p className="text-sm text-gray-600">Uploading media...</p>
               </div>
             ) : null}
           </div>

@@ -119,7 +119,9 @@ const OnStage = () => {
               <>
                 <div className="absolute inset-0 bg-black/20" />
                 <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-4">
-                  <h1 className="text-white text-2xl md:text-6xl font-bold mb-4">{slide.title}</h1>
+                  {slide.title && (
+                    <h1 className="text-white text-2xl md:text-6xl font-bold mb-4">{slide.title}</h1>
+                  )}
                   {slide.subtitle ? (
                     <p className="text-white/90 text-sm md:text-xl">{slide.subtitle}</p>
                   ) : null}
@@ -183,23 +185,38 @@ const OnStage = () => {
                   >
                     {/* Stage Image */}
                     <div className="relative h-64 bg-gray-200">
-                      <img
-                        src={stage.image_url}
-                        alt={stage.title}
-                        className="w-full h-full object-cover"
-                      />
+                      {stage.image_url?.match(/\.(mp4|webm|ogg)(\?.*)?$/i) ? (
+                        <video 
+                          src={stage.image_url} 
+                          className="w-full h-full object-cover pointer-events-none" 
+                          autoPlay 
+                          loop 
+                          muted 
+                          playsInline 
+                        />
+                      ) : (
+                        <img
+                          src={stage.image_url}
+                          alt={stage.title || 'Stage visual'}
+                          className="w-full h-full object-cover pointer-events-none"
+                        />
+                      )}
                       {/* Stage Title Overlay */}
-                      <div className="absolute top-4 left-4 bg-gray-800/80 text-white px-4 py-2 rounded">
-                        <span className="text-sm font-semibold">{stage.title}</span>
-                      </div>
+                      {stage.title && (
+                        <div className="absolute top-4 left-4 bg-gray-800/80 text-white px-4 py-2 rounded">
+                          <span className="text-sm font-semibold">{stage.title}</span>
+                        </div>
+                      )}
                     </div>
 
                     {/* Stage Info */}
-                    <div className="p-6">
-                      <p className="text-gray-600 text-sm leading-relaxed">
-                        {stage.subtitle}
-                      </p>
-                    </div>
+                    {stage.subtitle && (
+                      <div className="p-6">
+                        <p className="text-gray-600 text-sm leading-relaxed">
+                          {stage.subtitle}
+                        </p>
+                      </div>
+                    )}
                   </Link>
                 </div>
               ))}

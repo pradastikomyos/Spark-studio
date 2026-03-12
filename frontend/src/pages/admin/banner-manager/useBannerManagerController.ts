@@ -86,12 +86,17 @@ export function useBannerManagerController(showToast: ShowToast): BannerManagerC
       const file = event.target.files?.[0];
       if (!file) return;
 
-      if (!file.type.startsWith('image/')) {
-        showToast('error', 'Please upload an image file');
+      if (!file.type.startsWith('image/') && !file.type.startsWith('video/')) {
+        showToast('error', 'Please upload an image or video file');
         return;
       }
 
-      if (file.size > 2 * 1024 * 1024) {
+      if (file.type.startsWith('video/') && file.size > 10 * 1024 * 1024) {
+        showToast('error', 'Video size must be less than 10MB');
+        return;
+      }
+
+      if (file.type.startsWith('image/') && file.size > 2 * 1024 * 1024) {
         showToast('error', 'Image size must be less than 2MB');
         return;
       }
@@ -115,9 +120,9 @@ export function useBannerManagerController(showToast: ShowToast): BannerManagerC
         } = supabase.storage.from('banners').getPublicUrl(filePath);
 
         setFormData((current) => ({ ...current, image_url: publicUrl }));
-        showToast('success', 'Image uploaded successfully');
+        showToast('success', 'Media uploaded successfully');
       } catch (error) {
-        showToast('error', error instanceof Error ? error.message : 'Failed to upload image');
+        showToast('error', error instanceof Error ? error.message : 'Failed to upload media');
       } finally {
         setUploading(false);
         event.target.value = '';
@@ -130,13 +135,8 @@ export function useBannerManagerController(showToast: ShowToast): BannerManagerC
     async (event: FormEvent<HTMLFormElement>) => {
       event.preventDefault();
 
-      if (!formData.title.trim()) {
-        showToast('error', 'Title is required');
-        return;
-      }
-
       if (!formData.image_url.trim()) {
-        showToast('error', 'Image is required');
+        showToast('error', 'Media is required');
         return;
       }
 

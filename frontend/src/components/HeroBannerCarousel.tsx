@@ -72,7 +72,18 @@ export const HeroBannerCarousel = memo(function HeroBannerCarousel({
             key={slide.id}
             className={`absolute inset-0 transition-opacity duration-700 ${slideIndex === index ? 'opacity-100' : 'opacity-0'}`}
           >
-            <img src={slide.image_url} alt={slide.title} className={imageClassName} />
+            {slide.image_url?.match(/\.(mp4|webm|ogg)(\?.*)?$/i) ? (
+              <video 
+                src={slide.image_url} 
+                className={imageClassName} 
+                autoPlay 
+                loop 
+                muted 
+                playsInline 
+              />
+            ) : (
+              <img src={slide.image_url} alt={slide.title} className={imageClassName} />
+            )}
             {renderOverlay ? <div className={overlayClassName}>{renderOverlay(slide)}</div> : null}
           </div>
         ))}
