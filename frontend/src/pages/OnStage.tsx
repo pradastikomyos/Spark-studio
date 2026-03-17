@@ -13,9 +13,7 @@ import { useJourneySelectionController } from './journey-selection/useJourneySel
 const OnStage = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const [currentSlide, setCurrentSlide] = useState(0);
   const [currentProcessSlide, setCurrentProcessSlide] = useState(0);
-  const [isMobile, setIsMobile] = useState(false);
 
   const {
     ticket,
@@ -62,8 +60,6 @@ const OnStage = () => {
     });
   };
 
-  const touchStartX = useRef(0);
-  const touchEndX = useRef(0);
   const processTouchStartX = useRef(0);
   const processTouchEndX = useRef(0);
 
@@ -71,7 +67,6 @@ const OnStage = () => {
     data: heroBanners = [],
     isLoading: heroLoading,
     error: heroError,
-    refetch: refetchHero,
   } = useBanners('hero');
   const {
     data: processBanners = [],
@@ -79,69 +74,19 @@ const OnStage = () => {
     error: processError,
     refetch: refetchProcess,
   } = useBanners('process');
-  const {
-    data: stageBanners = [],
-    isLoading: stageLoading,
-    error: stageError,
-    refetch: refetchStage,
-  } = useBanners('stage');
 
-  const hasData = heroBanners.length > 0 || stageBanners.length > 0 || processBanners.length > 0;
-  const loading = (heroLoading || stageLoading || processLoading) && !hasData;
-  const error = heroError || stageError || processError;
-
-  // Detect mobile viewport
-  useEffect(() => {
-    const checkMobile = () => setIsMobile(window.innerWidth < 768);
-    checkMobile();
-    window.addEventListener('resize', checkMobile);
-    return () => window.removeEventListener('resize', checkMobile);
-  }, []);
+  const hasData = heroBanners.length > 0 || processBanners.length > 0;
+  const loading = (heroLoading || processLoading) && !hasData;
+  const error = heroError || processError;
 
   // Process banner auto-slide timer
   useEffect(() => {
     if (processBanners.length <= 1) return;
     const interval = setInterval(() => {
       setCurrentProcessSlide((p) => (p + 1) % processBanners.length);
-    }, 10000); // 10 seconds auto-slide
+    }, 10000);
     return () => clearInterval(interval);
   }, [processBanners.length]);
-
-  // Calculate max slides based on viewport
-  const maxSlides = isMobile ? stageBanners.length : Math.max(1, stageBanners.length - 2);
-
-  const nextSlide = () => {
-    setCurrentSlide((prev) => (prev + 1) % maxSlides);
-  };
-
-  const prevSlide = () => {
-    setCurrentSlide((prev) => (prev - 1 + maxSlides) % maxSlides);
-  };
-
-  // Touch handlers for stage carousel
-  const handleStageTouchStart = (e: React.TouchEvent) => {
-    touchStartX.current = e.touches[0].clientX;
-  };
-
-  const handleStageTouchMove = (e: React.TouchEvent) => {
-    touchEndX.current = e.touches[0].clientX;
-  };
-
-  const handleStageTouchEnd = () => {
-    const swipeThreshold = 50;
-    const diff = touchStartX.current - touchEndX.current;
-
-    if (Math.abs(diff) > swipeThreshold) {
-      if (diff > 0) {
-        nextSlide();
-      } else {
-        prevSlide();
-      }
-    }
-
-    touchStartX.current = 0;
-    touchEndX.current = 0;
-  };
 
   if (loading) {
     return (
@@ -159,9 +104,7 @@ const OnStage = () => {
           <button
             type="button"
             onClick={() => {
-              refetchHero();
               refetchProcess();
-              refetchStage();
             }}
             className="inline-flex items-center justify-center rounded-md bg-main-600 px-4 py-2 text-white text-sm font-semibold hover:bg-main-700 transition-colors"
           >
@@ -395,104 +338,6 @@ const OnStage = () => {
               )}
             </div>
           </div>
-        </div>
-      </section>
-
-      {/* Stage Carousel */}
-      <section className="max-w-7xl mx-auto px-4 py-16">
-        <div className="relative">
-          {/* Previous Button */}
-          <button
-            onClick={prevSlide}
-            className="absolute left-0 md:-left-4 top-1/2 -translate-y-1/2 z-10 bg-main-600 hover:bg-main-700 active:bg-main-800 text-white p-2 md:p-3 rounded-full shadow-lg transition-colors touch-manipulation"
-            aria-label="Previous"
-          >
-            <ChevronLeft className="w-5 h-5 md:w-6 md:h-6" />
-          </button>
-
-          {/* Carousel Container */}
-          <div
-            className="overflow-hidden mx-8 md:mx-0"
-            onTouchStart={handleStageTouchStart}
-            onTouchMove={handleStageTouchMove}
-            onTouchEnd={handleStageTouchEnd}
-          >
-            <div
-              className="flex transition-transform duration-500 ease-out"
-              style={{
-                transform: `translateX(-${currentSlide * (isMobile ? 100 : 100 / 3)}%)`
-              }}
-            >
-              {stageBanners.map((stage) => (
-                <div
-                  key={stage.id}
-                  className="w-full md:w-1/3 flex-shrink-0 px-3"
-                >
-                  <Link 
-                    to={stage.link_url || '#'} 
-                    className={`block bg-gray-100 rounded-lg overflow-hidden shadow-md hover:shadow-xl transition-shadow ${!stage.link_url ? 'cursor-default pointer-events-none' : ''}`}
-                  >
-                    {/* Stage Image */}
-                    <div className="relative h-64 bg-gray-200">
-                      {stage.image_url?.match(/\.(mp4|webm|ogg)(\?.*)?$/i) ? (
-                        <video 
-                          src={stage.image_url} 
-                          className="w-full h-full object-cover pointer-events-none" 
-                          autoPlay 
-                          loop 
-                          muted 
-                          playsInline 
-                        />
-                      ) : (
-                        <img
-                          src={stage.image_url}
-                          alt={stage.title || 'Stage visual'}
-                          className="w-full h-full object-cover pointer-events-none"
-                        />
-                      )}
-                      {/* Stage Title Overlay */}
-                      {stage.title && (
-                        <div className="absolute top-4 left-4 bg-gray-800/80 text-white px-4 py-2 rounded">
-                          <span className="text-sm font-semibold">{stage.title}</span>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Stage Info */}
-                    {stage.subtitle && (
-                      <div className="p-6">
-                        <p className="text-gray-600 text-sm leading-relaxed">
-                          {stage.subtitle}
-                        </p>
-                      </div>
-                    )}
-                  </Link>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Next Button */}
-          <button
-            onClick={nextSlide}
-            className="absolute right-0 md:-right-4 top-1/2 -translate-y-1/2 z-10 bg-main-600 hover:bg-main-700 active:bg-main-800 text-white p-2 md:p-3 rounded-full shadow-lg transition-colors touch-manipulation"
-            aria-label="Next"
-          >
-            <ChevronRight className="w-5 h-5 md:w-6 md:h-6" />
-          </button>
-        </div>
-
-        {/* Carousel Indicators */}
-        <div className="flex justify-center gap-2 mt-8">
-          {Array.from({ length: maxSlides }, (_, slideNumber) => slideNumber + 1).map((slideNumber) => (
-            <button
-              key={`slide-${slideNumber}`}
-              onClick={() => setCurrentSlide(slideNumber - 1)}
-              className={`w-2.5 h-2.5 rounded-full ux-transition-color touch-manipulation ${currentSlide === slideNumber - 1 ? 'bg-main-600' : 'bg-gray-300'
-                }`}
-              aria-label={`Go to slide ${slideNumber}`}
-            />
-          ))}
         </div>
       </section>
     </div>
