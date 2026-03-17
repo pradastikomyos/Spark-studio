@@ -80,6 +80,7 @@ export function BannerFormModal({
               <option value="promo">Promo</option>
               <option value="events">Events (Hero Slider)</option>
               <option value="shop">Shop (Hero Slider)</option>
+              <option value="spark-map">Spark Map</option>
             </select>
           </div>
 
@@ -120,6 +121,12 @@ export function BannerFormModal({
                       <>
                         <li>• Resolution: <span className="font-semibold">1200 x 600px</span> (2:1 aspect ratio)</li>
                         <li>• Best for: Promotional banners</li>
+                      </>
+                    ) : null}
+                    {formData.banner_type === 'spark-map' ? (
+                      <>
+                        <li>• Resolution: <span className="font-semibold">Flexible</span> (often portrait)</li>
+                        <li>• Best for: The stage map inside the Booking Flow</li>
                       </>
                     ) : null}
                     <li>• Format: JPG, PNG, WebP, MP4, or WebM</li>

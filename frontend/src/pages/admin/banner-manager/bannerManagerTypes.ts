@@ -1,6 +1,6 @@
 import type { Dispatch, SetStateAction, ChangeEvent, FormEvent } from 'react';
 
-export type BannerType = 'hero' | 'stage' | 'promo' | 'events' | 'shop' | 'process';
+export type BannerType = 'hero' | 'stage' | 'promo' | 'events' | 'shop' | 'process' | 'spark-map';
 
 export type Banner = {
   id: number;

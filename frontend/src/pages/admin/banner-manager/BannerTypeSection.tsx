@@ -57,7 +57,7 @@ export function BannerTypeSection({
   return (
     <section className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
       <div className="mb-4 flex items-center justify-between">
-        <h3 className="text-lg font-bold capitalize text-gray-900">{type} Banners</h3>
+        <h3 className="text-lg font-bold capitalize text-gray-900">{type === 'spark-map' ? 'Spark Map' : type} Banners</h3>
 
         {type === 'stage' && hasUnsavedChanges ? (
           <div className="flex items-center gap-2">

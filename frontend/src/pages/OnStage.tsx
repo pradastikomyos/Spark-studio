@@ -74,6 +74,13 @@ const OnStage = () => {
     error: processError,
     refetch: refetchProcess,
   } = useBanners('process');
+  const {
+    data: sparkMapBanners = [],
+    isLoading: sparkMapLoading,
+    refetch: refetchSparkMap,
+  } = useBanners('spark-map');
+
+  const sparkMap = sparkMapBanners[0];
 
   const hasData = heroBanners.length > 0 || processBanners.length > 0;
   const loading = (heroLoading || processLoading) && !hasData;
@@ -105,6 +112,7 @@ const OnStage = () => {
             type="button"
             onClick={() => {
               refetchProcess();
+              refetchSparkMap();
             }}
             className="inline-flex items-center justify-center rounded-md bg-main-600 px-4 py-2 text-white text-sm font-semibold hover:bg-main-700 transition-colors"
           >
@@ -318,14 +326,31 @@ const OnStage = () => {
             {/* Right Column: Spark Map + Booking Summary */}
             <div className="flex flex-col gap-6">
               {/* Spark Map */}
-              <div className="bg-white rounded-xl shadow-xl border border-gray-200 p-6 lg:p-8">
-                <h3 className="text-2xl font-black mb-5 italic">Spark Map</h3>
-                <img
-                  src="/images/landing/SPARK MAP FINAL web.png"
-                  alt="Spark Stage 55 Map"
-                  className="w-full rounded-lg object-contain"
-                />
-              </div>
+              {sparkMapLoading ? (
+                <div className="bg-gray-100 rounded-xl shadow-xl border border-gray-200 p-6 lg:p-8 flex items-center justify-center min-h-[400px]">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-main-600" />
+                </div>
+              ) : sparkMap ? (
+                <div className="bg-white rounded-xl shadow-xl border border-gray-200 p-6 lg:p-8">
+                  <h3 className="text-2xl font-black mb-5 italic">{sparkMap.title || 'Spark Map'}</h3>
+                  {sparkMap.image_url?.match(/\.(mp4|webm|ogg)(\?.*)?$/i) ? (
+                    <video
+                      src={sparkMap.image_url}
+                      className="w-full rounded-lg object-contain"
+                      autoPlay
+                      loop
+                      muted
+                      playsInline
+                    />
+                  ) : (
+                    <img
+                      src={sparkMap.image_url}
+                      alt={sparkMap.title || 'Spark Stage 55 Map'}
+                      className="w-full rounded-lg object-contain"
+                    />
+                  )}
+                </div>
+              ) : null}
 
               {/* Booking Summary */}
               {ticket && (
