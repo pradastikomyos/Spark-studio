@@ -52,7 +52,7 @@ export default function BeautyPage() {
   const content = settings ?? DEFAULT_GLAM_PAGE_SETTINGS;
   const normalizedQuery = deferredSearchQuery.trim().toLowerCase();
   const starLinkMap = useMemo(
-    () => new Map(content.look_star_links.map((link) => [link.slot, link.product_id])),
+    () => new Map(content.look_star_links.map((link) => [link.slot, link])),
     [content.look_star_links]
   );
   const productLookup = useMemo(() => new Map(products.map((product) => [product.id, product])), [products]);
@@ -103,11 +103,12 @@ export default function BeautyPage() {
           <div className="relative mt-8 min-h-[420px] overflow-hidden border-b border-black/20 pb-4 sm:min-h-[520px] lg:min-h-[560px]">
             {decorativeStars.map((star) => (
               (() => {
-                const productId = starLinkMap.get(star.slot) ?? null;
+                const starLink = starLinkMap.get(star.slot) ?? null;
+                const productId = starLink?.product_id ?? null;
                 const linkedProduct = productId ? productLookup.get(productId) ?? null : null;
                 const starImage = (
                   <img
-                    src={star.src}
+                    src={starLink?.image_url ?? star.src}
                     alt={star.alt}
                     className="h-full w-full object-contain drop-shadow-[0_12px_18px_rgba(0,0,0,0.14)] transition-transform duration-200"
                   />

@@ -18,6 +18,7 @@ export interface GlamPageSettings {
 export interface GlamStarLink {
   slot: string;
   product_id: number | null;
+  image_url: string | null;
 }
 
 export const DEFAULT_GLAM_PAGE_SETTINGS: GlamPageSettings = {
@@ -29,10 +30,10 @@ export const DEFAULT_GLAM_PAGE_SETTINGS: GlamPageSettings = {
   look_heading: 'Get The Look',
   look_model_image_url: `${GLAM_ASSET_BASE}/ChatGPT_Image_10_Mar_2026__21.13.39-removebg-preview.png`,
   look_star_links: [
-    { slot: 'pink-rush', product_id: null },
-    { slot: 'silver-blink', product_id: null },
-    { slot: 'bronze', product_id: null },
-    { slot: 'aura-pop', product_id: null },
+    { slot: 'pink-rush', product_id: null, image_url: null },
+    { slot: 'silver-blink', product_id: null, image_url: null },
+    { slot: 'bronze', product_id: null, image_url: null },
+    { slot: 'aura-pop', product_id: null, image_url: null },
   ],
   product_section_title: 'Charm Bar',
   product_search_placeholder: 'Search products...',
@@ -52,11 +53,13 @@ function normalizeStarLinks(value: unknown): GlamStarLink[] {
           : typeof record.product_id === 'string' && record.product_id.trim() !== ''
             ? Number(record.product_id)
             : null;
+      const imageUrl = typeof record.image_url === 'string' && record.image_url.trim() !== '' ? record.image_url : null;
 
       if (!slot) return null;
       return {
         slot,
         product_id: Number.isFinite(productId) ? Number(productId) : null,
+        image_url: imageUrl,
       };
     })
     .filter((entry): entry is GlamStarLink => entry !== null);

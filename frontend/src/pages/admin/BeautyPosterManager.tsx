@@ -20,14 +20,20 @@ function StarProductPicker({
   title,
   selectedProductId,
   selectedProduct,
+  selectedImageUrl,
   products,
   onSelect,
+  onChangeImage,
+  onUploadImage,
 }: {
   title: string;
   selectedProductId: number | null;
   selectedProduct: Product | null;
+  selectedImageUrl: string | null;
   products: Product[];
   onSelect: (productId: number | null) => void;
+  onChangeImage: (value: string) => void;
+  onUploadImage: (file: File) => void;
 }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [isOpen, setIsOpen] = useState(false);
@@ -110,6 +116,53 @@ function StarProductPicker({
             ) : null}
           </div>
         ) : null}
+      </div>
+
+      <div className="mt-4 rounded-2xl border border-gray-200 bg-white p-3">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-400">Star image</p>
+        <div className="mt-3 flex flex-col gap-3 md:flex-row md:items-start">
+          {selectedImageUrl ? (
+            <img
+              src={selectedImageUrl}
+              alt={`${title} preview`}
+              className="h-20 w-20 rounded-xl border border-gray-200 bg-white object-contain p-2"
+            />
+          ) : (
+            <div className="flex h-20 w-20 items-center justify-center rounded-xl border border-dashed border-gray-300 bg-gray-50 text-gray-300">
+              <span className="material-symbols-outlined">image</span>
+            </div>
+          )}
+
+          <div className="flex-1 space-y-3">
+            <div className="relative">
+              <input
+                type="file"
+                accept="image/*"
+                onChange={(event) => {
+                  const file = event.target.files?.[0];
+                  if (file) onUploadImage(file);
+                  event.target.value = '';
+                }}
+                className="absolute inset-0 z-10 h-full w-full cursor-pointer opacity-0"
+              />
+              <button
+                type="button"
+                className="flex w-full items-center justify-center gap-2 rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-50"
+              >
+                <span className="material-symbols-outlined text-[18px]">upload</span>
+                Upload custom star image
+              </button>
+            </div>
+
+            <input
+              type="text"
+              value={selectedImageUrl ?? ''}
+              onChange={(event) => onChangeImage(event.target.value)}
+              placeholder="Or paste a custom image URL"
+              className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm focus:border-black focus:outline-none"
+            />
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -280,6 +333,12 @@ export default function BeautyPosterManager() {
     );
   };
 
+  const updateStarImage = (slot: string, imageUrl: string | null) => {
+    setLookStarLinks((current) =>
+      current.map((link) => (link.slot === slot ? { ...link, image_url: imageUrl } : link))
+    );
+  };
+
   return (
     <AdminLayout
       menuItems={ADMIN_MENU_ITEMS}
@@ -368,8 +427,13 @@ export default function BeautyPosterManager() {
                   title={STAR_SLOT_LABELS[link.slot] ?? link.slot}
                   selectedProductId={link.product_id}
                   selectedProduct={products.find((product) => product.id === link.product_id) ?? null}
+                  selectedImageUrl={link.image_url}
                   products={products}
                   onSelect={(productId) => updateStarProduct(link.slot, productId)}
+                  onChangeImage={(value) => updateStarImage(link.slot, value.trim() ? value : null)}
+                  onUploadImage={(file) =>
+                    void handleUploadImage(file, (url) => updateStarImage(link.slot, url), `glam-star-${link.slot}`)
+                  }
                 />
               ))}
             </div>
