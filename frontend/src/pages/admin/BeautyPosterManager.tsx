@@ -4,8 +4,116 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '../../components/Toast';
 import { ADMIN_MENU_ITEMS, ADMIN_MENU_SECTIONS } from '../../constants/adminMenu';
 import { supabase } from '../../lib/supabase';
-import { DEFAULT_GLAM_PAGE_SETTINGS, useGlamPageSettings } from '../../hooks/useGlamPageSettings';
+import { DEFAULT_GLAM_PAGE_SETTINGS, type GlamStarLink, useGlamPageSettings } from '../../hooks/useGlamPageSettings';
+import { useProducts, type Product } from '../../hooks/useProducts';
 import { slugify } from '../../utils/merchant';
+import { formatCurrency } from '../../utils/formatters';
+
+const STAR_SLOT_LABELS: Record<string, string> = {
+  'pink-rush': 'Pink Rush star',
+  'silver-blink': 'Silver Blink star',
+  bronze: 'Bronze star',
+  'aura-pop': 'Aura Pop mini star',
+};
+
+function StarProductPicker({
+  title,
+  selectedProductId,
+  selectedProduct,
+  products,
+  onSelect,
+}: {
+  title: string;
+  selectedProductId: number | null;
+  selectedProduct: Product | null;
+  products: Product[];
+  onSelect: (productId: number | null) => void;
+}) {
+  const [searchTerm, setSearchTerm] = useState('');
+  const [isOpen, setIsOpen] = useState(false);
+
+  useEffect(() => {
+    if (!selectedProduct) return;
+    setSearchTerm(selectedProduct.name);
+  }, [selectedProductId, selectedProduct]);
+
+  const filteredProducts = products.filter((product) =>
+    product.name.toLowerCase().includes(searchTerm.trim().toLowerCase())
+  );
+
+  return (
+    <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <p className="text-sm font-semibold text-gray-900">{title}</p>
+          <p className="text-xs uppercase tracking-[0.18em] text-gray-400">
+            {selectedProduct ? 'Linked to a shop product' : 'No linked product yet'}
+          </p>
+        </div>
+        {selectedProduct ? (
+          <button
+            type="button"
+            onClick={() => {
+              onSelect(null);
+              setSearchTerm('');
+            }}
+            className="rounded-full border border-gray-300 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-600 hover:bg-white"
+          >
+            Clear
+          </button>
+        ) : null}
+      </div>
+
+      <div className="relative mt-4">
+        <input
+          type="text"
+          value={searchTerm}
+          onChange={(event) => {
+            setSearchTerm(event.target.value);
+            setIsOpen(true);
+          }}
+          onFocus={() => setIsOpen(true)}
+          onBlur={() => window.setTimeout(() => setIsOpen(false), 150)}
+          placeholder="Search product by name..."
+          className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm focus:border-black focus:outline-none"
+        />
+
+        {isOpen ? (
+          <div className="absolute z-30 mt-2 max-h-64 w-full overflow-auto rounded-2xl border border-gray-200 bg-white shadow-xl">
+            {filteredProducts.slice(0, 12).map((product) => (
+              <button
+                key={product.id}
+                type="button"
+                onClick={() => {
+                  onSelect(product.id);
+                  setSearchTerm(product.name);
+                  setIsOpen(false);
+                }}
+                className="flex w-full items-center gap-3 border-b border-gray-100 px-4 py-3 text-left last:border-b-0 hover:bg-gray-50"
+              >
+                {product.image ? (
+                  <img src={product.image} alt={product.name} className="h-10 w-10 rounded-lg bg-gray-100 object-cover" />
+                ) : (
+                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gray-100 text-gray-400">
+                    <span className="material-symbols-outlined text-[18px]">inventory_2</span>
+                  </div>
+                )}
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-semibold text-gray-900">{product.name}</p>
+                  <p className="text-xs text-[#ff4b86]">{formatCurrency(product.price)}</p>
+                </div>
+              </button>
+            ))}
+
+            {filteredProducts.length === 0 ? (
+              <div className="px-4 py-6 text-center text-sm text-gray-500">No matching product found.</div>
+            ) : null}
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
+}
 
 function ImageField({
   label,
@@ -68,6 +176,7 @@ export default function BeautyPosterManager() {
   const { signOut } = useAuth();
   const { showToast } = useToast();
   const { settings, isLoading, updateSettings } = useGlamPageSettings();
+  const { data: products = [], isLoading: productsLoading } = useProducts();
 
   const [saving, setSaving] = useState(false);
   const [heroTitle, setHeroTitle] = useState(DEFAULT_GLAM_PAGE_SETTINGS.hero_title);
@@ -75,6 +184,7 @@ export default function BeautyPosterManager() {
   const [heroImageUrl, setHeroImageUrl] = useState(DEFAULT_GLAM_PAGE_SETTINGS.hero_image_url);
   const [lookHeading, setLookHeading] = useState(DEFAULT_GLAM_PAGE_SETTINGS.look_heading);
   const [lookModelImageUrl, setLookModelImageUrl] = useState(DEFAULT_GLAM_PAGE_SETTINGS.look_model_image_url);
+  const [lookStarLinks, setLookStarLinks] = useState<GlamStarLink[]>(DEFAULT_GLAM_PAGE_SETTINGS.look_star_links);
   const [productSectionTitle, setProductSectionTitle] = useState(DEFAULT_GLAM_PAGE_SETTINGS.product_section_title);
   const [productSearchPlaceholder, setProductSearchPlaceholder] = useState(DEFAULT_GLAM_PAGE_SETTINGS.product_search_placeholder);
 
@@ -85,6 +195,7 @@ export default function BeautyPosterManager() {
     setHeroImageUrl(next.hero_image_url);
     setLookHeading(next.look_heading);
     setLookModelImageUrl(next.look_model_image_url);
+    setLookStarLinks(next.look_star_links);
     setProductSectionTitle(next.product_section_title);
     setProductSearchPlaceholder(next.product_search_placeholder);
   }, [settings]);
@@ -135,6 +246,7 @@ export default function BeautyPosterManager() {
         hero_image_url: heroImageUrl,
         look_heading: lookHeading,
         look_model_image_url: lookModelImageUrl,
+        look_star_links: lookStarLinks,
         product_section_title: productSectionTitle,
         product_search_placeholder: productSearchPlaceholder,
       });
@@ -161,6 +273,12 @@ export default function BeautyPosterManager() {
       </AdminLayout>
     );
   }
+
+  const updateStarProduct = (slot: string, productId: number | null) => {
+    setLookStarLinks((current) =>
+      current.map((link) => (link.slot === slot ? { ...link, product_id: productId } : link))
+    );
+  };
 
   return (
     <AdminLayout
@@ -213,7 +331,7 @@ export default function BeautyPosterManager() {
         <section className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
           <div className="border-b border-gray-100 pb-3">
             <h2 className="text-xl font-semibold text-gray-900">Get The Look Section</h2>
-            <p className="mt-1 text-sm text-gray-500">Fixed collage area with one editable heading and one model image.</p>
+            <p className="mt-1 text-sm text-gray-500">Fixed collage area with one editable heading, one model image, and linked star hotspots.</p>
           </div>
 
           <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(320px,0.9fr)]">
@@ -233,6 +351,32 @@ export default function BeautyPosterManager() {
                 className="w-full rounded-xl border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm focus:border-black focus:outline-none"
               />
             </div>
+          </div>
+
+          <div className="mt-8 border-t border-gray-100 pt-6">
+            <div className="mb-4">
+              <h3 className="text-sm font-semibold text-gray-900">Clickable Star Links</h3>
+              <p className="mt-1 text-sm text-gray-500">
+                Each decorative star on the GLAM page can open one product from the shop.
+              </p>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2">
+              {lookStarLinks.map((link) => (
+                <StarProductPicker
+                  key={link.slot}
+                  title={STAR_SLOT_LABELS[link.slot] ?? link.slot}
+                  selectedProductId={link.product_id}
+                  selectedProduct={products.find((product) => product.id === link.product_id) ?? null}
+                  products={products}
+                  onSelect={(productId) => updateStarProduct(link.slot, productId)}
+                />
+              ))}
+            </div>
+
+            {productsLoading ? (
+              <p className="mt-4 text-sm text-gray-500">Loading products for star linking...</p>
+            ) : null}
           </div>
         </section>
 

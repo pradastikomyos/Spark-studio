@@ -10,8 +10,14 @@ export interface GlamPageSettings {
   hero_image_url: string;
   look_heading: string;
   look_model_image_url: string;
+  look_star_links: GlamStarLink[];
   product_section_title: string;
   product_search_placeholder: string;
+}
+
+export interface GlamStarLink {
+  slot: string;
+  product_id: number | null;
 }
 
 export const DEFAULT_GLAM_PAGE_SETTINGS: GlamPageSettings = {
@@ -22,9 +28,42 @@ export const DEFAULT_GLAM_PAGE_SETTINGS: GlamPageSettings = {
   hero_image_url: `${GLAM_ASSET_BASE}/VISUAL%201.png`,
   look_heading: 'Get The Look',
   look_model_image_url: `${GLAM_ASSET_BASE}/ChatGPT_Image_10_Mar_2026__21.13.39-removebg-preview.png`,
+  look_star_links: [
+    { slot: 'pink-rush', product_id: null },
+    { slot: 'silver-blink', product_id: null },
+    { slot: 'bronze', product_id: null },
+    { slot: 'aura-pop', product_id: null },
+  ],
   product_section_title: 'Charm Bar',
   product_search_placeholder: 'Search products...',
 };
+
+function normalizeStarLinks(value: unknown): GlamStarLink[] {
+  if (!Array.isArray(value)) return DEFAULT_GLAM_PAGE_SETTINGS.look_star_links;
+
+  const parsed = value
+    .map((entry) => {
+      if (!entry || typeof entry !== 'object') return null;
+      const record = entry as Record<string, unknown>;
+      const slot = typeof record.slot === 'string' ? record.slot : null;
+      const productId =
+        typeof record.product_id === 'number'
+          ? record.product_id
+          : typeof record.product_id === 'string' && record.product_id.trim() !== ''
+            ? Number(record.product_id)
+            : null;
+
+      if (!slot) return null;
+      return {
+        slot,
+        product_id: Number.isFinite(productId) ? Number(productId) : null,
+      };
+    })
+    .filter((entry): entry is GlamStarLink => entry !== null);
+
+  if (parsed.length === 0) return DEFAULT_GLAM_PAGE_SETTINGS.look_star_links;
+  return parsed;
+}
 
 export function useGlamPageSettings() {
   const [settings, setSettings] = useState<GlamPageSettings | null>(null);
@@ -50,7 +89,11 @@ export function useGlamPageSettings() {
           throw error;
         }
       } else {
-        setSettings(data as GlamPageSettings);
+        const raw = data as Record<string, unknown>;
+        setSettings({
+          ...(data as GlamPageSettings),
+          look_star_links: normalizeStarLinks(raw.look_star_links),
+        });
       }
     } catch (err: unknown) {
       console.error('Error fetching glam page settings:', err);
@@ -77,7 +120,11 @@ export function useGlamPageSettings() {
           .single();
 
         if (insertError) throw insertError;
-        setSettings(newData as GlamPageSettings);
+        const raw = newData as Record<string, unknown>;
+        setSettings({
+          ...(newData as GlamPageSettings),
+          look_star_links: normalizeStarLinks(raw.look_star_links),
+        });
         return newData;
       }
 
@@ -89,7 +136,11 @@ export function useGlamPageSettings() {
         .single();
 
       if (error) throw error;
-      setSettings(data as GlamPageSettings);
+      const raw = data as Record<string, unknown>;
+      setSettings({
+        ...(data as GlamPageSettings),
+        look_star_links: normalizeStarLinks(raw.look_star_links),
+      });
       return data;
     } catch (err: unknown) {
       console.error('Error updating glam page settings:', err);

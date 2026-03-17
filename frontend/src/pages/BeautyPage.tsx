@@ -2,6 +2,7 @@ import { useDeferredValue, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Search } from 'lucide-react';
 import { PageTransition } from '../components/PageTransition';
+import ProductQuickViewModal from '../components/ProductQuickViewModal';
 import { DEFAULT_GLAM_PAGE_SETTINGS, useGlamPageSettings } from '../hooks/useGlamPageSettings';
 import { useProducts } from '../hooks/useProducts';
 import { formatCurrency } from '../utils/formatters';
@@ -11,35 +12,50 @@ const STAR_ASSET_BASE = `${GLAM_ASSET_BASE}/STAR%20GLITTER%20TRANSPARENT%20BG`;
 
 const decorativeStars = [
   {
+    slot: 'pink-rush',
     src: `${STAR_ASSET_BASE}/PINK%20RUSH.png`,
     alt: 'Pink glitter star',
     className: 'left-[2%] top-[5.5rem] w-24 sm:w-28 lg:left-[4%] lg:top-20 lg:w-32',
   },
   {
+    slot: 'silver-blink',
     src: `${STAR_ASSET_BASE}/SILVER%20BLINK.png`,
     alt: 'Silver glitter star',
     className: 'left-[4%] bottom-6 w-28 sm:w-32 lg:left-[1%] lg:bottom-2 lg:w-36',
   },
   {
+    slot: 'bronze',
     src: `${STAR_ASSET_BASE}/BRONZE.png`,
     alt: 'Bronze glitter star',
     className: 'left-[30%] bottom-0 w-20 sm:w-24 lg:left-[28%] lg:w-28',
   },
   {
+    slot: 'aura-pop',
     src: `${STAR_ASSET_BASE}/AURA%20POP.png`,
     alt: 'Sparkly mini star',
     className: 'left-[14%] top-[44%] hidden w-16 md:block lg:w-20',
   },
 ];
 
+type QuickViewState = {
+  open: boolean;
+  productId: number | null;
+};
+
 export default function BeautyPage() {
   const { settings, error: settingsError } = useGlamPageSettings();
   const { data: products = [], isLoading: productsLoading, error: productsError } = useProducts();
   const [searchQuery, setSearchQuery] = useState('');
+  const [quickView, setQuickView] = useState<QuickViewState>({ open: false, productId: null });
   const deferredSearchQuery = useDeferredValue(searchQuery);
 
   const content = settings ?? DEFAULT_GLAM_PAGE_SETTINGS;
   const normalizedQuery = deferredSearchQuery.trim().toLowerCase();
+  const starLinkMap = useMemo(
+    () => new Map(content.look_star_links.map((link) => [link.slot, link.product_id])),
+    [content.look_star_links]
+  );
+  const productLookup = useMemo(() => new Map(products.map((product) => [product.id, product])), [products]);
 
   const filteredProducts = useMemo(() => {
     const matches = products.filter((product) => {
@@ -86,12 +102,40 @@ export default function BeautyPage() {
 
           <div className="relative mt-8 min-h-[420px] overflow-hidden border-b border-black/20 pb-4 sm:min-h-[520px] lg:min-h-[560px]">
             {decorativeStars.map((star) => (
-              <img
-                key={star.src}
-                src={star.src}
-                alt={star.alt}
-                className={`absolute object-contain drop-shadow-[0_12px_18px_rgba(0,0,0,0.14)] ${star.className}`}
-              />
+              (() => {
+                const productId = starLinkMap.get(star.slot) ?? null;
+                const linkedProduct = productId ? productLookup.get(productId) ?? null : null;
+                const starImage = (
+                  <img
+                    src={star.src}
+                    alt={star.alt}
+                    className="h-full w-full object-contain drop-shadow-[0_12px_18px_rgba(0,0,0,0.14)] transition-transform duration-200"
+                  />
+                );
+
+                if (!productId) {
+                  return (
+                    <div key={star.slot} className={`absolute ${star.className}`}>
+                      {starImage}
+                    </div>
+                  );
+                }
+
+                return (
+                  <button
+                    key={star.slot}
+                    type="button"
+                    title={linkedProduct ? `Open ${linkedProduct.name}` : 'Open linked product'}
+                    aria-label={linkedProduct ? `Open ${linkedProduct.name}` : 'Open linked product'}
+                    onClick={() => setQuickView({ open: true, productId })}
+                    className={`absolute cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-[#ff4b86] focus-visible:ring-offset-2 ${star.className}`}
+                  >
+                    <span className="block transition-transform duration-200 hover:scale-[1.06] active:scale-[0.98]">
+                      {starImage}
+                    </span>
+                  </button>
+                );
+              })()
             ))}
 
             <img
@@ -171,6 +215,12 @@ export default function BeautyPage() {
             </div>
           ) : null}
         </section>
+
+        <ProductQuickViewModal
+          open={quickView.open}
+          productId={quickView.productId}
+          onClose={() => setQuickView({ open: false, productId: null })}
+        />
       </main>
     </PageTransition>
   );
