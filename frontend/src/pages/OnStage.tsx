@@ -91,7 +91,7 @@ const OnStage = () => {
     if (processBanners.length <= 1) return;
     const interval = setInterval(() => {
       setCurrentProcessSlide((p) => (p + 1) % processBanners.length);
-    }, 10000);
+    }, 5000); // 5 seconds auto-slide. You can change the '5000' here to any milliseconds you want.
     return () => clearInterval(interval);
   }, [processBanners.length]);
 
