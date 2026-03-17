@@ -198,7 +198,7 @@ export default function NewsPageManager() {
         section_3_products: s3Products,
       });
       showToast('success', 'News page settings saved successfully');
-    } catch (err: any) {
+    } catch (err: unknown) {
       showToast('error', err instanceof Error ? err.message : 'Gagal menyimpan pengaturan.');
     } finally {
       setSaving(false);

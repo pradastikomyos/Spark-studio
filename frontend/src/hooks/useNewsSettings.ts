@@ -54,9 +54,9 @@ export function useNewsSettings() {
       } else {
         setSettings(data as NewsPageSettings);
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Error fetching news page settings:', err);
-      setError(err instanceof Error ? err : new Error(err.message));
+      setError(err instanceof Error ? err : new Error('Failed to fetch news page settings'));
     } finally {
       setIsLoading(false);
     }
@@ -71,7 +71,7 @@ export function useNewsSettings() {
       setIsLoading(true);
       setError(null);
 
-      let currentId = settings?.id;
+      const currentId = settings?.id;
 
       if (!currentId) {
         const { data: newData, error: insertError } = await supabase
@@ -98,9 +98,9 @@ export function useNewsSettings() {
       }
       setSettings(data as NewsPageSettings);
       return data;
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Error updating news page settings:', err);
-      setError(err instanceof Error ? err : new Error(err.message));
+      setError(err instanceof Error ? err : new Error('Failed to update news page settings'));
       throw err;
     } finally {
       setIsLoading(false);

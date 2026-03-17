@@ -100,7 +100,7 @@ export default function EventPageManager() {
         experience_links: experienceLinks,
       });
       showToast('success', 'Event page settings saved successfully');
-    } catch (err: any) {
+    } catch (err: unknown) {
       showToast('error', err instanceof Error ? err.message : 'Gagal menyimpan pengaturan.');
     } finally {
       setSaving(false);

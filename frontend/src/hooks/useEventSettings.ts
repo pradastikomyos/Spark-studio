@@ -48,9 +48,9 @@ export function useEventSettings() {
       } else {
         setSettings(data as EventPageSettings);
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Error fetching event page settings:', err);
-      setError(err instanceof Error ? err : new Error(err.message));
+      setError(err instanceof Error ? err : new Error('Failed to fetch event page settings'));
     } finally {
       setIsLoading(false);
     }
@@ -65,7 +65,7 @@ export function useEventSettings() {
       setIsLoading(true);
       setError(null);
 
-      let currentId = settings?.id;
+      const currentId = settings?.id;
 
       // If no settings exist yet, we insert first instead of throwing
       if (!currentId) {
@@ -94,9 +94,9 @@ export function useEventSettings() {
       }
       setSettings(data as EventPageSettings);
       return data;
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Error updating event page settings in try/catch:', err);
-      setError(err instanceof Error ? err : new Error(err.message));
+      setError(err instanceof Error ? err : new Error('Failed to update event page settings'));
       throw err;
     } finally {
       setIsLoading(false);
