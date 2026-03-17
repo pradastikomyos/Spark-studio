@@ -1,12 +1,13 @@
 import type { Dispatch, SetStateAction, ChangeEvent, FormEvent } from 'react';
 
-export type BannerType = 'hero' | 'stage' | 'promo' | 'events' | 'shop';
+export type BannerType = 'hero' | 'stage' | 'promo' | 'events' | 'shop' | 'process';
 
 export type Banner = {
   id: number;
   title: string;
   subtitle: string | null;
   image_url: string;
+  title_image_url: string | null;
   link_url: string | null;
   banner_type: BannerType;
   display_order: number;
@@ -19,6 +20,7 @@ export type BannerFormData = {
   title: string;
   subtitle: string;
   image_url: string;
+  title_image_url: string;
   link_url: string;
   banner_type: BannerType;
   display_order: number;
@@ -33,6 +35,7 @@ export type BannerManagerController = {
   showForm: boolean;
   editingBanner: Banner | null;
   uploading: boolean;
+  uploadingTitle: boolean;
   saving: boolean;
   formData: BannerFormData;
   stageBannersOrder: Banner[];
@@ -43,6 +46,7 @@ export type BannerManagerController = {
   openCreateForm: () => void;
   closeForm: () => void;
   handleImageUpload: (event: ChangeEvent<HTMLInputElement>) => Promise<void>;
+  handleTitleImageUpload: (event: ChangeEvent<HTMLInputElement>) => Promise<void>;
   handleSubmit: (event: FormEvent<HTMLFormElement>) => Promise<void>;
   handleEdit: (banner: Banner) => void;
   handleDelete: (id: number) => Promise<void>;

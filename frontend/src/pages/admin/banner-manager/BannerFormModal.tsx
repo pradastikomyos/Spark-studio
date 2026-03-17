@@ -6,11 +6,13 @@ type BannerFormModalProps = {
   editingBanner: Banner | null;
   formData: BannerFormData;
   uploading: boolean;
+  uploadingTitle: boolean;
   saving: boolean;
   setFormData: Dispatch<SetStateAction<BannerFormData>>;
   onClose: () => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
   onImageUpload: (event: ChangeEvent<HTMLInputElement>) => void;
+  onTitleImageUpload: (event: ChangeEvent<HTMLInputElement>) => void;
 };
 
 export function BannerFormModal({
@@ -18,11 +20,13 @@ export function BannerFormModal({
   editingBanner,
   formData,
   uploading,
+  uploadingTitle,
   saving,
   setFormData,
   onClose,
   onSubmit,
   onImageUpload,
+  onTitleImageUpload,
 }: BannerFormModalProps) {
   if (!open) return null;
 
@@ -71,6 +75,7 @@ export function BannerFormModal({
               className="w-full rounded-lg border border-gray-300 px-4 py-2 text-sm focus:border-transparent focus:ring-2 focus:ring-neutral-900"
             >
               <option value="hero">Hero (Main Slider)</option>
+              <option value="process">Process (Hero Slider)</option>
               <option value="stage">Stage (Carousel)</option>
               <option value="promo">Promo</option>
               <option value="events">Events (Hero Slider)</option>
@@ -93,6 +98,12 @@ export function BannerFormModal({
                         <li>• Best for: Full-width hero sliders on OnStage page</li>
                       </>
                     ) : null}
+                    {formData.banner_type === 'process' ? (
+                      <>
+                        <li>• Resolution: <span className="font-semibold">1920 x 1080px</span> (16:9 aspect ratio)</li>
+                        <li>• Best for: Process sliders on OnStage page (under the ticket button)</li>
+                      </>
+                    ) : null}
                     {formData.banner_type === 'stage' ? (
                       <>
                         <li>• Resolution: <span className="font-semibold">800 x 600px</span> (4:3 aspect ratio)</li>
@@ -112,7 +123,7 @@ export function BannerFormModal({
                       </>
                     ) : null}
                     <li>• Format: JPG, PNG, WebP, MP4, or WebM</li>
-                    <li>• Max file size: <span className="font-semibold">10MB</span> (for video) / <span className="font-semibold">2MB</span> (for image)</li>
+                    <li>• Max file size: <span className="font-semibold">10MB</span> (for video) / <span className="font-semibold">5MB</span> (for image)</li>
                     <li>• Tip: Use high-quality media for best display on all devices</li>
                   </ul>
                 </div>
@@ -144,6 +155,48 @@ export function BannerFormModal({
               <div className="mt-2 flex items-center gap-2">
                 <div className="h-4 w-4 animate-spin rounded-full border-b-2 border-neutral-900" />
                 <p className="text-sm text-gray-600">Uploading media...</p>
+              </div>
+            ) : null}
+          </div>
+
+          <div>
+            <label className="mb-2 block text-sm font-bold text-gray-900">Title Image (Optional Typography Image)</label>
+            <div className="mb-3 text-xs text-gray-500 space-y-1">
+              <p>Only for Process/Stage Banners. Upload a transparent PNG/Webp for the large isolated typography.</p>
+              <ul className="list-disc pl-4 mt-1 text-blue-700">
+                <li><span className="font-semibold">Process Title Image (e.g. GLAM IN PROGRESS):</span> Recommended size is <span className="font-bold">800-1200px wide</span> (approx. 3:1 or 4:1 ratio).</li>
+                <li><span className="font-semibold">Stage Text/Number:</span> Recommended size is <span className="font-bold">400-600px wide</span>.</li>
+              </ul>
+            </div>
+
+            {formData.title_image_url ? (
+              <div className="mb-3 overflow-hidden rounded-lg border border-gray-200 bg-gray-100 p-4">
+                <img src={formData.title_image_url} alt="Title Preview" className="h-24 w-full object-contain mix-blend-multiply" />
+                <div className="mt-4 border-t border-gray-200 pt-2">
+                  <p className="text-xs text-gray-600">✓ Title image uploaded</p>
+                  <button 
+                    type="button" 
+                    onClick={() => setFormData(s => ({...s, title_image_url: ''}))}
+                    className="mt-1 text-xs font-semibold text-red-500 hover:text-red-700"
+                  >
+                    Remove Image
+                  </button>
+                </div>
+              </div>
+            ) : null}
+
+            <input
+              type="file"
+              accept="image/png,image/jpeg,image/webp"
+              onChange={onTitleImageUpload}
+              disabled={uploadingTitle}
+              className="w-full text-sm text-gray-600 file:mr-4 file:cursor-pointer file:rounded-lg file:border-0 file:bg-gray-200 file:px-4 file:py-2 file:text-sm file:font-bold file:text-gray-900 hover:file:bg-gray-300 disabled:opacity-50"
+            />
+
+            {uploadingTitle ? (
+              <div className="mt-2 flex items-center gap-2">
+                <div className="h-4 w-4 animate-spin rounded-full border-b-2 border-neutral-900" />
+                <p className="text-sm text-gray-600">Uploading title image...</p>
               </div>
             ) : null}
           </div>

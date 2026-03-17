@@ -29,6 +29,8 @@ export function useBannerManagerController(showToast: ShowToast): BannerManagerC
   const [applyingOrder, setApplyingOrder] = useState(false);
   const [formData, setFormData] = useState(createInitialBannerFormData);
 
+  const [uploadingTitle, setUploadingTitle] = useState(false);
+
   const fetchBanners = useCallback(async () => {
     try {
       setLoading(true);
@@ -96,8 +98,8 @@ export function useBannerManagerController(showToast: ShowToast): BannerManagerC
         return;
       }
 
-      if (file.type.startsWith('image/') && file.size > 2 * 1024 * 1024) {
-        showToast('error', 'Image size must be less than 2MB');
+      if (file.type.startsWith('image/') && file.size > 5 * 1024 * 1024) {
+        showToast('error', 'Image size must be less than 5MB');
         return;
       }
 
@@ -131,6 +133,51 @@ export function useBannerManagerController(showToast: ShowToast): BannerManagerC
     [showToast]
   );
 
+  const handleTitleImageUpload = useCallback(
+    async (event: ChangeEvent<HTMLInputElement>) => {
+      const file = event.target.files?.[0];
+      if (!file) return;
+
+      if (!file.type.startsWith('image/')) {
+        showToast('error', 'Please upload an image file for the title');
+        return;
+      }
+
+      if (file.size > 5 * 1024 * 1024) {
+        showToast('error', 'Image size must be less than 5MB');
+        return;
+      }
+
+      try {
+        setUploadingTitle(true);
+
+        const fileExt = file.name.split('.').pop();
+        const fileName = `banner-title-${Date.now()}.${fileExt}`;
+        const filePath = `banners/${fileName}`;
+
+        const { error } = await withTimeout(
+          supabase.storage.from('banners').upload(filePath, file),
+          UPLOAD_TIMEOUT_MS,
+          'Upload gambar terlalu lama (timeout). Coba lagi saat koneksi lebih stabil.'
+        );
+        if (error) throw error;
+
+        const {
+          data: { publicUrl },
+        } = supabase.storage.from('banners').getPublicUrl(filePath);
+
+        setFormData((current) => ({ ...current, title_image_url: publicUrl }));
+        showToast('success', 'Title image uploaded successfully');
+      } catch (error) {
+        showToast('error', error instanceof Error ? error.message : 'Failed to upload title image');
+      } finally {
+        setUploadingTitle(false);
+        event.target.value = '';
+      }
+    },
+    [showToast]
+  );
+
   const handleSubmit = useCallback(
     async (event: FormEvent<HTMLFormElement>) => {
       event.preventDefault();
@@ -151,6 +198,7 @@ export function useBannerManagerController(showToast: ShowToast): BannerManagerC
                 title: formData.title,
                 subtitle: formData.subtitle || null,
                 image_url: formData.image_url,
+                title_image_url: formData.title_image_url || null,
                 link_url: formData.link_url || null,
                 banner_type: formData.banner_type,
                 display_order: formData.display_order,
@@ -169,6 +217,7 @@ export function useBannerManagerController(showToast: ShowToast): BannerManagerC
               title: formData.title,
               subtitle: formData.subtitle || null,
               image_url: formData.image_url,
+              title_image_url: formData.title_image_url || null,
               link_url: formData.link_url || null,
               banner_type: formData.banner_type,
               display_order: formData.display_order,
@@ -291,6 +340,7 @@ export function useBannerManagerController(showToast: ShowToast): BannerManagerC
     showForm,
     editingBanner,
     uploading,
+    uploadingTitle,
     saving,
     formData,
     stageBannersOrder,
@@ -301,6 +351,7 @@ export function useBannerManagerController(showToast: ShowToast): BannerManagerC
     openCreateForm,
     closeForm,
     handleImageUpload,
+    handleTitleImageUpload,
     handleSubmit,
     handleEdit,
     handleDelete,

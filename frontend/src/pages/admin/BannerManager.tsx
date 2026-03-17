@@ -17,6 +17,7 @@ export default function BannerManager() {
     showForm,
     editingBanner,
     uploading,
+    uploadingTitle,
     saving,
     formData,
     groupedBanners,
@@ -26,6 +27,7 @@ export default function BannerManager() {
     openCreateForm,
     closeForm,
     handleImageUpload,
+    handleTitleImageUpload,
     handleSubmit,
     handleEdit,
     handleDelete,
@@ -81,11 +83,13 @@ export default function BannerManager() {
         editingBanner={editingBanner}
         formData={formData}
         uploading={uploading}
+        uploadingTitle={uploadingTitle}
         saving={saving}
         setFormData={setFormData}
         onClose={closeForm}
         onSubmit={(event) => void handleSubmit(event)}
         onImageUpload={(event) => void handleImageUpload(event)}
+        onTitleImageUpload={(event) => void handleTitleImageUpload(event)}
       />
     </AdminLayout>
   );

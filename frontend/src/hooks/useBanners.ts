@@ -8,13 +8,14 @@ export interface Banner {
   title: string;
   subtitle: string | null;
   image_url: string;
+  title_image_url: string | null;
   link_url: string | null;
-  banner_type: 'hero' | 'stage' | 'promo' | 'events' | 'shop';
+  banner_type: 'hero' | 'stage' | 'promo' | 'events' | 'shop' | 'process';
   display_order: number;
   is_active: boolean;
 }
 
-async function fetchBanners(type?: 'hero' | 'stage' | 'promo' | 'events' | 'shop', signal?: AbortSignal): Promise<Banner[]> {
+async function fetchBanners(type?: 'hero' | 'stage' | 'promo' | 'events' | 'shop' | 'process', signal?: AbortSignal): Promise<Banner[]> {
   let query = supabase
     .from('banners')
     .select('*')
@@ -33,7 +34,7 @@ async function fetchBanners(type?: 'hero' | 'stage' | 'promo' | 'events' | 'shop
   return data || [];
 }
 
-export function useBanners(type?: 'hero' | 'stage' | 'promo' | 'events' | 'shop') {
+export function useBanners(type?: 'hero' | 'stage' | 'promo' | 'events' | 'shop' | 'process') {
   return useQuery({
     queryKey: queryKeys.banners(type),
     queryFn: async ({ signal }) => {

@@ -6,10 +6,13 @@ import { HeroBannerCarousel } from '../components/HeroBannerCarousel';
 
 const OnStage = () => {
   const [currentSlide, setCurrentSlide] = useState(0);
+  const [currentProcessSlide, setCurrentProcessSlide] = useState(0);
   const [isMobile, setIsMobile] = useState(false);
 
   const touchStartX = useRef(0);
   const touchEndX = useRef(0);
+  const processTouchStartX = useRef(0);
+  const processTouchEndX = useRef(0);
 
   const {
     data: heroBanners = [],
@@ -18,15 +21,21 @@ const OnStage = () => {
     refetch: refetchHero,
   } = useBanners('hero');
   const {
+    data: processBanners = [],
+    isLoading: processLoading,
+    error: processError,
+    refetch: refetchProcess,
+  } = useBanners('process');
+  const {
     data: stageBanners = [],
     isLoading: stageLoading,
     error: stageError,
     refetch: refetchStage,
   } = useBanners('stage');
 
-  const hasData = heroBanners.length > 0 || stageBanners.length > 0;
-  const loading = (heroLoading || stageLoading) && !hasData;
-  const error = heroError || stageError;
+  const hasData = heroBanners.length > 0 || stageBanners.length > 0 || processBanners.length > 0;
+  const loading = (heroLoading || stageLoading || processLoading) && !hasData;
+  const error = heroError || stageError || processError;
 
   // Detect mobile viewport
   useEffect(() => {
@@ -35,6 +44,15 @@ const OnStage = () => {
     window.addEventListener('resize', checkMobile);
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
+
+  // Process banner auto-slide timer
+  useEffect(() => {
+    if (processBanners.length <= 1) return;
+    const interval = setInterval(() => {
+      setCurrentProcessSlide((p) => (p + 1) % processBanners.length);
+    }, 10000); // 10 seconds auto-slide
+    return () => clearInterval(interval);
+  }, [processBanners.length]);
 
   // Calculate max slides based on viewport
   const maxSlides = isMobile ? stageBanners.length : Math.max(1, stageBanners.length - 2);
@@ -89,6 +107,7 @@ const OnStage = () => {
             type="button"
             onClick={() => {
               refetchHero();
+              refetchProcess();
               refetchStage();
             }}
             className="inline-flex items-center justify-center rounded-md bg-main-600 px-4 py-2 text-white text-sm font-semibold hover:bg-main-700 transition-colors"
@@ -117,7 +136,6 @@ const OnStage = () => {
             overlayClassName="absolute inset-0"
             renderOverlay={(slide) => (
               <>
-                <div className="absolute inset-0 bg-black/20" />
                 <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-4">
                   {slide.title && (
                     <h1 className="text-white text-2xl md:text-6xl font-bold mb-4">{slide.title}</h1>
@@ -137,17 +155,125 @@ const OnStage = () => {
       </section>
 
       {/* Buy Ticket Button - Fixed positioning */}
-      <div className="relative z-20 py-8 bg-white">
-        <div className="flex justify-center">
+      <div className="relative z-20 pt-8 pb-4 bg-white">
+        <div className="flex justify-center px-4">
           <Link
             to="/journey"
-            className="inline-flex items-center gap-2 bg-main-600 hover:bg-main-700 text-white px-8 py-4 rounded-md shadow-lg transition-colors font-semibold"
+            className="inline-block transition-transform hover:-translate-y-1 hover:drop-shadow-2xl active:translate-y-0 active:drop-shadow-lg duration-300"
           >
-            <span className="material-symbols-outlined text-xl">confirmation_number</span>
-            BE A STAR
+            <img 
+              src="/images/landing/TICKET BOARD ENTRANCE no qr.png" 
+              alt="BE A STAR Ticket" 
+              className="w-full max-w-3xl lg:max-w-5xl xl:max-w-6xl mx-auto object-contain drop-shadow-xl"
+            />
           </Link>
         </div>
       </div>
+
+      {/* Process Carousel (New Section) */}
+      {processBanners.length > 0 && (
+        <section className="w-full relative overflow-hidden bg-white mb-8 border-t border-b border-gray-100 pb-6 shadow-sm">
+          {/* Title Image Overflow (Only shown for current active slide) */}
+          <div className="flex justify-center mb-6 h-48 md:h-64 xl:h-96 transition-all duration-500 text-center relative z-20 mt-4 px-4">
+            {processBanners[currentProcessSlide]?.title_image_url ? (
+              <img 
+                src={processBanners[currentProcessSlide].title_image_url!} 
+                alt={processBanners[currentProcessSlide].title || 'Process Title Typography'} 
+                className="h-full object-contain animate-fade-in drop-shadow-md"
+              />
+            ) : processBanners[currentProcessSlide]?.title ? (
+              <h2 className="text-4xl md:text-6xl font-bold tracking-widest text-[#ff4b86] self-center animate-fade-in uppercase pt-4">
+                {processBanners[currentProcessSlide].title}
+              </h2>
+            ) : null}
+          </div>
+
+          {/* Carousel Container */}
+          <div className="relative w-full">
+            <div
+              className="overflow-hidden w-full relative"
+              onTouchStart={(e) => { processTouchStartX.current = e.touches[0].clientX; }}
+              onTouchMove={(e) => { processTouchEndX.current = e.touches[0].clientX; }}
+              onTouchEnd={() => {
+                const swipeThreshold = 50;
+                const diff = processTouchStartX.current - processTouchEndX.current;
+                if (Math.abs(diff) > swipeThreshold) {
+                  if (diff > 0) setCurrentProcessSlide((p) => (p + 1) % processBanners.length);
+                  else setCurrentProcessSlide((p) => (p - 1 + processBanners.length) % processBanners.length);
+                }
+              }}
+            >
+              <div
+                className="flex transition-transform duration-700 ease-in-out"
+                style={{
+                  transform: `translateX(-${currentProcessSlide * 100}%)`
+                }}
+              >
+                {processBanners.map((processBanner) => (
+                  <div key={processBanner.id} className="w-full flex-shrink-0">
+                    <Link 
+                      to={processBanner.link_url || '#'} 
+                      className={`block w-full h-full ${!processBanner.link_url ? 'cursor-default pointer-events-none' : ''}`}
+                    >
+                      {/* Process Image */}
+                      <div className="relative aspect-[16/9] md:aspect-[21/9] w-full bg-gray-100 dark:bg-gray-900">
+                        {processBanner.image_url?.match(/\.(mp4|webm|ogg)(\?.*)?$/i) ? (
+                          <video src={processBanner.image_url} className="w-full h-full object-cover pointer-events-none" autoPlay loop muted playsInline />
+                        ) : (
+                          <img src={processBanner.image_url} alt={processBanner.title || 'Process visual'} className="w-full h-full object-cover pointer-events-none" />
+                        )}
+                      </div>
+
+                      {/* Process Subtitle Text */}
+                      {processBanner.subtitle && (
+                        <div className="p-6 md:p-8 text-center bg-white">
+                          <p className="text-gray-800 font-medium md:text-2xl leading-relaxed whitespace-pre-wrap">
+                            {processBanner.subtitle}
+                          </p>
+                        </div>
+                      )}
+                    </Link>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Navigation Buttons for Process Carousel */}
+            {processBanners.length > 1 && (
+              <>
+                <button
+                  onClick={() => setCurrentProcessSlide((p) => (p - 1 + processBanners.length) % processBanners.length)}
+                  className="absolute left-2 md:left-6 top-1/2 -translate-y-1/2 z-10 bg-white/40 hover:bg-white/60 active:bg-white/80 text-main-600 p-2 md:p-4 rounded-full shadow-lg transition-colors touch-manipulation backdrop-blur-sm"
+                >
+                  <ChevronLeft className="w-6 h-6 md:w-8 md:h-8" />
+                </button>
+                <button
+                  onClick={() => setCurrentProcessSlide((p) => (p + 1) % processBanners.length)}
+                  className="absolute right-2 md:right-6 top-1/2 -translate-y-1/2 z-10 bg-white/40 hover:bg-white/60 active:bg-white/80 text-main-600 p-2 md:p-4 rounded-full shadow-lg transition-colors touch-manipulation backdrop-blur-sm"
+                >
+                  <ChevronRight className="w-6 h-6 md:w-8 md:h-8" />
+                </button>
+              </>
+            )}
+          </div>
+
+          {/* Process Carousel Indicators */}
+          {processBanners.length > 1 && (
+            <div className="flex justify-center gap-2 mt-8">
+              {processBanners.map((_, idx) => (
+                <button
+                  key={`process-dot-${idx}`}
+                  onClick={() => setCurrentProcessSlide(idx)}
+                  className={`w-2.5 h-2.5 rounded-full ux-transition-color touch-manipulation ${
+                    currentProcessSlide === idx ? '#ff4b86' : 'bg-gray-300'
+                  }`}
+                  aria-label={`Go to slide ${idx + 1}`}
+                />
+              ))}
+            </div>
+          )}
+        </section>
+      )}
 
       {/* Stage Carousel */}
       <section className="max-w-7xl mx-auto px-4 py-16">
