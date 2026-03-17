@@ -50,7 +50,7 @@ const Navbar = () => {
     if (path.startsWith('/events')) return 'event';
     if (path.startsWith('/shop')) return 'shop';
     if (path.startsWith('/dressing-room') || path.startsWith('/fashion')) return 'dressing-room';
-    if (path.startsWith('/beauty')) return 'beauty';
+    if (path.startsWith('/beauty') || path.startsWith('/glam')) return 'glam';
     if (path.startsWith('/spark-club')) return 'spark-club';
     if (path.startsWith('/news')) return 'news';
     return '';
@@ -61,7 +61,7 @@ const Navbar = () => {
     { key: 'event', label: 'EVENT', to: '/events' },
     { key: 'shop', label: 'SHOP', to: '/shop' },
     { key: 'dressing-room', label: 'DRESSING ROOM', to: '/dressing-room' },
-    { key: 'beauty', label: 'BEAUTY', to: '/beauty' },
+    { key: 'glam', label: 'GLAM', to: '/glam' },
     { key: 'spark-club', label: 'SPARK CLUB', to: '/spark-club' },
     { key: 'news', label: 'NEWS', to: '/news' },
   ] as const;

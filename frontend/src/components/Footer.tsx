@@ -5,7 +5,7 @@ const primaryLinks = [
   { label: 'ON STAGE', to: '/on-stage' },
   { label: 'EVENT', to: '/events' },
   { label: 'DRESSING ROOM', to: '/dressing-room' },
-  { label: 'BEAUTY', to: '/beauty' },
+  { label: 'GLAM', to: '/glam' },
   { label: 'CHARM BAR', to: '/shop' },
   { label: 'SPARK CLUB', to: '/spark-club' },
   { label: 'NEWS', to: '/news' },

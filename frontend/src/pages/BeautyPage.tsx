@@ -1,195 +1,177 @@
-import { useEffect, useState } from 'react';
+import { useDeferredValue, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import { Search } from 'lucide-react';
 import { PageTransition } from '../components/PageTransition';
-import ProductQuickViewModal from '../components/ProductQuickViewModal';
-import BeautyPosterInteractive from '../components/beauty/BeautyPosterInteractive';
-import { useBeautyPosters } from '../hooks/useBeautyPosters';
-import { useBeautyPoster, type BeautyPosterTag } from '../hooks/useBeautyPoster';
+import { DEFAULT_GLAM_PAGE_SETTINGS, useGlamPageSettings } from '../hooks/useGlamPageSettings';
+import { useProducts } from '../hooks/useProducts';
+import { formatCurrency } from '../utils/formatters';
 
-type QuickViewState = {
-  open: boolean;
-  productId: number | null;
-  variantId: number | null;
-};
+const GLAM_ASSET_BASE = '/images/glam%20page%20assets';
+const STAR_ASSET_BASE = `${GLAM_ASSET_BASE}/STAR%20GLITTER%20TRANSPARENT%20BG`;
 
-function sectionLabel(index: number): string {
-  return `Poster ${String(index + 1).padStart(2, '0')}`;
-}
+const decorativeStars = [
+  {
+    src: `${STAR_ASSET_BASE}/PINK%20RUSH.png`,
+    alt: 'Pink glitter star',
+    className: 'left-[2%] top-[5.5rem] w-24 sm:w-28 lg:left-[4%] lg:top-20 lg:w-32',
+  },
+  {
+    src: `${STAR_ASSET_BASE}/SILVER%20BLINK.png`,
+    alt: 'Silver glitter star',
+    className: 'left-[4%] bottom-6 w-28 sm:w-32 lg:left-[1%] lg:bottom-2 lg:w-36',
+  },
+  {
+    src: `${STAR_ASSET_BASE}/BRONZE.png`,
+    alt: 'Bronze glitter star',
+    className: 'left-[30%] bottom-0 w-20 sm:w-24 lg:left-[28%] lg:w-28',
+  },
+  {
+    src: `${STAR_ASSET_BASE}/AURA%20POP.png`,
+    alt: 'Sparkly mini star',
+    className: 'left-[14%] top-[44%] hidden w-16 md:block lg:w-20',
+  },
+];
 
 export default function BeautyPage() {
-  const { data: posters = [], isLoading, error } = useBeautyPosters();
-  const [quickView, setQuickView] = useState<QuickViewState>({ open: false, productId: null, variantId: null });
+  const { settings, error: settingsError } = useGlamPageSettings();
+  const { data: products = [], isLoading: productsLoading, error: productsError } = useProducts();
+  const [searchQuery, setSearchQuery] = useState('');
+  const deferredSearchQuery = useDeferredValue(searchQuery);
 
-  const openQuickView = (tag: BeautyPosterTag) => {
-    const pv = tag.product_variant;
-    if (!pv?.product?.id) return;
-    setQuickView({ open: true, productId: pv.product.id, variantId: pv.id });
-  };
+  const content = settings ?? DEFAULT_GLAM_PAGE_SETTINGS;
+  const normalizedQuery = deferredSearchQuery.trim().toLowerCase();
 
-  if (isLoading) {
-    return (
-      <PageTransition>
-        <div className="min-h-[calc(100vh-64px)] bg-white flex items-center justify-center">
-          <div className="animate-pulse space-y-4 text-center">
-            <div className="h-6 bg-gray-200 rounded w-48 mx-auto" />
-            <div className="h-3 bg-gray-200 rounded w-72 mx-auto" />
-          </div>
-        </div>
-      </PageTransition>
-    );
-  }
+  const filteredProducts = useMemo(() => {
+    const matches = products.filter((product) => {
+      if (!normalizedQuery) return true;
+      return (
+        product.name.toLowerCase().includes(normalizedQuery) ||
+        product.description.toLowerCase().includes(normalizedQuery)
+      );
+    });
 
-  if (error) {
-    return (
-      <PageTransition>
-        <div className="min-h-[calc(100vh-64px)] bg-white flex items-center justify-center px-6">
-          <div className="text-center space-y-4">
-            <p className="text-gray-500">Failed to load beauty posters.</p>
-            <button onClick={() => window.location.reload()} className="text-sm underline text-gray-700 hover:text-gray-900">
-              Try again
-            </button>
-          </div>
-        </div>
-      </PageTransition>
-    );
-  }
+    return normalizedQuery ? matches.slice(0, 12) : matches.slice(0, 6);
+  }, [normalizedQuery, products]);
 
-  const visiblePosters = posters.slice(0, 2);
-
-  if (visiblePosters.length === 0) {
-    return (
-      <PageTransition>
-        <div className="min-h-[calc(100vh-64px)] bg-white flex items-center justify-center px-6">
-          <div className="text-center space-y-4">
-            <h1 className="text-3xl md:text-5xl font-display tracking-wider text-gray-800">COMING SOON</h1>
-            <p className="text-gray-500 max-w-md mx-auto">Our beauty editorial is being curated. Stay tuned.</p>
-          </div>
-        </div>
-      </PageTransition>
-    );
-  }
+  const hasProductsError = productsError instanceof Error;
+  const hasSettingsError = settingsError instanceof Error;
 
   return (
     <PageTransition>
-      <div className="bg-[#fbfafb] min-h-[calc(100vh-64px)]">
-        {visiblePosters.map((poster, index) => (
-          <BeautyPosterSection
-            key={poster.id}
-            posterSlug={poster.slug}
-            index={index}
-            showIntro={index === 0}
-            showScrollHint={index === 0 && visiblePosters.length > 1}
-            onOpenQuickView={openQuickView}
-          />
-        ))}
+      <main className="min-h-[calc(100vh-64px)] bg-white text-black">
+        <section className="border-y border-black/20">
+          <div className="mx-auto grid max-w-7xl items-center gap-10 px-6 py-12 sm:px-8 lg:grid-cols-[minmax(0,1.1fr)_minmax(320px,0.9fr)] lg:gap-16 lg:px-12 lg:py-16">
+            <div className="overflow-hidden border border-black/20 bg-[#f5f1f0]">
+              <img
+                src={content.hero_image_url}
+                alt={content.hero_title}
+                className="h-full w-full object-cover"
+              />
+            </div>
 
-        <ProductQuickViewModal
-          open={quickView.open}
-          productId={quickView.productId}
-          initialVariantId={quickView.variantId}
-          onClose={() => setQuickView({ open: false, productId: null, variantId: null })}
-        />
-      </div>
-    </PageTransition>
-  );
-}
-
-function BeautyPosterSection({
-  posterSlug,
-  index,
-  showIntro,
-  showScrollHint,
-  onOpenQuickView,
-}: {
-  posterSlug: string;
-  index: number;
-  showIntro: boolean;
-  showScrollHint: boolean;
-  onOpenQuickView: (tag: BeautyPosterTag) => void;
-}) {
-  const { data, isLoading } = useBeautyPoster(posterSlug);
-  const poster = data?.poster ?? null;
-  const tags = data?.tags ?? [];
-
-  const [loadedOnce, setLoadedOnce] = useState(false);
-  useEffect(() => {
-    if (poster) setLoadedOnce(true);
-  }, [poster]);
-
-  return (
-    <section className="min-h-[calc(100vh-64px)] flex flex-col">
-      <div className="flex-1 min-h-0 flex">
-        <div className="flex-1 min-w-0 flex flex-col pl-3 pr-2 sm:px-4 md:px-6 lg:px-10 pt-6 md:pt-8 pb-3">
-          {showIntro ? (
-            <div className="mb-6">
-              <p className="text-xs uppercase tracking-[0.28em] text-gray-400">Beauty</p>
-              <h1 className="mt-2 text-2xl sm:text-3xl md:text-4xl font-display italic tracking-wide text-gray-900">
-                Editorial Posters
+            <div className="mx-auto flex max-w-xl flex-col items-center text-center">
+              <p className="text-xs font-semibold uppercase tracking-[0.35em] text-black/50">GLAM</p>
+              <h1 className="font-script mt-4 text-5xl leading-none sm:text-6xl lg:text-7xl">
+                {content.hero_title}
               </h1>
-              <p className="mt-3 text-sm text-gray-500 max-w-2xl">
-                Discover products directly from the poster—like an interactive magazine spread.
+              <p className="mt-6 max-w-md text-xl leading-relaxed text-black/85 sm:text-2xl">
+                {content.hero_description}
               </p>
+            </div>
+          </div>
+        </section>
+
+        <section className="mx-auto max-w-7xl px-6 py-12 sm:px-8 lg:px-12 lg:py-16">
+          <h2 className="font-script text-5xl leading-none sm:text-6xl">{content.look_heading}</h2>
+
+          <div className="relative mt-8 min-h-[420px] overflow-hidden border-b border-black/20 pb-4 sm:min-h-[520px] lg:min-h-[560px]">
+            {decorativeStars.map((star) => (
+              <img
+                key={star.src}
+                src={star.src}
+                alt={star.alt}
+                className={`absolute object-contain drop-shadow-[0_12px_18px_rgba(0,0,0,0.14)] ${star.className}`}
+              />
+            ))}
+
+            <img
+              src={content.look_model_image_url}
+              alt="GLAM editorial model"
+              className="absolute bottom-0 right-0 h-[85%] max-h-[560px] w-auto object-contain"
+            />
+          </div>
+        </section>
+
+        <section className="mx-auto max-w-7xl px-6 pb-16 sm:px-8 lg:px-12 lg:pb-24">
+          <div className="flex flex-col items-center gap-4">
+            <h3 className="font-serif text-3xl italic tracking-wide">{content.product_section_title}</h3>
+            <label className="relative w-full max-w-xs">
+              <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-black/35" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(event) => setSearchQuery(event.target.value)}
+                placeholder={content.product_search_placeholder}
+                className="w-full rounded-full border border-black/40 bg-white py-3 pl-11 pr-4 text-sm outline-none transition-colors focus:border-black"
+              />
+            </label>
+            <p className="text-xs uppercase tracking-[0.25em] text-black/45">
+              {normalizedQuery ? 'Showing search results' : 'Featured picks from the current store catalog'}
+            </p>
+          </div>
+
+          <div className="mt-12 grid grid-cols-1 gap-8 sm:grid-cols-2 xl:grid-cols-3">
+            {filteredProducts.map((product) => (
+              <Link
+                key={product.id}
+                to={`/shop/product/${product.id}`}
+                className="group border border-black/35 bg-white p-4 transition-transform duration-200 hover:-translate-y-1"
+              >
+                <div className="aspect-square overflow-hidden bg-[#faf7f8]">
+                  {product.image ? (
+                    <img
+                      src={product.image}
+                      alt={product.name}
+                      className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.02]"
+                      loading="lazy"
+                    />
+                  ) : (
+                    <div className="flex h-full items-center justify-center text-black/25">
+                      <span className="material-symbols-outlined text-6xl">{product.placeholder}</span>
+                    </div>
+                  )}
+                </div>
+                <div className="pt-4">
+                  <h4 className="text-lg font-medium leading-snug text-black">{product.name}</h4>
+                  <p className="mt-2 text-sm text-[#ff4b86]">{formatCurrency(product.price)}</p>
+                </div>
+              </Link>
+            ))}
+          </div>
+
+          {!productsLoading && filteredProducts.length === 0 ? (
+            <div className="mt-10 border border-dashed border-black/20 px-6 py-12 text-center text-black/55">
+              No products match your search yet.
             </div>
           ) : null}
 
-          <div className="flex items-start justify-between gap-4">
-            <div className="min-w-0">
-              <p className="text-[11px] uppercase tracking-[0.28em] text-gray-400">{sectionLabel(index)}</p>
-              <h2 className="mt-2 text-xl sm:text-2xl md:text-3xl font-display italic tracking-wide text-gray-900 truncate">
-                {poster?.title ?? 'Loading...'}
-              </h2>
-              {poster?.description ? <p className="mt-2 text-sm text-gray-500 max-w-2xl">{poster.description}</p> : null}
+          {productsLoading ? (
+            <div className="mt-10 text-center text-sm text-black/45">Loading products...</div>
+          ) : null}
+
+          {hasProductsError ? (
+            <div className="mt-8 text-center text-sm text-red-600">
+              Product catalog failed to load. The page content is still available.
             </div>
+          ) : null}
 
-            {poster ? (
-              <Link
-                to={`/beauty/${poster.slug}`}
-                className="hidden md:inline-flex h-11 px-4 rounded-full bg-white hover:bg-gray-50 text-gray-800 border border-gray-200 shadow-sm text-xs tracking-wide whitespace-nowrap"
-              >
-                Open poster
-              </Link>
-            ) : null}
-          </div>
-
-          <div className="mt-4">
-            {!poster && isLoading && !loadedOnce ? (
-              <div className="rounded-3xl border border-gray-100 bg-white overflow-hidden">
-                <div className="aspect-[4/5] bg-gray-100 animate-pulse" />
-                <div className="p-5 space-y-2">
-                  <div className="h-3 bg-gray-100 rounded w-32 animate-pulse" />
-                  <div className="h-4 bg-gray-100 rounded w-60 animate-pulse" />
-                </div>
-              </div>
-            ) : poster ? (
-              <BeautyPosterInteractive
-                posterTitle={poster.title}
-                imageUrl={poster.image_url}
-                tags={tags}
-                onOpenQuickView={onOpenQuickView}
-              />
-            ) : (
-              <div className="rounded-3xl border border-gray-100 bg-white p-6 text-sm text-gray-500">
-                This poster is not available.
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {showScrollHint ? (
-        <div className="flex-shrink-0 flex justify-center pb-5">
-          <motion.div
-            animate={{ y: [0, 6, 0] }}
-            transition={{ repeat: Infinity, duration: 1.8, ease: 'easeInOut' }}
-            className="text-gray-300"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-5 h-5">
-              <path d="M19 14l-7 7m0 0l-7-7m7 7V3" />
-            </svg>
-          </motion.div>
-        </div>
-      ) : null}
-    </section>
+          {hasSettingsError ? (
+            <div className="mt-3 text-center text-xs uppercase tracking-[0.2em] text-black/40">
+              Using default GLAM content while saved settings are unavailable.
+            </div>
+          ) : null}
+        </section>
+      </main>
+    </PageTransition>
   );
 }

@@ -42,10 +42,10 @@ export const ADMIN_MENU_SECTIONS: AdminMenuSection[] = [
     ],
   },
   {
-    id: 'beauty',
-    label: 'Beauty',
+    id: 'glam',
+    label: 'GLAM',
     items: [
-      { id: 'beauty-posters', label: 'Poster Tagger', icon: 'auto_awesome', path: '/admin/beauty-posters' },
+      { id: 'glam-page', label: 'GLAM Page Config', icon: 'auto_awesome', path: '/admin/glam-page' },
     ],
   },
 ];

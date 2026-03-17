@@ -9,15 +9,15 @@ const FeaturedCollections = () => {
       imageUrl: 'https://lh3.googleusercontent.com/aida-public/AB6AXuA588h4jJ4oHsovcFrCVzPKpp_UEjMxSSaafs_xzNqq498XDUCQpkVffgJCVjBFT85Msi-UXYkt5KQ8ZcHb6fzvA8mtRH7-hX0l8f1xMsXecfiYvU83maNSDjKeTD0W5bbAOX6LQyDRPar2Jpzg31Y5y9IwBfo7TkmpZbNGwcViuL7c7dOk0sa29H3Io-qLVN_XkNZwg_tVz3gP2wvtVBkmz-H-HRqYu8-JLTHlXNR3wZM_jcd8DttsIZO2CVe4K7GQadHKa6EfjYA',
     },
     {
-      title: 'Beauty',
-      subtitle: 'View Portraits',
+      title: 'GLAM',
+      subtitle: 'View Glam',
       imageUrl: 'https://lh3.googleusercontent.com/aida-public/AB6AXuCkJ5TljbcL9JErzdImZpHysbVXEAVI6KflXWpPCI9Bl6k0ajJt___aOnK4LFmj6UfRmrolcZFtgA2hqaWEw7N58b9DfHSOSSvzQz9Qld-YEePxFI-i7tFQnCs17and8i1b9mxb70Dn7WAaQT1HMG8AHXeq9Tdrb1XKGBLB5AWXu9lccyaLz9HSMeO-JT0eTAKii9eqrjAx64mn1XBl0YkrRe8yhzdMVdiBmy97UQzlQFjsQiLXmTMWruIXzBdZgT4D4oZq9cmXgfg',
     },
   ];
 
   const toPath = (title: string) => {
     if (title.toLowerCase() === 'fashion' || title.toLowerCase() === 'dressing room') return '/dressing-room';
-    if (title.toLowerCase() === 'beauty') return '/beauty';
+    if (title.toLowerCase() === 'beauty' || title.toLowerCase() === 'glam') return '/glam';
     return '/';
   };
 

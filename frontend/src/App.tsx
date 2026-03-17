@@ -56,7 +56,6 @@ const DressingRoomCollectionPage = lazy(() => import('./pages/DressingRoomCollec
 const DressingRoomLandingPage = lazy(() => import('./pages/DressingRoomLandingPage'));
 const DressingRoomLookPage = lazy(() => import('./pages/DressingRoomLookPage'));
 const BeautyPage = lazy(() => import('./pages/BeautyPage'));
-const BeautyPosterPage = lazy(() => import('./pages/BeautyPosterPage'));
 const NotFound = lazy(() => import('./pages/NotFound'));
 
 // App-level loading screen - shown until auth is initialized
@@ -347,6 +346,10 @@ function AppRoutes() {
         />
         <Route
           path="/admin/beauty-posters"
+          element={wrap(<Navigate to="/admin/glam-page" replace />)}
+        />
+        <Route
+          path="/admin/glam-page"
           element={
             wrap(
               <ProtectedRoute adminOnly>
@@ -423,6 +426,10 @@ function AppRoutes() {
           />
           <Route
             path="beauty"
+            element={wrap(<Navigate to="/glam" replace />)}
+          />
+          <Route
+            path="glam"
             element={
               wrap(
                 <Suspense fallback={<RouteLoading />}>
@@ -433,13 +440,7 @@ function AppRoutes() {
           />
           <Route
             path="beauty/:posterSlug"
-            element={
-              wrap(
-                <Suspense fallback={<RouteLoading />}>
-                  <BeautyPosterPage />
-                </Suspense>
-              )
-            }
+            element={wrap(<Navigate to="/glam" replace />)}
           />
           <Route
             path="checkout/product"
