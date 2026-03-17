@@ -210,8 +210,8 @@ const OnStage = () => {
       {/* Buy Ticket Button - Fixed positioning */}
       <div className="relative z-20 pt-8 pb-4 bg-white">
         <div className="flex justify-center px-4">
-          <Link
-            to="/journey"
+          <a
+            href="#select-journey"
             className="inline-block transition-transform hover:-translate-y-1 hover:drop-shadow-2xl active:translate-y-0 active:drop-shadow-lg duration-300"
           >
             <img 
@@ -219,7 +219,7 @@ const OnStage = () => {
               alt="BE A STAR Ticket" 
               className="w-full max-w-3xl lg:max-w-5xl xl:max-w-6xl mx-auto object-contain drop-shadow-xl"
             />
-          </Link>
+          </a>
         </div>
       </div>
 
@@ -329,7 +329,7 @@ const OnStage = () => {
       )}
 
       {/* Select Your Journey Section */}
-      <section className="bg-white py-12 md:py-16">
+      <section id="select-journey" className="bg-white py-12 md:py-16 scroll-mt-4">
         <div className="max-w-[1200px] mx-auto px-4 sm:px-6">
           <div className="mb-10 md:mb-12">
             <h2 className="text-3xl md:text-5xl font-black leading-tight tracking-tight mb-3">Select Your Journey</h2>
