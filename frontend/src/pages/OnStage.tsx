@@ -1,13 +1,66 @@
 import { useState, useEffect, useRef } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useBanners } from '../hooks/useBanners';
 import { HeroBannerCarousel } from '../components/HeroBannerCarousel';
+import { useAuth } from '../contexts/AuthContext';
+import { toLocalDateString } from '../utils/timezone';
+import { JourneyCalendarSection } from './journey-selection/JourneyCalendarSection';
+import { JourneySummaryCard } from './journey-selection/JourneySummaryCard';
+import { JourneyTimeSlotsSection } from './journey-selection/JourneyTimeSlotsSection';
+import { useJourneySelectionController } from './journey-selection/useJourneySelectionController';
 
 const OnStage = () => {
+  const navigate = useNavigate();
+  const { user } = useAuth();
   const [currentSlide, setCurrentSlide] = useState(0);
   const [currentProcessSlide, setCurrentProcessSlide] = useState(0);
   const [isMobile, setIsMobile] = useState(false);
+
+  const {
+    ticket,
+    loading: journeyLoading,
+    selectedDate,
+    selectedTime,
+    calendarDays,
+    availableTimeSlots,
+    groupedSlots,
+    canGoPrevMonth,
+    canGoNextMonth,
+    monthName,
+    setSelectedDate,
+    setSelectedTime,
+    handlePrevMonth,
+    handleNextMonth,
+    getMinutesUntilClose,
+    getSlotUrgency,
+  } = useJourneySelectionController();
+
+  const handleProceedToPayment = () => {
+    if (!ticket || !selectedDate) {
+      alert('Please select a date');
+      return;
+    }
+    if (!selectedTime) {
+      alert('Please select a time slot');
+      return;
+    }
+    if (!user) {
+      alert('Please log in to continue');
+      navigate('/login', { state: { returnTo: '/on-stage' } });
+      return;
+    }
+    navigate('/payment', {
+      state: {
+        ticketId: ticket.id,
+        ticketName: ticket.name,
+        ticketType: ticket.type,
+        price: parseFloat(ticket.price),
+        date: toLocalDateString(selectedDate),
+        time: selectedTime,
+      },
+    });
+  };
 
   const touchStartX = useRef(0);
   const touchEndX = useRef(0);
@@ -274,6 +327,76 @@ const OnStage = () => {
           )}
         </section>
       )}
+
+      {/* Select Your Journey Section */}
+      <section className="bg-white py-12 md:py-16">
+        <div className="max-w-[1200px] mx-auto px-4 sm:px-6">
+          <div className="mb-10 md:mb-12">
+            <h2 className="text-3xl md:text-5xl font-black leading-tight tracking-tight mb-3">Select Your Journey</h2>
+            <p className="text-gray-600 text-base md:text-lg">Pick a date to see available magical experiences.</p>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 lg:gap-12">
+            {/* Left Column: Calendar & Time Slots */}
+            <div className="lg:col-span-2 flex flex-col gap-8 md:gap-10">
+              {journeyLoading || !ticket ? (
+                <div className="flex items-center justify-center py-20">
+                  <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-main-600" />
+                </div>
+              ) : (
+                <>
+                  <JourneyCalendarSection
+                    monthName={monthName}
+                    canGoPrevMonth={canGoPrevMonth}
+                    canGoNextMonth={canGoNextMonth}
+                    calendarDays={calendarDays}
+                    selectedDate={selectedDate}
+                    onPrevMonth={handlePrevMonth}
+                    onNextMonth={handleNextMonth}
+                    onSelectDate={(date) => {
+                      setSelectedDate(date);
+                      setSelectedTime(null);
+                    }}
+                  />
+
+                  <JourneyTimeSlotsSection
+                    selectedDate={selectedDate}
+                    selectedTime={selectedTime}
+                    availableSlotsCount={availableTimeSlots.length}
+                    groupedSlots={groupedSlots}
+                    onSelectTime={setSelectedTime}
+                    getMinutesUntilClose={getMinutesUntilClose}
+                    getSlotUrgency={getSlotUrgency}
+                  />
+                </>
+              )}
+            </div>
+
+            {/* Right Column: Spark Map + Booking Summary */}
+            <div className="flex flex-col gap-6">
+              {/* Spark Map */}
+              <div className="bg-white rounded-xl shadow-xl border border-gray-200 p-6 lg:p-8">
+                <h3 className="text-2xl font-black mb-5 italic">Spark Map</h3>
+                <img
+                  src="/images/landing/SPARK MAP FINAL web.png"
+                  alt="Spark Stage 55 Map"
+                  className="w-full rounded-lg object-contain"
+                />
+              </div>
+
+              {/* Booking Summary */}
+              {ticket && (
+                <JourneySummaryCard
+                  ticket={ticket}
+                  selectedDate={selectedDate}
+                  selectedTime={selectedTime}
+                  onProceed={handleProceedToPayment}
+                />
+              )}
+            </div>
+          </div>
+        </div>
+      </section>
 
       {/* Stage Carousel */}
       <section className="max-w-7xl mx-auto px-4 py-16">
