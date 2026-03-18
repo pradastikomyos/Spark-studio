@@ -33,7 +33,7 @@ const decorativeStars = [
     slot: 'aura-pop',
     src: `${STAR_ASSET_BASE}/AURA%20POP.png`,
     alt: 'Sparkly mini star',
-    className: 'left-[14%] top-[44%] hidden w-16 md:block lg:w-20',
+    className: 'left-[14%] top-[44%] w-12 sm:w-16 lg:w-20',
   },
 ];
 
@@ -76,7 +76,7 @@ export default function BeautyPage() {
     <PageTransition>
       <main className="min-h-[calc(100vh-64px)] bg-white text-black">
         <section className="border-y border-black/20">
-          <div className="mx-auto grid max-w-7xl items-center gap-10 px-6 py-12 sm:px-8 lg:grid-cols-[minmax(0,1.1fr)_minmax(320px,0.9fr)] lg:gap-16 lg:px-12 lg:py-16">
+          <div className="mx-auto grid max-w-7xl grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)] items-center gap-6 px-4 py-10 sm:gap-10 sm:px-8 lg:gap-16 lg:px-12 lg:py-16">
             <div className="overflow-hidden border border-black/20 bg-[#f5f1f0]">
               <img
                 src={content.hero_image_url}
@@ -87,10 +87,10 @@ export default function BeautyPage() {
 
             <div className="mx-auto flex max-w-xl flex-col items-center text-center">
               <p className="text-xs font-semibold uppercase tracking-[0.35em] text-black/50">GLAM</p>
-              <h1 className="font-script mt-4 text-5xl leading-none sm:text-6xl lg:text-7xl">
+              <h1 className="font-script mt-4 text-3xl leading-none sm:text-6xl lg:text-7xl">
                 {content.hero_title}
               </h1>
-              <p className="mt-6 max-w-md text-xl leading-relaxed text-black/85 sm:text-2xl">
+              <p className="mt-4 max-w-md text-sm leading-relaxed text-black/85 sm:mt-6 sm:text-2xl">
                 {content.hero_description}
               </p>
             </div>
@@ -165,7 +165,7 @@ export default function BeautyPage() {
             </p>
           </div>
 
-          <div className="mt-12 grid grid-cols-1 gap-8 sm:grid-cols-2 xl:grid-cols-3">
+          <div className="mt-12 grid grid-cols-2 gap-4 sm:gap-8 xl:grid-cols-3">
             {filteredProducts.map((product) => (
               <Link
                 key={product.id}

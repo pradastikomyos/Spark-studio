@@ -49,28 +49,28 @@ const Events = () => {
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 md:py-32">
         
         {/* 2. Capturing Magic Moment Section */}
-        <section className="flex flex-col md:flex-row items-center gap-12 md:gap-24 mb-32">
-          <div className="flex-1 max-w-xl">
+        <section className="mb-32 flex items-center gap-6 sm:gap-12 md:gap-24">
+          <div className="min-w-0 flex-1 max-w-xl">
             <h1 
-              className="font-script text-5xl sm:text-6xl lg:text-7xl text-gray-800 leading-none mb-8 whitespace-pre-line"
+              className="font-script mb-6 text-3xl leading-none text-gray-800 whitespace-pre-line sm:mb-8 sm:text-6xl lg:text-7xl"
             >
               {magicTitle.toLowerCase() === 'every moment deserves to spark' ? 'Every moment\ndeserves to Spark' : magicTitle}
             </h1>
-            <p className="text-gray-500 text-sm md:text-base leading-relaxed mb-10 font-light">
+            <p className="mb-6 text-xs leading-relaxed font-light text-gray-500 sm:mb-10 sm:text-base">
               {magicDesc}
             </p>
             {magicBtnText && (
               <a 
                 href={magicBtnLink} 
-                className="inline-block border border-gray-300 px-8 py-3 text-xs tracking-widest uppercase hover:bg-gray-900 hover:text-white transition-colors duration-300"
+                className="inline-block border border-gray-300 px-4 py-3 text-[10px] tracking-[0.2em] uppercase transition-colors duration-300 hover:bg-gray-900 hover:text-white sm:px-8 sm:text-xs sm:tracking-widest"
               >
                 {magicBtnText}
               </a>
             )}
           </div>
           
-          <div className="flex-1 w-full flex justify-center md:justify-end">
-            <div className="relative w-full max-w-md aspect-[3/4]">
+          <div className="flex flex-1 justify-end">
+            <div className="relative aspect-[3/4] w-full max-w-[12rem] sm:max-w-md">
               {magicImages[0] && (
                 <img 
                   src={magicImages[0]} 
@@ -84,7 +84,7 @@ const Events = () => {
 
         {/* 3. Image Collage (3 images side by side layout) */}
         <section className="mb-32">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8 items-end">
+          <div className="grid grid-cols-3 items-end gap-3 sm:gap-6 md:gap-8">
             {expImages.map((img, idx) => {
               // Create an interesting staggered layout like the sketch
               const heights = ['aspect-square', 'aspect-[3/4]', 'aspect-[4/5]'];
@@ -116,15 +116,15 @@ const Events = () => {
             })}
           </h2>
           
-          <div className="flex flex-col md:flex-row justify-center items-center gap-12 md:gap-0 divide-y md:divide-y-0 md:divide-x divide-gray-300">
+          <div className="flex items-stretch justify-center divide-x divide-gray-300">
             {expLinks.map((link, idx) => (
               <a 
                 href={link.link || '#'} 
                 key={idx}
-                className="group px-12 py-6 md:py-0 text-center hover:opacity-70 transition-opacity"
+                className="group min-w-0 flex-1 px-3 py-4 text-center transition-opacity hover:opacity-70 sm:px-12 sm:py-6 md:py-0"
               >
-                <div className="font-display text-2xl mb-4 text-gray-800">{link.title}</div>
-                <div className="text-[10px] tracking-[0.2em] font-bold text-gray-400 uppercase">{link.subtitle}</div>
+                <div className="mb-3 font-display text-xl text-gray-800 sm:mb-4 sm:text-2xl">{link.title}</div>
+                <div className="text-[9px] font-bold uppercase tracking-[0.16em] text-gray-400 sm:text-[10px] sm:tracking-[0.2em]">{link.subtitle}</div>
               </a>
             ))}
           </div>
