@@ -3,6 +3,12 @@ import { Plus, Minus, ArrowRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import Logo from './Logo';
 
+const Star = (props: React.SVGProps<SVGSVGElement>) => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 1050 1000" {...props}>
+    <path fill="currentColor" d="M1050 386q0 15-29 38L746 624l105 323q5 17 5 30q0 24-18 24q-17 0-38-17L525 785L250 984q-23 17-39 17q-18 0-18-23q0-11 6-31l105-323L29 424Q0 403 0 387q0-23 49-23l340 1L493 41q12-40 32-40q19 0 31 40l106 324l339-1q49 0 49 22z"></path>
+  </svg>
+);
+
 export default function Footer() {
   const [openSection, setOpenSection] = useState<string | null>(null);
 
@@ -33,7 +39,7 @@ export default function Footer() {
             </button>
             <div className={`overflow-hidden transition-all duration-300 ease-in-out ${openSection === 'about' ? 'max-h-[500px] opacity-100 pb-5' : 'max-h-0 opacity-0'}`}>
               <div className="px-1 text-sm text-gray-700 leading-relaxed max-w-3xl">
-                Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur.
+                Where we make you up, we dress you up, and bring your star moment to life. We celebrate you, because here, You are the Star <Star className="inline-block h-3.5 w-3.5 -mt-0.5 text-black" />
               </div>
             </div>
           </div>
