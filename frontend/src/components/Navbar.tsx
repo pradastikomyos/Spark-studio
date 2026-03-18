@@ -195,8 +195,10 @@ const Navbar = () => {
   };
 
   return (
-    <nav className={`w-full z-[100] bg-white border-b border-gray-300 transition-shadow ${scrolled ? 'shadow-sm' : ''}`.trim()}>
-      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+    <>
+      {/* Top Bar - Sticky */}
+      <div className={`sticky top-0 bg-white z-[110] border-b border-gray-200 transition-shadow ${scrolled ? 'shadow-md' : ''}`}>
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between py-3 lg:py-4">
           <div className="hidden lg:flex items-center gap-3 w-1/3">
             <LanguageSwitcher />
@@ -339,8 +341,10 @@ const Navbar = () => {
           </div>
         </div>
       </div>
+      </div>
 
-      <div className="border-t border-gray-300" />
+      {/* Main Navigation - Non-sticky */}
+      <nav className="w-full relative z-[100] bg-white border-b border-gray-300">
 
       <div className="hidden lg:block">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
@@ -503,6 +507,7 @@ const Navbar = () => {
 
         </div>
       </div>
+      </nav>
 
       {showLogoutConfirm && (
         <>
@@ -544,7 +549,7 @@ const Navbar = () => {
           </div>
         </>
       )}
-    </nav>
+    </>
   );
 };
 
