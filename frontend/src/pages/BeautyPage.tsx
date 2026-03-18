@@ -1,6 +1,6 @@
-import { useDeferredValue, useMemo, useState } from 'react';
+import { useDeferredValue, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Search } from 'lucide-react';
+import { Search, ChevronLeft, ChevronRight } from 'lucide-react';
 import { PageTransition } from '../components/PageTransition';
 import ProductQuickViewModal from '../components/ProductQuickViewModal';
 import { DEFAULT_GLAM_PAGE_SETTINGS, useGlamPageSettings } from '../hooks/useGlamPageSettings';
@@ -46,8 +46,13 @@ export default function BeautyPage() {
   const { settings, error: settingsError } = useGlamPageSettings();
   const { data: products = [], isLoading: productsLoading, error: productsError } = useProducts();
   const [searchQuery, setSearchQuery] = useState('');
+  const [page, setPage] = useState(1);
   const [quickView, setQuickView] = useState<QuickViewState>({ open: false, productId: null });
   const deferredSearchQuery = useDeferredValue(searchQuery);
+
+  useEffect(() => {
+    setPage(1);
+  }, [deferredSearchQuery]);
 
   const content = settings ?? DEFAULT_GLAM_PAGE_SETTINGS;
   const normalizedQuery = deferredSearchQuery.trim().toLowerCase();
@@ -57,8 +62,13 @@ export default function BeautyPage() {
   );
   const productLookup = useMemo(() => new Map(products.map((product) => [product.id, product])), [products]);
 
+  const MAKEUP_SLUGS = new Set(['makeup', 'eyewear', 'glitter', 'headliner']);
+  const makeupProducts = useMemo(() => {
+    return products.filter(p => p.categorySlug != null && MAKEUP_SLUGS.has(p.categorySlug));
+  }, [products]);
+
   const filteredProducts = useMemo(() => {
-    const matches = products.filter((product) => {
+    const matches = makeupProducts.filter((product) => {
       if (!normalizedQuery) return true;
       return (
         product.name.toLowerCase().includes(normalizedQuery) ||
@@ -66,8 +76,12 @@ export default function BeautyPage() {
       );
     });
 
-    return normalizedQuery ? matches.slice(0, 12) : matches.slice(0, 6);
-  }, [normalizedQuery, products]);
+    return matches;
+  }, [normalizedQuery, makeupProducts]);
+
+  const PAGE_SIZE = 6;
+  const totalPages = Math.max(1, Math.ceil(filteredProducts.length / PAGE_SIZE));
+  const paginatedProducts = filteredProducts.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   const hasProductsError = productsError instanceof Error;
   const hasSettingsError = settingsError instanceof Error;
@@ -76,7 +90,7 @@ export default function BeautyPage() {
     <PageTransition>
       <main className="min-h-[calc(100vh-64px)] bg-white text-black">
         <section className="border-y border-black/20">
-          <div className="mx-auto grid max-w-7xl grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)] items-center gap-6 px-4 py-10 sm:gap-10 sm:px-8 lg:gap-16 lg:px-12 lg:py-16">
+          <div className="mx-auto grid max-w-7xl items-center gap-10 px-6 py-12 sm:px-8 lg:grid-cols-[minmax(0,1.1fr)_minmax(320px,0.9fr)] lg:gap-16 lg:px-12 lg:py-16">
             <div className="overflow-hidden border border-black/20 bg-[#f5f1f0]">
               <img
                 src={content.hero_image_url}
@@ -87,10 +101,10 @@ export default function BeautyPage() {
 
             <div className="mx-auto flex max-w-xl flex-col items-center text-center">
               <p className="text-xs font-semibold uppercase tracking-[0.35em] text-black/50">GLAM</p>
-              <h1 className="font-script mt-4 text-3xl leading-none sm:text-6xl lg:text-7xl">
+              <h1 className="font-script mt-4 text-5xl leading-none sm:text-6xl lg:text-7xl">
                 {content.hero_title}
               </h1>
-              <p className="mt-4 max-w-md text-sm leading-relaxed text-black/85 sm:mt-6 sm:text-2xl">
+              <p className="mt-6 max-w-md text-xl leading-relaxed text-black/85 sm:text-2xl">
                 {content.hero_description}
               </p>
             </div>
@@ -147,51 +161,70 @@ export default function BeautyPage() {
           </div>
         </section>
 
-        <section className="mx-auto max-w-7xl px-6 pb-16 sm:px-8 lg:px-12 lg:pb-24">
-          <div className="flex flex-col items-center gap-4">
+        <section className="mx-auto max-w-7xl px-6 pb-16 sm:px-8 lg:px-12 lg:pb-24 mt-8">
+          <div className="flex flex-col items-center gap-6 pt-12">
             <h3 className="font-serif text-3xl italic tracking-wide">{content.product_section_title}</h3>
-            <label className="relative w-full max-w-xs">
-              <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-black/35" />
+            <label className="relative w-full max-w-[400px]">
+              <Search className="pointer-events-none absolute left-5 top-1/2 h-4 w-4 -translate-y-1/2 text-black/40" />
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(event) => setSearchQuery(event.target.value)}
                 placeholder={content.product_search_placeholder}
-                className="w-full rounded-full border border-black/40 bg-white py-3 pl-11 pr-4 text-sm outline-none transition-colors focus:border-black"
+                className="w-full rounded-full border border-black/30 bg-white py-3.5 pl-12 pr-6 text-sm outline-none transition-colors focus:border-black"
               />
             </label>
-            <p className="text-xs uppercase tracking-[0.25em] text-black/45">
-              {normalizedQuery ? 'Showing search results' : 'Featured picks from the current store catalog'}
-            </p>
           </div>
 
-          <div className="mt-12 grid grid-cols-2 gap-4 sm:gap-8 xl:grid-cols-3">
+          <div className="mt-12 grid grid-cols-1 gap-8 sm:grid-cols-2 xl:grid-cols-3">
             {filteredProducts.map((product) => (
               <Link
                 key={product.id}
                 to={`/shop/product/${product.id}`}
-                className="group border border-black/35 bg-white p-4 transition-transform duration-200 hover:-translate-y-1"
+                className="group flex flex-col border border-black/20 bg-white transition-opacity hover:opacity-80"
               >
-                <div className="aspect-square overflow-hidden bg-[#faf7f8]">
+                <div className="aspect-[3/4] overflow-hidden bg-[#faf7f8]">
                   {product.image ? (
                     <img
                       src={product.image}
                       alt={product.name}
-                      className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.02]"
+                      className="h-full w-full object-cover"
                       loading="lazy"
                     />
                   ) : (
-                    <div className="flex h-full items-center justify-center text-black/25">
-                      <span className="material-symbols-outlined text-6xl">{product.placeholder}</span>
+                    <div className="flex h-full items-center justify-center text-black/15">
+                      <span className="material-symbols-outlined text-3xl">{product.placeholder}</span>
                     </div>
                   )}
                 </div>
-                <div className="pt-4">
-                  <h4 className="text-lg font-medium leading-snug text-black">{product.name}</h4>
-                  <p className="mt-2 text-sm text-[#ff4b86]">{formatCurrency(product.price)}</p>
+                <div className="px-3 py-3 text-left">
+                  <h4 className="text-[11px] font-semibold leading-tight text-black line-clamp-1">{product.name}</h4>
+                  <p className="mt-1 text-[10px] font-bold text-[#ff4b86]">{formatCurrency(product.price)}</p>
                 </div>
               </Link>
             ))}
+          </div>
+
+          <div className="mt-10 flex justify-center items-center gap-6">
+            <button
+              onClick={() => setPage(p => Math.max(1, p - 1))}
+              disabled={page === 1}
+              className="p-2 border border-black/20 rounded-full hover:bg-black/5 disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
+              aria-label="Previous page"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+            <span className="text-xs font-medium text-black/50 tracking-wide">
+              {page} / {totalPages}
+            </span>
+            <button
+              onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+              disabled={page === totalPages}
+              className="p-2 border border-black/20 rounded-full hover:bg-black/5 disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
+              aria-label="Next page"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
           </div>
 
           {!productsLoading && filteredProducts.length === 0 ? (
