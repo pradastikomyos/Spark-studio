@@ -99,8 +99,7 @@ export default function BeautyPage() {
               />
             </div>
 
-            <div className="mx-auto flex max-w-xl flex-col items-center text-center">
-              <p className="text-xs font-semibold uppercase tracking-[0.35em] text-black/50">GLAM</p>
+            <div className="flex w-full flex-col items-end text-right">
               <h1 className="font-script mt-3 text-[2rem] leading-none sm:mt-4 sm:text-6xl lg:text-7xl">
                 {content.hero_title}
               </h1>
@@ -176,12 +175,12 @@ export default function BeautyPage() {
             </label>
           </div>
 
-          <div className="mt-10 grid grid-cols-2 gap-3 sm:mt-12 sm:gap-8 xl:grid-cols-3">
-            {filteredProducts.map((product) => (
+          <div className="mt-10 grid grid-cols-3 gap-6 sm:gap-8 lg:gap-10 mx-auto">
+            {paginatedProducts.map((product) => (
               <Link
                 key={product.id}
                 to={`/shop/product/${product.id}`}
-                className="group border border-black/35 bg-white p-3 transition-transform duration-200 hover:-translate-y-1 sm:p-4"
+                className="group flex flex-col border border-black/20 bg-white transition-opacity hover:opacity-80"
               >
                 <div className="aspect-[3/4] overflow-hidden bg-[#faf7f8]">
                   {product.image ? (
@@ -197,9 +196,9 @@ export default function BeautyPage() {
                     </div>
                   )}
                 </div>
-                <div className="pt-4">
-                  <h4 className="text-sm font-medium leading-snug text-black sm:text-lg">{product.name}</h4>
-                  <p className="mt-2 text-sm text-[#ff4b86]">{formatCurrency(product.price)}</p>
+                <div className="px-3 py-3 text-left">
+                  <h4 className="text-[11px] font-semibold leading-tight text-black line-clamp-1 sm:text-sm">{product.name}</h4>
+                  <p className="mt-1 text-[10px] font-bold text-[#ff4b86] sm:text-xs">{formatCurrency(product.price)}</p>
                 </div>
               </Link>
             ))}
