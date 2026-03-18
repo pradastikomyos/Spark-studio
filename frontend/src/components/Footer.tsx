@@ -3,10 +3,10 @@ import Logo from './Logo';
 
 const primaryLinks = [
   { label: 'ON STAGE', to: '/on-stage' },
-  { label: 'EVENT', to: '/events' },
-  { label: 'DRESSING ROOM', to: '/dressing-room' },
   { label: 'GLAM', to: '/glam' },
-  { label: 'CHARM BAR', to: '/shop' },
+  { label: 'DRESSING ROOM', to: '/dressing-room' },
+  { label: 'CELEBRATE', to: '/events' },
+  { label: 'SHOP', to: '/shop' },
   { label: 'SPARK CLUB', to: '/spark-club' },
   { label: 'NEWS', to: '/news' },
 ];
