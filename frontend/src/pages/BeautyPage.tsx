@@ -1,6 +1,6 @@
-import { useDeferredValue, useMemo, useState } from 'react';
+import { useDeferredValue, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Search } from 'lucide-react';
+import { Search, ChevronLeft, ChevronRight } from 'lucide-react';
 import { PageTransition } from '../components/PageTransition';
 import ProductQuickViewModal from '../components/ProductQuickViewModal';
 import { DEFAULT_GLAM_PAGE_SETTINGS, useGlamPageSettings } from '../hooks/useGlamPageSettings';
@@ -46,8 +46,13 @@ export default function BeautyPage() {
   const { settings, error: settingsError } = useGlamPageSettings();
   const { data: products = [], isLoading: productsLoading, error: productsError } = useProducts();
   const [searchQuery, setSearchQuery] = useState('');
+  const [page, setPage] = useState(1);
   const [quickView, setQuickView] = useState<QuickViewState>({ open: false, productId: null });
   const deferredSearchQuery = useDeferredValue(searchQuery);
+
+  useEffect(() => {
+    setPage(1);
+  }, [deferredSearchQuery]);
 
   const content = settings ?? DEFAULT_GLAM_PAGE_SETTINGS;
   const normalizedQuery = deferredSearchQuery.trim().toLowerCase();
@@ -57,8 +62,13 @@ export default function BeautyPage() {
   );
   const productLookup = useMemo(() => new Map(products.map((product) => [product.id, product])), [products]);
 
+  const MAKEUP_SLUGS = new Set(['makeup', 'eyewear', 'glitter', 'headliner']);
+  const makeupProducts = useMemo(() => {
+    return products.filter(p => p.categorySlug != null && MAKEUP_SLUGS.has(p.categorySlug));
+  }, [products]);
+
   const filteredProducts = useMemo(() => {
-    const matches = products.filter((product) => {
+    const matches = makeupProducts.filter((product) => {
       if (!normalizedQuery) return true;
       return (
         product.name.toLowerCase().includes(normalizedQuery) ||
@@ -66,8 +76,12 @@ export default function BeautyPage() {
       );
     });
 
-    return normalizedQuery ? matches.slice(0, 12) : matches.slice(0, 6);
-  }, [normalizedQuery, products]);
+    return matches;
+  }, [normalizedQuery, makeupProducts]);
+
+  const PAGE_SIZE = 6;
+  const totalPages = Math.max(1, Math.ceil(filteredProducts.length / PAGE_SIZE));
+  const paginatedProducts = filteredProducts.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   const hasProductsError = productsError instanceof Error;
   const hasSettingsError = settingsError instanceof Error;
@@ -150,19 +164,16 @@ export default function BeautyPage() {
         <section className="mx-auto max-w-7xl px-4 pb-14 sm:px-8 sm:pb-16 lg:px-12 lg:pb-24">
           <div className="flex flex-col items-center gap-4">
             <h3 className="font-serif text-3xl italic tracking-wide">{content.product_section_title}</h3>
-            <label className="relative w-full max-w-xs">
-              <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-black/35" />
+            <label className="relative w-full max-w-[400px]">
+              <Search className="pointer-events-none absolute left-5 top-1/2 h-4 w-4 -translate-y-1/2 text-black/40" />
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(event) => setSearchQuery(event.target.value)}
                 placeholder={content.product_search_placeholder}
-                className="w-full rounded-full border border-black/40 bg-white py-3 pl-11 pr-4 text-sm outline-none transition-colors focus:border-black"
+                className="w-full rounded-full border border-black/30 bg-white py-3.5 pl-12 pr-6 text-sm outline-none transition-colors focus:border-black"
               />
             </label>
-            <p className="text-xs uppercase tracking-[0.25em] text-black/45">
-              {normalizedQuery ? 'Showing search results' : 'Featured picks from the current store catalog'}
-            </p>
           </div>
 
           <div className="mt-10 grid grid-cols-2 gap-3 sm:mt-12 sm:gap-8 xl:grid-cols-3">
@@ -172,17 +183,17 @@ export default function BeautyPage() {
                 to={`/shop/product/${product.id}`}
                 className="group border border-black/35 bg-white p-3 transition-transform duration-200 hover:-translate-y-1 sm:p-4"
               >
-                <div className="aspect-square overflow-hidden bg-[#faf7f8]">
+                <div className="aspect-[3/4] overflow-hidden bg-[#faf7f8]">
                   {product.image ? (
                     <img
                       src={product.image}
                       alt={product.name}
-                      className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.02]"
+                      className="h-full w-full object-cover"
                       loading="lazy"
                     />
                   ) : (
-                    <div className="flex h-full items-center justify-center text-black/25">
-                      <span className="material-symbols-outlined text-6xl">{product.placeholder}</span>
+                    <div className="flex h-full items-center justify-center text-black/15">
+                      <span className="material-symbols-outlined text-3xl">{product.placeholder}</span>
                     </div>
                   )}
                 </div>
@@ -192,6 +203,28 @@ export default function BeautyPage() {
                 </div>
               </Link>
             ))}
+          </div>
+
+          <div className="mt-10 flex justify-center items-center gap-6">
+            <button
+              onClick={() => setPage(p => Math.max(1, p - 1))}
+              disabled={page === 1}
+              className="p-2 border border-black/20 rounded-full hover:bg-black/5 disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
+              aria-label="Previous page"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+            <span className="text-xs font-medium text-black/50 tracking-wide">
+              {page} / {totalPages}
+            </span>
+            <button
+              onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+              disabled={page === totalPages}
+              className="p-2 border border-black/20 rounded-full hover:bg-black/5 disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
+              aria-label="Next page"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
           </div>
 
           {!productsLoading && filteredProducts.length === 0 ? (
