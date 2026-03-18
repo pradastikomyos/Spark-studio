@@ -26,7 +26,7 @@ const Events = () => {
     <div className="bg-[#fcfcf9] min-h-screen text-gray-900 selection:bg-primary/20">
       
       {/* 1. Hero Gallery Row (Dynamic Layout) */}
-      <section className="w-full h-[50vh] md:h-[65vh] flex overflow-x-auto snap-x snap-mandatory hide-scrollbar">
+      <section className="flex h-[42vh] w-full snap-x snap-mandatory overflow-x-auto hide-scrollbar sm:h-[50vh] md:h-[65vh]">
         {heroImages.map((img, idx) => (
           <div 
             key={idx} 
@@ -46,17 +46,17 @@ const Events = () => {
         ))}
       </section>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 md:py-32">
+      <main className="mx-auto max-w-7xl px-4 py-16 sm:px-6 sm:py-20 lg:px-8 md:py-32">
         
         {/* 2. Capturing Magic Moment Section */}
-        <section className="mb-32 flex items-center gap-6 sm:gap-12 md:gap-24">
+        <section className="mb-20 grid grid-cols-[minmax(0,1.2fr)_minmax(7rem,0.8fr)] items-start gap-4 sm:mb-32 sm:flex sm:items-center sm:gap-12 md:gap-24">
           <div className="min-w-0 flex-1 max-w-xl">
             <h1 
-              className="font-script mb-6 text-3xl leading-none text-gray-800 whitespace-pre-line sm:mb-8 sm:text-6xl lg:text-7xl"
+              className="font-script mb-4 text-[2rem] leading-none text-gray-800 whitespace-pre-line sm:mb-8 sm:text-6xl lg:text-7xl"
             >
               {magicTitle.toLowerCase() === 'every moment deserves to spark' ? 'Every moment\ndeserves to Spark' : magicTitle}
             </h1>
-            <p className="mb-6 text-xs leading-relaxed font-light text-gray-500 sm:mb-10 sm:text-base">
+            <p className="mb-5 text-[11px] leading-relaxed font-light text-gray-500 sm:mb-10 sm:text-base">
               {magicDesc}
             </p>
             {magicBtnText && (
@@ -69,8 +69,8 @@ const Events = () => {
             )}
           </div>
           
-          <div className="flex flex-1 justify-end">
-            <div className="relative aspect-[3/4] w-full max-w-[12rem] sm:max-w-md">
+          <div className="flex justify-end sm:flex-1">
+            <div className="relative aspect-[3/4] w-full max-w-[8.5rem] sm:max-w-md">
               {magicImages[0] && (
                 <img 
                   src={magicImages[0]} 
@@ -83,12 +83,12 @@ const Events = () => {
         </section>
 
         {/* 3. Image Collage (3 images side by side layout) */}
-        <section className="mb-32">
-          <div className="grid grid-cols-3 items-end gap-3 sm:gap-6 md:gap-8">
+        <section className="mb-20 sm:mb-32">
+          <div className="grid grid-cols-3 items-end gap-2.5 sm:gap-6 md:gap-8">
             {expImages.map((img, idx) => {
               // Create an interesting staggered layout like the sketch
               const heights = ['aspect-square', 'aspect-[3/4]', 'aspect-[4/5]'];
-              const margins = ['mb-0', 'mb-12', 'mb-0'];
+              const margins = ['mb-0', 'mb-6 sm:mb-12', 'mb-0'];
               
               return (
                 <div key={idx} className={`w-full ${margins[idx % 3]}`}>
@@ -104,8 +104,8 @@ const Events = () => {
         </section>
 
         {/* 4. Choose Your Experience Links */}
-        <section className="text-center mb-40">
-          <h2 className="font-display text-3xl md:text-4xl text-gray-800 mb-16">
+        <section className="mb-24 text-center sm:mb-40">
+          <h2 className="font-display mb-10 text-2xl text-gray-800 sm:mb-16 sm:text-3xl md:text-4xl">
             {expTitle.split(' ').map((word, i) => {
               const isItalic = word.toLowerCase() === 'your';
               return (
@@ -121,10 +121,10 @@ const Events = () => {
               <a 
                 href={link.link || '#'} 
                 key={idx}
-                className="group min-w-0 flex-1 px-3 py-4 text-center transition-opacity hover:opacity-70 sm:px-12 sm:py-6 md:py-0"
+                className="group min-w-0 flex-1 px-2 py-3 text-center transition-opacity hover:opacity-70 sm:px-12 sm:py-6 md:py-0"
               >
-                <div className="mb-3 font-display text-xl text-gray-800 sm:mb-4 sm:text-2xl">{link.title}</div>
-                <div className="text-[9px] font-bold uppercase tracking-[0.16em] text-gray-400 sm:text-[10px] sm:tracking-[0.2em]">{link.subtitle}</div>
+                <div className="mb-2 font-display text-lg text-gray-800 sm:mb-4 sm:text-2xl">{link.title}</div>
+                <div className="text-[8px] font-bold uppercase tracking-[0.14em] text-gray-400 sm:text-[10px] sm:tracking-[0.2em]">{link.subtitle}</div>
               </a>
             ))}
           </div>

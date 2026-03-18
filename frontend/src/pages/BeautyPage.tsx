@@ -76,7 +76,7 @@ export default function BeautyPage() {
     <PageTransition>
       <main className="min-h-[calc(100vh-64px)] bg-white text-black">
         <section className="border-y border-black/20">
-          <div className="mx-auto grid max-w-7xl grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)] items-center gap-6 px-4 py-10 sm:gap-10 sm:px-8 lg:gap-16 lg:px-12 lg:py-16">
+          <div className="mx-auto grid max-w-7xl grid-cols-[minmax(0,1fr)_minmax(0,1fr)] items-center gap-4 px-3 py-8 sm:gap-10 sm:px-8 sm:py-10 lg:gap-16 lg:px-12 lg:py-16">
             <div className="overflow-hidden border border-black/20 bg-[#f5f1f0]">
               <img
                 src={content.hero_image_url}
@@ -87,18 +87,18 @@ export default function BeautyPage() {
 
             <div className="mx-auto flex max-w-xl flex-col items-center text-center">
               <p className="text-xs font-semibold uppercase tracking-[0.35em] text-black/50">GLAM</p>
-              <h1 className="font-script mt-4 text-3xl leading-none sm:text-6xl lg:text-7xl">
+              <h1 className="font-script mt-3 text-[2rem] leading-none sm:mt-4 sm:text-6xl lg:text-7xl">
                 {content.hero_title}
               </h1>
-              <p className="mt-4 max-w-md text-sm leading-relaxed text-black/85 sm:mt-6 sm:text-2xl">
+              <p className="mt-3 max-w-md text-[11px] leading-relaxed text-black/85 sm:mt-6 sm:text-2xl">
                 {content.hero_description}
               </p>
             </div>
           </div>
         </section>
 
-        <section className="mx-auto max-w-7xl px-6 py-12 sm:px-8 lg:px-12 lg:py-16">
-          <h2 className="font-script text-5xl leading-none sm:text-6xl">{content.look_heading}</h2>
+        <section className="mx-auto max-w-7xl px-4 py-10 sm:px-8 sm:py-12 lg:px-12 lg:py-16">
+          <h2 className="font-script text-4xl leading-none sm:text-6xl">{content.look_heading}</h2>
 
           <div className="relative mt-8 min-h-[420px] overflow-hidden border-b border-black/20 pb-4 sm:min-h-[520px] lg:min-h-[560px]">
             {decorativeStars.map((star) => (
@@ -147,7 +147,7 @@ export default function BeautyPage() {
           </div>
         </section>
 
-        <section className="mx-auto max-w-7xl px-6 pb-16 sm:px-8 lg:px-12 lg:pb-24">
+        <section className="mx-auto max-w-7xl px-4 pb-14 sm:px-8 sm:pb-16 lg:px-12 lg:pb-24">
           <div className="flex flex-col items-center gap-4">
             <h3 className="font-serif text-3xl italic tracking-wide">{content.product_section_title}</h3>
             <label className="relative w-full max-w-xs">
@@ -165,12 +165,12 @@ export default function BeautyPage() {
             </p>
           </div>
 
-          <div className="mt-12 grid grid-cols-2 gap-4 sm:gap-8 xl:grid-cols-3">
+          <div className="mt-10 grid grid-cols-2 gap-3 sm:mt-12 sm:gap-8 xl:grid-cols-3">
             {filteredProducts.map((product) => (
               <Link
                 key={product.id}
                 to={`/shop/product/${product.id}`}
-                className="group border border-black/35 bg-white p-4 transition-transform duration-200 hover:-translate-y-1"
+                className="group border border-black/35 bg-white p-3 transition-transform duration-200 hover:-translate-y-1 sm:p-4"
               >
                 <div className="aspect-square overflow-hidden bg-[#faf7f8]">
                   {product.image ? (
@@ -187,7 +187,7 @@ export default function BeautyPage() {
                   )}
                 </div>
                 <div className="pt-4">
-                  <h4 className="text-lg font-medium leading-snug text-black">{product.name}</h4>
+                  <h4 className="text-sm font-medium leading-snug text-black sm:text-lg">{product.name}</h4>
                   <p className="mt-2 text-sm text-[#ff4b86]">{formatCurrency(product.price)}</p>
                 </div>
               </Link>
