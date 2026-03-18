@@ -90,8 +90,8 @@ export default function BeautyPage() {
     <PageTransition>
       <main className="min-h-[calc(100vh-64px)] bg-white text-black">
         <section className="border-y border-black/20">
-          <div className="mx-auto grid max-w-7xl grid-cols-[minmax(0,1fr)_minmax(0,1fr)] items-center gap-4 px-3 py-8 sm:gap-10 sm:px-8 sm:py-10 lg:gap-16 lg:px-12 lg:py-16">
-            <div className="overflow-hidden border border-black/20 bg-[#f5f1f0]">
+          <div className="mx-auto grid max-w-7xl grid-cols-[2fr_3fr] items-center gap-8 px-6 py-10 sm:gap-12 sm:px-8 sm:py-12 lg:gap-20 lg:px-12 lg:py-16">
+            <div className="aspect-[4/5] w-full max-w-xs overflow-hidden bg-[#f5f1f0] md:max-w-sm">
               <img
                 src={content.hero_image_url}
                 alt={content.hero_title}
@@ -113,9 +113,10 @@ export default function BeautyPage() {
         <section className="mx-auto max-w-7xl px-4 py-10 sm:px-8 sm:py-12 lg:px-12 lg:py-16">
           <h2 className="font-script text-4xl leading-none sm:text-6xl">{content.look_heading}</h2>
 
-          <div className="relative mt-8 min-h-[420px] overflow-hidden border-b border-black/20 pb-4 sm:min-h-[520px] lg:min-h-[560px]">
-            {decorativeStars.map((star) => (
-              (() => {
+          <div className="mt-8 grid grid-cols-[1fr_1fr] items-stretch gap-4 border-b border-black/20 pb-8 sm:gap-6 lg:gap-8">
+            {/* Left: 2x2 star product grid */}
+            <div className="grid grid-cols-2 gap-3 sm:gap-4">
+              {decorativeStars.map((star) => {
                 const starLink = starLinkMap.get(star.slot) ?? null;
                 const productId = starLink?.product_id ?? null;
                 const linkedProduct = productId ? productLookup.get(productId) ?? null : null;
@@ -123,13 +124,13 @@ export default function BeautyPage() {
                   <img
                     src={starLink?.image_url ?? star.src}
                     alt={star.alt}
-                    className="h-full w-full object-contain drop-shadow-[0_12px_18px_rgba(0,0,0,0.14)] transition-transform duration-200"
+                    className="h-full w-full object-contain drop-shadow-[0_8px_14px_rgba(0,0,0,0.12)] transition-transform duration-200"
                   />
                 );
 
                 if (!productId) {
                   return (
-                    <div key={star.slot} className={`absolute ${star.className}`}>
+                    <div key={star.slot} className="flex aspect-square items-center justify-center p-4">
                       {starImage}
                     </div>
                   );
@@ -142,23 +143,27 @@ export default function BeautyPage() {
                     title={linkedProduct ? `Open ${linkedProduct.name}` : 'Open linked product'}
                     aria-label={linkedProduct ? `Open ${linkedProduct.name}` : 'Open linked product'}
                     onClick={() => setQuickView({ open: true, productId })}
-                    className={`absolute cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-[#ff4b86] focus-visible:ring-offset-2 ${star.className}`}
+                    className="flex aspect-square cursor-pointer items-center justify-center p-4 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#ff4b86] focus-visible:ring-offset-2"
                   >
-                    <span className="block transition-transform duration-200 hover:scale-[1.06] active:scale-[0.98]">
+                    <span className="block h-full w-full transition-transform duration-200 hover:scale-[1.06] active:scale-[0.98]">
                       {starImage}
                     </span>
                   </button>
                 );
-              })()
-            ))}
+              })}
+            </div>
 
-            <img
-              src={content.look_model_image_url}
-              alt="GLAM editorial model"
-              className="absolute bottom-0 right-0 h-[85%] max-h-[560px] w-auto object-contain"
-            />
+            {/* Right: large model photo */}
+            <div className="flex items-end justify-center overflow-hidden">
+              <img
+                src={content.look_model_image_url}
+                alt="GLAM editorial model"
+                className="h-full max-h-[600px] w-full object-cover object-top"
+              />
+            </div>
           </div>
         </section>
+
 
         <section className="mx-auto max-w-7xl px-4 pb-14 sm:px-8 sm:pb-16 lg:px-12 lg:pb-24">
           <div className="flex flex-col items-center gap-4">
