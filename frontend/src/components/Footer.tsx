@@ -12,8 +12,10 @@ const primaryLinks = [
 ];
 
 const secondaryLinks = [
+  { label: 'ABOUT SPARK', to: '' },
+  { label: 'SOCIAL MEDIA', href: 'https://www.instagram.com/spark_stage55' },
+  { label: 'FIND YOUR STORE', href: 'https://www.google.com/maps/place/BiteGang/@-6.9078763,107.6183588,17z/data=!3m1!4b1!4m6!3m5!1s0x2e68e7fe9045c9d7:0xea636a5dfdf21b56!8m2!3d-6.9078763!4d107.6183588!16s%2Fg%2F11ytq8ph5m!18m1!1e1?entry=ttu&g_ep=EgoyMDI2MDMxNS4wIKXMDSoASAFQAw%3D%3D' },
   { label: 'CONTACT US', href: 'https://wa.me/6281558200089' },
-  { label: 'ABOUT', to: '/' },
 ];
 
 const linkClassName =
