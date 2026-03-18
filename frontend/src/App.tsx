@@ -19,6 +19,7 @@ const OnStage = lazy(() => import('./pages/OnStage'));
 const Shop = lazy(() => import('./pages/Shop'));
 const Events = lazy(() => import('./pages/Events'));
 const SparkClub = lazy(() => import('./pages/SparkClub'));
+const CharmBar = lazy(() => import('./pages/CharmBar'));
 const News = lazy(() => import('./pages/News'));
 const Login = lazy(() => import('./pages/Login'));
 const SignUp = lazy(() => import('./pages/SignUp'));
@@ -36,6 +37,7 @@ const BannerManager = lazy(() => import('./pages/admin/BannerManager'));
 const EventsScheduleManager = lazy(() => import('./pages/admin/EventsScheduleManager'));
 const EventPageManager = lazy(() => import('./pages/admin/EventPageManager'));
 const NewsPageManager = lazy(() => import('./pages/admin/NewsPageManager'));
+const CharmBarPageManager = lazy(() => import('./pages/admin/CharmBarPageManager'));
 const DressingRoomManager = lazy(() => import('./pages/admin/DressingRoomManager'));
 const BeautyPosterManager = lazy(() => import('./pages/admin/BeautyPosterManager'));
 const BookingPage = lazy(() => import('./pages/BookingPage'));
@@ -329,6 +331,18 @@ function AppRoutes() {
           }
         />
         <Route
+          path="/admin/charm-bar-page"
+          element={
+            wrap(
+              <ProtectedRoute adminOnly>
+                <Suspense fallback={<RouteLoading />}>
+                  <CharmBarPageManager />
+                </Suspense>
+              </ProtectedRoute>
+            )
+          }
+        />
+        <Route
           path="/admin/fashion"
           element={wrap(<Navigate to="/admin/dressing-room" replace />)}
         />
@@ -480,6 +494,20 @@ function AppRoutes() {
               wrap(
                 <Suspense fallback={<RouteLoading />}>
                   <SparkClub />
+                </Suspense>
+              )
+            }
+          />
+          <Route
+            path="chamr-bar"
+            element={wrap(<Navigate to="/charm-bar" replace />)}
+          />
+          <Route
+            path="charm-bar"
+            element={
+              wrap(
+                <Suspense fallback={<RouteLoading />}>
+                  <CharmBar />
                 </Suspense>
               )
             }

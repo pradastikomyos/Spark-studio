@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { PageTransition } from '../components/PageTransition';
-import { useNewsSettings } from '../hooks/useNewsSettings';
+import { DEFAULT_NEWS_PAGE_SETTINGS, useNewsSettings } from '../hooks/useNewsSettings';
 
 export default function News() {
   const { settings, isLoading } = useNewsSettings();
@@ -22,21 +22,7 @@ export default function News() {
     );
   }
 
-  const s = settings || {
-    section_1_category: 'FASHION',
-    section_1_title: 'HOW TO DRESS LIKE A STAR - GIRL?',
-    section_1_excerpt: 'FROM FEATHER TOPS TO SAINT LAURENT HAND BAGS.',
-    section_1_description: 'They\'re the ysl girlies, with black nails and smokey eyes, glitter lovers. Usually spotted in Upper East Side leaving a party or listening to the weeknd. Learn everything about their lifestyle.',
-    section_1_author: 'By Amélie Schiffer',
-    section_1_image: '',
-    section_2_title: 'SHE A COLD-HEARTED\nB!TCH WITH NO SHAME',
-    section_2_subtitle1: 'Escape from LA',
-    section_2_subtitle2: '(THE WEEKEND)',
-    section_2_quotes: 'SHE GOT\n*CHROME .. HEARTS*\nHANGIN\' FROM HER NECK',
-    section_2_image: '',
-    section_3_title: 'HER ESSENTIALS !',
-    section_3_products: []
-  };
+  const s = settings ?? DEFAULT_NEWS_PAGE_SETTINGS;
 
   return (
     <PageTransition>

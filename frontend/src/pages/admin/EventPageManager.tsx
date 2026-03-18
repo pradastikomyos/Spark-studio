@@ -4,7 +4,8 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '../../components/Toast';
 import { ADMIN_MENU_ITEMS, ADMIN_MENU_SECTIONS } from '../../constants/adminMenu';
 import { supabase } from '../../lib/supabase';
-import { useEventSettings, type ExperienceLink } from '../../hooks/useEventSettings';
+import { DEFAULT_EVENT_PAGE_SETTINGS, useEventSettings, type ExperienceLink } from '../../hooks/useEventSettings';
+import { slugify } from '../../utils/merchant';
 
 export default function EventPageManager() {
   const { signOut } = useAuth();
@@ -12,25 +13,23 @@ export default function EventPageManager() {
   const { settings, isLoading, updateSettings } = useEventSettings();
 
   const [saving, setSaving] = useState(false);
-  const [heroImages, setHeroImages] = useState<string[]>(Array(5).fill(''));
-  const [magicTitle, setMagicTitle] = useState('');
-  const [magicDescription, setMagicDescription] = useState('');
-  const [magicButtonText, setMagicButtonText] = useState('');
-  const [magicButtonLink, setMagicButtonLink] = useState('');
-  const [magicImage, setMagicImage] = useState('');
-  
-  const [experienceTitle, setExperienceTitle] = useState('');
-  const [experienceImages, setExperienceImages] = useState<string[]>(Array(3).fill(''));
-  const [experienceLinks, setExperienceLinks] = useState<ExperienceLink[]>(
-    Array(3).fill({ title: '', subtitle: '', link: '' })
-  );
+  const [heroImages, setHeroImages] = useState<string[]>(DEFAULT_EVENT_PAGE_SETTINGS.hero_images);
+  const [magicTitle, setMagicTitle] = useState(DEFAULT_EVENT_PAGE_SETTINGS.magic_title);
+  const [magicDescription, setMagicDescription] = useState(DEFAULT_EVENT_PAGE_SETTINGS.magic_description);
+  const [magicButtonText, setMagicButtonText] = useState(DEFAULT_EVENT_PAGE_SETTINGS.magic_button_text);
+  const [magicButtonLink, setMagicButtonLink] = useState(DEFAULT_EVENT_PAGE_SETTINGS.magic_button_link);
+  const [magicImage, setMagicImage] = useState(DEFAULT_EVENT_PAGE_SETTINGS.magic_images[0] || '');
+
+  const [experienceTitle, setExperienceTitle] = useState(DEFAULT_EVENT_PAGE_SETTINGS.experience_title);
+  const [experienceImages, setExperienceImages] = useState<string[]>(DEFAULT_EVENT_PAGE_SETTINGS.experience_images);
+  const [experienceLinks, setExperienceLinks] = useState<ExperienceLink[]>(DEFAULT_EVENT_PAGE_SETTINGS.experience_links);
 
   useEffect(() => {
     if (settings) {
       const loadedHero = settings.hero_images || [];
       setHeroImages(
-        loadedHero.length >= 5 
-          ? loadedHero 
+        loadedHero.length >= 5
+          ? loadedHero
           : Array(5).fill('').map((_, i) => loadedHero[i] || '')
       );
       setMagicTitle(settings.magic_title || '');
@@ -43,11 +42,21 @@ export default function EventPageManager() {
       setExperienceImages(
         Array(3).fill('').map((_, i) => settings.experience_images?.[i] || '')
       );
-      
+
       const parsedLinks = (settings.experience_links || []).slice(0, 3);
       setExperienceLinks(
         Array(3).fill({ title: '', subtitle: '', link: '' }).map((defaultLink, i) => parsedLinks[i] || defaultLink)
       );
+    } else {
+      setHeroImages(DEFAULT_EVENT_PAGE_SETTINGS.hero_images);
+      setMagicTitle(DEFAULT_EVENT_PAGE_SETTINGS.magic_title);
+      setMagicDescription(DEFAULT_EVENT_PAGE_SETTINGS.magic_description);
+      setMagicButtonText(DEFAULT_EVENT_PAGE_SETTINGS.magic_button_text);
+      setMagicButtonLink(DEFAULT_EVENT_PAGE_SETTINGS.magic_button_link);
+      setMagicImage(DEFAULT_EVENT_PAGE_SETTINGS.magic_images[0] || '');
+      setExperienceTitle(DEFAULT_EVENT_PAGE_SETTINGS.experience_title);
+      setExperienceImages(DEFAULT_EVENT_PAGE_SETTINGS.experience_images);
+      setExperienceLinks(DEFAULT_EVENT_PAGE_SETTINGS.experience_links);
     }
   }, [settings]);
 
@@ -63,7 +72,8 @@ export default function EventPageManager() {
         return;
       }
       const ext = file.name.split('.').pop() || 'jpg';
-      const fileName = `event-page-${Date.now()}-${Math.random().toString(36).substring(7)}.${ext}`;
+      const baseName = slugify(file.name.replace(/\.[^.]+$/, '')) || 'event-page-image';
+      const fileName = `event-page-${baseName}-${Date.now()}.${ext}`;
       const filePath = `settings/${fileName}`;
 
       showToast('success', 'Uploading image...');
@@ -107,9 +117,9 @@ export default function EventPageManager() {
     }
   };
 
-  if (isLoading) {
+  if (isLoading && !settings) {
     return (
-      <AdminLayout menuItems={ADMIN_MENU_ITEMS} menuSections={ADMIN_MENU_SECTIONS} defaultActiveMenuId="event-page-manager" title="Event Page CMS" subtitle="Loading..." onLogout={signOut}>
+      <AdminLayout menuItems={ADMIN_MENU_ITEMS} menuSections={ADMIN_MENU_SECTIONS} defaultActiveMenuId="event-page" title="Event Page CMS" subtitle="Loading..." onLogout={signOut}>
         <div className="animate-pulse bg-white p-6 rounded-2xl h-96"></div>
       </AdminLayout>
     );
@@ -162,7 +172,7 @@ export default function EventPageManager() {
     <AdminLayout
       menuItems={ADMIN_MENU_ITEMS}
       menuSections={ADMIN_MENU_SECTIONS}
-      defaultActiveMenuId="event-page-manager" // Not matching standard menus might just leave it untethered if missing
+      defaultActiveMenuId="event-page"
       title="Event Page CMS"
       subtitle="Manage portfolio layout on /events"
       onLogout={signOut}

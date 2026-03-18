@@ -1,4 +1,4 @@
-import { useEventSettings } from '../hooks/useEventSettings';
+import { DEFAULT_EVENT_PAGE_SETTINGS, useEventSettings } from '../hooks/useEventSettings';
 
 const Events = () => {
   const { settings, isLoading: settingsLoading } = useEventSettings();
@@ -11,35 +11,16 @@ const Events = () => {
     );
   }
 
-  // Fallback content if settings are empty/not configured
-  const heroImages = settings?.hero_images?.filter(Boolean) || [
-    'https://images.unsplash.com/photo-1511285560929-80b456fea0bc?auto=format&fit=crop&q=80',
-    'https://images.unsplash.com/photo-1519741497674-611481863552?auto=format&fit=crop&q=80',
-    'https://images.unsplash.com/photo-1541250848049-b4f7141fca3f?auto=format&fit=crop&q=80',
-    'https://images.unsplash.com/photo-1520854221256-17451cc331bf?auto=format&fit=crop&q=80',
-    'https://images.unsplash.com/photo-1515934751635-c81c6bc9a2d8?auto=format&fit=crop&q=80',
-  ];
-
-  const magicTitle = settings?.magic_title || 'CAPTURING your MAGIC MOMENT';
-  const magicDesc = settings?.magic_description || 'Hey, I\'m Jonny Lou, luxury and destination wedding photographer. I\'m a storyteller with a camera, capturing the magic of love in weddings and portraits. More than just wedding photos and portraits, I create lasting memories that celebrate the enduring power of love.';
-  const magicBtnText = settings?.magic_button_text || 'LEARN MORE';
-  const magicBtnLink = settings?.magic_button_link || '#';
-  const magicImages = settings?.magic_images?.filter(Boolean) || [
-    'https://images.unsplash.com/photo-1511285560929-80b456fea0bc?auto=format&fit=crop&q=80',
-  ];
-
-  const expTitle = settings?.experience_title || 'CHOOSE your EXPERIENCE';
-  const expImages = settings?.experience_images?.filter(Boolean) || [
-    'https://images.unsplash.com/photo-1519741497674-611481863552?auto=format&fit=crop&q=80',
-    'https://images.unsplash.com/photo-1541250848049-b4f7141fca3f?auto=format&fit=crop&q=80',
-    'https://images.unsplash.com/photo-1520854221256-17451cc331bf?auto=format&fit=crop&q=80',
-  ];
-  
-  const expLinks = settings?.experience_links || [
-    { title: '1.', subtitle: 'THE GALLERIES', link: '#' },
-    { title: '2.', subtitle: 'MY SERVICES', link: '#' },
-    { title: '3.', subtitle: 'CONTACT ME', link: '#' },
-  ];
+  const content = settings ?? DEFAULT_EVENT_PAGE_SETTINGS;
+  const heroImages = content.hero_images.filter(Boolean);
+  const magicTitle = content.magic_title;
+  const magicDesc = content.magic_description;
+  const magicBtnText = content.magic_button_text;
+  const magicBtnLink = content.magic_button_link;
+  const magicImages = content.magic_images.filter(Boolean);
+  const expTitle = content.experience_title;
+  const expImages = content.experience_images.filter(Boolean);
+  const expLinks = content.experience_links;
 
   return (
     <div className="bg-[#fcfcf9] min-h-screen text-gray-900 selection:bg-primary/20">

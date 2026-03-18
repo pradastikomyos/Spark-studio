@@ -4,9 +4,10 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '../../components/Toast';
 import { ADMIN_MENU_ITEMS, ADMIN_MENU_SECTIONS } from '../../constants/adminMenu';
 import { supabase } from '../../lib/supabase';
-import { useNewsSettings, type NewsProduct } from '../../hooks/useNewsSettings';
+import { DEFAULT_NEWS_PAGE_SETTINGS, useNewsSettings, type NewsProduct } from '../../hooks/useNewsSettings';
 import { useProducts, type Product } from '../../hooks/useProducts';
 import { formatCurrency } from '../../utils/formatters';
+import { slugify } from '../../utils/merchant';
 
 function ProductSearchComboBox({ products, onSelect }: { products: Product[], onSelect: (id: string) => void }) {
   const [searchTerm, setSearchTerm] = useState('');
@@ -103,25 +104,25 @@ export default function NewsPageManager() {
   const { data: allProducts, isLoading: isLoadingProducts } = useProducts();
 
   const [saving, setSaving] = useState(false);
-  
+
   // Section 1
-  const [s1Category, setS1Category] = useState('FASHION');
-  const [s1Title, setS1Title] = useState('');
-  const [s1Excerpt, setS1Excerpt] = useState('');
-  const [s1Description, setS1Description] = useState('');
-  const [s1Author, setS1Author] = useState('');
-  const [s1Image, setS1Image] = useState('');
+  const [s1Category, setS1Category] = useState(DEFAULT_NEWS_PAGE_SETTINGS.section_1_category);
+  const [s1Title, setS1Title] = useState(DEFAULT_NEWS_PAGE_SETTINGS.section_1_title);
+  const [s1Excerpt, setS1Excerpt] = useState(DEFAULT_NEWS_PAGE_SETTINGS.section_1_excerpt);
+  const [s1Description, setS1Description] = useState(DEFAULT_NEWS_PAGE_SETTINGS.section_1_description);
+  const [s1Author, setS1Author] = useState(DEFAULT_NEWS_PAGE_SETTINGS.section_1_author);
+  const [s1Image, setS1Image] = useState(DEFAULT_NEWS_PAGE_SETTINGS.section_1_image);
 
   // Section 2
-  const [s2Title, setS2Title] = useState('');
-  const [s2Subtitle1, setS2Subtitle1] = useState('');
-  const [s2Subtitle2, setS2Subtitle2] = useState('');
-  const [s2Quotes, setS2Quotes] = useState('');
-  const [s2Image, setS2Image] = useState('');
+  const [s2Title, setS2Title] = useState(DEFAULT_NEWS_PAGE_SETTINGS.section_2_title);
+  const [s2Subtitle1, setS2Subtitle1] = useState(DEFAULT_NEWS_PAGE_SETTINGS.section_2_subtitle1);
+  const [s2Subtitle2, setS2Subtitle2] = useState(DEFAULT_NEWS_PAGE_SETTINGS.section_2_subtitle2);
+  const [s2Quotes, setS2Quotes] = useState(DEFAULT_NEWS_PAGE_SETTINGS.section_2_quotes);
+  const [s2Image, setS2Image] = useState(DEFAULT_NEWS_PAGE_SETTINGS.section_2_image);
 
   // Section 3
-  const [s3Title, setS3Title] = useState('');
-  const [s3Products, setS3Products] = useState<NewsProduct[]>([]);
+  const [s3Title, setS3Title] = useState(DEFAULT_NEWS_PAGE_SETTINGS.section_3_title);
+  const [s3Products, setS3Products] = useState<NewsProduct[]>(DEFAULT_NEWS_PAGE_SETTINGS.section_3_products);
 
   useEffect(() => {
     if (settings) {
@@ -140,6 +141,20 @@ export default function NewsPageManager() {
 
       setS3Title(settings.section_3_title || '');
       setS3Products(settings.section_3_products || []);
+    } else {
+      setS1Category(DEFAULT_NEWS_PAGE_SETTINGS.section_1_category);
+      setS1Title(DEFAULT_NEWS_PAGE_SETTINGS.section_1_title);
+      setS1Excerpt(DEFAULT_NEWS_PAGE_SETTINGS.section_1_excerpt);
+      setS1Description(DEFAULT_NEWS_PAGE_SETTINGS.section_1_description);
+      setS1Author(DEFAULT_NEWS_PAGE_SETTINGS.section_1_author);
+      setS1Image(DEFAULT_NEWS_PAGE_SETTINGS.section_1_image);
+      setS2Title(DEFAULT_NEWS_PAGE_SETTINGS.section_2_title);
+      setS2Subtitle1(DEFAULT_NEWS_PAGE_SETTINGS.section_2_subtitle1);
+      setS2Subtitle2(DEFAULT_NEWS_PAGE_SETTINGS.section_2_subtitle2);
+      setS2Quotes(DEFAULT_NEWS_PAGE_SETTINGS.section_2_quotes);
+      setS2Image(DEFAULT_NEWS_PAGE_SETTINGS.section_2_image);
+      setS3Title(DEFAULT_NEWS_PAGE_SETTINGS.section_3_title);
+      setS3Products(DEFAULT_NEWS_PAGE_SETTINGS.section_3_products);
     }
   }, [settings]);
 
@@ -155,7 +170,8 @@ export default function NewsPageManager() {
         return;
       }
       const ext = file.name.split('.').pop() || 'jpg';
-      const fileName = `news-page-${Date.now()}-${Math.random().toString(36).substring(7)}.${ext}`;
+      const baseName = slugify(file.name.replace(/\.[^.]+$/, '')) || 'news-page-image';
+      const fileName = `news-page-${baseName}-${Date.now()}.${ext}`;
       const filePath = `settings/${fileName}`;
 
       showToast('success', 'Uploading image...');
@@ -248,7 +264,7 @@ export default function NewsPageManager() {
     setS3Products(newProducts);
   };
 
-  if (isLoading || isLoadingProducts) {
+  if ((isLoading && !settings) || isLoadingProducts) {
     return (
       <AdminLayout menuItems={ADMIN_MENU_ITEMS} menuSections={ADMIN_MENU_SECTIONS} defaultActiveMenuId="news-page" title="News Page CMS" subtitle="Loading..." onLogout={signOut}>
         <div className="animate-pulse bg-white p-6 rounded-2xl h-96"></div>
