@@ -70,16 +70,10 @@ const Events = () => {
         {/* 2. Capturing Magic Moment Section */}
         <section className="flex flex-col md:flex-row items-center gap-12 md:gap-24 mb-32">
           <div className="flex-1 max-w-xl">
-            <h1 className="font-display text-4xl md:text-5xl lg:text-6xl text-gray-800 leading-tight mb-8">
-              {magicTitle.split(' ').map((word, i) => {
-                // simple heuristic to make some words italic like the sketch
-                const isItalic = word.toLowerCase() === 'your' || word.toLowerCase() === 'magic';
-                return (
-                  <span key={i} className={isItalic ? 'italic font-light' : 'font-normal'}>
-                    {word}{' '}
-                  </span>
-                );
-              })}
+            <h1 
+              className="font-script text-5xl sm:text-6xl lg:text-7xl text-gray-800 leading-none mb-8 whitespace-pre-line"
+            >
+              {magicTitle.toLowerCase() === 'every moment deserves to spark' ? 'Every moment\ndeserves to Spark' : magicTitle}
             </h1>
             <p className="text-gray-500 text-sm md:text-base leading-relaxed mb-10 font-light">
               {magicDesc}
