@@ -1,13 +1,19 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useCallback, useDeferredValue, useEffect, useMemo, useState } from 'react';
 import { AnimatePresence, motion, type PanInfo } from 'framer-motion';
+import { ChevronLeft, ChevronRight, Search } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { PageTransition } from '../components/PageTransition';
 import LookProductSidebar from '../components/dressing-room/LookProductSidebar';
 import { DRESSING_ROOM_DEMO } from '../mock/dressingRoomDemo';
+import { useCategories } from '../hooks/useCategories';
 import { useDressingRoomCollection, type DressingRoomLook as DBLook } from '../hooks/useDressingRoomCollection';
+import { useProducts } from '../hooks/useProducts';
 import { getOptimizedDressingRoomImageUrl, normalizeDressingRoomImageUrl } from '../utils/dressingRoomImageUrl';
+import { formatCurrency } from '../utils/formatters';
 
 const SPRING = { type: 'spring' as const, stiffness: 320, damping: 34 };
 const VISIBLE_AHEAD = 3;
+const PRODUCTS_PER_PAGE = 6;
 
 // Stacked carousel transform (same as admin panel)
 function getModelTransform(offset: number, containerWidth: number) {
@@ -99,6 +105,13 @@ export default function DressingRoomLandingPage() {
     setCarouselIndex((i) => Math.max(0, i - 1));
   };
 
+  const scrollToCatalog = () => {
+    const element = document.getElementById('fashion-catalog');
+    if (element) {
+      element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  };
+
   return (
     <PageTransition>
       <div className="bg-white">
@@ -118,6 +131,7 @@ export default function DressingRoomLandingPage() {
               <div className="flex md:justify-end">
                 <button
                   type="button"
+                  onClick={scrollToCatalog}
                   className="px-6 py-3 text-sm font-bold uppercase tracking-wider border border-gray-500 bg-white hover:bg-gray-50 transition-colors"
                 >
                   FIND YOUR VIBE
@@ -198,6 +212,8 @@ export default function DressingRoomLandingPage() {
         {displayLooks.map((look) => (
           <LookDetailSection key={look.lookNumber} look={look} dbLook={dbLooks.find(l => l.look_number === look.lookNumber)} />
         ))}
+
+        <FashionCatalogSection />
       </div>
     </PageTransition>
   );
@@ -206,6 +222,159 @@ export default function DressingRoomLandingPage() {
 interface LookDetailSectionProps {
   look: DisplayLook;
   dbLook?: DBLook;
+}
+
+function FashionCatalogSection() {
+  const { data: products = [], isLoading: productsLoading, error: productsError } = useProducts();
+  const { data: categories = [], isLoading: categoriesLoading, error: categoriesError } = useCategories();
+  const [searchQuery, setSearchQuery] = useState('');
+  const [page, setPage] = useState(1);
+  const deferredSearchQuery = useDeferredValue(searchQuery);
+
+  useEffect(() => {
+    setPage(1);
+  }, [deferredSearchQuery]);
+
+  const fashionCategorySlugs = useMemo(() => {
+    const fashionParent = categories.find((category) => category.slug === 'fashion');
+    if (!fashionParent) return new Set(['fashion']);
+
+    const next = new Set<string>(['fashion']);
+    categories
+      .filter((category) => category.parent_id === fashionParent.id)
+      .forEach((category) => {
+        next.add(category.slug);
+      });
+
+    return next;
+  }, [categories]);
+
+  const fashionProducts = useMemo(() => {
+    return products.filter((product) => {
+      const slug = product.categorySlug?.toLowerCase();
+      return slug != null && fashionCategorySlugs.has(slug);
+    });
+  }, [products, fashionCategorySlugs]);
+
+  const normalizedQuery = deferredSearchQuery.trim().toLowerCase();
+  const filteredProducts = useMemo(() => {
+    return fashionProducts.filter((product) => {
+      if (!normalizedQuery) return true;
+      return (
+        product.name.toLowerCase().includes(normalizedQuery) ||
+        product.description.toLowerCase().includes(normalizedQuery)
+      );
+    });
+  }, [fashionProducts, normalizedQuery]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredProducts.length / PRODUCTS_PER_PAGE));
+  const currentPage = Math.min(page, totalPages);
+  const paginatedProducts = filteredProducts.slice(
+    (currentPage - 1) * PRODUCTS_PER_PAGE,
+    currentPage * PRODUCTS_PER_PAGE
+  );
+  const isCatalogLoading = (productsLoading || categoriesLoading) && products.length === 0;
+  const hasCatalogError = productsError instanceof Error || categoriesError instanceof Error;
+
+  return (
+    <section id="fashion-catalog" className="border-b border-gray-300 bg-[#fcfaf7]">
+      <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 sm:py-20 lg:px-8">
+        <div className="flex flex-col items-center text-center">
+          <p className="text-[10px] font-bold uppercase tracking-[0.32em] text-gray-500 sm:text-xs">
+            All fashion categories
+          </p>
+          <h2 className="mt-4 font-serif text-4xl italic text-gray-900 sm:text-5xl">
+            Choose your Experience
+          </h2>
+          <label className="relative mt-8 w-full max-w-md">
+            <Search className="pointer-events-none absolute left-5 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              placeholder="Search fashion..."
+              className="w-full rounded-full border border-gray-300 bg-white py-3.5 pl-12 pr-6 text-sm text-gray-800 outline-none transition-colors focus:border-gray-700"
+            />
+          </label>
+        </div>
+
+        <div className="mt-12 grid grid-cols-2 gap-4 sm:gap-6 lg:grid-cols-3">
+          {paginatedProducts.map((product) => (
+            <Link
+              key={product.id}
+              to={`/shop/product/${product.id}`}
+              className="group border border-gray-200 bg-white text-left transition-transform duration-200 hover:-translate-y-1 hover:shadow-[0_18px_40px_rgba(0,0,0,0.08)]"
+            >
+              <div className="aspect-[3/4] overflow-hidden bg-[#f5f1ec]">
+                {product.image ? (
+                  <img
+                    src={product.image}
+                    alt={product.name}
+                    className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.02]"
+                    loading="lazy"
+                  />
+                ) : (
+                  <div className="flex h-full items-center justify-center text-gray-300">
+                    <span className="material-symbols-outlined text-3xl">{product.placeholder}</span>
+                  </div>
+                )}
+              </div>
+              <div className="px-4 py-4">
+                <h3 className="text-sm font-semibold leading-tight text-gray-900 sm:text-base">
+                  {product.name}
+                </h3>
+                <p className="mt-2 text-xs font-bold uppercase tracking-[0.12em] text-[#b55a6a] sm:text-sm">
+                  {formatCurrency(product.price)}
+                </p>
+              </div>
+            </Link>
+          ))}
+        </div>
+
+        {!isCatalogLoading && filteredProducts.length === 0 ? (
+          <div className="mt-10 border border-dashed border-gray-300 px-6 py-12 text-center text-sm text-gray-500">
+            No fashion products match your search yet.
+          </div>
+        ) : null}
+
+        {isCatalogLoading ? (
+          <div className="mt-10 text-center text-sm text-gray-500">Loading fashion catalog...</div>
+        ) : null}
+
+        {hasCatalogError ? (
+          <div className="mt-8 text-center text-sm text-red-600">
+            Fashion catalog failed to load. Dressing Room content is still available.
+          </div>
+        ) : null}
+
+        {filteredProducts.length > 0 ? (
+          <div className="mt-10 flex items-center justify-center gap-6">
+            <button
+              type="button"
+              onClick={() => setPage((prev) => Math.max(1, prev - 1))}
+              disabled={currentPage === 1}
+              className="rounded-full border border-gray-300 p-2 transition-colors hover:bg-gray-100 disabled:opacity-30 disabled:hover:bg-transparent"
+              aria-label="Previous page"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </button>
+            <span className="text-xs font-medium tracking-[0.2em] text-gray-500">
+              {currentPage} / {totalPages}
+            </span>
+            <button
+              type="button"
+              onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
+              disabled={currentPage === totalPages}
+              className="rounded-full border border-gray-300 p-2 transition-colors hover:bg-gray-100 disabled:opacity-30 disabled:hover:bg-transparent"
+              aria-label="Next page"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </button>
+          </div>
+        ) : null}
+      </div>
+    </section>
+  );
 }
 
 function LookDetailSection({ look, dbLook }: LookDetailSectionProps) {
