@@ -15,8 +15,6 @@ const Navbar = () => {
   // spacer is needed because more items fit on screen.
   const mobileEdgeSpacerWidth = 'max(34vw, calc(50vw - 53px))';
   const tabletEdgeSpacerWidth = 'max(18vw, calc(50vw - 180px))';
-  const narrowPhoneMaxWidth = 430;
-  const narrowPhoneTrailingInset = 52;
   const { t, i18n } = useTranslation();
   const { user, signOut, isAdmin, loggingOut } = useAuth();
   const { count: ticketCount } = useTicketCount();
@@ -32,10 +30,7 @@ const Navbar = () => {
   const desktopNavItemsRef = useRef<(HTMLAnchorElement | null)[]>([]);
   const mobileNavItemsRef = useRef<(HTMLAnchorElement | null)[]>([]);
   const mobileNavScrollerRef = useRef<HTMLDivElement | null>(null);
-  const pointerStartRef = useRef<{ id: number; x: number; y: number } | null>(null);
-  const hasNavigatedThisGestureRef = useRef(false);
   const hasCenteredMobileItemRef = useRef(false);
-
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 8);
     onScroll();
@@ -102,11 +97,10 @@ const Navbar = () => {
       const s = mobileNavScrollerRef.current;
       const a = mobileNavItemsRef.current[activeIndex];
       if (!s || !a) return;
+
       const maxScrollLeft = Math.max(0, s.scrollWidth - s.clientWidth);
       const centeredLeft = a.offsetLeft - ((s.clientWidth - a.offsetWidth) / 2);
-      const rightBiasedLeft = a.offsetLeft + a.offsetWidth - s.clientWidth + narrowPhoneTrailingInset;
-      const targetLeft = s.clientWidth <= narrowPhoneMaxWidth ? rightBiasedLeft : centeredLeft;
-      const clampedLeft = Math.min(maxScrollLeft, Math.max(0, targetLeft));
+      const clampedLeft = Math.min(maxScrollLeft, Math.max(0, centeredLeft));
       try {
         s.scrollTo({ left: clampedLeft, behavior });
       } catch {
@@ -136,44 +130,6 @@ const Navbar = () => {
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
   }, [centerMobileActiveItem, updateDesktopStarPosition]);
-
-  const handleMobilePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
-    if (event.pointerType !== 'touch') return;
-    pointerStartRef.current = { id: event.pointerId, x: event.clientX, y: event.clientY };
-    hasNavigatedThisGestureRef.current = false;
-  };
-
-  const handleMobilePointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
-    const start = pointerStartRef.current;
-    if (!start) return;
-    if (event.pointerType !== 'touch') return;
-    if (hasNavigatedThisGestureRef.current) return;
-    if (event.pointerId !== start.id) return;
-
-    const deltaX = event.clientX - start.x;
-    const deltaY = event.clientY - start.y;
-
-    if (Math.abs(deltaX) < 48) return;
-    // Keep vertical scroll feeling natural; only act on clearly horizontal swipes.
-    if (Math.abs(deltaX) <= Math.abs(deltaY) + 12) return;
-
-    const direction = deltaX < 0 ? 1 : -1;
-    const nextIndex = activeIndex + direction;
-    if (nextIndex < 0 || nextIndex >= navItems.length) return;
-
-    hasNavigatedThisGestureRef.current = true;
-    pointerStartRef.current = null;
-    event.preventDefault();
-    navigate(navItems[nextIndex].to);
-  };
-
-  const handleMobilePointerEnd = (event: React.PointerEvent<HTMLDivElement>) => {
-    const start = pointerStartRef.current;
-    if (!start) return;
-    if (event.pointerType !== 'touch') return;
-    if (event.pointerId !== start.id) return;
-    pointerStartRef.current = null;
-  };
 
   const handleMobileLanguageToggle = () => {
     void i18n.changeLanguage(isIndonesian ? 'en' : 'id');
@@ -392,15 +348,24 @@ const Navbar = () => {
 
       <div className="lg:hidden">
         <div
-          className="relative flex items-center justify-center min-h-[92px] py-2 sm:min-h-[96px] md:min-h-[104px]"
-          onPointerDown={handleMobilePointerDown}
-          onPointerMove={handleMobilePointerMove}
-          onPointerUp={handleMobilePointerEnd}
-          onPointerCancel={handleMobilePointerEnd}
+          className="relative flex items-center justify-center min-h-[92px] overflow-hidden py-2 sm:min-h-[96px] md:min-h-[104px]"
         >
           <div
+            className="pointer-events-none absolute left-1/2 top-1/2 z-0 -translate-x-1/2 -translate-y-1/2"
+            aria-hidden
+          >
+            <span className="animate-nav-star-breathe block h-[72px] w-[72px] sm:h-[84px] sm:w-[84px] md:h-[92px] md:w-[92px]">
+              <img
+                src="/images/landing/ICON%20STAR-01.svg"
+                alt=""
+                className="h-full w-full object-contain"
+              />
+            </span>
+          </div>
+
+          <div
             ref={mobileNavScrollerRef}
-            className="w-full relative z-10 flex items-center py-8 overflow-x-auto scroll-smooth snap-x snap-proximity [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+            className="relative z-10 flex w-full items-center overflow-x-auto py-8 scroll-smooth snap-x snap-mandatory [overscroll-behavior-x:contain] [scrollbar-width:none] [touch-action:pan-x] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
             style={{ WebkitOverflowScrolling: 'touch' }}
           >
             <div
@@ -424,17 +389,6 @@ const Navbar = () => {
                   className={`relative z-10 shrink-0 snap-center min-w-[106px] md:min-w-[120px] text-center text-xs md:text-sm font-semibold uppercase px-3 md:px-4 py-2 mx-0.5 transition-all duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${isActive ? 'text-white drop-shadow-[0_2px_6px_rgba(0,0,0,0.18)] -translate-y-[1px] scale-[1.03]' : 'text-gray-600 active:text-gray-900'
                     }`}
                 >
-                  {isActive && (
-                    <span className="pointer-events-none absolute left-1/2 top-1/2 -z-10 -translate-x-1/2 -translate-y-1/2" aria-hidden>
-                      <span className="animate-nav-star-breathe block h-[72px] w-[72px] sm:h-[84px] sm:w-[84px] md:h-[92px] md:w-[92px]">
-                        <img
-                          src="/images/landing/ICON%20STAR-01.svg"
-                          alt=""
-                          className="h-full w-full object-contain"
-                        />
-                      </span>
-                    </span>
-                  )}
                   <span className="relative z-10 block">
                     {renderNavItemLabel(item)}
                   </span>
