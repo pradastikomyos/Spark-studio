@@ -199,8 +199,8 @@ export function getBookingBufferTime(bufferMinutes: number = 30): Date {
  * 
  * Example:
  * - Session: 18:00-20:30 (2.5 hours)
- * - Current: 18:15 → ✅ Bookable (session ends at 20:30)
- * - Current: 20:35 → ❌ Not bookable (session ended)
+ * - Current: 18:15 → Bookable (session ends at 20:30)
+ * - Current: 20:35 → Not bookable (session ended)
  */
 export function isTimeSlotBookable(
   dateString: string,
