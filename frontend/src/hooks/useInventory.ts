@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
-import { APIError, createQuerySignal } from '../lib/fetchers';
+import { APIError, createQuerySignal, supabasePaginatedFetcher } from '../lib/fetchers';
 import { queryKeys } from '../lib/queryKeys';
 
 type ProductVariantRow = {
@@ -158,38 +158,24 @@ async function fetchAllInventoryProducts(
   signal: AbortSignal,
   filters: InventoryListFilters
 ): Promise<{ data: ProductRow[] | null; error: unknown }> {
-  const products: ProductRow[] = [];
-  let from = 0;
+  try {
+    const products = await supabasePaginatedFetcher<ProductRow>((from, to) => {
+      let query = supabase
+        .from('products')
+        .select(INVENTORY_PRODUCTS_SELECT)
+        .abortSignal(signal)
+        .is('deleted_at', null)
+        .order('name', { ascending: true })
+        .order('id', { ascending: true })
+        .range(from, to);
+      query = applyInventoryFilters(query, filters);
+      return query;
+    }, INVENTORY_FULL_SCAN_PAGE_SIZE);
 
-  // PostgREST responses are capped; fetch products in pages to avoid silent truncation.
-  while (true) {
-    const to = from + INVENTORY_FULL_SCAN_PAGE_SIZE - 1;
-    let query = supabase
-      .from('products')
-      .select(INVENTORY_PRODUCTS_SELECT)
-      .abortSignal(signal)
-      .is('deleted_at', null)
-      .order('name', { ascending: true })
-      .order('id', { ascending: true })
-      .range(from, to);
-    query = applyInventoryFilters(query, filters);
-    const { data, error } = await query;
-
-    if (error) {
-      return { data: null, error };
-    }
-
-    const chunk = (data || []) as unknown as ProductRow[];
-    products.push(...chunk);
-
-    if (chunk.length < INVENTORY_FULL_SCAN_PAGE_SIZE) {
-      break;
-    }
-
-    from += INVENTORY_FULL_SCAN_PAGE_SIZE;
+    return { data: products, error: null };
+  } catch (error) {
+    return { data: null, error };
   }
-
-  return { data: products, error: null };
 }
 
 async function fetchInventoryPage(

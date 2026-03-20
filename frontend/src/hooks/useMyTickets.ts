@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
-import { supabaseAuthFetcher, createQuerySignal } from '../lib/fetchers';
+import { supabaseAuthPaginatedFetcher, createQuerySignal } from '../lib/fetchers';
 import { useEffect } from 'react';
 import { queryKeys } from '../lib/queryKeys';
 
@@ -48,31 +48,35 @@ export function useMyTickets(userId: string | null | undefined) {
     queryFn: async ({ signal }) => {
       const { signal: timeoutSignal, cleanup, didTimeout } = createQuerySignal(signal);
       try {
-        const rows = await supabaseAuthFetcher<PurchasedTicketRow>(async (sig) =>
-          supabase
-            .from('purchased_tickets')
-            .select(
+        const rows = await supabaseAuthPaginatedFetcher<PurchasedTicketRow>(
+          (from, to, sig) =>
+            supabase
+              .from('purchased_tickets')
+              .select(
+                `
+                id,
+                ticket_code,
+                ticket_id,
+                valid_date,
+                time_slot,
+                queue_number,
+                queue_overflow,
+                status,
+                created_at,
+                tickets:ticket_id (
+                  name,
+                  type,
+                  description
+                )
               `
-              id,
-              ticket_code,
-              ticket_id,
-              valid_date,
-              time_slot,
-              queue_number,
-              queue_overflow,
-              status,
-              created_at,
-              tickets:ticket_id (
-                name,
-                type,
-                description
               )
-            `
-            )
-            .abortSignal(sig ?? timeoutSignal)
-            .eq('user_id', userId)
-            .order('created_at', { ascending: false })
-        , timeoutSignal);
+              .abortSignal(sig ?? timeoutSignal)
+              .eq('user_id', userId)
+              .order('created_at', { ascending: false })
+              .range(from, to),
+          timeoutSignal,
+          500
+        );
         return rows.map((ticket) => {
           const ticketMeta = Array.isArray(ticket.tickets) ? ticket.tickets[0] : ticket.tickets;
           return {

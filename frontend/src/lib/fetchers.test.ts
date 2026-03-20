@@ -1,5 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { supabaseFetcher, supabaseListFetcher, supabaseSingleFetcher, supabaseAuthFetcher, APIError } from './fetchers';
+import {
+  supabaseFetcher,
+  supabasePaginatedFetcher,
+  supabaseListFetcher,
+  supabaseSingleFetcher,
+  supabaseAuthFetcher,
+  supabaseAuthPaginatedFetcher,
+  APIError,
+} from './fetchers';
 import { supabase } from './supabase';
 
 // Mock the supabase client
@@ -147,6 +155,39 @@ describe('Fetcher Functions', () => {
       vi.mocked(supabase.from).mockReturnValue(mockFrom() as any);
 
       await expect(supabaseListFetcher('products')).rejects.toThrow('Database error');
+    });
+  });
+
+  describe('supabasePaginatedFetcher', () => {
+    it('should fetch all pages until the final partial batch', async () => {
+      const queryPage = vi
+        .fn()
+        .mockResolvedValueOnce({ data: [{ id: 1 }, { id: 2 }], error: null })
+        .mockResolvedValueOnce({ data: [{ id: 3 }], error: null });
+
+      const result = await supabasePaginatedFetcher(queryPage, 2);
+
+      expect(queryPage).toHaveBeenNthCalledWith(1, 0, 1);
+      expect(queryPage).toHaveBeenNthCalledWith(2, 2, 3);
+      expect(result).toEqual([{ id: 1 }, { id: 2 }, { id: 3 }]);
+    });
+
+    it('should stop after the first page when the result is smaller than the page size', async () => {
+      const queryPage = vi.fn().mockResolvedValue({ data: [{ id: 1 }], error: null });
+
+      const result = await supabasePaginatedFetcher(queryPage, 1000);
+
+      expect(queryPage).toHaveBeenCalledTimes(1);
+      expect(result).toEqual([{ id: 1 }]);
+    });
+
+    it('should throw APIError when a page fails', async () => {
+      const queryPage = vi.fn().mockResolvedValue({
+        data: null,
+        error: { code: 'PGRST000', message: 'Database error' },
+      });
+
+      await expect(supabasePaginatedFetcher(queryPage, 1000)).rejects.toThrow('Database error');
     });
   });
 
@@ -334,6 +375,37 @@ describe('Fetcher Functions', () => {
       });
 
       await expect(supabaseAuthFetcher(mockQuery)).rejects.toThrow('Query error');
+    });
+  });
+
+  describe('supabaseAuthPaginatedFetcher', () => {
+    it('should require a session before fetching pages', async () => {
+      vi.mocked(supabase.auth.getSession).mockResolvedValue({
+        data: { session: null },
+        error: null,
+      } as any);
+
+      await expect(
+        supabaseAuthPaginatedFetcher(async () => ({ data: [], error: null }))
+      ).rejects.toThrow('Unauthorized');
+    });
+
+    it('should fetch all pages when authenticated', async () => {
+      vi.mocked(supabase.auth.getSession).mockResolvedValue({
+        data: { session: { access_token: 'token' } },
+        error: null,
+      } as any);
+
+      const queryPage = vi
+        .fn()
+        .mockResolvedValueOnce({ data: [{ id: 1 }, { id: 2 }], error: null })
+        .mockResolvedValueOnce({ data: [{ id: 3 }], error: null });
+
+      const result = await supabaseAuthPaginatedFetcher(queryPage, undefined, 2);
+
+      expect(queryPage).toHaveBeenNthCalledWith(1, 0, 1, undefined);
+      expect(queryPage).toHaveBeenNthCalledWith(2, 2, 3, undefined);
+      expect(result).toEqual([{ id: 1 }, { id: 2 }, { id: 3 }]);
     });
   });
 });

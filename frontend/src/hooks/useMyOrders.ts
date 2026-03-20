@@ -1,12 +1,28 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
-import { supabaseAuthFetcher, createQuerySignal } from '../lib/fetchers';
+import { supabaseAuthPaginatedFetcher, createQuerySignal } from '../lib/fetchers';
 import { useEffect } from 'react';
 import { queryKeys } from '../lib/queryKeys';
 import type { ProductOrderItem, ProductOrderListItem } from '../pages/product-orders/types';
 
 export type OrderItem = ProductOrderItem;
 export type ProductOrder = ProductOrderListItem;
+
+type OrderRow = {
+  id: number;
+  order_number: string;
+  channel: string;
+  payment_status: string;
+  status: string;
+  pickup_code: string | null;
+  pickup_status: string | null;
+  pickup_expires_at: string | null;
+  paid_at: string | null;
+  voucher_code: string | null;
+  discount_amount: number | null;
+  total: number;
+  created_at: string;
+};
 
 type OrderItemRow = {
   id: number;
@@ -34,89 +50,93 @@ export function useMyOrders(userId: string | null | undefined) {
     queryFn: async ({ signal }) => {
       const { signal: timeoutSignal, cleanup, didTimeout } = createQuerySignal(signal);
       try {
-        const orders = await supabaseAuthFetcher(async (sig) =>
-        supabase
-          .from('order_products')
-          .select(
-            `
-            id,
-            order_number,
-            channel,
-            payment_status,
-            status,
-            pickup_code,
-            pickup_status,
-            pickup_expires_at,
-            paid_at,
-            voucher_code,
-            discount_amount,
-            total,
-            created_at
-          `
-          )
-          .abortSignal(sig ?? timeoutSignal)
-          .eq('user_id', userId)
-          .order('created_at', { ascending: false })
-      , timeoutSignal);
-
-      const ordersWithItems = await Promise.all(
-        (orders || []).map(async (order) => {
-          const { data: itemsData } = await supabase
-            .from('order_product_items')
-            .select(
+        const orders = await supabaseAuthPaginatedFetcher<OrderRow>(
+          (from, to, sig) =>
+            supabase
+              .from('order_products')
+              .select(
+                `
+                id,
+                order_number,
+                channel,
+                payment_status,
+                status,
+                pickup_code,
+                pickup_status,
+                pickup_expires_at,
+                paid_at,
+                voucher_code,
+                discount_amount,
+                total,
+                created_at
               `
-              id,
-              quantity,
-              price,
-              subtotal,
-              product_variants (
-                name,
-                product_id,
-                products (
+              )
+              .abortSignal(sig ?? timeoutSignal)
+              .eq('user_id', userId)
+              .order('created_at', { ascending: false })
+              .range(from, to),
+          timeoutSignal,
+          500
+        );
+
+        const ordersWithItems = await Promise.all(
+          orders.map(async (order) => {
+            const { data: itemsData } = await supabase
+              .from('order_product_items')
+              .select(
+                `
+                id,
+                quantity,
+                price,
+                subtotal,
+                product_variants (
                   name,
-                  image_url,
-                  product_images (
+                  product_id,
+                  products (
+                    name,
                     image_url,
-                    is_primary
+                    product_images (
+                      image_url,
+                      is_primary
+                    )
                   )
                 )
+              `
               )
-            `
-            )
-            .abortSignal(timeoutSignal)
-            .eq('order_product_id', order.id);
+              .abortSignal(timeoutSignal)
+              .eq('order_product_id', order.id);
 
-          const items: ProductOrderItem[] = ((itemsData as OrderItemRow[] | null) || []).map((item) => {
-            const product = item.product_variants?.products;
-            // Try to get image: 1) products.image_url, 2) primary product_image, 3) first product_image
-            let imageUrl: string | undefined = product?.image_url || undefined;
-            
-            if (!imageUrl && product?.product_images && Array.isArray(product.product_images)) {
-              const primaryImage = product.product_images.find((img) => img.is_primary);
-              imageUrl = primaryImage?.image_url || product.product_images[0]?.image_url || undefined;
-            }
+            const items: ProductOrderItem[] = ((itemsData as OrderItemRow[] | null) || []).map((item) => {
+              const product = item.product_variants?.products;
+              // Try to get image: 1) products.image_url, 2) primary product_image, 3) first product_image
+              let imageUrl: string | undefined = product?.image_url || undefined;
+              
+              if (!imageUrl && product?.product_images && Array.isArray(product.product_images)) {
+                const primaryImage = product.product_images.find((img) => img.is_primary);
+                imageUrl = primaryImage?.image_url || product.product_images[0]?.image_url || undefined;
+              }
 
+              return {
+                id: item.id,
+                quantity: item.quantity,
+                price: item.price,
+                subtotal: item.subtotal,
+                productName: product?.name || 'Product',
+                variantName: item.product_variants?.name || 'Variant',
+                imageUrl,
+              };
+            });
+
+            const itemCount = items.reduce((sum, item) => sum + item.quantity, 0);
             return {
-              id: item.id,
-              quantity: item.quantity,
-              price: item.price,
-              subtotal: item.subtotal,
-              productName: product?.name || 'Product',
-              variantName: item.product_variants?.name || 'Variant',
-              imageUrl,
-            };
-          });
+              ...order,
+              itemCount,
+              items,
+            } as ProductOrder;
+          })
+        );
 
-          const itemCount = items.reduce((sum, item) => sum + item.quantity, 0);
-          return {
-            ...order,
-            itemCount,
-            items,
-          } as ProductOrder;
-        })
-      );
-
-      return ordersWithItems as ProductOrder[];
+        return ordersWithItems as ProductOrder[];
       } catch (error) {
         if (didTimeout()) {
           throw new Error('Request timeout');

@@ -9,6 +9,7 @@ import { formatCurrency } from '../utils/formatters';
 
 const GLAM_ASSET_BASE = '/images/glam%20page%20assets';
 const STAR_ASSET_BASE = `${GLAM_ASSET_BASE}/STAR%20GLITTER%20TRANSPARENT%20BG`;
+const MAKEUP_SLUGS = new Set(['makeup', 'eyewear', 'glitter', 'headliner']);
 
 const decorativeStars = [
   {
@@ -62,7 +63,6 @@ export default function BeautyPage() {
   );
   const productLookup = useMemo(() => new Map(products.map((product) => [product.id, product])), [products]);
 
-  const MAKEUP_SLUGS = new Set(['makeup', 'eyewear', 'glitter', 'headliner']);
   const makeupProducts = useMemo(() => {
     return products.filter(p => p.categorySlug != null && MAKEUP_SLUGS.has(p.categorySlug));
   }, [products]);

@@ -23,6 +23,14 @@ const getErrorCode = (error: unknown) => {
   return null;
 };
 
+const toAPIError = (error: unknown) => {
+  const err = new Error(getErrorMessage(error)) as APIError;
+  const code = getErrorCode(error);
+  err.status = code === 'PGRST116' ? 404 : 500;
+  err.info = error;
+  return err;
+};
+
 export const DEFAULT_QUERY_TIMEOUT_MS = 10000;
 
 export function createQuerySignal(signal: AbortSignal | undefined, timeoutMs = DEFAULT_QUERY_TIMEOUT_MS) {
@@ -71,14 +79,43 @@ export async function supabaseFetcher<T>(
   const { data, error } = await queryFn();
   
   if (error) {
-    const err = new Error(getErrorMessage(error)) as APIError;
-    const code = getErrorCode(error);
-    err.status = code === 'PGRST116' ? 404 : 500;
-    err.info = error;
-    throw err;
+    throw toAPIError(error);
   }
   
   return data || [];
+}
+
+/**
+ * Fetches every page from a capped PostgREST list endpoint.
+ *
+ * Use this for full scans against tables that can exceed the Supabase API row cap.
+ */
+export async function supabasePaginatedFetcher<T>(
+  queryPage: (from: number, to: number) => PromiseLike<{ data: unknown[] | null; error: unknown }>,
+  pageSize: number = 1000
+): Promise<T[]> {
+  const safePageSize = Math.max(1, pageSize);
+  const rows: T[] = [];
+  let from = 0;
+
+  while (true) {
+    const { data, error } = await queryPage(from, from + safePageSize - 1);
+
+    if (error) {
+      throw toAPIError(error);
+    }
+
+    const batch = (data || []) as T[];
+    rows.push(...batch);
+
+    if (batch.length < safePageSize) {
+      break;
+    }
+
+    from += safePageSize;
+  }
+
+  return rows;
 }
 
 /**
@@ -109,11 +146,7 @@ export async function supabaseListFetcher<T = unknown>(
   const { data, error } = await (query as Promise<{ data: T[] | null; error: unknown }>);
   
   if (error) {
-    const err = new Error(getErrorMessage(error)) as APIError;
-    const code = getErrorCode(error);
-    err.status = code === 'PGRST116' ? 404 : 500;
-    err.info = error;
-    throw err;
+    throw toAPIError(error);
   }
   
   return (data || []) as T[];
@@ -149,10 +182,7 @@ export async function supabaseSingleFetcher<T = unknown>(
     if (code === 'PGRST116') {
       return null; // Not found
     }
-    const err = new Error(getErrorMessage(error)) as APIError;
-    err.status = 500;
-    err.info = error;
-    throw err;
+    throw toAPIError(error);
   }
   
   return data as T;
@@ -186,4 +216,24 @@ export async function supabaseAuthFetcher<T>(
   }
   
   return supabaseFetcher<T>(() => queryFn(signal));
+}
+
+/**
+ * Authenticated variant of supabasePaginatedFetcher.
+ * Useful for user-scoped history queries that may exceed the default API row cap.
+ */
+export async function supabaseAuthPaginatedFetcher<T>(
+  queryPage: (from: number, to: number, signal?: AbortSignal) => PromiseLike<{ data: unknown[] | null; error: unknown }>,
+  signal?: AbortSignal,
+  pageSize: number = 1000
+): Promise<T[]> {
+  const { data: { session } } = await supabase.auth.getSession();
+
+  if (!session) {
+    const err = new Error('Unauthorized') as APIError;
+    err.status = 401;
+    throw err;
+  }
+
+  return supabasePaginatedFetcher<T>((from, to) => queryPage(from, to, signal), pageSize);
 }

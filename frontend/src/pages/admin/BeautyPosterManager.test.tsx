@@ -3,53 +3,6 @@ import { describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import BeautyPosterManager from './BeautyPosterManager';
 
-const controllerState = {
-  loading: false,
-  saving: false,
-  posters: [],
-  selectedPoster: null,
-  title: 'Poster Hero',
-  slug: 'poster-hero',
-  imageUrl: 'https://example.com/poster.jpg',
-  isActive: true,
-  showUrlModal: true,
-  urlDraft: 'https://example.com/draft.jpg',
-  tags: [],
-  productSearch: '',
-  searchingProducts: false,
-  productResults: [],
-  activeDragPreview: null,
-  isDraggingAny: false,
-  sensors: [] as unknown[],
-  canvasRef: { current: null },
-  uploadInputRef: { current: null },
-  editorTitle: 'Edit Poster',
-  isDirty: true,
-  setTitle: vi.fn(),
-  setSlug: vi.fn(),
-  setIsActive: vi.fn(),
-  setShowUrlModal: vi.fn(),
-  setUrlDraft: vi.fn(),
-  setTags: vi.fn(),
-  openEditor: vi.fn(),
-  searchProducts: vi.fn(),
-  handleUploadImage: vi.fn(),
-  handleSelectVariant: vi.fn(),
-  onPosterDragEnd: vi.fn(),
-  handleTagPointerDown: vi.fn(),
-  handleTagPointerMove: vi.fn(),
-  handleTagPointerUp: vi.fn(),
-  handleResizePointerDown: vi.fn(),
-  handleResizePointerMove: vi.fn(),
-  handleResizePointerUp: vi.fn(),
-  applyChanges: vi.fn().mockResolvedValue(null),
-  resetEditor: vi.fn().mockResolvedValue(undefined),
-  handleApplyUrl: vi.fn(),
-  handleDragStart: vi.fn(),
-  handleDragComplete: vi.fn(),
-  handleDragCancel: vi.fn(),
-};
-
 vi.mock('../../contexts/AuthContext', () => ({
   useAuth: () => ({
     signOut: vi.fn(),
@@ -66,38 +19,43 @@ vi.mock('../../components/AdminLayout', () => ({
   default: ({ children }: { children: ReactNode }) => <div>{children}</div>,
 }));
 
-vi.mock('./beauty-poster-manager/useBeautyPosterManagerController', () => ({
-  useBeautyPosterManagerController: () => controllerState,
+vi.mock('../../hooks/useGlamPageSettings', () => ({
+  DEFAULT_GLAM_PAGE_SETTINGS: {
+    hero_title: 'Glam Makeup',
+    hero_description: 'Desc',
+    hero_image_url: 'https://example.com/hero.jpg',
+    look_heading: 'Get The Look',
+    look_model_image_url: 'https://example.com/model.jpg',
+    product_section_title: 'Charm Bar',
+    product_search_placeholder: 'Search products...',
+    look_star_links: [
+      { slot: 'pink-rush', image_url: null, product_id: null },
+      { slot: 'silver-blink', image_url: null, product_id: null },
+      { slot: 'bronze', image_url: null, product_id: null },
+      { slot: 'aura-pop', image_url: null, product_id: null },
+    ],
+  },
+  useGlamPageSettings: () => ({
+    settings: null,
+    isLoading: false,
+    updateSettings: vi.fn().mockResolvedValue(undefined),
+  }),
 }));
 
-vi.mock('./beauty-poster-manager/BeautyPosterEditorForm', () => ({
-  BeautyPosterEditorForm: () => <div>beauty-editor-form</div>,
-}));
-
-vi.mock('./beauty-poster-manager/BeautyPosterCanvasSection', () => ({
-  BeautyPosterCanvasSection: () => <div>beauty-canvas-section</div>,
-}));
-
-vi.mock('./beauty-poster-manager/BeautyPosterSidebar', () => ({
-  BeautyPosterSidebar: () => <div>beauty-sidebar</div>,
-}));
-
-vi.mock('./beauty-poster-manager/BeautyPosterUrlModal', () => ({
-  BeautyPosterUrlModal: ({ open }: { open: boolean }) => (open ? <div>beauty-url-modal</div> : null),
-}));
-
-vi.mock('./beauty-poster-manager/BeautyPosterActionBar', () => ({
-  BeautyPosterActionBar: ({ editorTitle }: { editorTitle: string }) => <div>{editorTitle}</div>,
+vi.mock('../../hooks/useProducts', () => ({
+  useProducts: () => ({
+    data: [],
+    isLoading: false,
+  }),
 }));
 
 describe('BeautyPosterManager', () => {
-  it('renders modular sections through the controller composition', () => {
+  it('renders glam page cms sections', () => {
     render(<BeautyPosterManager />);
 
-    expect(screen.getByText('beauty-editor-form')).toBeInTheDocument();
-    expect(screen.getByText('beauty-canvas-section')).toBeInTheDocument();
-    expect(screen.getByText('beauty-sidebar')).toBeInTheDocument();
-    expect(screen.getByText('beauty-url-modal')).toBeInTheDocument();
-    expect(screen.getByText('Edit Poster')).toBeInTheDocument();
+    expect(screen.getByText('Hero Section')).toBeInTheDocument();
+    expect(screen.getByText('Get The Look Section')).toBeInTheDocument();
+    expect(screen.getByText('Product Section')).toBeInTheDocument();
+    expect(screen.getByText('Save GLAM page')).toBeInTheDocument();
   });
 });

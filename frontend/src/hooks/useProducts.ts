@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
-import { APIError, createQuerySignal } from '../lib/fetchers';
+import { supabasePaginatedFetcher, createQuerySignal } from '../lib/fetchers';
 import { queryKeys } from '../lib/queryKeys';
 
 /**
@@ -145,33 +145,31 @@ export function useProducts() {
     queryFn: async ({ signal }) => {
       const { signal: timeoutSignal, cleanup, didTimeout } = createQuerySignal(signal);
       try {
-        const { data, error } = await supabase
-          .from('products')
-          .select(
-            `
-            id,
-            name,
-            description,
-            is_active,
-            deleted_at,
-            categories(name, slug),
-            product_images(image_url, is_primary, display_order),
-            product_variants(id, name, price, attributes, is_active, stock, reserved_stock)
-          `
-          )
-          .abortSignal(timeoutSignal)
-          .is('deleted_at', null)
-          .eq('is_active', true)
-          .order('name', { ascending: true });
+        const rows = await supabasePaginatedFetcher<ProductRow>(
+          (from, to) =>
+            supabase
+              .from('products')
+              .select(
+                `
+                id,
+                name,
+                description,
+                is_active,
+                deleted_at,
+                categories(name, slug),
+                product_images(image_url, is_primary, display_order),
+                product_variants(id, name, price, attributes, is_active, stock, reserved_stock)
+              `
+              )
+              .abortSignal(timeoutSignal)
+              .is('deleted_at', null)
+              .eq('is_active', true)
+              .order('name', { ascending: true })
+              .range(from, to),
+          1000
+        );
 
-        if (error) {
-          const err = new Error(error.message) as APIError;
-          err.status = error.code === 'PGRST116' ? 404 : 500;
-          err.info = error;
-          throw err;
-        }
-
-        return (data || []).map((row) => transformProduct(row as unknown as ProductRow));
+        return rows.map((row) => transformProduct(row));
       } catch (error) {
         if (didTimeout()) {
           throw new Error('Request timeout');
