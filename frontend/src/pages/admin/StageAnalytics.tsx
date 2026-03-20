@@ -158,7 +158,7 @@ const StageAnalytics = () => {
                 {/* Leaderboard Table */}
                 <div className="rounded-xl border border-gray-200 bg-white overflow-hidden">
                     <div className="px-6 py-5 border-b border-gray-200 flex items-center justify-between">
-                        <h3 className="text-lg font-bold text-gray-900 font-display">Stage Popularity Leaderboard</h3>
+                        <h3 className="text-lg font-bold text-gray-900">Stage Popularity Leaderboard</h3>
                         <div className="flex gap-2">
                             <button
                                 onClick={() => setTimeFilter('weekly')}

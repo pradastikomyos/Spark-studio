@@ -245,8 +245,8 @@ Premium color palette defined in `tailwind.config.js`:
 
 ### Fonts
 
-- Display: Playfair Display (serif) - for headings
-- Body: Inter (sans-serif) - for body text
+- Display: Cardo (serif) - for headings
+- Body: Nunito Sans (sans-serif) - for body text
 
 ### Dark Mode Hook
 

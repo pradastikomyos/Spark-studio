@@ -15,7 +15,6 @@ import { supabase } from './lib/supabase';
 import { queryClient } from './lib/queryClient';
 import BrandedLoader from './components/BrandedLoader';
 
-const OnStage = lazy(() => import('./pages/OnStage'));
 const Shop = lazy(() => import('./pages/Shop'));
 const Events = lazy(() => import('./pages/Events'));
 const SparkClub = lazy(() => import('./pages/SparkClub'));
@@ -378,13 +377,7 @@ function AppRoutes() {
           <Route index element={<Home />} />
           <Route
             path="on-stage"
-            element={
-              wrap(
-                <Suspense fallback={<RouteLoading />}>
-                  <OnStage />
-                </Suspense>
-              )
-            }
+            element={wrap(<Home />)}
           />
           <Route
             path="shop"

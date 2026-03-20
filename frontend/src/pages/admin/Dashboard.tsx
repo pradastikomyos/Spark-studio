@@ -114,7 +114,7 @@ const Dashboard = () => {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-3 rounded-xl border border-gray-200 bg-white p-6">
           <div className="flex justify-between items-center mb-6">
-            <h3 className="text-lg font-black text-gray-900 font-serif">Pemindai Toko</h3>
+            <h3 className="text-lg font-black text-gray-900">Pemindai Toko</h3>
             <span className="px-2 py-1 rounded bg-green-50 text-green-700 text-xs font-bold border border-green-100">
               Siap Memindai
             </span>
@@ -137,7 +137,7 @@ const Dashboard = () => {
       {/* Charts Section */}
       <div className="rounded-xl border border-gray-200 bg-white p-4 md:p-6">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-          <h3 className="text-lg font-black text-gray-900 font-serif">Grafik Tiket Terjual</h3>
+          <h3 className="text-lg font-black text-gray-900">Grafik Tiket Terjual</h3>
           <div className="relative w-full sm:w-auto">
             <select className="appearance-none bg-white border border-gray-200 rounded px-3 py-2 pr-8 text-sm text-gray-900 focus:outline-none focus:border-main-500 w-full sm:w-auto">
               <option>Tahun ini</option>
@@ -203,7 +203,7 @@ const Dashboard = () => {
 
       <div className="rounded-xl border border-gray-200 bg-white p-4 md:p-6">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-          <h3 className="text-lg font-black text-gray-900 font-serif">Grafik Pesanan Produk</h3>
+          <h3 className="text-lg font-black text-gray-900">Grafik Pesanan Produk</h3>
           <div className="relative w-full sm:w-auto">
             <select className="appearance-none bg-white border border-gray-200 rounded px-3 py-2 pr-8 text-sm text-gray-900 focus:outline-none focus:border-main-500 w-full sm:w-auto">
               <option>Tahun ini</option>

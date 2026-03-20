@@ -8,11 +8,13 @@ import {
   DEFAULT_CHARM_BAR_PAGE_SETTINGS,
   type CharmBarPageSettings,
   type CharmBarQuickLink,
+  type CharmBarSectionFonts,
   type CharmBarStep,
   type CharmBarVideoCard,
   useCharmBarSettings,
 } from '../../hooks/useCharmBarSettings';
 import { slugify } from '../../utils/merchant';
+import CmsSectionFontFields from '../../components/admin/CmsSectionFontFields';
 
 type AssetKind = 'image' | 'video';
 
@@ -108,6 +110,7 @@ export default function CharmBarPageManager() {
   const [howItWorksVideoUrl, setHowItWorksVideoUrl] = useState(DEFAULT_CHARM_BAR_PAGE_SETTINGS.how_it_works_video_url);
   const [howItWorksCtaLabel, setHowItWorksCtaLabel] = useState(DEFAULT_CHARM_BAR_PAGE_SETTINGS.how_it_works_cta_label);
   const [howItWorksCtaHref, setHowItWorksCtaHref] = useState(DEFAULT_CHARM_BAR_PAGE_SETTINGS.how_it_works_cta_href);
+  const [sectionFonts, setSectionFonts] = useState<CharmBarSectionFonts>(DEFAULT_CHARM_BAR_PAGE_SETTINGS.section_fonts);
 
   useEffect(() => {
     const next = settings ?? DEFAULT_CHARM_BAR_PAGE_SETTINGS;
@@ -123,6 +126,7 @@ export default function CharmBarPageManager() {
     setHowItWorksVideoUrl(next.how_it_works_video_url);
     setHowItWorksCtaLabel(next.how_it_works_cta_label);
     setHowItWorksCtaHref(next.how_it_works_cta_href);
+    setSectionFonts(next.section_fonts);
   }, [settings]);
 
   const handleUploadAsset = useCallback(
@@ -179,6 +183,7 @@ export default function CharmBarPageManager() {
       how_it_works_video_url: howItWorksVideoUrl,
       how_it_works_cta_label: howItWorksCtaLabel,
       how_it_works_cta_href: howItWorksCtaHref,
+      section_fonts: sectionFonts,
     };
 
     try {
@@ -275,6 +280,13 @@ export default function CharmBarPageManager() {
             </button>
           </div>
 
+          <div className="mt-6 max-w-xl">
+            <CmsSectionFontFields
+              value={sectionFonts.quick_links}
+              onChange={(nextValue) => setSectionFonts((current) => ({ ...current, quick_links: nextValue }))}
+            />
+          </div>
+
           <div className="mt-6 grid gap-5 xl:grid-cols-2">
             {quickLinks.map((item, index) => (
               <div key={`${item.title}-${index}`} className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
@@ -353,6 +365,13 @@ export default function CharmBarPageManager() {
             >
               Add step
             </button>
+          </div>
+
+          <div className="mt-6 max-w-xl">
+            <CmsSectionFontFields
+              value={sectionFonts.customize}
+              onChange={(nextValue) => setSectionFonts((current) => ({ ...current, customize: nextValue }))}
+            />
           </div>
 
           <div className="mt-6">
@@ -451,6 +470,13 @@ export default function CharmBarPageManager() {
             </button>
           </div>
 
+          <div className="mt-6 max-w-xl">
+            <CmsSectionFontFields
+              value={sectionFonts.video_gallery}
+              onChange={(nextValue) => setSectionFonts((current) => ({ ...current, video_gallery: nextValue }))}
+            />
+          </div>
+
           <div className="mt-6">
             <label className="mb-2 block text-xs font-bold uppercase tracking-widest text-gray-500">Intro label</label>
             <input
@@ -503,8 +529,18 @@ export default function CharmBarPageManager() {
 
         <section className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
           <div className="border-b border-gray-100 pb-3">
-            <h2 className="text-xl font-semibold text-gray-900">How It Works Section</h2>
-            <p className="mt-1 text-sm text-gray-500">Editable title, description, numbered steps, video, and CTA.</p>
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+              <div>
+                <h2 className="text-xl font-semibold text-gray-900">How It Works Section</h2>
+                <p className="mt-1 text-sm text-gray-500">Editable title, description, numbered steps, video, and CTA.</p>
+              </div>
+              <div className="w-full max-w-xl">
+                <CmsSectionFontFields
+                  value={sectionFonts.how_it_works}
+                  onChange={(nextValue) => setSectionFonts((current) => ({ ...current, how_it_works: nextValue }))}
+                />
+              </div>
+            </div>
           </div>
 
           <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(320px,0.9fr)]">

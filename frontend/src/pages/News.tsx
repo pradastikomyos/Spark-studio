@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { PageTransition } from '../components/PageTransition';
 import { DEFAULT_NEWS_PAGE_SETTINGS, useNewsSettings } from '../hooks/useNewsSettings';
+import { getCmsFontStyle } from '../lib/cmsTypography';
 
 export default function News() {
   const { settings, isLoading } = useNewsSettings();
@@ -23,6 +24,9 @@ export default function News() {
   }
 
   const s = settings ?? DEFAULT_NEWS_PAGE_SETTINGS;
+  const section1Fonts = s.section_fonts.section_1;
+  const section2Fonts = s.section_fonts.section_2;
+  const section3Fonts = s.section_fonts.section_3;
 
   return (
     <PageTransition>
@@ -37,17 +41,17 @@ export default function News() {
                 <span className="text-[10px] font-bold uppercase tracking-widest text-gray-500">
                   {s.section_1_category}
                 </span>
-                <h1 className="text-3xl md:text-5xl font-black font-display text-gray-900 leading-[1.1] tracking-tight uppercase">
+                <h1 className="text-3xl md:text-5xl font-black text-gray-900 leading-[1.1] tracking-tight uppercase" style={getCmsFontStyle(section1Fonts.heading)}>
                   {s.section_1_title}
                 </h1>
-                <p className="text-sm md:text-base font-bold text-gray-800 uppercase tracking-wide">
+                <p className="text-sm md:text-base font-bold text-gray-800 uppercase tracking-wide" style={getCmsFontStyle(section1Fonts.body)}>
                   {s.section_1_excerpt}
                 </p>
-                <p className="text-xs md:text-sm text-gray-600 leading-relaxed font-light">
+                <p className="text-xs md:text-sm text-gray-600 leading-relaxed font-light" style={getCmsFontStyle(section1Fonts.body)}>
                   {s.section_1_description}
                 </p>
                 <div className="pt-4 border-t border-gray-100">
-                  <span className="text-xs font-semibold text-gray-500 italic">
+                  <span className="text-xs font-semibold text-gray-500 italic" style={getCmsFontStyle(section1Fonts.body)}>
                     {s.section_1_author}
                   </span>
                 </div>
@@ -101,17 +105,17 @@ export default function News() {
 
             {/* Right Text */}
             <div className="w-full md:w-5/12 space-y-10 md:pl-8">
-               <h2 className="text-2xl md:text-4xl font-black font-display text-gray-900 leading-[1.2] uppercase whitespace-pre-line">
+               <h2 className="text-2xl md:text-4xl font-black text-gray-900 leading-[1.2] uppercase whitespace-pre-line" style={getCmsFontStyle(section2Fonts.heading)}>
                   {s.section_2_title}
                </h2>
                
-               <div className="flex items-center gap-4 text-xs md:text-sm text-gray-500 font-medium tracking-widest">
+               <div className="flex items-center gap-4 text-xs md:text-sm text-gray-500 font-medium tracking-widest" style={getCmsFontStyle(section2Fonts.body)}>
                   <span className="uppercase">{s.section_2_subtitle1}</span>
                   <span className="w-8 h-[1px] bg-gray-300"></span>
                   <span className="uppercase">{s.section_2_subtitle2}</span>
                </div>
 
-               <p className="text-lg md:text-xl font-bold uppercase text-gray-900 leading-[1.6] tracking-wide whitespace-pre-line italic">
+               <p className="text-lg md:text-xl font-bold uppercase text-gray-900 leading-[1.6] tracking-wide whitespace-pre-line italic" style={getCmsFontStyle(section2Fonts.body)}>
                   {s.section_2_quotes}
                </p>
             </div>
@@ -122,7 +126,7 @@ export default function News() {
           {/* Section 3 */}
           <section className="space-y-12">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 pb-4 border-b border-gray-100">
-              <h2 className="text-2xl md:text-3xl font-black font-display text-gray-900 uppercase">
+              <h2 className="text-2xl md:text-3xl font-black text-gray-900 uppercase" style={getCmsFontStyle(section3Fonts.heading)}>
                 {s.section_3_title}
               </h2>
               <Link to="/shop" className="bg-black text-white px-8 py-3 text-xs font-bold uppercase tracking-widest rounded-full hover:bg-[#ff4b86] transition-colors self-start md:self-auto shadow-md">
@@ -141,11 +145,11 @@ export default function News() {
                      )}
                   </div>
                   <div className="space-y-1.5 px-1">
-                    <p className="text-[9px] text-gray-500 font-bold uppercase tracking-widest">{product.brand}</p>
-                    <h3 className="text-xs font-bold text-gray-900 leading-tight uppercase min-h-[2rem] group-hover:text-[#ff4b86] transition-colors">
+                    <p className="text-[9px] text-gray-500 font-bold uppercase tracking-widest" style={getCmsFontStyle(section3Fonts.body)}>{product.brand}</p>
+                    <h3 className="text-xs font-bold text-gray-900 leading-tight uppercase min-h-[2rem] group-hover:text-[#ff4b86] transition-colors" style={getCmsFontStyle(section3Fonts.body)}>
                       {product.name}
                     </h3>
-                    <p className="text-[10px] text-gray-600 font-medium mt-1">{product.price}</p>
+                    <p className="text-[10px] text-gray-600 font-medium mt-1" style={getCmsFontStyle(section3Fonts.body)}>{product.price}</p>
                   </div>
                 </Link>
               ))}

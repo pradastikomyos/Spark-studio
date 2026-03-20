@@ -1,4 +1,5 @@
 import { DEFAULT_EVENT_PAGE_SETTINGS, useEventSettings } from '../hooks/useEventSettings';
+import { getCmsFontStyle } from '../lib/cmsTypography';
 
 const Events = () => {
   const { settings, isLoading: settingsLoading } = useEventSettings();
@@ -21,6 +22,8 @@ const Events = () => {
   const expTitle = content.experience_title;
   const expImages = content.experience_images.filter(Boolean);
   const expLinks = content.experience_links;
+  const magicFonts = content.section_fonts.magic;
+  const experienceFonts = content.section_fonts.experience;
 
   return (
     <div className="bg-[#fcfcf9] min-h-screen text-gray-900 selection:bg-primary/20">
@@ -52,17 +55,19 @@ const Events = () => {
         <section className="mb-20 grid grid-cols-[minmax(0,1.2fr)_minmax(7rem,0.8fr)] items-start gap-4 sm:mb-32 sm:flex sm:items-center sm:gap-12 md:gap-24">
           <div className="min-w-0 flex-1 max-w-xl">
             <h1 
-              className="font-script mb-4 text-[2rem] leading-none text-gray-800 whitespace-pre-line sm:mb-8 sm:text-6xl lg:text-7xl"
+              className="mb-4 text-[2rem] leading-none text-gray-800 whitespace-pre-line sm:mb-8 sm:text-6xl lg:text-7xl"
+              style={getCmsFontStyle(magicFonts.heading)}
             >
               {magicTitle.toLowerCase() === 'every moment deserves to spark' ? 'Every moment\ndeserves to Spark' : magicTitle}
             </h1>
-            <p className="mb-5 text-[11px] leading-relaxed font-light text-gray-500 sm:mb-10 sm:text-base">
+            <p className="mb-5 text-[11px] leading-relaxed font-light text-gray-500 sm:mb-10 sm:text-base" style={getCmsFontStyle(magicFonts.body)}>
               {magicDesc}
             </p>
             {magicBtnText && (
               <a 
                 href={magicBtnLink} 
                 className="inline-block border border-gray-300 px-4 py-3 text-[10px] tracking-[0.2em] uppercase transition-colors duration-300 hover:bg-gray-900 hover:text-white sm:px-8 sm:text-xs sm:tracking-widest"
+                style={getCmsFontStyle(magicFonts.body)}
               >
                 {magicBtnText}
               </a>
@@ -105,7 +110,7 @@ const Events = () => {
 
         {/* 4. Choose Your Experience Links */}
         <section className="mb-24 text-center sm:mb-40">
-          <h2 className="font-display mb-10 text-2xl text-gray-800 sm:mb-16 sm:text-3xl md:text-4xl">
+          <h2 className="mb-10 text-2xl text-gray-800 sm:mb-16 sm:text-3xl md:text-4xl" style={getCmsFontStyle(experienceFonts.heading)}>
             {expTitle.split(' ').map((word, i) => {
               const isItalic = word.toLowerCase() === 'your';
               return (
@@ -123,8 +128,8 @@ const Events = () => {
                 key={idx}
                 className="group min-w-0 flex-1 px-2 py-3 text-center transition-opacity hover:opacity-70 sm:px-12 sm:py-6 md:py-0"
               >
-                <div className="mb-2 font-display text-lg text-gray-800 sm:mb-4 sm:text-2xl">{link.title}</div>
-                <div className="text-[8px] font-bold uppercase tracking-[0.14em] text-gray-400 sm:text-[10px] sm:tracking-[0.2em]">{link.subtitle}</div>
+                <div className="mb-2 text-lg text-gray-800 sm:mb-4 sm:text-2xl" style={getCmsFontStyle(experienceFonts.heading)}>{link.title}</div>
+                <div className="text-[8px] font-bold uppercase tracking-[0.14em] text-gray-400 sm:text-[10px] sm:tracking-[0.2em]" style={getCmsFontStyle(experienceFonts.body)}>{link.subtitle}</div>
               </a>
             ))}
           </div>

@@ -1,7 +1,14 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
+import { normalizeSectionFontMap, type SectionFontConfig } from '../lib/cmsTypography';
 
 const GLAM_ASSET_BASE = '/images/glam%20page%20assets';
+
+export interface GlamSectionFonts {
+  hero: SectionFontConfig;
+  look: SectionFontConfig;
+  products: SectionFontConfig;
+}
 
 export interface GlamPageSettings {
   id: string;
@@ -13,6 +20,7 @@ export interface GlamPageSettings {
   look_star_links: GlamStarLink[];
   product_section_title: string;
   product_search_placeholder: string;
+  section_fonts: GlamSectionFonts;
 }
 
 export interface GlamStarLink {
@@ -37,6 +45,11 @@ export const DEFAULT_GLAM_PAGE_SETTINGS: GlamPageSettings = {
   ],
   product_section_title: 'Charm Bar',
   product_search_placeholder: 'Search products...',
+  section_fonts: {
+    hero: { heading: 'great_vibes', body: 'nunito_sans' },
+    look: { heading: 'great_vibes', body: 'nunito_sans' },
+    products: { heading: 'cardo', body: 'nunito_sans' },
+  },
 };
 
 function normalizeStarLinks(value: unknown): GlamStarLink[] {
@@ -96,6 +109,7 @@ export function useGlamPageSettings() {
         setSettings({
           ...(data as GlamPageSettings),
           look_star_links: normalizeStarLinks(raw.look_star_links),
+          section_fonts: normalizeSectionFontMap(raw.section_fonts, DEFAULT_GLAM_PAGE_SETTINGS.section_fonts),
         });
       }
     } catch (err: unknown) {
@@ -127,6 +141,7 @@ export function useGlamPageSettings() {
         setSettings({
           ...(newData as GlamPageSettings),
           look_star_links: normalizeStarLinks(raw.look_star_links),
+          section_fonts: normalizeSectionFontMap(raw.section_fonts, DEFAULT_GLAM_PAGE_SETTINGS.section_fonts),
         });
         return newData;
       }
@@ -143,6 +158,7 @@ export function useGlamPageSettings() {
       setSettings({
         ...(data as GlamPageSettings),
         look_star_links: normalizeStarLinks(raw.look_star_links),
+        section_fonts: normalizeSectionFontMap(raw.section_fonts, DEFAULT_GLAM_PAGE_SETTINGS.section_fonts),
       });
       return data;
     } catch (err: unknown) {

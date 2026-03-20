@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { ArrowRight, Play } from 'lucide-react';
 import { PageTransition } from '../components/PageTransition';
 import { DEFAULT_CHARM_BAR_PAGE_SETTINGS, useCharmBarSettings } from '../hooks/useCharmBarSettings';
+import { getCmsFontStyle } from '../lib/cmsTypography';
 
 export default function CharmBar() {
   const { settings } = useCharmBarSettings();
@@ -12,6 +13,10 @@ export default function CharmBar() {
   }, []);
 
   const content = settings ?? DEFAULT_CHARM_BAR_PAGE_SETTINGS;
+  const quickLinksFonts = content.section_fonts.quick_links;
+  const customizeFonts = content.section_fonts.customize;
+  const videoGalleryFonts = content.section_fonts.video_gallery;
+  const howItWorksFonts = content.section_fonts.how_it_works;
 
   return (
     <PageTransition>
@@ -43,10 +48,13 @@ export default function CharmBar() {
                     className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
                   />
                 </div>
-                <p className="text-[13px] font-bold uppercase tracking-[0.12em] underline decoration-black/60 decoration-1 underline-offset-[5px]">
+                <p
+                  className="text-[13px] font-bold uppercase tracking-[0.12em] underline decoration-black/60 decoration-1 underline-offset-[5px]"
+                  style={getCmsFontStyle(quickLinksFonts.heading)}
+                >
                   {item.title}
                 </p>
-                <p className="mx-auto mt-3 max-w-[13rem] text-sm leading-6 text-black/60">
+                <p className="mx-auto mt-3 max-w-[13rem] text-sm leading-6 text-black/60" style={getCmsFontStyle(quickLinksFonts.body)}>
                   {item.description}
                 </p>
               </Link>
@@ -57,7 +65,7 @@ export default function CharmBar() {
         <section className="mx-auto max-w-7xl px-6 pb-8 md:px-10 lg:px-12">
           <div className="mx-auto mb-10 h-px w-40 bg-black/30" />
           <div className="mb-12 text-center">
-            <h2 className="font-serif text-4xl font-black uppercase leading-none sm:text-5xl">
+            <h2 className="font-serif text-4xl font-black uppercase leading-none sm:text-5xl" style={getCmsFontStyle(customizeFonts.heading)}>
               {content.customize_title}
             </h2>
           </div>
@@ -68,16 +76,17 @@ export default function CharmBar() {
                 <div className="mb-8 overflow-hidden bg-white shadow-[0_18px_50px_rgba(0,0,0,0.08)]">
                   <img src={step.image_url} alt={step.title} className="aspect-[4/5] w-full object-cover" />
                 </div>
-                <h3 className="font-serif text-[2rem] font-black uppercase leading-[1.05] sm:text-[2.2rem]">
+                <h3 className="font-serif text-[2rem] font-black uppercase leading-[1.05] sm:text-[2.2rem]" style={getCmsFontStyle(customizeFonts.heading)}>
                   {step.title}
                 </h3>
-                <p className="mx-auto mt-6 max-w-sm text-base leading-7 text-black/70">
+                <p className="mx-auto mt-6 max-w-sm text-base leading-7 text-black/70" style={getCmsFontStyle(customizeFonts.body)}>
                   {step.body}
                 </p>
                 <div className="mt-8">
                   <Link
                     to={step.cta_href || '/shop'}
                     className="inline-flex items-center justify-center bg-black px-6 py-3 text-sm font-semibold uppercase tracking-[0.16em] text-white transition-colors hover:bg-[#ff4b86]"
+                    style={getCmsFontStyle(customizeFonts.body)}
                   >
                     {step.cta_label}
                   </Link>
@@ -89,7 +98,7 @@ export default function CharmBar() {
 
         <section className="mx-auto max-w-7xl px-6 py-16 md:px-10 lg:px-12">
           <div className="mb-10 text-center">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.32em] text-black/50">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.32em] text-black/50" style={getCmsFontStyle(videoGalleryFonts.body)}>
               {content.video_intro_text}
             </p>
           </div>
@@ -116,7 +125,7 @@ export default function CharmBar() {
                     <Play className="ml-1 h-7 w-7 fill-current" />
                   </span>
                 </div>
-                <div className="absolute left-5 top-5 text-[11px] font-semibold uppercase tracking-[0.24em] text-white">
+                <div className="absolute left-5 top-5 text-[11px] font-semibold uppercase tracking-[0.24em] text-white" style={getCmsFontStyle(videoGalleryFonts.heading)}>
                   {video.title}
                 </div>
               </div>
@@ -139,7 +148,7 @@ export default function CharmBar() {
                 />
                 <div className="pointer-events-none absolute inset-0 bg-black/18" />
                 <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-6 text-center text-white">
-                  <span className="font-serif text-4xl font-black uppercase leading-none sm:text-5xl">
+                  <span className="font-serif text-4xl font-black uppercase leading-none sm:text-5xl" style={getCmsFontStyle(howItWorksFonts.heading)}>
                     Auto play
                     <br />
                     video
@@ -152,10 +161,10 @@ export default function CharmBar() {
             </div>
 
             <div className="space-y-8 text-center lg:text-left">
-              <h2 className="font-serif text-4xl font-black uppercase leading-none sm:text-5xl">
+              <h2 className="font-serif text-4xl font-black uppercase leading-none sm:text-5xl" style={getCmsFontStyle(howItWorksFonts.heading)}>
                 {content.how_it_works_title}
               </h2>
-              <div className="space-y-5 text-lg leading-8 text-black/75">
+              <div className="space-y-5 text-lg leading-8 text-black/75" style={getCmsFontStyle(howItWorksFonts.body)}>
                 <p className="font-semibold text-black">
                   {content.how_it_works_intro}
                 </p>
@@ -168,6 +177,7 @@ export default function CharmBar() {
               <Link
                 to={content.how_it_works_cta_href || '/shop'}
                 className="inline-flex items-center justify-center gap-2 border border-black px-6 py-3 text-sm font-semibold uppercase tracking-[0.18em] text-black transition-colors hover:border-[#ff4b86] hover:text-[#ff4b86]"
+                style={getCmsFontStyle(howItWorksFonts.body)}
               >
                 {content.how_it_works_cta_label}
                 <ArrowRight className="h-4 w-4" />

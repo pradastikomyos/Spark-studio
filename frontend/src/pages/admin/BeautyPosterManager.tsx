@@ -8,6 +8,8 @@ import { DEFAULT_GLAM_PAGE_SETTINGS, type GlamStarLink, useGlamPageSettings } fr
 import { useProducts, type Product } from '../../hooks/useProducts';
 import { slugify } from '../../utils/merchant';
 import { formatCurrency } from '../../utils/formatters';
+import CmsSectionFontFields from '../../components/admin/CmsSectionFontFields';
+import type { GlamSectionFonts } from '../../hooks/useGlamPageSettings';
 
 const STAR_SLOT_LABELS: Record<string, string> = {
   'pink-rush': 'Pink Rush star',
@@ -240,6 +242,7 @@ export default function BeautyPosterManager() {
   const [lookStarLinks, setLookStarLinks] = useState<GlamStarLink[]>(DEFAULT_GLAM_PAGE_SETTINGS.look_star_links);
   const [productSectionTitle, setProductSectionTitle] = useState(DEFAULT_GLAM_PAGE_SETTINGS.product_section_title);
   const [productSearchPlaceholder, setProductSearchPlaceholder] = useState(DEFAULT_GLAM_PAGE_SETTINGS.product_search_placeholder);
+  const [sectionFonts, setSectionFonts] = useState<GlamSectionFonts>(DEFAULT_GLAM_PAGE_SETTINGS.section_fonts);
 
   useEffect(() => {
     const next = settings ?? DEFAULT_GLAM_PAGE_SETTINGS;
@@ -251,6 +254,7 @@ export default function BeautyPosterManager() {
     setLookStarLinks(next.look_star_links);
     setProductSectionTitle(next.product_section_title);
     setProductSearchPlaceholder(next.product_search_placeholder);
+    setSectionFonts(next.section_fonts);
   }, [settings]);
 
   const handleUploadImage = useCallback(
@@ -302,6 +306,7 @@ export default function BeautyPosterManager() {
         look_star_links: lookStarLinks,
         product_section_title: productSectionTitle,
         product_search_placeholder: productSearchPlaceholder,
+        section_fonts: sectionFonts,
       });
 
       showToast('success', 'GLAM page settings saved successfully');
@@ -351,8 +356,18 @@ export default function BeautyPosterManager() {
       <div className="space-y-8 pb-20">
         <section className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
           <div className="border-b border-gray-100 pb-3">
-            <h2 className="text-xl font-semibold text-gray-900">Hero Section</h2>
-            <p className="mt-1 text-sm text-gray-500">Main editorial image plus the script title and description.</p>
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+              <div>
+                <h2 className="text-xl font-semibold text-gray-900">Hero Section</h2>
+                <p className="mt-1 text-sm text-gray-500">Main editorial image plus the script title and description.</p>
+              </div>
+              <div className="w-full max-w-xl">
+                <CmsSectionFontFields
+                  value={sectionFonts.hero}
+                  onChange={(nextValue) => setSectionFonts((current) => ({ ...current, hero: nextValue }))}
+                />
+              </div>
+            </div>
           </div>
 
           <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(320px,0.9fr)]">
@@ -389,8 +404,18 @@ export default function BeautyPosterManager() {
 
         <section className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
           <div className="border-b border-gray-100 pb-3">
-            <h2 className="text-xl font-semibold text-gray-900">Get The Look Section</h2>
-            <p className="mt-1 text-sm text-gray-500">Fixed collage area with one editable heading, one model image, and linked star hotspots.</p>
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+              <div>
+                <h2 className="text-xl font-semibold text-gray-900">Get The Look Section</h2>
+                <p className="mt-1 text-sm text-gray-500">Fixed collage area with one editable heading, one model image, and linked star hotspots.</p>
+              </div>
+              <div className="w-full max-w-xl">
+                <CmsSectionFontFields
+                  value={sectionFonts.look}
+                  onChange={(nextValue) => setSectionFonts((current) => ({ ...current, look: nextValue }))}
+                />
+              </div>
+            </div>
           </div>
 
           <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(320px,0.9fr)]">
@@ -446,8 +471,18 @@ export default function BeautyPosterManager() {
 
         <section className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
           <div className="border-b border-gray-100 pb-3">
-            <h2 className="text-xl font-semibold text-gray-900">Product Section</h2>
-            <p className="mt-1 text-sm text-gray-500">This section uses live products from the store. Only the labels are editable here.</p>
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+              <div>
+                <h2 className="text-xl font-semibold text-gray-900">Product Section</h2>
+                <p className="mt-1 text-sm text-gray-500">This section uses live products from the store. Only the labels are editable here.</p>
+              </div>
+              <div className="w-full max-w-xl">
+                <CmsSectionFontFields
+                  value={sectionFonts.products}
+                  onChange={(nextValue) => setSectionFonts((current) => ({ ...current, products: nextValue }))}
+                />
+              </div>
+            </div>
           </div>
 
           <div className="mt-6 grid gap-4 md:grid-cols-2">

@@ -258,7 +258,7 @@ const OrderTicket = () => {
       <div className="rounded-xl border border-gray-200 bg-white p-6 md:p-8 shadow-sm">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
           <div>
-            <h3 className="text-xl font-bold text-gray-900 font-display mb-2">Pemindai Tiket Masuk</h3>
+            <h3 className="mb-2 text-xl font-bold text-gray-900">Pemindai Tiket Masuk</h3>
             <p className="text-sm text-gray-600">Pindai kode QR untuk memvalidasi tiket masuk</p>
           </div>
           <span className="px-3 py-1.5 rounded-full bg-green-50 text-green-700 text-xs font-bold border border-green-200">

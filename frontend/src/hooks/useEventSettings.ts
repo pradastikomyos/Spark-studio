@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
+import { normalizeSectionFontMap, type SectionFontConfig } from '../lib/cmsTypography';
 
 export interface ExperienceLink {
   title: string;
@@ -18,6 +19,12 @@ export interface EventPageSettings {
   experience_title: string;
   experience_images: string[];
   experience_links: ExperienceLink[];
+  section_fonts: EventSectionFonts;
+}
+
+export interface EventSectionFonts {
+  magic: SectionFontConfig;
+  experience: SectionFontConfig;
 }
 
 export const DEFAULT_EVENT_PAGE_SETTINGS: EventPageSettings = {
@@ -46,6 +53,10 @@ export const DEFAULT_EVENT_PAGE_SETTINGS: EventPageSettings = {
     { title: '2.', subtitle: 'MY SERVICES', link: '#' },
     { title: '3.', subtitle: 'CONTACT ME', link: '#' },
   ],
+  section_fonts: {
+    magic: { heading: 'cardo', body: 'nunito_sans' },
+    experience: { heading: 'cardo', body: 'nunito_sans' },
+  },
 };
 
 function normalizeStringArray(value: unknown, fallback: string[]): string[] {
@@ -104,6 +115,7 @@ function normalizeSettings(data: Record<string, unknown>): EventPageSettings {
         : DEFAULT_EVENT_PAGE_SETTINGS.experience_title,
     experience_images: normalizeStringArray(data.experience_images, DEFAULT_EVENT_PAGE_SETTINGS.experience_images),
     experience_links: normalizeExperienceLinks(data.experience_links),
+    section_fonts: normalizeSectionFontMap(data.section_fonts, DEFAULT_EVENT_PAGE_SETTINGS.section_fonts),
   };
 }
 

@@ -156,7 +156,7 @@ const AdminLayout = ({
         <div className="flex flex-col gap-6">
           <div className="flex items-center gap-3 px-2 py-2">
             <div className="flex flex-col min-w-0">
-              <h1 className="text-lg font-black tracking-tight text-gray-900 font-serif truncate">
+              <h1 className="text-lg font-black tracking-tight text-gray-900 truncate">
                 SPARK
               </h1>
             </div>
@@ -258,7 +258,7 @@ const AdminLayout = ({
               <span className="material-symbols-outlined text-2xl">menu</span>
             </button>
             <div className="min-w-0">
-              <h2 className="text-lg md:text-xl font-black text-gray-900 font-serif truncate">{title}</h2>
+              <h2 className="text-lg md:text-xl font-black text-gray-900 truncate">{title}</h2>
               {subtitle ? <p className="hidden md:block text-xs text-gray-500 truncate">{subtitle}</p> : null}
             </div>
           </div>

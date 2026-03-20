@@ -145,7 +145,7 @@ const StageBulkQR = () => {
                 {/* Live Performance Chart */}
                 <div className="rounded-xl border border-gray-200 bg-white p-6">
                     <div className="flex justify-between items-center mb-6">
-                        <h3 className="text-lg font-bold text-gray-900 font-display">Stage Performance Overview (Today)</h3>
+                        <h3 className="text-lg font-bold text-gray-900">Stage Performance Overview (Today)</h3>
                         <div className="flex items-center gap-2">
                             <span className="text-xs text-gray-600">Live Data</span>
                             <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse"></div>
@@ -209,7 +209,7 @@ const StageBulkQR = () => {
                 {/* Table List */}
                 <div className="rounded-xl border border-gray-200 bg-white overflow-hidden">
                     <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
-                        <h3 className="text-lg font-bold text-gray-900 font-display">Stage QR Codes</h3>
+                        <h3 className="text-lg font-bold text-gray-900">Stage QR Codes</h3>
                         <div className="flex items-center gap-4">
                             <div className="relative w-64">
                                 <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">

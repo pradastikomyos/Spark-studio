@@ -4,10 +4,11 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '../../components/Toast';
 import { ADMIN_MENU_ITEMS, ADMIN_MENU_SECTIONS } from '../../constants/adminMenu';
 import { supabase } from '../../lib/supabase';
-import { DEFAULT_NEWS_PAGE_SETTINGS, useNewsSettings, type NewsProduct } from '../../hooks/useNewsSettings';
+import { DEFAULT_NEWS_PAGE_SETTINGS, useNewsSettings, type NewsProduct, type NewsSectionFonts } from '../../hooks/useNewsSettings';
 import { useProducts, type Product } from '../../hooks/useProducts';
 import { formatCurrency } from '../../utils/formatters';
 import { slugify } from '../../utils/merchant';
+import CmsSectionFontFields from '../../components/admin/CmsSectionFontFields';
 
 function ProductSearchComboBox({ products, onSelect }: { products: Product[], onSelect: (id: string) => void }) {
   const [searchTerm, setSearchTerm] = useState('');
@@ -123,6 +124,7 @@ export default function NewsPageManager() {
   // Section 3
   const [s3Title, setS3Title] = useState(DEFAULT_NEWS_PAGE_SETTINGS.section_3_title);
   const [s3Products, setS3Products] = useState<NewsProduct[]>(DEFAULT_NEWS_PAGE_SETTINGS.section_3_products);
+  const [sectionFonts, setSectionFonts] = useState<NewsSectionFonts>(DEFAULT_NEWS_PAGE_SETTINGS.section_fonts);
 
   useEffect(() => {
     if (settings) {
@@ -141,6 +143,7 @@ export default function NewsPageManager() {
 
       setS3Title(settings.section_3_title || '');
       setS3Products(settings.section_3_products || []);
+      setSectionFonts(settings.section_fonts);
     } else {
       setS1Category(DEFAULT_NEWS_PAGE_SETTINGS.section_1_category);
       setS1Title(DEFAULT_NEWS_PAGE_SETTINGS.section_1_title);
@@ -155,6 +158,7 @@ export default function NewsPageManager() {
       setS2Image(DEFAULT_NEWS_PAGE_SETTINGS.section_2_image);
       setS3Title(DEFAULT_NEWS_PAGE_SETTINGS.section_3_title);
       setS3Products(DEFAULT_NEWS_PAGE_SETTINGS.section_3_products);
+      setSectionFonts(DEFAULT_NEWS_PAGE_SETTINGS.section_fonts);
     }
   }, [settings]);
 
@@ -212,6 +216,7 @@ export default function NewsPageManager() {
 
         section_3_title: s3Title,
         section_3_products: s3Products,
+        section_fonts: sectionFonts,
       });
       showToast('success', 'News page settings saved successfully');
     } catch (err: unknown) {
@@ -333,7 +338,15 @@ export default function NewsPageManager() {
 
         {/* Section 1 */}
         <section className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm space-y-6">
-          <h2 className="text-xl font-display font-bold text-gray-900 border-b pb-2">1. Section 1 (Star Girl)</h2>
+          <div className="flex flex-col gap-4 border-b pb-2 lg:flex-row lg:items-start lg:justify-between">
+            <h2 className="text-xl font-semibold text-gray-900">1. Section 1 (Star Girl)</h2>
+            <div className="w-full max-w-xl">
+              <CmsSectionFontFields
+                value={sectionFonts.section_1}
+                onChange={(nextValue) => setSectionFonts((current) => ({ ...current, section_1: nextValue }))}
+              />
+            </div>
+          </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-4">
               <div>
@@ -390,7 +403,15 @@ export default function NewsPageManager() {
 
         {/* Section 2 */}
         <section className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm space-y-6">
-          <h2 className="text-xl font-display font-bold text-gray-900 border-b pb-2">2. Section 2 (Cold-Hearted)</h2>
+          <div className="flex flex-col gap-4 border-b pb-2 lg:flex-row lg:items-start lg:justify-between">
+            <h2 className="text-xl font-semibold text-gray-900">2. Section 2 (Cold-Hearted)</h2>
+            <div className="w-full max-w-xl">
+              <CmsSectionFontFields
+                value={sectionFonts.section_2}
+                onChange={(nextValue) => setSectionFonts((current) => ({ ...current, section_2: nextValue }))}
+              />
+            </div>
+          </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-4">
               <div>
@@ -440,7 +461,15 @@ export default function NewsPageManager() {
 
         {/* Section 3 */}
         <section className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm space-y-6">
-          <h2 className="text-xl font-display font-bold text-gray-900 border-b pb-2">3. Section 3 (Her Essentials)</h2>
+          <div className="flex flex-col gap-4 border-b pb-2 lg:flex-row lg:items-start lg:justify-between">
+            <h2 className="text-xl font-semibold text-gray-900">3. Section 3 (Her Essentials)</h2>
+            <div className="w-full max-w-xl">
+              <CmsSectionFontFields
+                value={sectionFonts.section_3}
+                onChange={(nextValue) => setSectionFonts((current) => ({ ...current, section_3: nextValue }))}
+              />
+            </div>
+          </div>
           <div>
             <label className="block text-xs font-bold uppercase tracking-widest text-gray-500 mb-2">Section Title</label>
             <input

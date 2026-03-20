@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
+import { normalizeSectionFontMap, type SectionFontConfig } from '../lib/cmsTypography';
 
 export interface NewsProduct {
   image: string;
@@ -24,6 +25,13 @@ export interface NewsPageSettings {
   section_2_image: string;
   section_3_title: string;
   section_3_products: NewsProduct[];
+  section_fonts: NewsSectionFonts;
+}
+
+export interface NewsSectionFonts {
+  section_1: SectionFontConfig;
+  section_2: SectionFontConfig;
+  section_3: SectionFontConfig;
 }
 
 export const DEFAULT_NEWS_PAGE_SETTINGS: NewsPageSettings = {
@@ -42,6 +50,11 @@ export const DEFAULT_NEWS_PAGE_SETTINGS: NewsPageSettings = {
   section_2_image: '',
   section_3_title: 'HER ESSENTIALS !',
   section_3_products: [],
+  section_fonts: {
+    section_1: { heading: 'cardo', body: 'nunito_sans' },
+    section_2: { heading: 'cardo', body: 'nunito_sans' },
+    section_3: { heading: 'cardo', body: 'nunito_sans' },
+  },
 };
 
 function normalizeProducts(value: unknown): NewsProduct[] {
@@ -108,6 +121,7 @@ function normalizeSettings(data: Record<string, unknown>): NewsPageSettings {
         ? data.section_3_title
         : DEFAULT_NEWS_PAGE_SETTINGS.section_3_title,
     section_3_products: normalizeProducts(data.section_3_products),
+    section_fonts: normalizeSectionFontMap(data.section_fonts, DEFAULT_NEWS_PAGE_SETTINGS.section_fonts),
   };
 }
 

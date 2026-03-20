@@ -1,7 +1,15 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
+import { normalizeSectionFontMap, type SectionFontConfig } from '../lib/cmsTypography';
 
 const CHARM_BAR_ASSET_BASE = '/images/Charm%20Bar%20assets';
+
+export interface CharmBarSectionFonts {
+  quick_links: SectionFontConfig;
+  customize: SectionFontConfig;
+  video_gallery: SectionFontConfig;
+  how_it_works: SectionFontConfig;
+}
 
 export interface CharmBarQuickLink {
   title: string;
@@ -37,6 +45,7 @@ export interface CharmBarPageSettings {
   how_it_works_video_url: string;
   how_it_works_cta_label: string;
   how_it_works_cta_href: string;
+  section_fonts: CharmBarSectionFonts;
 }
 
 export const DEFAULT_CHARM_BAR_PAGE_SETTINGS: CharmBarPageSettings = {
@@ -114,6 +123,12 @@ export const DEFAULT_CHARM_BAR_PAGE_SETTINGS: CharmBarPageSettings = {
   how_it_works_video_url: `${CHARM_BAR_ASSET_BASE}/DIY%20CHARM%202.mp4`,
   how_it_works_cta_label: 'EXPLORE THE COLLECTION',
   how_it_works_cta_href: '/shop',
+  section_fonts: {
+    quick_links: { heading: 'cardo', body: 'nunito_sans' },
+    customize: { heading: 'cardo', body: 'nunito_sans' },
+    video_gallery: { heading: 'cardo', body: 'nunito_sans' },
+    how_it_works: { heading: 'cardo', body: 'nunito_sans' },
+  },
 };
 
 function normalizeQuickLinks(value: unknown): CharmBarQuickLink[] {
@@ -238,6 +253,7 @@ function normalizeSettings(data: Record<string, unknown>): CharmBarPageSettings 
       typeof data.how_it_works_cta_href === 'string' && data.how_it_works_cta_href.trim() !== ''
         ? data.how_it_works_cta_href
         : DEFAULT_CHARM_BAR_PAGE_SETTINGS.how_it_works_cta_href,
+    section_fonts: normalizeSectionFontMap(data.section_fonts, DEFAULT_CHARM_BAR_PAGE_SETTINGS.section_fonts),
   };
 }
 

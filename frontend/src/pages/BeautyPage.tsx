@@ -6,6 +6,7 @@ import ProductQuickViewModal from '../components/ProductQuickViewModal';
 import { DEFAULT_GLAM_PAGE_SETTINGS, useGlamPageSettings } from '../hooks/useGlamPageSettings';
 import { useProducts } from '../hooks/useProducts';
 import { formatCurrency } from '../utils/formatters';
+import { getCmsFontStyle } from '../lib/cmsTypography';
 
 const GLAM_ASSET_BASE = '/images/glam%20page%20assets';
 const STAR_ASSET_BASE = `${GLAM_ASSET_BASE}/STAR%20GLITTER%20TRANSPARENT%20BG`;
@@ -56,6 +57,9 @@ export default function BeautyPage() {
   }, [deferredSearchQuery]);
 
   const content = settings ?? DEFAULT_GLAM_PAGE_SETTINGS;
+  const heroFonts = content.section_fonts.hero;
+  const lookFonts = content.section_fonts.look;
+  const productFonts = content.section_fonts.products;
   const normalizedQuery = deferredSearchQuery.trim().toLowerCase();
   const starLinkMap = useMemo(
     () => new Map(content.look_star_links.map((link) => [link.slot, link])),
@@ -100,10 +104,16 @@ export default function BeautyPage() {
             </div>
 
             <div className="flex w-full flex-col items-end text-right">
-              <h1 className="font-script mt-3 text-[2rem] leading-none sm:mt-4 sm:text-6xl lg:text-7xl">
+              <h1
+                className="mt-3 text-[2rem] leading-none sm:mt-4 sm:text-6xl lg:text-7xl"
+                style={getCmsFontStyle(heroFonts.heading)}
+              >
                 {content.hero_title}
               </h1>
-              <p className="mt-3 max-w-md text-[11px] leading-relaxed text-black/85 sm:mt-6 sm:text-2xl">
+              <p
+                className="mt-3 max-w-md text-[11px] leading-relaxed text-black/85 sm:mt-6 sm:text-2xl"
+                style={getCmsFontStyle(heroFonts.body)}
+              >
                 {content.hero_description}
               </p>
             </div>
@@ -111,7 +121,7 @@ export default function BeautyPage() {
         </section>
 
         <section className="mx-auto max-w-7xl px-4 py-10 sm:px-8 sm:py-12 lg:px-12 lg:py-16">
-          <h2 className="font-script text-4xl leading-none sm:text-6xl">{content.look_heading}</h2>
+          <h2 className="text-4xl leading-none sm:text-6xl" style={getCmsFontStyle(lookFonts.heading)}>{content.look_heading}</h2>
 
           <div className="mt-8 grid grid-cols-[1fr_1fr] items-stretch gap-4 border-b border-black/20 pb-8 sm:gap-6 lg:gap-8">
             {/* Left: 2x2 star product grid */}
@@ -167,7 +177,7 @@ export default function BeautyPage() {
 
         <section className="mx-auto max-w-7xl px-4 pb-14 sm:px-8 sm:pb-16 lg:px-12 lg:pb-24">
           <div className="flex flex-col items-center gap-4">
-            <h3 className="font-serif text-3xl italic tracking-wide">{content.product_section_title}</h3>
+            <h3 className="text-3xl italic tracking-wide" style={getCmsFontStyle(productFonts.heading)}>{content.product_section_title}</h3>
             <label className="relative w-full max-w-[400px]">
               <Search className="pointer-events-none absolute left-5 top-1/2 h-4 w-4 -translate-y-1/2 text-black/40" />
               <input
@@ -202,8 +212,8 @@ export default function BeautyPage() {
                   )}
                 </div>
                 <div className="px-3 py-3 text-left">
-                  <h4 className="text-[11px] font-semibold leading-tight text-black line-clamp-1 sm:text-sm">{product.name}</h4>
-                  <p className="mt-1 text-[10px] font-bold text-[#ff4b86] sm:text-xs">{formatCurrency(product.price)}</p>
+                  <h4 className="text-[11px] font-semibold leading-tight text-black line-clamp-1 sm:text-sm" style={getCmsFontStyle(productFonts.body)}>{product.name}</h4>
+                  <p className="mt-1 text-[10px] font-bold text-[#ff4b86] sm:text-xs" style={getCmsFontStyle(productFonts.body)}>{formatCurrency(product.price)}</p>
                 </div>
               </Link>
             ))}
@@ -218,7 +228,7 @@ export default function BeautyPage() {
             >
               <ChevronLeft className="w-4 h-4" />
             </button>
-            <span className="text-xs font-medium text-black/50 tracking-wide">
+            <span className="text-xs font-medium text-black/50 tracking-wide" style={getCmsFontStyle(productFonts.body)}>
               {page} / {totalPages}
             </span>
             <button
@@ -232,23 +242,23 @@ export default function BeautyPage() {
           </div>
 
           {!productsLoading && filteredProducts.length === 0 ? (
-            <div className="mt-10 border border-dashed border-black/20 px-6 py-12 text-center text-black/55">
+            <div className="mt-10 border border-dashed border-black/20 px-6 py-12 text-center text-black/55" style={getCmsFontStyle(productFonts.body)}>
               No products match your search yet.
             </div>
           ) : null}
 
           {productsLoading ? (
-            <div className="mt-10 text-center text-sm text-black/45">Loading products...</div>
+            <div className="mt-10 text-center text-sm text-black/45" style={getCmsFontStyle(productFonts.body)}>Loading products...</div>
           ) : null}
 
           {hasProductsError ? (
-            <div className="mt-8 text-center text-sm text-red-600">
+            <div className="mt-8 text-center text-sm text-red-600" style={getCmsFontStyle(productFonts.body)}>
               Product catalog failed to load. The page content is still available.
             </div>
           ) : null}
 
           {hasSettingsError ? (
-            <div className="mt-3 text-center text-xs uppercase tracking-[0.2em] text-black/40">
+            <div className="mt-3 text-center text-xs uppercase tracking-[0.2em] text-black/40" style={getCmsFontStyle(productFonts.body)}>
               Using default GLAM content while saved settings are unavailable.
             </div>
           ) : null}

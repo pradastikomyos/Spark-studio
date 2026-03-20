@@ -21,8 +21,9 @@ export default {
         "accent-purple": "#8b5cf6",
       },
       fontFamily: {
-        display: ["'Playfair Display'", "serif"],
-        sans: ["'Inter'", "sans-serif"],
+        display: ["'Cardo'", "serif"],
+        serif: ["'Cardo'", "serif"],
+        sans: ["'Nunito Sans'", "sans-serif"],
       },
       letterSpacing: {
         widest: '0.15em',

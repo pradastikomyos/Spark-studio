@@ -76,7 +76,7 @@ export function InventoryProductCard(props: InventoryProductCardProps) {
       <div className="p-4 flex flex-col gap-3 flex-1">
         <div>
           <div className="flex justify-between items-start">
-            <h4 className="text-base font-bold text-neutral-900 leading-tight font-display">{product.name}</h4>
+            <h4 className="text-base font-bold leading-tight text-neutral-900">{product.name}</h4>
             <span className="text-sm font-bold text-neutral-900">
               {formatCurrency(product.price_min)}
               {product.price_max !== product.price_min ? `–${formatCurrency(product.price_max)}` : ''}

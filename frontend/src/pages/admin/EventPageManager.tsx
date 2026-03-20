@@ -4,8 +4,9 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '../../components/Toast';
 import { ADMIN_MENU_ITEMS, ADMIN_MENU_SECTIONS } from '../../constants/adminMenu';
 import { supabase } from '../../lib/supabase';
-import { DEFAULT_EVENT_PAGE_SETTINGS, useEventSettings, type ExperienceLink } from '../../hooks/useEventSettings';
+import { DEFAULT_EVENT_PAGE_SETTINGS, useEventSettings, type EventSectionFonts, type ExperienceLink } from '../../hooks/useEventSettings';
 import { slugify } from '../../utils/merchant';
+import CmsSectionFontFields from '../../components/admin/CmsSectionFontFields';
 
 export default function EventPageManager() {
   const { signOut } = useAuth();
@@ -23,6 +24,7 @@ export default function EventPageManager() {
   const [experienceTitle, setExperienceTitle] = useState(DEFAULT_EVENT_PAGE_SETTINGS.experience_title);
   const [experienceImages, setExperienceImages] = useState<string[]>(DEFAULT_EVENT_PAGE_SETTINGS.experience_images);
   const [experienceLinks, setExperienceLinks] = useState<ExperienceLink[]>(DEFAULT_EVENT_PAGE_SETTINGS.experience_links);
+  const [sectionFonts, setSectionFonts] = useState<EventSectionFonts>(DEFAULT_EVENT_PAGE_SETTINGS.section_fonts);
 
   useEffect(() => {
     if (settings) {
@@ -47,6 +49,7 @@ export default function EventPageManager() {
       setExperienceLinks(
         Array(3).fill({ title: '', subtitle: '', link: '' }).map((defaultLink, i) => parsedLinks[i] || defaultLink)
       );
+      setSectionFonts(settings.section_fonts);
     } else {
       setHeroImages(DEFAULT_EVENT_PAGE_SETTINGS.hero_images);
       setMagicTitle(DEFAULT_EVENT_PAGE_SETTINGS.magic_title);
@@ -57,6 +60,7 @@ export default function EventPageManager() {
       setExperienceTitle(DEFAULT_EVENT_PAGE_SETTINGS.experience_title);
       setExperienceImages(DEFAULT_EVENT_PAGE_SETTINGS.experience_images);
       setExperienceLinks(DEFAULT_EVENT_PAGE_SETTINGS.experience_links);
+      setSectionFonts(DEFAULT_EVENT_PAGE_SETTINGS.section_fonts);
     }
   }, [settings]);
 
@@ -108,6 +112,7 @@ export default function EventPageManager() {
         experience_title: experienceTitle,
         experience_images: experienceImages,
         experience_links: experienceLinks,
+        section_fonts: sectionFonts,
       });
       showToast('success', 'Event page settings saved successfully');
     } catch (err: unknown) {
@@ -187,7 +192,7 @@ export default function EventPageManager() {
         {/* Hero Section */}
         <section className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm space-y-6">
           <div className="flex justify-between items-center border-b pb-2">
-            <h2 className="text-xl font-display font-bold text-gray-900">1. Hero Gallery Images</h2>
+            <h2 className="text-xl font-semibold text-gray-900">1. Hero Gallery Images</h2>
             <button
               onClick={() => setHeroImages([...heroImages, ''])}
               className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-lg text-sm font-semibold transition-colors flex items-center gap-2"
@@ -218,7 +223,15 @@ export default function EventPageManager() {
 
         {/* Magic Moment Section */}
         <section className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm space-y-6">
-          <h2 className="text-xl font-display font-bold text-gray-900 border-b pb-2">2. "Capturing Your Magic Moment" Section</h2>
+          <div className="flex flex-col gap-4 border-b pb-2 lg:flex-row lg:items-start lg:justify-between">
+            <h2 className="text-xl font-semibold text-gray-900">2. "Capturing Your Magic Moment" Section</h2>
+            <div className="w-full max-w-xl">
+              <CmsSectionFontFields
+                value={sectionFonts.magic}
+                onChange={(nextValue) => setSectionFonts((current) => ({ ...current, magic: nextValue }))}
+              />
+            </div>
+          </div>
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-4">
@@ -271,7 +284,15 @@ export default function EventPageManager() {
 
         {/* Experience Section */}
         <section className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm space-y-6">
-          <h2 className="text-xl font-display font-bold text-gray-900 border-b pb-2">3. "Choose Your Experience" Section</h2>
+          <div className="flex flex-col gap-4 border-b pb-2 lg:flex-row lg:items-start lg:justify-between">
+            <h2 className="text-xl font-semibold text-gray-900">3. "Choose Your Experience" Section</h2>
+            <div className="w-full max-w-xl">
+              <CmsSectionFontFields
+                value={sectionFonts.experience}
+                onChange={(nextValue) => setSectionFonts((current) => ({ ...current, experience: nextValue }))}
+              />
+            </div>
+          </div>
           
           <div>
             <label className="block text-xs font-bold uppercase tracking-widest text-gray-500 mb-2">Section Title</label>
