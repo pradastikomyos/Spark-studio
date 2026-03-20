@@ -70,7 +70,7 @@ export default function StageFormModal({
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
             <div className="bg-white rounded-2xl w-full max-w-lg shadow-xl overflow-hidden animate-fade-in-up">
                 <div className="p-6 border-b border-gray-100 flex justify-between items-center">
-                    <h3 className="font-display text-xl font-bold text-gray-900">
+                    <h3 className="text-xl font-bold text-gray-900">
                         {initialData ? 'Edit Stage' : 'New Stage'}
                     </h3>
                     <button
