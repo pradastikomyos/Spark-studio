@@ -1,7 +1,9 @@
+import type { BookingPageSettings } from '../../hooks/useBookingPageSettings';
 import { SESSION_DURATION_MINUTES } from '../../utils/timezone';
 import type { GroupedTimeSlots } from './journeySelectionTypes';
 
 type JourneyTimeSlotsSectionProps = {
+  copy: Pick<BookingPageSettings, 'time_slots_title' | 'empty_slots_message'>;
   selectedDate: Date | null;
   selectedTime: string | null;
   availableSlotsCount: number;
@@ -19,6 +21,7 @@ const PERIOD_NAMES: Record<string, string> = {
 };
 
 export function JourneyTimeSlotsSection({
+  copy,
   selectedDate,
   selectedTime,
   availableSlotsCount,
@@ -31,7 +34,7 @@ export function JourneyTimeSlotsSection({
 
   return (
     <div className="bg-gray-50 rounded-xl p-8 border border-gray-200">
-      <h3 className="text-xl font-bold mb-6">Available Time Slots</h3>
+      <h3 className="text-xl font-bold mb-6">{copy.time_slots_title}</h3>
 
       {availableSlotsCount > 0 ? (
         <div className="space-y-6">
@@ -90,7 +93,7 @@ export function JourneyTimeSlotsSection({
           })}
         </div>
       ) : (
-        <p className="text-gray-500 text-center py-8">No available time slots for this date</p>
+        <p className="text-gray-500 text-center py-8">{copy.empty_slots_message}</p>
       )}
     </div>
   );

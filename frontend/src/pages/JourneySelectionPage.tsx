@@ -1,6 +1,7 @@
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { PageTransition } from '../components/PageTransition';
+import { DEFAULT_BOOKING_PAGE_SETTINGS, useBookingPageSettings } from '../hooks/useBookingPageSettings';
 import { toLocalDateString } from '../utils/timezone';
 import { JourneyCalendarSection } from './journey-selection/JourneyCalendarSection';
 import { JourneySummaryCard } from './journey-selection/JourneySummaryCard';
@@ -10,6 +11,8 @@ import { useJourneySelectionController } from './journey-selection/useJourneySel
 export default function JourneySelectionPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { settings } = useBookingPageSettings();
+  const bookingCopy = settings ?? DEFAULT_BOOKING_PAGE_SETTINGS;
   const {
     ticket,
     loading,
@@ -73,8 +76,8 @@ export default function JourneySelectionPage() {
         <main className="max-w-[1200px] mx-auto px-6 py-12">
           {/* Page Heading */}
           <div className="mb-12">
-            <h1 className="text-5xl font-black leading-tight tracking-tight mb-4">Select Your Journey</h1>
-            <p className="text-gray-600 text-lg">Pick a date to see available magical experiences.</p>
+            <h1 className="text-5xl font-black leading-tight tracking-tight mb-4">{bookingCopy.journey_title}</h1>
+            <p className="text-gray-600 text-lg">{bookingCopy.journey_description}</p>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
@@ -95,6 +98,7 @@ export default function JourneySelectionPage() {
               />
 
               <JourneyTimeSlotsSection
+                copy={bookingCopy}
                 selectedDate={selectedDate}
                 selectedTime={selectedTime}
                 availableSlotsCount={availableTimeSlots.length}
@@ -108,6 +112,7 @@ export default function JourneySelectionPage() {
             {/* Right Column: Booking Summary */}
             <div className="flex flex-col gap-6">
               <JourneySummaryCard
+                copy={bookingCopy}
                 ticket={ticket}
                 selectedDate={selectedDate}
                 selectedTime={selectedTime}

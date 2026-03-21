@@ -23,6 +23,16 @@ vi.mock('../components/PageTransition', () => ({
   PageTransition: ({ children }: { children: ReactNode }) => <div>{children}</div>,
 }));
 
+vi.mock('../hooks/useBookingPageSettings', () => ({
+  DEFAULT_BOOKING_PAGE_SETTINGS: {
+    journey_title: 'Select Your Journey',
+    journey_description: 'Pick a date to see available magical experiences.',
+  },
+  useBookingPageSettings: () => ({
+    settings: null,
+  }),
+}));
+
 vi.mock('./journey-selection/useJourneySelectionController', () => ({
   useJourneySelectionController: () => ({
     ticket: {

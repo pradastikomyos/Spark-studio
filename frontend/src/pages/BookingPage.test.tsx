@@ -17,6 +17,40 @@ vi.mock('../hooks/useTicketAvailability', () => ({
   useTicketAvailability: vi.fn(),
 }));
 
+vi.mock('../hooks/useBookingPageSettings', () => ({
+  DEFAULT_BOOKING_PAGE_SETTINGS: {
+    reserve_title: 'Reserve Your Session',
+    reserve_description: 'Secure your spot. Select your preferred date and time to begin your experience.',
+    calendar_title: 'Select Date',
+    time_slots_title: 'Available Time Slots',
+    access_type_title: 'Access Type',
+    all_day_access_label: 'All Day Access',
+    all_day_access_helper: '(Valid entire day)',
+    choose_specific_time_label: 'Or choose specific time',
+    empty_slots_message: 'No available time slots for this date',
+    booking_summary_title: 'Booking Summary',
+    ticket_type_label: 'Ticket Type',
+    date_label: 'Date',
+    time_label: 'Time',
+    not_selected_label: 'Not selected',
+    all_day_access_value_label: 'All Day Access',
+    quantity_label: 'How Many?',
+    max_tickets_label_template: 'Max {count} per booking',
+    total_label: 'Total',
+    proceed_button_label: 'Proceed to Payment',
+    secure_checkout_label: 'Secure Encrypted Checkout',
+    important_info_title: 'Important Info',
+    important_info_items: [
+      'Please arrive 15 minutes before your slot.',
+      'Ticket is valid only for selected date and time.',
+      'Tiket tidak dapat di-refund atau di-reschedule.',
+    ],
+  },
+  useBookingPageSettings: () => ({
+    settings: null,
+  }),
+}));
+
 vi.mock('../components/Toast', () => ({
   useToast: () => ({
     showToast: mockShowToast,

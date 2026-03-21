@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
+import { DEFAULT_BOOKING_PAGE_SETTINGS, useBookingPageSettings } from '../hooks/useBookingPageSettings';
 import { toLocalDateString } from '../utils/timezone';
 import { useTickets } from '../hooks/useTickets';
 import { useTicketAvailability } from '../hooks/useTicketAvailability';
@@ -21,6 +22,8 @@ export default function BookingPage() {
   const navigate = useNavigate();
   const { showToast } = useToast();
   const queryClient = useQueryClient();
+  const { settings } = useBookingPageSettings();
+  const bookingCopy = settings ?? DEFAULT_BOOKING_PAGE_SETTINGS;
   const { data: ticket, error: ticketError, isLoading: ticketLoading } = useTickets(slug);
   const { data: availabilities = [], error: availabilityError, isLoading: availabilityLoading } = useTicketAvailability(ticket?.id ?? null);
   const loading = ticketLoading || availabilityLoading;
@@ -152,15 +155,16 @@ export default function BookingPage() {
             <BookingProgressHeader />
 
             <div className="mb-12">
-              <h1 className="text-5xl font-black leading-tight tracking-[-0.033em] mb-4">Reserve Your Session</h1>
+              <h1 className="text-5xl font-black leading-tight tracking-[-0.033em] mb-4">{bookingCopy.reserve_title}</h1>
               <p className="text-[#9c4949]#d19a9a] text-lg max-w-2xl font-normal leading-normal">
-                {ticket.description || 'Secure your spot. Select your preferred date and time to begin your experience.'}
+                {ticket.description || bookingCopy.reserve_description}
               </p>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
               <div className="lg:col-span-2 flex flex-col gap-10">
                 <BookingCalendarPanel
+                  title={bookingCopy.calendar_title}
                   monthName={monthName}
                   calendarDays={calendarDays}
                   selectedDate={selectedDate}
@@ -171,6 +175,7 @@ export default function BookingPage() {
                   onSelectDate={handleSelectDate}
                 />
                 <BookingTimeSlotPanel
+                  copy={bookingCopy}
                   selectedDate={selectedDate}
                   isAllDayTicket={isAllDayTicket}
                   selectedTime={selectedTime}
@@ -183,6 +188,7 @@ export default function BookingPage() {
               </div>
 
               <BookingSummarySidebar
+                copy={bookingCopy}
                 ticket={ticket}
                 selectedDate={selectedDate}
                 selectedTime={selectedTime}

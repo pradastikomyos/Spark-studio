@@ -1,8 +1,18 @@
 import { m } from 'framer-motion';
+import type { BookingPageSettings } from '../../hooks/useBookingPageSettings';
 import { SESSION_DURATION_MINUTES } from '../../utils/timezone';
 import type { BookableSlotViewModel, GroupedBookableSlots } from './bookingTypes';
 
 type BookingTimeSlotPanelProps = {
+  copy: Pick<
+    BookingPageSettings,
+    | 'time_slots_title'
+    | 'access_type_title'
+    | 'all_day_access_label'
+    | 'all_day_access_helper'
+    | 'choose_specific_time_label'
+    | 'empty_slots_message'
+  >;
   selectedDate: Date | null;
   isAllDayTicket: boolean;
   selectedTime: string | null;
@@ -22,6 +32,7 @@ const PERIOD_NAMES: Record<keyof GroupedBookableSlots, string> = {
 
 export function BookingTimeSlotPanel(props: BookingTimeSlotPanelProps) {
   const {
+    copy,
     selectedDate,
     isAllDayTicket,
     selectedTime,
@@ -36,7 +47,7 @@ export function BookingTimeSlotPanel(props: BookingTimeSlotPanelProps) {
 
   return (
     <div className="bg-white rounded-xl shadow-sm border border-rose-50 p-8">
-      <h3 className="text-xl font-bold mb-6">{isAllDayTicket ? 'Access Type' : 'Available Time Slots'}</h3>
+      <h3 className="text-xl font-bold mb-6">{isAllDayTicket ? copy.access_type_title : copy.time_slots_title}</h3>
 
       {isAllDayTicket && (
         <div className="mb-6">
@@ -48,8 +59,8 @@ export function BookingTimeSlotPanel(props: BookingTimeSlotPanelProps) {
             `}
           >
             <span className="material-symbols-outlined">calendar_today</span>
-            All Day Access
-            <span className="text-xs opacity-60">(Valid entire day)</span>
+            {copy.all_day_access_label}
+            <span className="text-xs opacity-60">{copy.all_day_access_helper}</span>
           </m.button>
         </div>
       )}
@@ -57,7 +68,7 @@ export function BookingTimeSlotPanel(props: BookingTimeSlotPanelProps) {
       {availableTimeSlots.length > 0 ? (
         <div className="space-y-6">
           {isAllDayTicket && (
-            <p className="text-xs font-black uppercase tracking-widest text-primary/60 mb-2">Or choose specific time</p>
+            <p className="text-xs font-black uppercase tracking-widest text-primary/60 mb-2">{copy.choose_specific_time_label}</p>
           )}
           {(Object.entries(groupedSlots) as Array<[keyof GroupedBookableSlots, BookableSlotViewModel[]]>).map(([period, slots]) => {
             if (slots.length === 0) return null;
@@ -126,7 +137,7 @@ export function BookingTimeSlotPanel(props: BookingTimeSlotPanelProps) {
           })}
         </div>
       ) : !isAllDayTicket ? (
-        <p className="text-gray-500 text-center py-8">No available time slots for this date</p>
+        <p className="text-gray-500 text-center py-8">{copy.empty_slots_message}</p>
       ) : null}
     </div>
   );

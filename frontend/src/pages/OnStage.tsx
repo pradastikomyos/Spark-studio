@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useBanners } from '../hooks/useBanners';
+import { DEFAULT_BOOKING_PAGE_SETTINGS, useBookingPageSettings } from '../hooks/useBookingPageSettings';
 import { HeroBannerCarousel } from '../components/HeroBannerCarousel';
 import { useAuth } from '../contexts/AuthContext';
 import { toLocalDateString } from '../utils/timezone';
@@ -13,6 +14,8 @@ import { useJourneySelectionController } from './journey-selection/useJourneySel
 const OnStage = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { settings: bookingSettings } = useBookingPageSettings();
+  const bookingCopy = bookingSettings ?? DEFAULT_BOOKING_PAGE_SETTINGS;
   const [currentProcessSlide, setCurrentProcessSlide] = useState(0);
 
   const {
@@ -283,8 +286,8 @@ const OnStage = () => {
       <section id="select-journey" className="bg-white py-12 md:py-16 scroll-mt-4">
         <div className="max-w-[1200px] mx-auto px-4 sm:px-6">
           <div className="mb-10 md:mb-12">
-            <h2 className="text-3xl md:text-5xl font-black leading-tight tracking-tight mb-3">Select Your Journey</h2>
-            <p className="text-gray-600 text-base md:text-lg">Pick a date to see available magical experiences.</p>
+            <h2 className="text-3xl md:text-5xl font-black leading-tight tracking-tight mb-3">{bookingCopy.journey_title}</h2>
+            <p className="text-gray-600 text-base md:text-lg">{bookingCopy.journey_description}</p>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 lg:gap-12">
@@ -311,6 +314,7 @@ const OnStage = () => {
                   />
 
                   <JourneyTimeSlotsSection
+                    copy={bookingCopy}
                     selectedDate={selectedDate}
                     selectedTime={selectedTime}
                     availableSlotsCount={availableTimeSlots.length}
@@ -355,6 +359,7 @@ const OnStage = () => {
               {/* Booking Summary */}
               {ticket && (
                 <JourneySummaryCard
+                  copy={bookingCopy}
                   ticket={ticket}
                   selectedDate={selectedDate}
                   selectedTime={selectedTime}

@@ -2,6 +2,7 @@ import { m } from 'framer-motion';
 import type { CalendarDay } from './bookingTypes';
 
 type BookingCalendarPanelProps = {
+  title: string;
   monthName: string;
   calendarDays: (CalendarDay | null)[];
   selectedDate: Date | null;
@@ -16,6 +17,7 @@ const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 export function BookingCalendarPanel(props: BookingCalendarPanelProps) {
   const {
+    title,
     monthName,
     calendarDays,
     selectedDate,
@@ -29,7 +31,7 @@ export function BookingCalendarPanel(props: BookingCalendarPanelProps) {
   return (
     <div className="bg-white#1a0c0c] rounded-xl shadow-sm border border-[#f4e7e7]#3d2424] p-8">
       <div className="flex items-center justify-between mb-8">
-        <h3 className="text-xl font-bold">Select Date</h3>
+        <h3 className="text-xl font-bold">{title}</h3>
         <div className="flex items-center gap-3">
           <button
             onClick={onPrevMonth}
