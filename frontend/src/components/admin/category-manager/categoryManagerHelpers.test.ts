@@ -16,8 +16,10 @@ const categories: Category[] = [
 ];
 
 describe('categoryManagerHelpers', () => {
-  it('builds sorted parent options excluding the editing category', () => {
-    expect(getParentOptions(categories, 1).map((category) => category.id)).toEqual([3]);
+  it('builds sorted parent options excluding the editing category and its descendants', () => {
+    // 3 = Hair, 4 = Orphan (both are not Beauty and not descendants of Beauty)
+    // 2 (Face) is skipped because it's a descendant of 1 (Beauty)
+    expect(getParentOptions(categories, 1).map((category) => category.id)).toEqual([3, 4]);
   });
 
   it('groups parents and children correctly', () => {
@@ -26,8 +28,7 @@ describe('categoryManagerHelpers', () => {
   });
 
   it('detects orphan children and parent names', () => {
-    const parents = getParents(categories);
-    expect(getOrphanChildren(categories, parents).map((category) => category.id)).toEqual([4]);
+    expect(getOrphanChildren(categories).map((category) => category.id)).toEqual([4]);
     expect(getParentNameMap(categories).get(1)).toBe('Beauty');
   });
 });

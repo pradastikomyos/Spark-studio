@@ -15,9 +15,25 @@ export const toCategoryDraft = (category: Category): CategoryDraft => ({
   parent_id: category.parent_id,
 });
 
+const isDescendant = (categoryId: number, targetId: number, allCategories: Category[]): boolean => {
+  let current = allCategories.find((c) => c.id === categoryId);
+  const visited = new Set<number>();
+  while (current && !visited.has(current.id)) {
+    visited.add(current.id);
+    if (current.parent_id === targetId) return true;
+    const parentId = current.parent_id;
+    current = allCategories.find((c) => c.id === parentId);
+  }
+  return false;
+};
+
 export const getParentOptions = (categories: Category[], editingId: number | null): Category[] =>
   categories
-    .filter((category) => category.parent_id === null && category.id !== editingId)
+    .filter((category) => {
+      if (editingId === null) return true;
+      if (category.id === editingId) return false;
+      return !isDescendant(category.id, editingId, categories);
+    })
     .slice()
     .sort((left, right) => left.name.localeCompare(right.name));
 
@@ -42,10 +58,10 @@ export const getChildrenByParent = (categories: Category[]): Map<number, Categor
   return map;
 };
 
-export const getOrphanChildren = (categories: Category[], parents: Category[]): Category[] => {
-  const parentIds = new Set(parents.map((category) => category.id));
+export const getOrphanChildren = (categories: Category[]): Category[] => {
+  const allCategoryIds = new Set(categories.map((c) => c.id));
   return categories
-    .filter((category) => category.parent_id !== null && !parentIds.has(category.parent_id))
+    .filter((category) => category.parent_id !== null && !allCategoryIds.has(category.parent_id))
     .slice()
     .sort((left, right) => left.name.localeCompare(right.name));
 };

@@ -58,7 +58,6 @@ export type ProductFormModalController = {
   error: string | null;
   isOnline: boolean;
   categoryOptions: CategoryOption[];
-  categoryNameMap: Map<number, string>;
   activeExistingImages: ExistingImage[];
   setDraft: Dispatch<SetStateAction<ProductDraft>>;
   setImages: Dispatch<SetStateAction<ImagePreview[]>>;

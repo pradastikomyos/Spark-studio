@@ -6,7 +6,6 @@ import {
   buildDraftSnapshot,
   EMPTY_DRAFT_SNAPSHOT,
   emptyDraft,
-  getCategoryNameMap,
   getCategoryOptions,
   getIsDirty,
   getSaveTimeoutMs,
@@ -135,7 +134,6 @@ export function useProductFormModalController(props: ProductFormModalProps): Pro
   }, []);
 
   const categoryOptions = useMemo(() => getCategoryOptions(categories), [categories]);
-  const categoryNameMap = useMemo(() => getCategoryNameMap(categories), [categories]);
 
   const isDirty = useMemo(
     () =>
@@ -232,7 +230,6 @@ export function useProductFormModalController(props: ProductFormModalProps): Pro
     error,
     isOnline,
     categoryOptions,
-    categoryNameMap,
     activeExistingImages,
     setDraft,
     setImages,

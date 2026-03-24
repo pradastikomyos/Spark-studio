@@ -24,6 +24,107 @@ const StatusPill = ({ active }: { active: boolean }) => (
   </span>
 );
 
+const CategoryRow = ({
+  category,
+  level,
+  parentName,
+  loading,
+  childrenByParent,
+  expandedParents,
+  onToggleExpanded,
+  onEdit,
+  onDelete,
+}: {
+  category: Category;
+  level: number;
+  parentName: string | null;
+  loading: boolean;
+  childrenByParent: Map<number, Category[]>;
+  expandedParents: number[];
+  onToggleExpanded: (parentId: number) => void;
+  onEdit: (category: Category) => void;
+  onDelete: (id: number) => void;
+}) => {
+  const children = childrenByParent.get(category.id) ?? [];
+  const showToggle = children.length > 0;
+  const isExpanded = expandedParents.includes(category.id);
+  const paddingLeft = level === 0 ? '1rem' : `${1 + level * 1.5}rem`;
+
+  return (
+    <Fragment>
+      <tr className={`hover:bg-gray-50 ${level > 0 ? 'bg-gray-50/60' : ''}`}>
+        <td className="py-3 pr-4" style={{ paddingLeft }}>
+          <div className="flex items-center gap-2">
+            {level > 0 && <span className="text-gray-400">└─</span>}
+            {showToggle ? (
+              <button
+                type="button"
+                onClick={() => onToggleExpanded(category.id)}
+                className={`flex items-center justify-center rounded bg-gray-100 font-bold text-gray-600 hover:bg-gray-200 ${
+                  level === 0 ? 'h-6 w-6 text-xs' : 'h-5 w-5 text-[10px]'
+                }`}
+              >
+                {isExpanded ? '▾' : '▸'}
+              </button>
+            ) : (
+              <span className={level === 0 ? 'inline-block h-6 w-6' : 'inline-block h-5 w-5'} />
+            )}
+            {showToggle ? (
+              <button
+                type="button"
+                onClick={() => onToggleExpanded(category.id)}
+                className={`text-left ${level === 0 ? 'font-medium' : ''} text-gray-900`}
+              >
+                {category.name}
+              </button>
+            ) : (
+              <span className={`${level === 0 ? 'font-medium' : ''} text-gray-900`}>{category.name}</span>
+            )}
+          </div>
+        </td>
+        <td className="px-4 py-3 text-xs text-gray-600">{parentName ?? '-'}</td>
+        <td className="px-4 py-3 font-mono text-xs text-gray-600">{category.slug}</td>
+        <td className="px-4 py-3">
+          <StatusPill active={category.is_active} />
+        </td>
+        <td className="px-4 py-3 text-right">
+          <button
+            type="button"
+            onClick={() => onEdit(category)}
+            disabled={loading}
+            className="mr-2 rounded bg-gray-100 px-2 py-1 text-xs font-bold hover:bg-white/15 disabled:opacity-50"
+          >
+            Edit
+          </button>
+          <button
+            type="button"
+            onClick={() => onDelete(category.id)}
+            disabled={loading}
+            className="rounded bg-[#ff4b86]/10 px-2 py-1 text-xs font-bold text-[#ff4b86] hover:bg-[#ff4b86]/20 disabled:opacity-50"
+          >
+            Delete
+          </button>
+        </td>
+      </tr>
+      {isExpanded &&
+        children.map((child) => (
+          <CategoryRow
+            key={child.id}
+            category={child}
+            level={level + 1}
+            parentName={category.name}
+            loading={loading}
+            childrenByParent={childrenByParent}
+            expandedParents={expandedParents}
+            onToggleExpanded={onToggleExpanded}
+            onEdit={onEdit}
+            onDelete={onDelete}
+          />
+        ))}
+    </Fragment>
+  );
+};
+
 export function CategoryTreeTable({
   categories,
   loading,
@@ -63,93 +164,20 @@ export function CategoryTreeTable({
             </tr>
           ) : (
             <>
-              {parents.map((parent) => {
-                const children = childrenByParent.get(parent.id) ?? [];
-                const showToggle = children.length > 0;
-                const isExpanded = expandedParents.includes(parent.id);
-
-                return (
-                  <Fragment key={parent.id}>
-                    <tr className="hover:bg-gray-50">
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-2">
-                          {showToggle ? (
-                            <button
-                              type="button"
-                              onClick={() => onToggleExpanded(parent.id)}
-                              className="flex h-6 w-6 items-center justify-center rounded bg-gray-100 text-xs font-bold text-gray-600 hover:bg-gray-200"
-                            >
-                              {isExpanded ? '▾' : '▸'}
-                            </button>
-                          ) : (
-                            <span className="h-6 w-6" />
-                          )}
-                          {showToggle ? (
-                            <button type="button" onClick={() => onToggleExpanded(parent.id)} className="text-left font-medium text-gray-900">
-                              {parent.name}
-                            </button>
-                          ) : (
-                            <span className="font-medium text-gray-900">{parent.name}</span>
-                          )}
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 text-xs text-gray-600">-</td>
-                      <td className="px-4 py-3 font-mono text-xs text-gray-600">{parent.slug}</td>
-                      <td className="px-4 py-3">
-                        <StatusPill active={parent.is_active} />
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        <button
-                          type="button"
-                          onClick={() => onEdit(parent)}
-                          disabled={loading}
-                          className="mr-2 rounded bg-gray-100 px-2 py-1 text-xs font-bold hover:bg-white/15 disabled:opacity-50"
-                        >
-                          Edit
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => onDelete(parent.id)}
-                          disabled={loading}
-                          className="rounded bg-[#ff4b86]/10 px-2 py-1 text-xs font-bold text-[#ff4b86] hover:bg-[#ff4b86]/20 disabled:opacity-50"
-                        >
-                          Delete
-                        </button>
-                      </td>
-                    </tr>
-                    {isExpanded
-                      ? children.map((child) => (
-                          <tr key={child.id} className="bg-gray-50/60">
-                            <td className="px-4 py-3 pl-8 font-medium">└─ {child.name}</td>
-                            <td className="px-4 py-3 text-xs text-gray-600">{parent.name}</td>
-                            <td className="px-4 py-3 font-mono text-xs text-gray-600">{child.slug}</td>
-                            <td className="px-4 py-3">
-                              <StatusPill active={child.is_active} />
-                            </td>
-                            <td className="px-4 py-3 text-right">
-                              <button
-                                type="button"
-                                onClick={() => onEdit(child)}
-                                disabled={loading}
-                                className="mr-2 rounded bg-gray-100 px-2 py-1 text-xs font-bold hover:bg-white/15 disabled:opacity-50"
-                              >
-                                Edit
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => onDelete(child.id)}
-                                disabled={loading}
-                                className="rounded bg-[#ff4b86]/10 px-2 py-1 text-xs font-bold text-[#ff4b86] hover:bg-[#ff4b86]/20 disabled:opacity-50"
-                              >
-                                Delete
-                              </button>
-                            </td>
-                          </tr>
-                        ))
-                      : null}
-                  </Fragment>
-                );
-              })}
+              {parents.map((parent) => (
+                <CategoryRow
+                  key={parent.id}
+                  category={parent}
+                  level={0}
+                  parentName={null}
+                  loading={loading}
+                  childrenByParent={childrenByParent}
+                  expandedParents={expandedParents}
+                  onToggleExpanded={onToggleExpanded}
+                  onEdit={onEdit}
+                  onDelete={onDelete}
+                />
+              ))}
 
               {orphanChildren.map((child) => (
                 <tr key={child.id} className="hover:bg-gray-50">

@@ -124,7 +124,7 @@ export function useCategoryManagerController({ isOpen, onUpdate }: Pick<Category
   const parentOptions = useMemo(() => getParentOptions(categories, editingId), [categories, editingId]);
   const parents = useMemo(() => getParents(categories), [categories]);
   const childrenByParent = useMemo(() => getChildrenByParent(categories), [categories]);
-  const orphanChildren = useMemo(() => getOrphanChildren(categories, parents), [categories, parents]);
+  const orphanChildren = useMemo(() => getOrphanChildren(categories), [categories]);
   const parentNameMap = useMemo(() => getParentNameMap(categories), [categories]);
 
   useEffect(() => {

@@ -6,7 +6,6 @@ type ProductDetailsSectionProps = {
   draft: ProductDraft;
   slugTouched: boolean;
   categoryOptions: CategoryOption[];
-  categoryNameMap: Map<number, string>;
   setDraft: Dispatch<SetStateAction<ProductDraft>>;
   setSlugTouched: Dispatch<SetStateAction<boolean>>;
 };
@@ -15,10 +14,27 @@ export function ProductDetailsSection({
   draft,
   slugTouched,
   categoryOptions,
-  categoryNameMap,
   setDraft,
   setSlugTouched,
 }: ProductDetailsSectionProps) {
+  const lineage: number[] = [];
+  let currentId: number | null | undefined = draft.category_id;
+  const visited = new Set<number>();
+  while (currentId && !visited.has(currentId)) {
+    visited.add(currentId);
+    lineage.unshift(currentId);
+    const cat = categoryOptions.find((c) => c.id === currentId);
+    currentId = cat?.parent_id;
+  }
+
+  const rootId = lineage[0] ?? null;
+  const subId = lineage[1] ?? null;
+  const subsubId = lineage[2] ?? null;
+
+  const rootOptions = categoryOptions.filter((c) => !c.parent_id);
+  const subOptions = rootId ? categoryOptions.filter((c) => c.parent_id === rootId) : [];
+  const subsubOptions = subId ? categoryOptions.filter((c) => c.parent_id === subId) : [];
+
   return (
     <div className="flex flex-col gap-4">
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -66,20 +82,65 @@ export function ProductDetailsSection({
       <label className="flex flex-col gap-1">
         <span className="text-xs font-bold text-gray-600">Category</span>
         <select
-          value={draft.category_id ?? ''}
-          onChange={(event) =>
-            setDraft((current) => ({ ...current, category_id: event.target.value ? Number(event.target.value) : null }))
-          }
+          value={rootId ?? ''}
+          onChange={(event) => {
+            const val = event.target.value ? Number(event.target.value) : null;
+            setDraft((current) => ({ ...current, category_id: val }));
+          }}
           className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary"
         >
           <option value="">Select category</option>
-          {categoryOptions.map((category) => (
+          {rootOptions.map((category) => (
             <option key={category.id} value={category.id}>
-              {category.parent_id ? `${categoryNameMap.get(category.parent_id) ?? 'Parent'} / ${category.name}` : category.name}
+              {category.name}
             </option>
           ))}
         </select>
       </label>
+
+      {subOptions.length > 0 && (
+        <label className="flex flex-col gap-1">
+          <span className="text-xs font-bold text-gray-600">
+            {rootId ? categoryOptions.find((c) => c.id === rootId)?.name + ' Subcategory' : 'Subcategory'}
+          </span>
+          <select
+            value={subId ?? ''}
+            onChange={(event) => {
+              const val = event.target.value ? Number(event.target.value) : rootId;
+              setDraft((current) => ({ ...current, category_id: val }));
+            }}
+            className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+          >
+            <option value="">Select subcategory</option>
+            {subOptions.map((category) => (
+              <option key={category.id} value={category.id}>
+                {category.name}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
+
+      {subsubOptions.length > 0 && (
+        <label className="flex flex-col gap-1">
+          <span className="text-xs font-bold text-gray-600">Type</span>
+          <select
+            value={subsubId ?? ''}
+            onChange={(event) => {
+              const val = event.target.value ? Number(event.target.value) : subId;
+              setDraft((current) => ({ ...current, category_id: val }));
+            }}
+            className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+          >
+            <option value="">Select type</option>
+            {subsubOptions.map((category) => (
+              <option key={category.id} value={category.id}>
+                {category.name}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
 
       <label className="flex flex-col gap-1">
         <span className="text-xs font-bold text-gray-600">Description</span>

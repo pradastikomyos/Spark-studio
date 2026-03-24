@@ -52,10 +52,6 @@ export function getCategoryOptions(categories: CategoryOption[]): CategoryOption
     });
 }
 
-export function getCategoryNameMap(categories: CategoryOption[]): Map<number, string> {
-  return new Map(categories.map((category) => [category.id, category.name]));
-}
-
 export function getIsDirty(params: {
   draft: ProductDraft;
   imagesLength: number;
