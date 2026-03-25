@@ -34,12 +34,12 @@ export default function CharmBar() {
         </section>
 
         <section className="mx-auto max-w-7xl px-6 py-14 md:px-10 md:py-16 lg:px-12">
-          <div className="grid grid-cols-2 gap-x-5 gap-y-8 md:grid-cols-3 lg:grid-cols-5 lg:gap-8">
+          <div className="-mx-6 flex snap-x snap-mandatory gap-5 overflow-x-auto px-6 pb-6 hide-scrollbar md:mx-0 md:grid md:grid-cols-3 md:px-0 lg:grid-cols-5 lg:gap-8 lg:pb-0">
             {content.quick_links.map((item) => (
               <Link
                 key={item.title}
                 to={item.href || '/shop'}
-                className="group text-center"
+                className="group w-[140px] shrink-0 snap-start text-center sm:w-[150px] md:w-auto md:shrink-1"
               >
                 <div className="mx-auto mb-4 aspect-square w-full max-w-[150px] overflow-hidden rounded-[1.75rem] border border-black/10 bg-white shadow-[0_16px_40px_rgba(0,0,0,0.07)] transition-transform duration-300 group-hover:-translate-y-1">
                   <img
@@ -70,9 +70,9 @@ export default function CharmBar() {
             </h2>
           </div>
 
-          <div className="grid gap-10 lg:grid-cols-3 lg:gap-14">
+          <div className="-mx-6 flex snap-x snap-mandatory gap-6 overflow-x-auto px-6 pb-8 hide-scrollbar md:gap-10 lg:mx-0 lg:grid lg:grid-cols-3 lg:gap-14 lg:px-0 lg:pb-0">
             {content.steps.map((step) => (
-              <article key={step.title} className="flex h-full flex-col text-center">
+              <article key={step.title} className="flex h-full w-[85vw] shrink-0 snap-start flex-col text-center sm:w-[360px] lg:w-auto lg:shrink-1">
                 <div className="mb-8 overflow-hidden bg-white shadow-[0_18px_50px_rgba(0,0,0,0.08)]">
                   <img src={step.image_url} alt={step.title} className="aspect-[4/5] w-full object-cover" />
                 </div>
@@ -103,11 +103,11 @@ export default function CharmBar() {
             </p>
           </div>
 
-          <div className="grid gap-6 md:grid-cols-3">
+          <div className="-mx-6 flex snap-x snap-mandatory gap-5 overflow-x-auto px-6 pb-8 hide-scrollbar md:mx-0 md:grid md:grid-cols-3 md:gap-6 md:px-0 md:pb-0">
             {content.video_cards.map((video, index) => (
               <div
                 key={video.title}
-                className={`group relative overflow-hidden bg-[#d9d9d9] shadow-[0_22px_50px_rgba(0,0,0,0.1)] ${
+                className={`group relative w-[75vw] shrink-0 snap-start overflow-hidden bg-[#d9d9d9] shadow-[0_22px_50px_rgba(0,0,0,0.1)] sm:w-[300px] md:w-auto md:shrink-1 ${
                   index === 1 ? 'md:-translate-y-4' : ''
                 }`}
               >
