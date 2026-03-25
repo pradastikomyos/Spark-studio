@@ -34,14 +34,14 @@ export default function CharmBar() {
         </section>
 
         <section className="mx-auto max-w-7xl px-6 py-14 md:px-10 md:py-16 lg:px-12">
-          <div className="-mx-6 flex snap-x snap-mandatory gap-5 overflow-x-auto px-6 pb-6 hide-scrollbar md:mx-0 md:grid md:grid-cols-3 md:px-0 lg:grid-cols-5 lg:gap-8 lg:pb-0">
+          <div className="grid grid-cols-5 gap-1.5 md:gap-4 lg:gap-8">
             {content.quick_links.map((item) => (
               <Link
                 key={item.title}
                 to={item.href || '/shop'}
-                className="group w-[140px] shrink-0 snap-start text-center sm:w-[150px] md:w-auto md:shrink-1"
+                className="group text-center"
               >
-                <div className="mx-auto mb-4 aspect-square w-full max-w-[150px] overflow-hidden rounded-[1.75rem] border border-black/10 bg-white shadow-[0_16px_40px_rgba(0,0,0,0.07)] transition-transform duration-300 group-hover:-translate-y-1">
+                <div className="mx-auto mb-2 aspect-square w-full max-w-[150px] overflow-hidden rounded-[20%] border border-black/10 bg-white shadow-sm transition-transform duration-300 group-hover:-translate-y-1 lg:mb-4 lg:rounded-[1.75rem] lg:shadow-[0_16px_40px_rgba(0,0,0,0.07)]">
                   <img
                     src={item.image_url}
                     alt={item.title}
@@ -49,12 +49,12 @@ export default function CharmBar() {
                   />
                 </div>
                 <p
-                  className="text-[13px] font-bold uppercase tracking-[0.12em] underline decoration-black/60 decoration-1 underline-offset-[5px]"
+                  className="text-[8px] font-bold uppercase leading-tight tracking-[0.05em] underline decoration-black/60 decoration-1 underline-offset-[2px] sm:text-[10px] lg:text-[13px] lg:leading-normal lg:tracking-[0.12em] lg:underline-offset-[5px]"
                   style={getCmsFontStyle(quickLinksFonts.heading)}
                 >
                   {item.title}
                 </p>
-                <p className="mx-auto mt-3 max-w-[13rem] text-sm leading-6 text-black/60" style={getCmsFontStyle(quickLinksFonts.body)}>
+                <p className="mx-auto mt-1 hidden max-w-[13rem] text-xs leading-4 text-black/60 md:block lg:mt-3 lg:text-sm lg:leading-6" style={getCmsFontStyle(quickLinksFonts.body)}>
                   {item.description}
                 </p>
               </Link>
@@ -70,22 +70,22 @@ export default function CharmBar() {
             </h2>
           </div>
 
-          <div className="-mx-6 flex snap-x snap-mandatory gap-6 overflow-x-auto px-6 pb-8 hide-scrollbar md:gap-10 lg:mx-0 lg:grid lg:grid-cols-3 lg:gap-14 lg:px-0 lg:pb-0">
+          <div className="grid grid-cols-3 gap-3 md:gap-6 lg:gap-14">
             {content.steps.map((step) => (
-              <article key={step.title} className="flex h-full w-[85vw] shrink-0 snap-start flex-col text-center sm:w-[360px] lg:w-auto lg:shrink-1">
-                <div className="mb-8 overflow-hidden bg-white shadow-[0_18px_50px_rgba(0,0,0,0.08)]">
+              <article key={step.title} className="flex h-full flex-col text-center">
+                <div className="mb-3 overflow-hidden bg-white shadow-[0_8px_20px_rgba(0,0,0,0.06)] lg:mb-8 lg:shadow-[0_18px_50px_rgba(0,0,0,0.08)]">
                   <img src={step.image_url} alt={step.title} className="aspect-[4/5] w-full object-cover" />
                 </div>
-                <h3 className="font-serif text-[2rem] font-black uppercase leading-[1.05] sm:text-[2.2rem]" style={getCmsFontStyle(customizeFonts.heading)}>
+                <h3 className="font-serif text-[13px] font-black uppercase leading-[1.1] sm:text-lg lg:text-[2.2rem]" style={getCmsFontStyle(customizeFonts.heading)}>
                   {step.title}
                 </h3>
-                <p className="mx-auto mt-6 max-w-sm text-base leading-7 text-black/70" style={getCmsFontStyle(customizeFonts.body)}>
+                <p className="mx-auto mt-2 max-w-sm text-[9px] leading-[1.2] text-black/70 sm:text-xs md:mt-4 lg:mt-6 lg:text-base lg:leading-7" style={getCmsFontStyle(customizeFonts.body)}>
                   {step.body}
                 </p>
-                <div className="mt-8">
+                <div className="mt-2 lg:mt-8">
                   <Link
                     to={step.cta_href || '/shop'}
-                    className="inline-flex items-center justify-center bg-black px-6 py-3 text-sm font-semibold uppercase tracking-[0.16em] text-white transition-colors hover:bg-[#ff4b86]"
+                    className="inline-flex items-center justify-center bg-black px-2 py-1.5 text-[8px] font-semibold uppercase tracking-[0.1em] text-white transition-colors hover:bg-[#ff4b86] sm:px-4 sm:py-2 sm:text-xs lg:px-6 lg:py-3 lg:text-sm lg:tracking-[0.16em]"
                     style={getCmsFontStyle(customizeFonts.body)}
                   >
                     {step.cta_label}
@@ -103,11 +103,11 @@ export default function CharmBar() {
             </p>
           </div>
 
-          <div className="-mx-6 flex snap-x snap-mandatory gap-5 overflow-x-auto px-6 pb-8 hide-scrollbar md:mx-0 md:grid md:grid-cols-3 md:gap-6 md:px-0 md:pb-0">
+          <div className="grid grid-cols-3 gap-2 md:gap-6">
             {content.video_cards.map((video, index) => (
               <div
                 key={video.title}
-                className={`group relative w-[75vw] shrink-0 snap-start overflow-hidden bg-[#d9d9d9] shadow-[0_22px_50px_rgba(0,0,0,0.1)] sm:w-[300px] md:w-auto md:shrink-1 ${
+                className={`group relative overflow-hidden bg-[#d9d9d9] shadow-[0_8px_20px_rgba(0,0,0,0.06)] lg:shadow-[0_22px_50px_rgba(0,0,0,0.1)] ${
                   index === 1 ? 'md:-translate-y-4' : ''
                 }`}
               >
@@ -121,11 +121,11 @@ export default function CharmBar() {
                 />
                 <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/35 via-black/5 to-black/10" />
                 <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-                  <span className="flex h-16 w-16 items-center justify-center rounded-full bg-white/90 text-black shadow-[0_10px_24px_rgba(0,0,0,0.16)] transition-transform duration-300 group-hover:scale-105">
-                    <Play className="ml-1 h-7 w-7 fill-current" />
+                  <span className="flex h-8 w-8 items-center justify-center rounded-full bg-white/90 text-black shadow-[0_4px_10px_rgba(0,0,0,0.1)] transition-transform duration-300 group-hover:scale-105 lg:h-16 lg:w-16 lg:shadow-[0_10px_24px_rgba(0,0,0,0.16)]">
+                    <Play className="ml-0.5 h-3 w-3 fill-current lg:ml-1 lg:h-7 lg:w-7" />
                   </span>
                 </div>
-                <div className="absolute left-5 top-5 text-[11px] font-semibold uppercase tracking-[0.24em] text-white" style={getCmsFontStyle(videoGalleryFonts.heading)}>
+                <div className="absolute left-2 top-2 text-[7px] font-semibold uppercase tracking-[0.1em] text-white sm:text-[9px] lg:left-5 lg:top-5 lg:text-[11px] lg:tracking-[0.24em]" style={getCmsFontStyle(videoGalleryFonts.heading)}>
                   {video.title}
                 </div>
               </div>
