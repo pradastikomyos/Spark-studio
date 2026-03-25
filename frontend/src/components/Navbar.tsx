@@ -386,7 +386,7 @@ const Navbar = () => {
                   key={item.key}
                   ref={(el) => (mobileNavItemsRef.current[idx] = el)}
                   to={item.to}
-                  className={`relative z-10 shrink-0 snap-center min-w-[106px] md:min-w-[120px] text-center text-xs md:text-sm font-semibold uppercase px-3 md:px-4 py-2 mx-0.5 transition-all duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${isActive ? 'text-white drop-shadow-[0_2px_6px_rgba(0,0,0,0.18)] -translate-y-[1px] scale-[1.03]' : 'text-gray-600 active:text-gray-900'
+                  className={`relative z-10 shrink-0 snap-center min-w-[106px] md:min-w-[120px] text-center text-xs md:text-sm font-semibold uppercase px-3 md:px-4 py-2 mx-0.5 transition-all duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] transform-gpu ${isActive ? 'text-white [text-shadow:0_2px_6px_rgba(0,0,0,0.18)] -translate-y-[1px] scale-[1.03]' : 'text-gray-600 active:text-gray-900'
                     }`}
                 >
                   <span className="relative z-10 block">
