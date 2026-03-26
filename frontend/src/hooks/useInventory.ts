@@ -64,6 +64,18 @@ export type InventoryQueryData = {
   diagnostics: InventoryDiagnostics;
 };
 
+type InventoryProductFetchResult = {
+  data: ProductRow[] | null;
+  error: unknown;
+  count: number | null;
+  fullScan: boolean;
+};
+
+type InventoryPageRow = {
+  product_id: number | string | null;
+  total_count: number | string | null;
+};
+
 const INVENTORY_FULL_SCAN_PAGE_SIZE = 500;
 const INVENTORY_PRODUCTS_SELECT = `
   id,
@@ -154,6 +166,19 @@ const matchesStockFilter = (row: ProductRow, stockFilter: UseInventoryParams['st
   return true;
 };
 
+const orderProductsByIds = (products: ProductRow[], productIds: number[]) => {
+  const orderMap = new Map<number, number>();
+  productIds.forEach((productId, index) => {
+    orderMap.set(productId, index);
+  });
+
+  return [...products].sort((a, b) => {
+    const indexA = orderMap.get(a.id) ?? Number.MAX_SAFE_INTEGER;
+    const indexB = orderMap.get(b.id) ?? Number.MAX_SAFE_INTEGER;
+    return indexA - indexB;
+  });
+};
+
 async function fetchAllInventoryProducts(
   signal: AbortSignal,
   filters: InventoryListFilters
@@ -183,7 +208,7 @@ async function fetchInventoryPage(
   page: number,
   pageSize: number,
   filters: InventoryListFilters
-): Promise<{ data: ProductRow[] | null; error: unknown; count: number | null }> {
+): Promise<InventoryProductFetchResult> {
   const safePage = Math.max(1, page);
   const safePageSize = Math.max(1, pageSize);
   const from = (safePage - 1) * safePageSize;
@@ -205,7 +230,93 @@ async function fetchInventoryPage(
     data: (data || []) as unknown as ProductRow[],
     error,
     count: count ?? 0,
+    fullScan: false,
   };
+}
+
+async function fetchInventoryStockFilteredPage(
+  signal: AbortSignal,
+  page: number,
+  pageSize: number,
+  filters: InventoryListFilters,
+  stockFilter: UseInventoryParams['stockFilter']
+): Promise<InventoryProductFetchResult> {
+  const safePage = Math.max(1, page);
+  const safePageSize = Math.max(1, pageSize);
+  const normalizedSearch = normalizeSearchTerm(filters.searchQuery);
+  const normalizedCategory = filters.categoryFilter.trim();
+
+  try {
+    const { data, error } = await supabase
+      .rpc('list_inventory_product_page', {
+        p_search_query: normalizedSearch,
+        p_category_slug: normalizedCategory,
+        p_stock_filter: stockFilter,
+        p_page: safePage,
+        p_page_size: safePageSize,
+      })
+      .abortSignal(signal);
+
+    if (error) {
+      throw error;
+    }
+
+    const pageRows = (data || []) as InventoryPageRow[];
+    const productIds = pageRows
+      .map((row) => toNumber(row.product_id, 0))
+      .filter((productId) => productId > 0);
+    const totalCount = pageRows.length > 0 ? toNumber(pageRows[0].total_count, 0) : 0;
+
+    if (productIds.length === 0) {
+      return {
+        data: [],
+        error: null,
+        count: totalCount,
+        fullScan: false,
+      };
+    }
+
+    const { data: detailData, error: detailError } = await supabase
+      .from('products')
+      .select(INVENTORY_PRODUCTS_SELECT)
+      .abortSignal(signal)
+      .is('deleted_at', null)
+      .in('id', productIds);
+
+    if (detailError) {
+      throw detailError;
+    }
+
+    const orderedProducts = orderProductsByIds((detailData || []) as unknown as ProductRow[], productIds);
+
+    return {
+      data: orderedProducts,
+      error: null,
+      count: totalCount,
+      fullScan: false,
+    };
+  } catch (error) {
+    console.warn('Inventory stock filter RPC failed, falling back to client-side filtering:', error);
+    const fallbackResult = await fetchAllInventoryProducts(signal, filters);
+    if (fallbackResult.error) {
+      return {
+        data: null,
+        error: fallbackResult.error,
+        count: 0,
+        fullScan: true,
+      };
+    }
+
+    const filteredByStock = ((fallbackResult.data || []) as ProductRow[]).filter((row) => matchesStockFilter(row, stockFilter));
+    const start = Math.max(0, (safePage - 1) * safePageSize);
+
+    return {
+      data: filteredByStock.slice(start, start + safePageSize),
+      error: null,
+      count: filteredByStock.length,
+      fullScan: true,
+    };
+  }
 }
 
 export function useInventory(params: UseInventoryParams) {
@@ -235,9 +346,8 @@ export function useInventory(params: UseInventoryParams) {
           .abortSignal(timeoutSignal)
           .order('name', { ascending: true });
 
-        const fullScan = Boolean(params.stockFilter);
-        const productsPromise = fullScan
-          ? fetchAllInventoryProducts(timeoutSignal, filters)
+        const productsPromise = params.stockFilter
+          ? fetchInventoryStockFilteredPage(timeoutSignal, params.page, params.pageSize, filters, params.stockFilter)
           : fetchInventoryPage(timeoutSignal, params.page, params.pageSize, filters);
 
         const [productsResult, categoriesResult] = await Promise.all([productsPromise, categoriesPromise]);
@@ -253,15 +363,9 @@ export function useInventory(params: UseInventoryParams) {
           throw err;
         }
 
-        let products = (productsResult.data || []) as unknown as ProductRow[];
-        let totalCount = (productsResult as { count?: number | null }).count ?? products.length;
-
-        if (fullScan) {
-          const filteredByStock = products.filter((row) => matchesStockFilter(row, params.stockFilter));
-          totalCount = filteredByStock.length;
-          const start = Math.max(0, (Math.max(1, params.page) - 1) * Math.max(1, params.pageSize));
-          products = filteredByStock.slice(start, start + Math.max(1, params.pageSize));
-        }
+        const products = (productsResult.data || []) as unknown as ProductRow[];
+        const totalCount = productsResult.count ?? products.length;
+        const fullScan = productsResult.fullScan;
 
         const endedAt = typeof performance !== 'undefined' ? performance.now() : Date.now();
 

@@ -26,6 +26,7 @@ type OrderRow = {
 
 type OrderItemRow = {
   id: number;
+  order_product_id: number;
   quantity: number;
   price: number;
   subtotal: number;
@@ -79,64 +80,74 @@ export function useMyOrders(userId: string | null | undefined) {
           500
         );
 
-        const ordersWithItems = await Promise.all(
-          orders.map(async (order) => {
-            const { data: itemsData } = await supabase
-              .from('order_product_items')
-              .select(
-                `
-                id,
-                quantity,
-                price,
-                subtotal,
-                product_variants (
+        if (orders.length === 0) {
+          return [] as ProductOrder[];
+        }
+
+        const orderIds = orders.map((order) => order.id);
+        const { data: itemsData, error: itemsError } = await supabase
+          .from('order_product_items')
+          .select(
+            `
+              id,
+              order_product_id,
+              quantity,
+              price,
+              subtotal,
+              product_variants (
+                name,
+                product_id,
+                products (
                   name,
-                  product_id,
-                  products (
-                    name,
+                  image_url,
+                  product_images (
                     image_url,
-                    product_images (
-                      image_url,
-                      is_primary
-                    )
+                    is_primary
                   )
                 )
-              `
               )
-              .abortSignal(timeoutSignal)
-              .eq('order_product_id', order.id);
+            `
+          )
+          .abortSignal(timeoutSignal)
+          .in('order_product_id', orderIds);
 
-            const items: ProductOrderItem[] = ((itemsData as OrderItemRow[] | null) || []).map((item) => {
-              const product = item.product_variants?.products;
-              // Try to get image: 1) products.image_url, 2) primary product_image, 3) first product_image
-              let imageUrl: string | undefined = product?.image_url || undefined;
-              
-              if (!imageUrl && product?.product_images && Array.isArray(product.product_images)) {
-                const primaryImage = product.product_images.find((img) => img.is_primary);
-                imageUrl = primaryImage?.image_url || product.product_images[0]?.image_url || undefined;
-              }
+        if (itemsError) {
+          throw itemsError;
+        }
 
-              return {
-                id: item.id,
-                quantity: item.quantity,
-                price: item.price,
-                subtotal: item.subtotal,
-                productName: product?.name || 'Product',
-                variantName: item.product_variants?.name || 'Variant',
-                imageUrl,
-              };
-            });
+        const itemsByOrderId = new Map<number, ProductOrderItem[]>();
+        const itemCountByOrderId = new Map<number, number>();
 
-            const itemCount = items.reduce((sum, item) => sum + item.quantity, 0);
-            return {
-              ...order,
-              itemCount,
-              items,
-            } as ProductOrder;
-          })
-        );
+        for (const item of (itemsData as OrderItemRow[] | null) || []) {
+          const product = item.product_variants?.products;
+          let imageUrl: string | undefined = product?.image_url || undefined;
 
-        return ordersWithItems as ProductOrder[];
+          if (!imageUrl && product?.product_images && Array.isArray(product.product_images)) {
+            const primaryImage = product.product_images.find((img) => img.is_primary);
+            imageUrl = primaryImage?.image_url || product.product_images[0]?.image_url || undefined;
+          }
+
+          const mappedItem: ProductOrderItem = {
+            id: item.id,
+            quantity: item.quantity,
+            price: item.price,
+            subtotal: item.subtotal,
+            productName: product?.name || 'Product',
+            variantName: item.product_variants?.name || 'Variant',
+            imageUrl,
+          };
+
+          const existingItems = itemsByOrderId.get(item.order_product_id) ?? [];
+          existingItems.push(mappedItem);
+          itemsByOrderId.set(item.order_product_id, existingItems);
+          itemCountByOrderId.set(item.order_product_id, (itemCountByOrderId.get(item.order_product_id) ?? 0) + item.quantity);
+        }
+
+        return orders.map((order) => ({
+          ...order,
+          itemCount: itemCountByOrderId.get(order.id) ?? 0,
+          items: itemsByOrderId.get(order.id) ?? [],
+        })) as ProductOrder[];
       } catch (error) {
         if (didTimeout()) {
           throw new Error('Request timeout');

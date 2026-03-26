@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef } from 'react';
 import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { createQuerySignal } from '../lib/fetchers';
-import { safeCountQuery } from '../utils/queryHelpers';
 import { queryKeys } from '../lib/queryKeys';
 
 export type StageAnalyticsTimeFilter = 'weekly' | 'monthly' | 'all';
@@ -30,31 +29,15 @@ function getPeriodLabel(filter: StageAnalyticsTimeFilter) {
   }
 }
 
-function getRanges(filter: StageAnalyticsTimeFilter) {
-  const now = Date.now();
-  const dayMs = 24 * 60 * 60 * 1000;
-  const spanDays = filter === 'monthly' ? 30 : filter === 'weekly' ? 7 : 0;
-
-  if (spanDays === 0) {
-    return {
-      label: getPeriodLabel(filter),
-      currentStart: new Date(0),
-      prevStart: null as Date | null,
-      prevEnd: null as Date | null,
-    };
-  }
-
-  const currentStart = new Date(now - spanDays * dayMs);
-  const prevStart = new Date(now - spanDays * 2 * dayMs);
-  const prevEnd = currentStart;
-
-  return {
-    label: getPeriodLabel(filter),
-    currentStart,
-    prevStart,
-    prevEnd,
-  };
-}
+type StageAnalyticsSummaryRow = {
+  stage_id: number;
+  stage_code: string;
+  stage_name: string;
+  stage_zone: string | null;
+  total_scans: number | string | null;
+  period_scans: number | string | null;
+  prev_period_scans: number | string | null;
+};
 
 type UseStageAnalyticsOptions = {
   enabled?: boolean;
@@ -67,7 +50,7 @@ type UseStageAnalyticsOptions = {
  */
 export function useStageAnalytics(timeFilter: StageAnalyticsTimeFilter, options?: UseStageAnalyticsOptions) {
   const enabled = options?.enabled ?? true;
-  const ranges = useMemo(() => getRanges(timeFilter), [timeFilter]);
+  const periodLabel = useMemo(() => getPeriodLabel(timeFilter), [timeFilter]);
   const queryClient = useQueryClient();
 
   const query = useQuery({
@@ -77,79 +60,29 @@ export function useStageAnalytics(timeFilter: StageAnalyticsTimeFilter, options?
     queryFn: async ({ signal }) => {
       const { signal: timeoutSignal, cleanup, didTimeout } = createQuerySignal(signal);
       try {
-        const { data: stagesData, error: stagesError } = await supabase
-          .from('stages')
-          .select('id, code, name, zone')
-          .order('id', { ascending: true })
+        const { data, error } = await supabase
+          .rpc('get_stage_analytics_summary', { p_time_filter: timeFilter })
           .abortSignal(timeoutSignal);
 
-        if (stagesError) throw new Error(stagesError.message);
+        if (error) throw new Error(error.message);
 
-        const stages = stagesData || [];
+        const stagesWithAnalytics: StageAnalyticsData[] = ((data || []) as StageAnalyticsSummaryRow[]).map((row) => {
+          const totalScans = Number(row.total_scans) || 0;
+          const periodScans = Number(row.period_scans) || 0;
+          const prevPeriodScans = Number(row.prev_period_scans) || 0;
+          const change =
+            prevPeriodScans > 0 ? Math.round(((periodScans - prevPeriodScans) / prevPeriodScans) * 100) : periodScans > 0 ? 100 : 0;
 
-        const stagesWithAnalytics: StageAnalyticsData[] = await Promise.all(
-          stages.map(async (stage) => {
-            const totalScans = await safeCountQuery(
-              async () => {
-                const result = await supabase
-                  .from('stage_scans')
-                  .select('*', { count: 'exact', head: true })
-                  .eq('stage_id', stage.id)
-                  .abortSignal(AbortSignal.timeout(8000));
-                return result;
-              },
-              8000
-            );
-
-            const periodScans =
-              timeFilter === 'all'
-                ? totalScans
-                : await safeCountQuery(
-                    async () => {
-                      const result = await supabase
-                        .from('stage_scans')
-                        .select('*', { count: 'exact', head: true })
-                        .eq('stage_id', stage.id)
-                        .gte('scanned_at', ranges.currentStart.toISOString())
-                        .abortSignal(AbortSignal.timeout(8000));
-                      return result;
-                    },
-                    8000
-                  );
-
-            const prevPeriodScans =
-              !ranges.prevStart || !ranges.prevEnd
-                ? 0
-                : await safeCountQuery(
-                    async () => {
-                      const result = await supabase
-                        .from('stage_scans')
-                        .select('*', { count: 'exact', head: true })
-                        .eq('stage_id', stage.id)
-                        .gte('scanned_at', ranges.prevStart!.toISOString())
-                        .lt('scanned_at', ranges.prevEnd!.toISOString())
-                        .abortSignal(AbortSignal.timeout(8000));
-                      return result;
-                    },
-                    8000
-                  );
-
-            const prev = prevPeriodScans || 0;
-            const current = periodScans || 0;
-            const change =
-              prev > 0 ? Math.round(((current - prev) / prev) * 100) : current > 0 ? 100 : 0;
-
-            return {
-              id: stage.id,
-              code: stage.code,
-              name: stage.name,
-              zone: stage.zone,
-              total_scans: totalScans,
-              period_scans: periodScans,
-              period_change: timeFilter === 'all' ? 0 : change,
-            };
-          })
-        );
+          return {
+            id: row.stage_id,
+            code: row.stage_code,
+            name: row.stage_name,
+            zone: row.stage_zone,
+            total_scans: totalScans,
+            period_scans: periodScans,
+            period_change: timeFilter === 'all' ? 0 : change,
+          };
+        });
 
         stagesWithAnalytics.sort((a, b) => b.period_scans - a.period_scans);
         return stagesWithAnalytics;
@@ -197,6 +130,6 @@ export function useStageAnalytics(timeFilter: StageAnalyticsTimeFilter, options?
 
   return {
     ...query,
-    periodLabel: ranges.label,
+    periodLabel,
   };
 }
