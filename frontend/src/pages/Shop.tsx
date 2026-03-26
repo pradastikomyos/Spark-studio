@@ -180,38 +180,35 @@ const Shop = () => {
   }, [error, showToast]);
 
   const { parentCategories, childCategoriesByParentSlug, allowedSlugMap } = useMemo(() => {
-    const parents = categories.filter((category) => category.parent_id === null);
-    const childrenByParent = new Map<number, string[]>();
+    // Single-pass: partition into parents & group children by parent_id
+    const parents: typeof categories = [];
+    const childrenByParentId = new Map<number, typeof categories>();
 
-    categories
-      .filter((category) => category.parent_id !== null)
-      .forEach((category) => {
+    for (const category of categories) {
+      if (category.parent_id === null) {
+        parents.push(category);
+      } else {
         const parentId = category.parent_id as number;
-        const existing = childrenByParent.get(parentId) ?? [];
-        existing.push(category.slug);
-        childrenByParent.set(parentId, existing);
-      });
+        const list = childrenByParentId.get(parentId) ?? [];
+        list.push(category);
+        childrenByParentId.set(parentId, list);
+      }
+    }
 
-    const allowed = new Map<string, string[]>();
-    parents.forEach((parent) => {
-      const childSlugs = childrenByParent.get(parent.id) ?? [];
-      allowed.set(parent.slug, [parent.slug, ...childSlugs]);
-    });
-
-    categories
-      .filter((category) => category.parent_id === null && !allowed.has(category.slug))
-      .forEach((category) => {
-        allowed.set(category.slug, [category.slug]);
-      });
-
+    // Build allowed slug map (Set for O(1) lookup) and children-by-parent-slug
+    const allowed = new Map<string, Set<string>>();
     const childrenByParentSlug = new Map<string, typeof categories>();
-    parents.forEach((parent) => {
-      const children = categories
-        .filter((category) => category.parent_id === parent.id)
-        .slice()
-        .sort((a, b) => a.name.localeCompare(b.name));
-      childrenByParentSlug.set(parent.slug, children);
-    });
+
+    for (const parent of parents) {
+      const children = childrenByParentId.get(parent.id) ?? [];
+      const slugSet = new Set<string>([parent.slug]);
+      for (const child of children) slugSet.add(child.slug);
+      allowed.set(parent.slug, slugSet);
+      childrenByParentSlug.set(
+        parent.slug,
+        children.slice().sort((a, b) => a.name.localeCompare(b.name))
+      );
+    }
 
     return {
       parentCategories: parents.slice().sort((a, b) => a.name.localeCompare(b.name)),
@@ -229,7 +226,7 @@ const Shop = () => {
       } else {
         const allowedSlugs = allowedSlugMap.get(activeCategory);
         if (allowedSlugs) {
-          currentProducts = products.filter((p) => p.categorySlug && allowedSlugs.includes(p.categorySlug));
+          currentProducts = products.filter((p) => p.categorySlug && allowedSlugs.has(p.categorySlug));
         } else {
           currentProducts = products.filter((p) => p.categorySlug === activeCategory);
         }
@@ -244,14 +241,15 @@ const Shop = () => {
     }
 
     if (activeCategory === 'all') {
-      const makeupSlugs = allowedSlugMap.get('makeup') || [];
+      const makeupSlugs = allowedSlugMap.get('makeup');
+      const makeupSlugsSet = makeupSlugs ?? new Set<string>();
 
       return [...currentProducts].sort((a, b) => {
         const getScore = (p: Product) => {
           const slug = p.categorySlug?.toLowerCase() || '';
           if (slug === 'headliner') return 3;
           if (slug === 'starglitter' || slug === 'star-glitter') return 2;
-          if (makeupSlugs.includes(slug)) return 1;
+          if (makeupSlugsSet.has(slug)) return 1;
           return 0;
         };
 

@@ -19,54 +19,41 @@ export const useOrderCount = () => {
 
     const { signal: timeoutSignal, cleanup } = createQuerySignal(undefined, 10000);
     try {
-      // Count ACTIVE orders: orders that need user attention
-      // This includes PENDING (unpaid) + AKTIF (paid, waiting pickup)
-      // Matches the 3-tab system in MyProductOrdersPage
-      const { data: orders, error } = await supabase
+      // Count ACTIVE orders server-side: no row data downloaded, only counts.
+      // Matches the 3-tab system in MyProductOrdersPage.
+
+      // PENDING: unpaid orders that aren't cancelled/expired
+      const { count: pendingCount, error: pendingError } = await supabase
         .from('order_products')
-        .select('id, payment_status, pickup_status, status')
+        .select('*', { count: 'exact', head: true })
         .eq('user_id', userId)
+        .in('payment_status', ['unpaid', 'pending'])
+        .not('status', 'in', '("cancelled","expired","completed")')
+        .not('pickup_status', 'in', '("completed","expired","cancelled")')
         .abortSignal(timeoutSignal);
 
-      if (error) {
+      if (pendingError) {
         setCount(0);
         return;
       }
 
-      // Count: PENDING orders (unpaid) + AKTIF orders (paid, waiting pickup)
-      let pendingCount = 0;
-      let activeCount = 0;
+      // AKTIF: paid orders waiting for pickup
+      const { count: activeCount, error: activeError } = await supabase
+        .from('order_products')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', userId)
+        .eq('payment_status', 'paid')
+        .not('status', 'in', '("cancelled","expired","completed")')
+        .not('pickup_status', 'in', '("completed","expired","cancelled")')
+        .abortSignal(timeoutSignal);
 
-      (orders || []).forEach((order) => {
-        const paymentStatus = (order.payment_status ?? '').toLowerCase();
-        const pickupStatus = (order.pickup_status ?? '').toLowerCase();
-        const status = (order.status ?? '').toLowerCase();
-
-        // Skip expired/cancelled orders
-        if (status === 'cancelled' || status === 'expired' || status === 'completed') {
-          return;
-        }
-        if (pickupStatus === 'completed' || pickupStatus === 'expired' || pickupStatus === 'cancelled') {
-          return;
-        }
-        if (paymentStatus === 'failed' || paymentStatus === 'refunded') {
-          return;
-        }
-
-        // PENDING: Unpaid orders
-        if (paymentStatus === 'unpaid' || paymentStatus === 'pending') {
-          pendingCount++;
-          return;
-        }
-
-        // AKTIF: Paid orders waiting for pickup
-        if (paymentStatus === 'paid') {
-          activeCount++;
-        }
-      });
+      if (activeError) {
+        setCount(0);
+        return;
+      }
 
       // Total badge = pending + active (both need user attention)
-      setCount(pendingCount + activeCount);
+      setCount((pendingCount ?? 0) + (activeCount ?? 0));
     } catch {
       setCount(0);
     } finally {

@@ -181,6 +181,11 @@ export function useBookingSelectionState(params: BookingSelectionStateParams) {
 
     const days: (CalendarDay | null)[] = [];
 
+    // Pre-compute available dates for O(1) lookup per day
+    const availableDateSet = new Set<string>(
+      availabilities.filter((a) => a.available_capacity > 0).map((a) => a.date)
+    );
+
     for (let index = 0; index < startingDayOfWeek; index += 1) {
       days.push(null);
     }
@@ -189,16 +194,14 @@ export function useBookingSelectionState(params: BookingSelectionStateParams) {
       const date = new Date(year, month, day);
       date.setHours(0, 0, 0, 0);
 
-      const isToday = toLocalDateString(date) === toLocalDateString(today);
+      const dateStr = toLocalDateString(date);
+      const isToday = dateStr === toLocalDateString(today);
       const isWithinBookingWindow = date >= today && date <= maxBookingDate;
       const isAvailable =
         isWithinBookingWindow &&
         date >= availabilityWindow.availableFrom &&
         date <= availabilityWindow.availableUntil;
-      const hasAvailability = availabilities.some(
-        (avail) => avail.date === toLocalDateString(date) && avail.available_capacity > 0
-      );
-      const canBook = isAvailable && hasAvailability;
+      const canBook = isAvailable && availableDateSet.has(dateStr);
 
       days.push({
         day,

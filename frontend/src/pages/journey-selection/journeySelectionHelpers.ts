@@ -24,6 +24,11 @@ export function buildCalendarDays(params: {
   const startingDayOfWeek = firstDay.getDay();
   const days: Array<CalendarDay | null> = [];
 
+  // Pre-compute available dates for O(1) lookup per day
+  const availableDateSet = new Set<string>(
+    availabilities.filter((a) => a.available_capacity > 0).map((a) => a.date)
+  );
+
   for (let index = 0; index < startingDayOfWeek; index += 1) {
     days.push(null);
   }
@@ -32,12 +37,10 @@ export function buildCalendarDays(params: {
     const date = new Date(year, month, day);
     date.setHours(0, 0, 0, 0);
 
-    const isToday = toLocalDateString(date) === toLocalDateString(today);
+    const dateStr = toLocalDateString(date);
+    const isToday = dateStr === toLocalDateString(today);
     const isWithinBookingWindow = date >= today && date <= maxBookingDate;
-    const hasAvailability = availabilities.some(
-      (availability) => availability.date === toLocalDateString(date) && availability.available_capacity > 0
-    );
-    const canBook = isWithinBookingWindow && hasAvailability;
+    const canBook = isWithinBookingWindow && availableDateSet.has(dateStr);
 
     days.push({
       day,

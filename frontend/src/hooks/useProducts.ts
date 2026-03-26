@@ -67,12 +67,13 @@ function transformProduct(row: ProductRow): Product {
   let defaultVariantPrice = Number.POSITIVE_INFINITY;
 
   // Get primary image from product_images table
-  const sortedImages = (row.product_images || [])
-    .sort((a, b) => {
-      if (a.is_primary !== b.is_primary) return a.is_primary ? -1 : 1;
-      return a.display_order - b.display_order;
-    });
-  if (sortedImages[0]?.image_url) image = sortedImages[0].image_url;
+  const productImages = row.product_images || [];
+  const primaryImg = productImages.find((img) => img.is_primary);
+  if (primaryImg?.image_url) image = primaryImg.image_url;
+  else if (productImages.length > 0) {
+    const lowest = productImages.reduce((a, b) => (a.display_order <= b.display_order ? a : b));
+    if (lowest?.image_url) image = lowest.image_url;
+  }
 
   // Process variants to find minimum price and default variant
   for (const v of variants) {

@@ -40,11 +40,13 @@ export const mapInventoryProducts = (productsRaw: ProductRow[]): InventoryProduc
     let priceMin = Number.POSITIVE_INFINITY;
     let priceMax = 0;
 
-    const sortedImages = [...(row.product_images || [])].sort((a, b) => {
-      if (a.is_primary !== b.is_primary) return a.is_primary ? -1 : 1;
-      return a.display_order - b.display_order;
-    });
-    let imageUrl: string | null = sortedImages[0]?.image_url ?? null;
+    const images = row.product_images || [];
+    const primaryImage = images.find((img) => img.is_primary);
+    let imageUrl: string | null = primaryImage?.image_url ?? null;
+    if (!imageUrl && images.length > 0) {
+      const lowest = images.reduce((a, b) => (a.display_order <= b.display_order ? a : b));
+      imageUrl = lowest.image_url ?? null;
+    }
 
     for (const variant of variants) {
       const stock = Math.max(toNumber(variant.stock, 0) - toNumber(variant.reserved_stock, 0), 0);

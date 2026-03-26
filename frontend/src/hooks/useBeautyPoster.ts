@@ -85,14 +85,24 @@ async function fetchBeautyPoster(slug: string) {
 
   if (tagsError) throw tagsError;
 
+  // Single-pass: collect product IDs and pre-parse record structures
+  type ParsedTagEntry = {
+    t: Record<string, unknown>;
+    pv: Record<string, unknown> | null;
+    prod: Record<string, unknown> | null;
+    productId: number | undefined;
+  };
+  const parsedEntries: ParsedTagEntry[] = [];
   const productIds = new Set<number>();
-  (rawTags ?? []).forEach((tag) => {
-    const t = asRecord(tag);
-    const pv = asRecord(t?.product_variants);
+
+  for (const tag of rawTags ?? []) {
+    const t = asRecord(tag) ?? {};
+    const pv = asRecord(t.product_variants);
     const prod = asRecord(pv?.products);
-    const productId = prod?.id;
-    if (typeof productId === 'number') productIds.add(productId);
-  });
+    const productId = typeof prod?.id === 'number' ? prod.id : undefined;
+    if (productId !== undefined) productIds.add(productId);
+    parsedEntries.push({ t, pv, prod, productId });
+  }
 
   const productImageMap = new Map<number, string>();
   if (productIds.size > 0) {
@@ -107,11 +117,7 @@ async function fetchBeautyPoster(slug: string) {
     });
   }
 
-  const tags: BeautyPosterTag[] = (rawTags ?? []).map((tag) => {
-    const t = asRecord(tag) ?? {};
-    const pv = asRecord(t.product_variants);
-    const prod = asRecord(pv?.products);
-    const productId = typeof prod?.id === 'number' ? prod.id : undefined;
+  const tags: BeautyPosterTag[] = parsedEntries.map(({ t, pv, prod, productId }) => {
     const productImageUrl = typeof prod?.image_url === 'string' ? prod.image_url : null;
     const primary = productId ? productImageMap.get(productId) ?? null : null;
     const attributes = asRecord(pv?.attributes);

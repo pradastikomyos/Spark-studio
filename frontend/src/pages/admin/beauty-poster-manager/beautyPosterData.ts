@@ -40,14 +40,26 @@ export async function fetchBeautyPosterTags(poster: BeautyPosterRow): Promise<Ta
     .order('sort_order', { ascending: true });
   if (error) throw error;
 
+  // Single-pass: collect product IDs and pre-parse record structures
+  type ParsedTagData = {
+    record: Record<string, unknown>;
+    variant: Record<string, unknown> | null;
+    product: Record<string, unknown> | null;
+    productId: number;
+  };
+  const parsedTags: ParsedTagData[] = [];
   const productIds = new Set<number>();
-  (rawTags ?? []).forEach((row) => {
-    const record = asRecord(row);
-    const variant = asRecord(record?.product_variants);
+
+  for (const row of rawTags ?? []) {
+    const record = asRecord(row) ?? {};
+    const variant = asRecord(record.product_variants);
     const product = asRecord(variant?.products);
-    const productId = product?.id;
-    if (typeof productId === 'number') productIds.add(productId);
-  });
+    const rawProductId = product?.id;
+    const productId =
+      typeof rawProductId === 'number' ? rawProductId : typeof rawProductId === 'string' ? Number(rawProductId) : Number.NaN;
+    if (Number.isFinite(productId)) productIds.add(productId);
+    parsedTags.push({ record, variant, product, productId });
+  }
 
   const productImageMap = new Map<number, string>();
   if (productIds.size > 0) {
@@ -64,15 +76,9 @@ export async function fetchBeautyPosterTags(poster: BeautyPosterRow): Promise<Ta
     });
   }
 
-  return (rawTags ?? []).map((row) => {
-    const record = asRecord(row) ?? {};
-    const variant = asRecord(record.product_variants);
-    const product = asRecord(variant?.products);
+  return parsedTags.map(({ record, variant, product, productId }) => {
     const attributes = asRecord(variant?.attributes);
     const variantImage = typeof attributes?.image_url === 'string' ? attributes.image_url : null;
-    const rawProductId = product?.id;
-    const productId =
-      typeof rawProductId === 'number' ? rawProductId : typeof rawProductId === 'string' ? Number(rawProductId) : Number.NaN;
     const primary = Number.isFinite(productId) ? productImageMap.get(productId) ?? null : null;
 
     return {

@@ -34,18 +34,18 @@ export function useMyProductOrdersView({
     }
   }, [error, showToast]);
 
-  const pendingOrders = useMemo(
-    () => orders.filter((order) => classifyProductOrder(order) === 'pending'),
-    [orders]
-  );
-  const activeOrders = useMemo(
-    () => orders.filter((order) => classifyProductOrder(order) === 'active'),
-    [orders]
-  );
-  const historyOrders = useMemo(
-    () => orders.filter((order) => classifyProductOrder(order) === 'history'),
-    [orders]
-  );
+  const { pendingOrders, activeOrders, historyOrders } = useMemo(() => {
+    const pending: ProductOrderListItem[] = [];
+    const active: ProductOrderListItem[] = [];
+    const history: ProductOrderListItem[] = [];
+    for (const order of orders) {
+      const category = classifyProductOrder(order);
+      if (category === 'pending') pending.push(order);
+      else if (category === 'active') active.push(order);
+      else history.push(order);
+    }
+    return { pendingOrders: pending, activeOrders: active, historyOrders: history };
+  }, [orders]);
 
   useEffect(() => {
     if (autoSelectedTab.current || loading || orders.length === 0) return;
