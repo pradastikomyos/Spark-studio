@@ -1,95 +1,47 @@
-import { useState, useEffect } from 'react';
-import { supabase } from '../lib/supabase';
+import { useMemo } from 'react';
 import TicketCard from './TicketCard';
-import { TicketData } from '../types';
-import { addDays, createWIBDate, todayWIB, toLocalDateString } from '../utils/timezone';
+import { useEffectiveTicketAvailability } from '../hooks/useEffectiveTicketAvailability';
+import { useEntranceTicket } from '../hooks/useEntranceTicket';
+import { useTicketBookingSettings } from '../hooks/useTicketBookingSettings';
+import { createWIBDate, todayWIB, toLocalDateString } from '../utils/timezone';
 
 interface TicketWithDate {
-  ticket: TicketData;
   date: Date;
   isToday: boolean;
 }
 
+const MAX_VISIBLE_DATES = 4;
+
 const TicketSection = () => {
-  const [ticketsWithDates, setTicketsWithDates] = useState<TicketWithDate[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { data: ticket, isLoading: ticketLoading } = useEntranceTicket('public');
+  const { data: bookingSettings, isLoading: settingsLoading } = useTicketBookingSettings(ticket?.id ?? null);
+  const { data: availabilities = [], isLoading: availabilityLoading } = useEffectiveTicketAvailability(
+    ticket?.id ?? null,
+    bookingSettings?.booking_window_days
+  );
 
-  useEffect(() => {
-    const fetchTickets = async () => {
-      try {
-        const { data, error } = await supabase
-          .from('tickets')
-          .select('*')
-          .eq('is_active', true)
-          .order('type', { ascending: true })
-          .limit(1); // Get first active ticket
+  const loading = ticketLoading || settingsLoading || availabilityLoading;
 
-        if (error) {
-          console.error('Error fetching tickets:', error);
-          setLoading(false);
-          return;
-        }
+  const ticketsWithDates = useMemo<TicketWithDate[]>(() => {
+    if (!ticket) return [];
 
-        if (data && data.length > 0) {
-          const ticket = data[0];
-          const today = todayWIB();
-          const todayDateString = toLocalDateString(today);
+    const today = todayWIB();
+    const todayDateString = toLocalDateString(today);
+    const visibleDateStrings = Array.from(
+      new Set(
+        availabilities
+          .filter((row) => !row.is_closed && row.available_capacity > 0)
+          .map((row) => row.date)
+      )
+    )
+      .sort()
+      .slice(0, MAX_VISIBLE_DATES);
 
-          const lookaheadEndDateString = toLocalDateString(addDays(today, 30));
-
-          const { data: availabilityRows, error: availabilityError } = await supabase
-            .from('ticket_availabilities')
-            .select('date,total_capacity,reserved_capacity,sold_capacity')
-            .eq('ticket_id', ticket.id)
-            .gte('date', todayDateString)
-            .lte('date', lookaheadEndDateString)
-            .order('date', { ascending: true });
-
-          if (availabilityError) {
-            console.error('Error fetching ticket availability:', availabilityError);
-          }
-
-          const availableDateStrings = new Set<string>();
-
-          (availabilityRows || []).forEach((row) => {
-            const availableCapacity = row.total_capacity - row.reserved_capacity - row.sold_capacity;
-            if (availableCapacity > 0) availableDateStrings.add(row.date);
-          });
-
-          const sortedAvailableDateStrings = Array.from(availableDateStrings).sort().slice(0, 4);
-
-          const ticketDates: TicketWithDate[] = sortedAvailableDateStrings.map((dateString) => ({
-            ticket,
-            date: createWIBDate(dateString),
-            isToday: dateString === todayDateString,
-          }));
-
-          setTicketsWithDates(ticketDates);
-        }
-      } catch (err) {
-        console.error('Error in fetchTickets:', err);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchTickets();
-
-    // Subscribe to changes
-    const subscription = supabase
-      .channel('tickets_changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'tickets' }, () => {
-        fetchTickets();
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'ticket_availabilities' }, () => {
-        fetchTickets();
-      })
-      .subscribe();
-
-    return () => {
-      subscription.unsubscribe();
-    };
-  }, []);
+    return visibleDateStrings.map((dateString) => ({
+      date: createWIBDate(dateString),
+      isToday: dateString === todayDateString,
+    }));
+  }, [availabilities, ticket]);
 
   if (loading) {
     return (
@@ -104,7 +56,7 @@ const TicketSection = () => {
 
   return (
     <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10" id="tickets">
-      {ticketsWithDates.length > 0 ? (
+      {ticket && ticketsWithDates.length > 0 ? (
         <div className="relative">
           <button
             className="hidden md:flex absolute -left-10 top-1/2 -translate-y-1/2 w-10 h-10 items-center justify-center text-main-700"
@@ -125,8 +77,8 @@ const TicketSection = () => {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {ticketsWithDates.map((item) => (
               <TicketCard
-                key={`${item.ticket.id}-${toLocalDateString(item.date)}`}
-                ticket={item.ticket}
+                key={`${ticket.id}-${toLocalDateString(item.date)}`}
+                ticket={ticket}
                 displayDate={item.date}
                 isToday={item.isToday}
                 isBookable

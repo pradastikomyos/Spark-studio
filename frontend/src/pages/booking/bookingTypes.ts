@@ -27,4 +27,6 @@ export type BookingSelectionStateParams = {
     available_until: string;
   } | null | undefined;
   availabilities: Availability[];
+  max_tickets_per_booking?: number | null;
+  booking_window_days?: number | null;
 };

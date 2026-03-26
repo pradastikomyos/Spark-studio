@@ -1,11 +1,10 @@
 import { useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { useQueryClient } from '@tanstack/react-query';
 import { DEFAULT_BOOKING_PAGE_SETTINGS, useBookingPageSettings } from '../hooks/useBookingPageSettings';
 import { toLocalDateString } from '../utils/timezone';
 import { useTickets } from '../hooks/useTickets';
-import { useTicketAvailability } from '../hooks/useTicketAvailability';
-import { queryKeys } from '../lib/queryKeys';
+import { useEffectiveTicketAvailability } from '../hooks/useEffectiveTicketAvailability';
+import { useTicketBookingSettings } from '../hooks/useTicketBookingSettings';
 import { useToast } from '../components/Toast';
 import { PageTransition } from '../components/PageTransition';
 import TicketCardSkeleton from '../components/skeletons/TicketCardSkeleton';
@@ -21,13 +20,18 @@ export default function BookingPage() {
   const { slug } = useParams<{ slug: string }>();
   const navigate = useNavigate();
   const { showToast } = useToast();
-  const queryClient = useQueryClient();
   const { settings } = useBookingPageSettings();
   const bookingCopy = settings ?? DEFAULT_BOOKING_PAGE_SETTINGS;
   const { data: ticket, error: ticketError, isLoading: ticketLoading } = useTickets(slug);
-  const { data: availabilities = [], error: availabilityError, isLoading: availabilityLoading } = useTicketAvailability(ticket?.id ?? null);
-  const loading = ticketLoading || availabilityLoading;
-  const error = ticketError || availabilityError;
+  const { data: bookingSettings, error: bookingSettingsError, isLoading: bookingSettingsLoading } =
+    useTicketBookingSettings(ticket?.id ?? null);
+  const {
+    data: availabilities = [],
+    error: availabilityError,
+    isLoading: availabilityLoading,
+  } = useEffectiveTicketAvailability(ticket?.id ?? null, bookingSettings?.booking_window_days);
+  const loading = ticketLoading || bookingSettingsLoading || availabilityLoading;
+  const error = ticketError || bookingSettingsError || availabilityError;
   const {
     currentDate,
     selectedDate,
@@ -53,6 +57,8 @@ export default function BookingPage() {
   } = useBookingSelectionState({
     ticket,
     availabilities,
+    max_tickets_per_booking: bookingSettings?.max_tickets_per_booking,
+    booking_window_days: bookingSettings?.booking_window_days,
   });
 
   useEffect(() => {
@@ -82,18 +88,6 @@ export default function BookingPage() {
         return;
       }
     }
-
-    const dateKey = toLocalDateString(selectedDate);
-    const optimistic = availabilities.map((avail) => {
-      if (avail.date !== dateKey) return avail;
-      if (selectedTime && avail.time_slot !== selectedTime) return avail;
-      if (!selectedTime && avail.time_slot) return avail;
-      return {
-        ...avail,
-        available_capacity: Math.max(0, avail.available_capacity - 1),
-      };
-    });
-    queryClient.setQueryData(queryKeys.ticketAvailability(ticket.id), optimistic);
 
     navigate('/payment', {
       state: {

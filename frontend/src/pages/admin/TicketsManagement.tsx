@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import AdminLayout from '../../components/AdminLayout';
-import AvailabilityGenerator from '../../components/admin/AvailabilityGenerator';
 import PurchasedTicketsTable from '../../components/admin/PurchasedTicketsTable';
 import { ADMIN_MENU_ITEMS, ADMIN_MENU_SECTIONS } from '../../constants/adminMenu';
 import { useTicketsManagement } from '../../hooks/useTicketsManagement';
@@ -89,11 +88,6 @@ const TicketsManagement = () => {
           </button>
         </div>
       </div>
-
-      {/* Availability Generator Section */}
-      <section className="mb-8">
-        <AvailabilityGenerator onSuccess={() => refetch()} />
-      </section>
 
       {/* Filters Section */}
       <section className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">

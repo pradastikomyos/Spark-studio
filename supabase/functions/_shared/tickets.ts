@@ -17,6 +17,25 @@ export function normalizeAvailabilityTimeSlot(value: string): string | null {
   return value
 }
 
+export function normalizeTicketTimeSlots(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value.map((slot) => String(slot).trim()).filter(Boolean)
+  }
+
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value)
+      if (Array.isArray(parsed)) {
+        return parsed.map((slot) => String(slot).trim()).filter(Boolean)
+      }
+    } catch {
+      return [value.trim()].filter(Boolean)
+    }
+  }
+
+  return []
+}
+
 type PostgrestQueryBuilder = {
   select: (columns: string) => PostgrestQueryBuilder
   update: (values: Record<string, unknown>) => PostgrestQueryBuilder

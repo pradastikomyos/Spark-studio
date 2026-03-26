@@ -21,11 +21,14 @@ const OnStage = () => {
   const {
     ticket,
     loading: journeyLoading,
+    error: journeyError,
     selectedDate,
     selectedTime,
     calendarDays,
     availableTimeSlots,
     groupedSlots,
+    hasBookableDates,
+    isAllDayTicket,
     canGoPrevMonth,
     canGoNextMonth,
     monthName,
@@ -42,7 +45,8 @@ const OnStage = () => {
       alert('Please select a date');
       return;
     }
-    if (!selectedTime) {
+    const isAllDay = isAllDayTicket && !selectedTime;
+    if (!isAllDay && !selectedTime) {
       alert('Please select a time slot');
       return;
     }
@@ -58,7 +62,7 @@ const OnStage = () => {
         ticketType: ticket.type,
         price: parseFloat(ticket.price),
         date: toLocalDateString(selectedDate),
-        time: selectedTime,
+        time: selectedTime || 'all-day',
       },
     });
   };
@@ -293,9 +297,13 @@ const OnStage = () => {
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 lg:gap-12">
             {/* Left Column: Calendar & Time Slots */}
             <div className="lg:col-span-2 flex flex-col gap-8 md:gap-10">
-              {journeyLoading || !ticket ? (
+              {journeyLoading ? (
                 <div className="flex items-center justify-center py-20">
                   <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-main-600" />
+                </div>
+              ) : journeyError || !ticket ? (
+                <div className="rounded-xl border border-amber-200 bg-amber-50 px-6 py-8 text-sm text-amber-900">
+                  {journeyError?.message || 'Entrance booking is unavailable right now.'}
                 </div>
               ) : (
                 <>
@@ -316,6 +324,8 @@ const OnStage = () => {
                   <JourneyTimeSlotsSection
                     copy={bookingCopy}
                     selectedDate={selectedDate}
+                    hasBookableDates={hasBookableDates}
+                    isAllDayTicket={isAllDayTicket}
                     selectedTime={selectedTime}
                     availableSlotsCount={availableTimeSlots.length}
                     groupedSlots={groupedSlots}
@@ -363,6 +373,7 @@ const OnStage = () => {
                   ticket={ticket}
                   selectedDate={selectedDate}
                   selectedTime={selectedTime}
+                  isAllDayTicket={isAllDayTicket}
                   onProceed={handleProceedToPayment}
                 />
               )}

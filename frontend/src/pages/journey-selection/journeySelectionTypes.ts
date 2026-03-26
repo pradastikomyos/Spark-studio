@@ -34,13 +34,15 @@ export interface JourneySelectionController {
   ticket: TicketData | null;
   availabilities: TicketAvailability[];
   loading: boolean;
+  error: Error | null;
   currentDate: Date;
   selectedDate: Date | null;
   selectedTime: string | null;
-  currentTime: Date;
   calendarDays: Array<CalendarDay | null>;
   availableTimeSlots: AvailableTimeSlot[];
   groupedSlots: GroupedTimeSlots;
+  hasBookableDates: boolean;
+  isAllDayTicket: boolean;
   today: Date;
   maxBookingDate: Date;
   canGoPrevMonth: boolean;

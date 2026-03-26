@@ -10,6 +10,7 @@ type JourneySummaryCardProps = {
     | 'date_label'
     | 'time_label'
     | 'not_selected_label'
+    | 'all_day_access_value_label'
     | 'ticket_price_label'
     | 'vat_included_label'
     | 'total_label'
@@ -21,6 +22,7 @@ type JourneySummaryCardProps = {
   ticket: TicketData;
   selectedDate: Date | null;
   selectedTime: string | null;
+  isAllDayTicket: boolean;
   onProceed: () => void;
 };
 
@@ -29,6 +31,7 @@ export function JourneySummaryCard({
   ticket,
   selectedDate,
   selectedTime,
+  isAllDayTicket,
   onProceed,
 }: JourneySummaryCardProps) {
   const price = Number.parseFloat(ticket.price);
@@ -68,7 +71,9 @@ export function JourneySummaryCard({
           <span className="material-symbols-outlined text-main-600">schedule</span>
           <div>
             <p className="text-sm font-bold uppercase tracking-tighter opacity-60">{copy.time_label}</p>
-            <p className="font-medium">{selectedTime ? selectedTime.substring(0, 5) : copy.not_selected_label}</p>
+            <p className="font-medium">
+              {selectedTime ? selectedTime.substring(0, 5) : isAllDayTicket ? copy.all_day_access_value_label : copy.not_selected_label}
+            </p>
           </div>
         </div>
       </div>
@@ -88,7 +93,7 @@ export function JourneySummaryCard({
 
       <button
         onClick={onProceed}
-        disabled={!selectedDate || !selectedTime}
+        disabled={!selectedDate || (!selectedTime && !isAllDayTicket)}
         className="w-full bg-main-600 hover:bg-main-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-bold py-4 rounded-lg transition-all shadow-lg"
       >
         {copy.proceed_button_label}

@@ -23,6 +23,7 @@ export const ADMIN_MENU_SECTIONS: AdminMenuSection[] = [
     label: 'Tiket',
     items: [
       { id: 'booking-page', label: 'Booking Page Config', icon: 'calendar_month', path: '/admin/booking-page' },
+      { id: 'entrance-booking', label: 'Entrance Booking Manager', icon: 'event_available', path: '/admin/entrance-booking' },
       { id: 'order-ticket', label: 'Scan Tiket Masuk', icon: 'qr_code_scanner', path: '/admin/order-ticket', highlight: true },
       { id: 'entrance-log', label: 'Log Tiket Masuk', icon: 'fact_check', path: '/admin/tickets' },
     ],

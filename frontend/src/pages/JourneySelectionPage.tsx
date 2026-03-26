@@ -16,11 +16,14 @@ export default function JourneySelectionPage() {
   const {
     ticket,
     loading,
+    error,
     selectedDate,
     selectedTime,
     calendarDays,
     availableTimeSlots,
     groupedSlots,
+    hasBookableDates,
+    isAllDayTicket,
     canGoPrevMonth,
     canGoNextMonth,
     monthName,
@@ -38,7 +41,8 @@ export default function JourneySelectionPage() {
       return;
     }
 
-    if (!selectedTime) {
+    const isAllDay = isAllDayTicket && !selectedTime;
+    if (!isAllDay && !selectedTime) {
       alert('Please select a time slot');
       return;
     }
@@ -56,16 +60,29 @@ export default function JourneySelectionPage() {
         ticketType: ticket.type,
         price: parseFloat(ticket.price),
         date: toLocalDateString(selectedDate),
-        time: selectedTime,
+        time: selectedTime || 'all-day',
       },
     });
   };
 
-  if (loading || !ticket) {
+  if (loading) {
     return (
       <PageTransition>
         <div className="min-h-screen bg-white flex items-center justify-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-main-600"></div>
+        </div>
+      </PageTransition>
+    );
+  }
+
+  if (error || !ticket) {
+    return (
+      <PageTransition>
+        <div className="min-h-screen bg-white flex items-center justify-center px-6">
+          <div className="text-center">
+            <span className="material-symbols-outlined text-6xl text-gray-300 mb-4">error</span>
+            <p className="text-gray-500 text-lg">{error?.message || 'Entrance booking is unavailable right now.'}</p>
+          </div>
         </div>
       </PageTransition>
     );
@@ -100,6 +117,8 @@ export default function JourneySelectionPage() {
               <JourneyTimeSlotsSection
                 copy={bookingCopy}
                 selectedDate={selectedDate}
+                hasBookableDates={hasBookableDates}
+                isAllDayTicket={isAllDayTicket}
                 selectedTime={selectedTime}
                 availableSlotsCount={availableTimeSlots.length}
                 groupedSlots={groupedSlots}
@@ -116,6 +135,7 @@ export default function JourneySelectionPage() {
                 ticket={ticket}
                 selectedDate={selectedDate}
                 selectedTime={selectedTime}
+                isAllDayTicket={isAllDayTicket}
                 onProceed={handleProceedToPayment}
               />
             </div>

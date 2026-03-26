@@ -15,7 +15,8 @@ import type {
   GroupedBookableSlots,
 } from './bookingTypes';
 
-const MAX_TICKETS = 5;
+const DEFAULT_MAX_TICKETS = 5;
+const DEFAULT_BOOKING_WINDOW_DAYS = 30;
 
 export function useBookingSelectionState(params: BookingSelectionStateParams) {
   const { ticket, availabilities } = params;
@@ -25,6 +26,8 @@ export function useBookingSelectionState(params: BookingSelectionStateParams) {
   const [quantity, setQuantity] = useState(1);
   const [currentTime, setCurrentTime] = useState(nowWIB());
   const [showUrgencyModal, setShowUrgencyModal] = useState(false);
+  const maxTickets = Math.max(1, Math.floor(params.max_tickets_per_booking ?? DEFAULT_MAX_TICKETS));
+  const bookingWindowDays = Math.max(1, Math.floor(params.booking_window_days ?? DEFAULT_BOOKING_WINDOW_DAYS));
 
   useEffect(() => {
     if (!ticket) return;
@@ -32,6 +35,10 @@ export function useBookingSelectionState(params: BookingSelectionStateParams) {
     setSelectedDate(null);
     setCurrentDate(today);
   }, [ticket]);
+
+  useEffect(() => {
+    setQuantity((previous) => Math.min(maxTickets, Math.max(1, previous)));
+  }, [maxTickets]);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -54,7 +61,7 @@ export function useBookingSelectionState(params: BookingSelectionStateParams) {
   }, []);
 
   const today = useMemo(() => createWIBDate(toLocalDateString(currentTime)), [currentTime]);
-  const maxBookingDate = useMemo(() => addDays(today, 30), [today]);
+  const maxBookingDate = useMemo(() => addDays(today, bookingWindowDays), [bookingWindowDays, today]);
   const extractDateOnly = (value: string) => value.split('T')[0].split(' ')[0];
 
   const availabilityWindow = useMemo(() => {
@@ -313,7 +320,7 @@ export function useBookingSelectionState(params: BookingSelectionStateParams) {
     selectedDate,
     selectedTime,
     quantity,
-    maxTickets: MAX_TICKETS,
+    maxTickets,
     showUrgencyModal,
     calendarDays,
     availableTimeSlots,

@@ -7,6 +7,7 @@ export interface TicketData {
   description: string | null;
   available_from: string;
   available_until: string;
+  time_slots?: string[] | null;
   is_active: boolean;
 }
 

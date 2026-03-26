@@ -3,18 +3,22 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import BookingPage from './BookingPage';
 import { useTickets } from '../hooks/useTickets';
-import { useTicketAvailability } from '../hooks/useTicketAvailability';
+import { useEffectiveTicketAvailability } from '../hooks/useEffectiveTicketAvailability';
+import { useTicketBookingSettings } from '../hooks/useTicketBookingSettings';
 
 const mockNavigate = vi.fn();
-const mockSetQueryData = vi.fn();
 const mockShowToast = vi.fn();
 
 vi.mock('../hooks/useTickets', () => ({
   useTickets: vi.fn(),
 }));
 
-vi.mock('../hooks/useTicketAvailability', () => ({
-  useTicketAvailability: vi.fn(),
+vi.mock('../hooks/useEffectiveTicketAvailability', () => ({
+  useEffectiveTicketAvailability: vi.fn(),
+}));
+
+vi.mock('../hooks/useTicketBookingSettings', () => ({
+  useTicketBookingSettings: vi.fn(),
 }));
 
 vi.mock('../hooks/useBookingPageSettings', () => ({
@@ -57,16 +61,6 @@ vi.mock('../components/Toast', () => ({
   }),
 }));
 
-vi.mock('@tanstack/react-query', async () => {
-  const actual = await vi.importActual('@tanstack/react-query');
-  return {
-    ...actual,
-    useQueryClient: () => ({
-      setQueryData: mockSetQueryData,
-    }),
-  };
-});
-
 vi.mock('react-router-dom', async () => {
   const actual = await vi.importActual('react-router-dom');
   return {
@@ -94,6 +88,17 @@ describe('BookingPage', () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-02-01T00:10:00Z'));
     vi.clearAllMocks();
+    vi.mocked(useTicketBookingSettings).mockReturnValue({
+      data: {
+        ticket_id: 1,
+        max_tickets_per_booking: 5,
+        booking_window_days: 30,
+        auto_generate_days_ahead: 60,
+        default_slot_capacity: 100,
+      },
+      error: null,
+      isLoading: false,
+    } as never);
   });
 
   afterEach(() => {
@@ -106,16 +111,21 @@ describe('BookingPage', () => {
       error: null,
       isLoading: false,
     } as never);
-    vi.mocked(useTicketAvailability).mockReturnValue({
+    vi.mocked(useEffectiveTicketAvailability).mockReturnValue({
       data: [
         {
           id: 1,
+          ticket_id: 1,
           date: '2026-02-01',
           time_slot: null,
           total_capacity: 10,
+          base_total_capacity: 10,
+          effective_total_capacity: 10,
           reserved_capacity: 0,
           sold_capacity: 0,
           available_capacity: 10,
+          is_closed: false,
+          reason: null,
         },
       ],
       error: null,
@@ -130,7 +140,6 @@ describe('BookingPage', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /Proceed to Payment/i }));
 
-    expect(mockSetQueryData).toHaveBeenCalled();
     expect(mockNavigate).toHaveBeenCalledWith(
       '/payment',
       expect.objectContaining({
@@ -150,16 +159,21 @@ describe('BookingPage', () => {
       error: null,
       isLoading: false,
     } as never);
-    vi.mocked(useTicketAvailability).mockReturnValue({
+    vi.mocked(useEffectiveTicketAvailability).mockReturnValue({
       data: [
         {
           id: 2,
+          ticket_id: 1,
           date: '2026-02-01',
           time_slot: '09:00:00',
           total_capacity: 10,
+          base_total_capacity: 10,
+          effective_total_capacity: 10,
           reserved_capacity: 0,
           sold_capacity: 0,
           available_capacity: 3,
+          is_closed: false,
+          reason: null,
         },
       ],
       error: null,
@@ -199,16 +213,21 @@ describe('BookingPage', () => {
       error: null,
       isLoading: false,
     } as never);
-    vi.mocked(useTicketAvailability).mockReturnValue({
+    vi.mocked(useEffectiveTicketAvailability).mockReturnValue({
       data: [
         {
           id: 3,
+          ticket_id: 1,
           date: '2026-02-02',
           time_slot: '09:00:00',
           total_capacity: 10,
+          base_total_capacity: 10,
+          effective_total_capacity: 10,
           reserved_capacity: 0,
           sold_capacity: 0,
           available_capacity: 10,
+          is_closed: false,
+          reason: null,
         },
       ],
       error: null,
@@ -241,7 +260,7 @@ describe('BookingPage', () => {
       error: null,
       isLoading: false,
     } as never);
-    vi.mocked(useTicketAvailability).mockReturnValue({
+    vi.mocked(useEffectiveTicketAvailability).mockReturnValue({
       data: [],
       error: null,
       isLoading: false,

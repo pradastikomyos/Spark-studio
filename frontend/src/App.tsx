@@ -38,6 +38,7 @@ const EventPageManager = lazy(() => import('./pages/admin/EventPageManager'));
 const NewsPageManager = lazy(() => import('./pages/admin/NewsPageManager'));
 const CharmBarPageManager = lazy(() => import('./pages/admin/CharmBarPageManager'));
 const BookingPageManager = lazy(() => import('./pages/admin/BookingPageManager'));
+const EntranceBookingManager = lazy(() => import('./pages/admin/EntranceBookingManager'));
 const DressingRoomManager = lazy(() => import('./pages/admin/DressingRoomManager'));
 const BeautyPosterManager = lazy(() => import('./pages/admin/BeautyPosterManager'));
 const BookingPage = lazy(() => import('./pages/BookingPage'));
@@ -253,6 +254,18 @@ function AppRoutes() {
               <ProtectedRoute adminOnly>
                 <Suspense fallback={<RouteLoading />}>
                   <BookingPageManager />
+                </Suspense>
+              </ProtectedRoute>
+            )
+          }
+        />
+        <Route
+          path="/admin/entrance-booking"
+          element={
+            wrap(
+              <ProtectedRoute adminOnly>
+                <Suspense fallback={<RouteLoading />}>
+                  <EntranceBookingManager />
                 </Suspense>
               </ProtectedRoute>
             )

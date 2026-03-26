@@ -47,7 +47,6 @@ const AdminLayout = ({
   const navigate = useNavigate();
   const { user } = useAuth();
   const [activeMenu, setActiveMenu] = useState(defaultActiveMenuId);
-  const [expandedSections, setExpandedSections] = useState<string[]>(['tickets', 'store']);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
@@ -108,14 +107,6 @@ const AdminLayout = ({
     } finally {
       setIsLoggingOut(false);
     }
-  };
-
-  const toggleSection = (sectionId: string) => {
-    setExpandedSections(prev =>
-      prev.includes(sectionId)
-        ? prev.filter(id => id !== sectionId)
-        : [...prev, sectionId]
-    );
   };
 
   const getUserInitials = () => {
@@ -184,43 +175,35 @@ const AdminLayout = ({
 
             {menuSections.map((section) => (
               <div key={section.id}>
-                <button 
-                  onClick={() => toggleSection(section.id)}
-                  className="w-full mt-4 px-3 mb-1 flex items-center justify-between min-w-0 hover:bg-gray-50 rounded-lg py-1 transition-colors"
-                >
+                <div className="w-full mt-4 px-3 mb-1 flex items-center justify-between min-w-0 rounded-lg py-1">
                   <span className="text-xs font-semibold uppercase tracking-wider text-gray-400 truncate">
                     {section.label}
                   </span>
-                  <span className="material-symbols-outlined text-base text-gray-400 flex-shrink-0">
-                    {expandedSections.includes(section.id) ? 'expand_less' : 'expand_more'}
-                  </span>
-                </button>
-                {expandedSections.includes(section.id) && (
-                  <div className="flex flex-col gap-0.5">
-                    {section.items.map((item) => (
-                      <button
-                        key={item.id}
-                        onClick={() => handleSectionItemClick(item)}
-                        className={`flex items-center gap-3 rounded-lg px-3 py-2 transition-colors min-w-0 ${activeMenu === item.id
-                          ? 'bg-white text-gray-900 border border-gray-200'
-                          : 'text-gray-700 hover:bg-white hover:text-gray-900'
-                          } ${item.highlight ? 'text-gray-900' : ''}`}
-                      >
-                        <span className={`material-symbols-outlined text-xl flex-shrink-0 ${activeMenu === item.id ? 'text-main-600' : 'text-gray-400'} ${item.highlight ? 'text-gray-900' : ''}`}>
-                          {item.icon}
-                        </span>
-                        <div className="flex flex-1 items-center justify-between min-w-0">
-                          <span className="text-sm font-medium truncate">{item.label}</span>
-                          {item.badge !== undefined && (
-                            <span className="flex h-5 w-5 items-center justify-center rounded bg-gray-200 text-[10px] font-bold text-gray-700 flex-shrink-0 ml-2">
-                              {item.badge}
-                            </span>
-                          )}
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                )}
+                </div>
+                <div className="flex flex-col gap-0.5">
+                  {section.items.map((item) => (
+                    <button
+                      key={item.id}
+                      onClick={() => handleSectionItemClick(item)}
+                      className={`flex items-center gap-3 rounded-lg px-3 py-2 transition-colors min-w-0 ${activeMenu === item.id
+                        ? 'bg-white text-gray-900 border border-gray-200'
+                        : 'text-gray-700 hover:bg-white hover:text-gray-900'
+                        } ${item.highlight ? 'text-gray-900' : ''}`}
+                    >
+                      <span className={`material-symbols-outlined text-xl flex-shrink-0 ${activeMenu === item.id ? 'text-main-600' : 'text-gray-400'} ${item.highlight ? 'text-gray-900' : ''}`}>
+                        {item.icon}
+                      </span>
+                      <div className="flex flex-1 items-center justify-between min-w-0">
+                        <span className="text-sm font-medium truncate">{item.label}</span>
+                        {item.badge !== undefined && (
+                          <span className="flex h-5 w-5 items-center justify-center rounded bg-gray-200 text-[10px] font-bold text-gray-700 flex-shrink-0 ml-2">
+                            {item.badge}
+                          </span>
+                        )}
+                      </div>
+                    </button>
+                  ))}
+                </div>
               </div>
             ))}
           </nav>

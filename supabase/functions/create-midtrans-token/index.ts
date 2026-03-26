@@ -4,6 +4,7 @@ import { getCorsHeaders, handleCors } from '../_shared/http.ts'
 import { getMidtransEnv, getPublicAppUrl, getSupabaseEnv } from '../_shared/env.ts'
 import { createServiceClient, getUserFromAuthHeader } from '../_shared/supabase.ts'
 import { toNumber } from '../_shared/payment-effects.ts'
+import { normalizeTicketTimeSlots } from '../_shared/tickets.ts'
 
 interface OrderItem {
   ticketId: number
@@ -19,6 +20,33 @@ interface CreateTokenRequest {
   customerName: string
   customerEmail: string
   customerPhone?: string
+}
+
+const DEFAULT_MAX_TICKETS_PER_BOOKING = 5
+const DEFAULT_BOOKING_WINDOW_DAYS = 30
+
+function extractDateOnly(value: unknown): string {
+  return String(value ?? '').split('T')[0].split(' ')[0]
+}
+
+function formatWibDate(date: Date): string {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Jakarta',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(date)
+
+  const year = parts.find((part) => part.type === 'year')?.value ?? '1970'
+  const month = parts.find((part) => part.type === 'month')?.value ?? '01'
+  const day = parts.find((part) => part.type === 'day')?.value ?? '01'
+  return `${year}-${month}-${day}`
+}
+
+function addDaysWib(dateString: string, days: number): string {
+  const date = new Date(`${dateString}T00:00:00+07:00`)
+  date.setUTCDate(date.getUTCDate() + days)
+  return formatWibDate(date)
 }
 
 serve(async (req) => {
@@ -171,7 +199,7 @@ serve(async (req) => {
     const ticketIds = Array.from(new Set(normalizedItems.map((i) => i.ticketId)))
     const { data: ticketRows, error: ticketsError } = await supabase
       .from('tickets')
-      .select('id, name, price, is_active')
+      .select('id, name, price, is_active, available_from, available_until, time_slots')
       .in('id', ticketIds)
 
     if (ticketsError || !Array.isArray(ticketRows)) {
@@ -181,10 +209,55 @@ serve(async (req) => {
       })
     }
 
-    const ticketMap = new Map<number, { id: number; name: string; price: unknown; is_active: unknown }>()
-    for (const row of ticketRows as Array<{ id: number; name: string; price: unknown; is_active: unknown }>) {
+    const { data: settingsRows, error: settingsError } = await supabase
+      .from('ticket_booking_settings')
+      .select('ticket_id, max_tickets_per_booking, booking_window_days')
+      .in('ticket_id', ticketIds)
+
+    if (settingsError || !Array.isArray(settingsRows)) {
+      return new Response(JSON.stringify({ error: 'Failed to load ticket booking settings' }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
+    const ticketMap = new Map<number, {
+      id: number
+      name: string
+      price: unknown
+      is_active: unknown
+      available_from: unknown
+      available_until: unknown
+      time_slots: unknown
+    }>()
+    for (const row of ticketRows as Array<{
+      id: number
+      name: string
+      price: unknown
+      is_active: unknown
+      available_from: unknown
+      available_until: unknown
+      time_slots: unknown
+    }>) {
       ticketMap.set(Number(row.id), row)
     }
+
+    const settingsMap = new Map<number, { max_tickets_per_booking: number; booking_window_days: number }>()
+    for (const row of settingsRows as Array<{ ticket_id: number | string; max_tickets_per_booking: unknown; booking_window_days: unknown }>) {
+      settingsMap.set(Number(row.ticket_id), {
+        max_tickets_per_booking: Math.max(
+          1,
+          Math.floor(toNumber(row.max_tickets_per_booking, DEFAULT_MAX_TICKETS_PER_BOOKING))
+        ),
+        booking_window_days: Math.max(
+          1,
+          Math.floor(toNumber(row.booking_window_days, DEFAULT_BOOKING_WINDOW_DAYS))
+        ),
+      })
+    }
+
+    const todayWib = formatWibDate(now)
+    const quantitiesByTicket = new Map<number, number>()
 
     const resolvedItems: Array<{ ticketId: number; ticketName: string; unitPrice: number; quantity: number; date: string; timeSlot: string }> = []
     for (const item of normalizedItems) {
@@ -201,6 +274,34 @@ serve(async (req) => {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         })
       }
+      const ticketSettings = settingsMap.get(item.ticketId) ?? {
+        max_tickets_per_booking: DEFAULT_MAX_TICKETS_PER_BOOKING,
+        booking_window_days: DEFAULT_BOOKING_WINDOW_DAYS,
+      }
+      const availableFrom = extractDateOnly((ticket as { available_from: unknown }).available_from)
+      const availableUntil = extractDateOnly((ticket as { available_until: unknown }).available_until)
+      const maxBookableDate = addDaysWib(todayWib, ticketSettings.booking_window_days)
+      if (item.date < todayWib || item.date > maxBookableDate) {
+        return new Response(JSON.stringify({ error: `Date outside booking window: ${item.date}` }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        })
+      }
+      if ((availableFrom && item.date < availableFrom) || (availableUntil && item.date > availableUntil)) {
+        return new Response(JSON.stringify({ error: `Date unavailable for ticket: ${item.date}` }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        })
+      }
+      if (item.timeSlot !== 'all-day') {
+        const allowedSlots = normalizeTicketTimeSlots((ticket as { time_slots: unknown }).time_slots)
+        if (allowedSlots.length > 0 && !allowedSlots.some((slot) => slot.slice(0, 5) === item.timeSlot)) {
+          return new Response(JSON.stringify({ error: `Invalid time slot for ticket: ${item.timeSlot}` }), {
+            status: 400,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          })
+        }
+      }
       const unitPrice = toNumber((ticket as { price: unknown }).price, 0)
       if (unitPrice <= 0) {
         return new Response(JSON.stringify({ error: `Invalid ticket price: ${item.ticketId}` }), {
@@ -208,6 +309,7 @@ serve(async (req) => {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         })
       }
+      quantitiesByTicket.set(item.ticketId, (quantitiesByTicket.get(item.ticketId) ?? 0) + item.quantity)
       resolvedItems.push({
         ticketId: item.ticketId,
         ticketName: String((ticket as { name: unknown }).name || '').slice(0, 50),
@@ -216,6 +318,22 @@ serve(async (req) => {
         date: item.date,
         timeSlot: item.timeSlot,
       })
+    }
+
+    for (const [ticketId, totalQuantity] of quantitiesByTicket.entries()) {
+      const ticketSettings = settingsMap.get(ticketId) ?? {
+        max_tickets_per_booking: DEFAULT_MAX_TICKETS_PER_BOOKING,
+        booking_window_days: DEFAULT_BOOKING_WINDOW_DAYS,
+      }
+      if (totalQuantity > ticketSettings.max_tickets_per_booking) {
+        return new Response(
+          JSON.stringify({ error: `Maximum ${ticketSettings.max_tickets_per_booking} tickets per booking` }),
+          {
+            status: 400,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          }
+        )
+      }
     }
 
     const totalAmount = resolvedItems.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0)
