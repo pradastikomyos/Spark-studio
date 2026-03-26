@@ -29,7 +29,7 @@ export function useBookingSelectionState(params: BookingSelectionStateParams) {
   useEffect(() => {
     if (!ticket) return;
     const today = todayWIB();
-    setSelectedDate(today);
+    setSelectedDate(null);
     setCurrentDate(today);
   }, [ticket]);
 
@@ -55,21 +55,13 @@ export function useBookingSelectionState(params: BookingSelectionStateParams) {
 
   const today = useMemo(() => createWIBDate(toLocalDateString(currentTime)), [currentTime]);
   const maxBookingDate = useMemo(() => addDays(today, 30), [today]);
+  const extractDateOnly = (value: string) => value.split('T')[0].split(' ')[0];
 
-  const calendarDays = useMemo<(CalendarDay | null)[]>(() => {
-    if (!ticket) return [];
+  const availabilityWindow = useMemo(() => {
+    if (!ticket) return null;
 
-    const year = currentDate.getFullYear();
-    const month = currentDate.getMonth();
-    const firstDay = new Date(year, month, 1);
-    const lastDay = new Date(year, month + 1, 0);
-    const daysInMonth = lastDay.getDate();
-    const startingDayOfWeek = firstDay.getDay();
-
-    const extractDateOnly = (value: string) => value.split('T')[0].split(' ')[0];
     const ticketFromDate = extractDateOnly(ticket.available_from);
     const ticketUntilDate = extractDateOnly(ticket.available_until);
-
     const maxAvailabilityDate = availabilities.reduce<string>(
       (max, avail) => (avail.date > max ? avail.date : max),
       ''
@@ -78,8 +70,107 @@ export function useBookingSelectionState(params: BookingSelectionStateParams) {
     const effectiveUntilDate =
       maxAvailabilityDate && maxAvailabilityDate > ticketUntilDate ? maxAvailabilityDate : ticketUntilDate;
 
-    const availableFrom = createWIBDate(ticketFromDate);
-    const availableUntil = createWIBDate(effectiveUntilDate, '23:59:59');
+    return {
+      availableFrom: createWIBDate(ticketFromDate),
+      availableUntil: createWIBDate(effectiveUntilDate, '23:59:59'),
+    };
+  }, [ticket, availabilities]);
+
+  const hasBookableDates = useMemo(() => {
+    if (!availabilityWindow) return false;
+
+    return availabilities.some((avail) => {
+      if (avail.available_capacity <= 0) return false;
+      const date = createWIBDate(avail.date);
+      return (
+        date >= today &&
+        date <= maxBookingDate &&
+        date >= availabilityWindow.availableFrom &&
+        date <= availabilityWindow.availableUntil
+      );
+    });
+  }, [availabilityWindow, availabilities, maxBookingDate, today]);
+
+  const firstBookableDate = useMemo(() => {
+    if (!availabilityWindow) return null;
+
+    const nextDate = availabilities
+      .filter((avail) => avail.available_capacity > 0)
+      .map((avail) => avail.date)
+      .sort()
+      .find((dateString) => {
+        const date = createWIBDate(dateString);
+        return (
+          date >= today &&
+          date <= maxBookingDate &&
+          date >= availabilityWindow.availableFrom &&
+          date <= availabilityWindow.availableUntil
+        );
+      });
+
+    return nextDate ? createWIBDate(nextDate) : null;
+  }, [availabilityWindow, availabilities, maxBookingDate, today]);
+
+  const isDateBookable = (date: Date) => {
+    if (!availabilityWindow) return false;
+
+    const dateString = toLocalDateString(date);
+    const normalizedDate = createWIBDate(dateString);
+    const isWithinBookingWindow = normalizedDate >= today && normalizedDate <= maxBookingDate;
+    const isWithinTicketWindow =
+      normalizedDate >= availabilityWindow.availableFrom && normalizedDate <= availabilityWindow.availableUntil;
+    const hasAvailability = availabilities.some(
+      (avail) => avail.date === dateString && avail.available_capacity > 0
+    );
+
+    return isWithinBookingWindow && isWithinTicketWindow && hasAvailability;
+  };
+
+  const selectedDateIsBookable = selectedDate ? isDateBookable(selectedDate) : false;
+
+  useEffect(() => {
+    if (!ticket) return;
+
+    setSelectedDate((previous) => {
+      if (previous && isDateBookable(previous)) {
+        return previous;
+      }
+
+      return firstBookableDate;
+    });
+
+    if (!firstBookableDate) return;
+
+    setCurrentDate((previous) => {
+      if (selectedDateIsBookable) {
+        return previous;
+      }
+
+      const sameMonth =
+        previous.getFullYear() === firstBookableDate.getFullYear() &&
+        previous.getMonth() === firstBookableDate.getMonth();
+
+      return sameMonth ? previous : firstBookableDate;
+    });
+  }, [
+    availabilityWindow,
+    availabilities,
+    firstBookableDate,
+    maxBookingDate,
+    selectedDateIsBookable,
+    ticket,
+    today,
+  ]);
+
+  const calendarDays = useMemo<(CalendarDay | null)[]>(() => {
+    if (!ticket || !availabilityWindow) return [];
+
+    const year = currentDate.getFullYear();
+    const month = currentDate.getMonth();
+    const firstDay = new Date(year, month, 1);
+    const lastDay = new Date(year, month + 1, 0);
+    const daysInMonth = lastDay.getDate();
+    const startingDayOfWeek = firstDay.getDay();
 
     const days: (CalendarDay | null)[] = [];
 
@@ -93,7 +184,10 @@ export function useBookingSelectionState(params: BookingSelectionStateParams) {
 
       const isToday = toLocalDateString(date) === toLocalDateString(today);
       const isWithinBookingWindow = date >= today && date <= maxBookingDate;
-      const isAvailable = isWithinBookingWindow && date >= availableFrom && date <= availableUntil;
+      const isAvailable =
+        isWithinBookingWindow &&
+        date >= availabilityWindow.availableFrom &&
+        date <= availabilityWindow.availableUntil;
       const hasAvailability = availabilities.some(
         (avail) => avail.date === toLocalDateString(date) && avail.available_capacity > 0
       );
@@ -109,7 +203,7 @@ export function useBookingSelectionState(params: BookingSelectionStateParams) {
     }
 
     return days;
-  }, [ticket, currentDate, availabilities, today, maxBookingDate]);
+  }, [ticket, availabilityWindow, currentDate, availabilities, today, maxBookingDate]);
 
   const availableTimeSlots = useMemo<BookableSlotViewModel[]>(() => {
     if (!selectedDate) return [];
@@ -225,6 +319,7 @@ export function useBookingSelectionState(params: BookingSelectionStateParams) {
     availableTimeSlots,
     groupedSlots,
     isAllDayTicket,
+    hasBookableDates,
     today,
     maxBookingDate,
     canGoPrevMonth,

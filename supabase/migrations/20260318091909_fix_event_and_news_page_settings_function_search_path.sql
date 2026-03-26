@@ -14,4 +14,4 @@ BEGIN
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql
-SET search_path = public;
+SET search_path = public;;

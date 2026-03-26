@@ -24,4 +24,4 @@ ALTER TABLE public.charm_bar_page_settings
     "customize": { "heading": "cardo", "body": "nunito_sans" },
     "video_gallery": { "heading": "cardo", "body": "nunito_sans" },
     "how_it_works": { "heading": "cardo", "body": "nunito_sans" }
-  }'::jsonb;
+  }'::jsonb;;

@@ -4,4 +4,4 @@ ADD COLUMN IF NOT EXISTS look_star_links JSONB NOT NULL DEFAULT '[
   {"slot":"silver-blink","product_id":null},
   {"slot":"bronze","product_id":null},
   {"slot":"aura-pop","product_id":null}
-]'::jsonb;
+]'::jsonb;;

@@ -42,13 +42,11 @@ export default function AvailabilityGenerator({ onSuccess }: AvailabilityGenerat
         setNotification(null);
 
         try {
-            // Calculate number of days
             const start = new Date(startDate);
             const end = new Date(endDate);
             const daysDiff = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
-            const totalSlots = daysDiff * 4; // 4 sessions per day
 
-            const { error } = await withTimeout(
+            const { data: insertedCount, error } = await withTimeout(
                 supabase.rpc('generate_ticket_availability', {
                     p_start_date: startDate,
                     p_end_date: endDate,
@@ -58,57 +56,13 @@ export default function AvailabilityGenerator({ onSuccess }: AvailabilityGenerat
                 'Request timeout. Please try again.'
             );
 
-            if (error) {
-                // If the function doesn't exist, fall back to direct insert
-                const { error: insertError } = await withTimeout(
-                    supabase.from('ticket_availabilities').upsert(
-                        Array.from({ length: daysDiff }, (_, i) => {
-                            const date = new Date(start);
-                            date.setDate(start.getDate() + i);
-                            const dateStr = toLocalDateString(date);
-
-                            return ['09:00:00', '12:00:00', '15:00:00', '18:00:00'].map(time => ({
-                                ticket_id: 1,
-                                date: dateStr,
-                                time_slot: time,
-                                total_capacity: 100,
-                                reserved_capacity: 0,
-                                sold_capacity: 0,
-                                version: 0,
-                                created_at: new Date().toISOString(),
-                                updated_at: new Date().toISOString()
-                            }));
-                        }).flat(),
-                        {
-                            onConflict: 'ticket_id,date,time_slot',
-                            ignoreDuplicates: true
-                        }
-                    ),
-                    REQUEST_TIMEOUT_MS,
-                    'Request timeout. Please try again.'
-                );
-
-                if (insertError) throw insertError;
-            }
-
-            const { error: ticketUpdateError } = await withTimeout(
-                supabase
-                    .from('tickets')
-                    .update({
-                        available_from: `${startDate} 00:00:00`,
-                        available_until: `${endDate} 00:00:00`,
-                        updated_at: new Date().toISOString(),
-                    })
-                    .eq('id', 1),
-                REQUEST_TIMEOUT_MS,
-                'Request timeout. Please try again.'
-            );
-
-            if (ticketUpdateError) throw ticketUpdateError;
+            if (error) throw error;
 
             setNotification({
                 type: 'success',
-                message: `Successfully generated ${totalSlots} availability slots for ${daysDiff} days`
+                message: insertedCount && insertedCount > 0
+                    ? `Added ${insertedCount} availability slots across ${daysDiff} day(s)`
+                    : `Availability already exists for the selected ${daysDiff} day(s)`
             });
 
             // Clear form

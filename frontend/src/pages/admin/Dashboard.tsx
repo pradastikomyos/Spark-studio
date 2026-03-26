@@ -127,7 +127,7 @@ const Dashboard = () => {
             <p className="text-sm text-gray-500 max-w-sm">
               Letakkan kode QR tiket di depan kamera atau klik di sini untuk memasukkan ID tiket secara manual.
             </p>
-            <button className="mt-6 px-4 py-2 bg-main-500 text-gray-900 text-sm font-black rounded hover:bg-main-600 transition-colors">
+            <button className="mt-6 px-4 py-2 bg-main-500 text-white text-sm font-black rounded hover:bg-main-600 transition-colors">
               Aktifkan Kamera
             </button>
           </div>

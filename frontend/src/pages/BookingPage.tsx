@@ -39,6 +39,7 @@ export default function BookingPage() {
     availableTimeSlots,
     groupedSlots,
     isAllDayTicket,
+    hasBookableDates,
     canGoPrevMonth,
     canGoNextMonth,
     getMinutesUntilClose,
@@ -177,6 +178,7 @@ export default function BookingPage() {
                 <BookingTimeSlotPanel
                   copy={bookingCopy}
                   selectedDate={selectedDate}
+                  hasBookableDates={hasBookableDates}
                   isAllDayTicket={isAllDayTicket}
                   selectedTime={selectedTime}
                   availableTimeSlots={availableTimeSlots}

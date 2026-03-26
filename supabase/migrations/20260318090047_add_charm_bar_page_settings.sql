@@ -100,4 +100,4 @@ CREATE POLICY "Admins can delete charm bar assets"
   ON storage.objects
   FOR DELETE
   TO authenticated
-  USING (bucket_id = 'charm-bar-assets' AND public.is_admin());
+  USING (bucket_id = 'charm-bar-assets' AND public.is_admin());;

@@ -21,8 +21,7 @@ BEGIN
   NEW.updated_at = NOW();
   RETURN NEW;
 END;
-$$ LANGUAGE plpgsql
-SET search_path = public;
+$$ LANGUAGE plpgsql;
 
 DROP TRIGGER IF EXISTS trigger_glam_page_settings_updated_at ON public.glam_page_settings;
 CREATE TRIGGER trigger_glam_page_settings_updated_at
@@ -45,4 +44,4 @@ CREATE POLICY "Admin full access for glam page settings"
   FOR ALL
   TO authenticated
   USING (public.is_admin())
-  WITH CHECK (public.is_admin());
+  WITH CHECK (public.is_admin());;

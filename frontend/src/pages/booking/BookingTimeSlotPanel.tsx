@@ -14,6 +14,7 @@ type BookingTimeSlotPanelProps = {
     | 'empty_slots_message'
   >;
   selectedDate: Date | null;
+  hasBookableDates: boolean;
   isAllDayTicket: boolean;
   selectedTime: string | null;
   availableTimeSlots: BookableSlotViewModel[];
@@ -34,6 +35,7 @@ export function BookingTimeSlotPanel(props: BookingTimeSlotPanelProps) {
   const {
     copy,
     selectedDate,
+    hasBookableDates,
     isAllDayTicket,
     selectedTime,
     availableTimeSlots,
@@ -43,13 +45,19 @@ export function BookingTimeSlotPanel(props: BookingTimeSlotPanelProps) {
     onSelectTime,
   } = props;
 
-  if (!selectedDate) return null;
+  if (!selectedDate && hasBookableDates) return null;
 
   return (
     <div className="bg-white rounded-xl shadow-sm border border-rose-50 p-8">
       <h3 className="text-xl font-bold mb-6">{isAllDayTicket ? copy.access_type_title : copy.time_slots_title}</h3>
 
-      {isAllDayTicket && (
+      {!hasBookableDates && (
+        <p className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-4 text-sm text-amber-900">
+          Booking is not available right now. New dates have not been published yet.
+        </p>
+      )}
+
+      {hasBookableDates && isAllDayTicket && (
         <div className="mb-6">
           <m.button
             onClick={() => onSelectTime(null)}
@@ -65,7 +73,7 @@ export function BookingTimeSlotPanel(props: BookingTimeSlotPanelProps) {
         </div>
       )}
 
-      {availableTimeSlots.length > 0 ? (
+      {hasBookableDates && availableTimeSlots.length > 0 ? (
         <div className="space-y-6">
           {isAllDayTicket && (
             <p className="text-xs font-black uppercase tracking-widest text-primary/60 mb-2">{copy.choose_specific_time_label}</p>
@@ -136,7 +144,7 @@ export function BookingTimeSlotPanel(props: BookingTimeSlotPanelProps) {
             );
           })}
         </div>
-      ) : !isAllDayTicket ? (
+      ) : hasBookableDates && !isAllDayTicket ? (
         <p className="text-gray-500 text-center py-8">{copy.empty_slots_message}</p>
       ) : null}
     </div>

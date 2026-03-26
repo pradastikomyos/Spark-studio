@@ -67,4 +67,4 @@ CREATE POLICY "Admin full access for booking page settings"
   FOR ALL
   TO authenticated
   USING (public.is_admin())
-  WITH CHECK (public.is_admin());
+  WITH CHECK (public.is_admin());;

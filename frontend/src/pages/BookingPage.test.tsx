@@ -189,4 +189,71 @@ describe('BookingPage', () => {
       })
     );
   });
+
+  it('defaults to the first available future booking date', () => {
+    vi.mocked(useTickets).mockReturnValue({
+      data: {
+        ...baseTicket,
+        available_until: '2026-02-28',
+      },
+      error: null,
+      isLoading: false,
+    } as never);
+    vi.mocked(useTicketAvailability).mockReturnValue({
+      data: [
+        {
+          id: 3,
+          date: '2026-02-02',
+          time_slot: '09:00:00',
+          total_capacity: 10,
+          reserved_capacity: 0,
+          sold_capacity: 0,
+          available_capacity: 10,
+        },
+      ],
+      error: null,
+      isLoading: false,
+    } as never);
+
+    render(
+      <MemoryRouter>
+        <BookingPage />
+      </MemoryRouter>
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /09:00/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Proceed to Payment/i }));
+
+    expect(mockNavigate).toHaveBeenCalledWith(
+      '/payment',
+      expect.objectContaining({
+        state: expect.objectContaining({
+          date: '2026-02-02',
+          time: '09:00:00',
+        }),
+      })
+    );
+  });
+
+  it('shows an unavailable message when no booking dates are published', () => {
+    vi.mocked(useTickets).mockReturnValue({
+      data: baseTicket,
+      error: null,
+      isLoading: false,
+    } as never);
+    vi.mocked(useTicketAvailability).mockReturnValue({
+      data: [],
+      error: null,
+      isLoading: false,
+    } as never);
+
+    render(
+      <MemoryRouter>
+        <BookingPage />
+      </MemoryRouter>
+    );
+
+    expect(screen.getByText('Booking is not available right now. New dates have not been published yet.')).toBeInTheDocument();
+    expect(mockNavigate).not.toHaveBeenCalled();
+  });
 });

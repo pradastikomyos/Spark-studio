@@ -12,12 +12,10 @@ CREATE TABLE IF NOT EXISTS public.event_page_settings (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
-
 -- Insert default row if not exists
 INSERT INTO public.event_page_settings (id)
 SELECT gen_random_uuid()
 WHERE NOT EXISTS (SELECT 1 FROM public.event_page_settings);
-
 -- updated_at trigger
 CREATE OR REPLACE FUNCTION public.update_event_page_settings_updated_at()
 RETURNS TRIGGER AS $$
@@ -26,23 +24,19 @@ BEGIN
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
-
 DROP TRIGGER IF EXISTS trigger_event_page_settings_updated_at ON public.event_page_settings;
 CREATE TRIGGER trigger_event_page_settings_updated_at
   BEFORE UPDATE ON public.event_page_settings
   FOR EACH ROW
   EXECUTE FUNCTION public.update_event_page_settings_updated_at();
-
 -- RLS
 ALTER TABLE public.event_page_settings ENABLE ROW LEVEL SECURITY;
-
 DROP POLICY IF EXISTS "Public read event page settings" ON public.event_page_settings;
 CREATE POLICY "Public read event page settings"
   ON public.event_page_settings
   FOR SELECT
   TO public
   USING (true);
-
 DROP POLICY IF EXISTS "Admin full access for event page settings" ON public.event_page_settings;
 CREATE POLICY "Admin full access for event page settings"
   ON public.event_page_settings

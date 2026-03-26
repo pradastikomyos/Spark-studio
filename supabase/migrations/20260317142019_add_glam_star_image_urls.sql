@@ -27,4 +27,4 @@ SET look_star_links = (
   )
   FROM jsonb_array_elements(look_star_links) WITH ORDINALITY AS star(item, ord)
 )
-WHERE look_star_links IS NOT NULL;
+WHERE look_star_links IS NOT NULL;;

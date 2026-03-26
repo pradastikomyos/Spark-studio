@@ -35,7 +35,7 @@ const TicketSection = () => {
           const today = todayWIB();
           const todayDateString = toLocalDateString(today);
 
-          const lookaheadEndDateString = toLocalDateString(addDays(today, 14));
+          const lookaheadEndDateString = toLocalDateString(addDays(today, 30));
 
           const { data: availabilityRows, error: availabilityError } = await supabase
             .from('ticket_availabilities')
@@ -63,29 +63,6 @@ const TicketSection = () => {
             date: createWIBDate(dateString),
             isToday: dateString === todayDateString,
           }));
-
-          if (ticketDates.length === 0) {
-            const extractDateOnly = (value: string) => value.split('T')[0].split(' ')[0];
-            const ticketFromDate = extractDateOnly(ticket.available_from);
-            const ticketUntilDate = extractDateOnly(ticket.available_until);
-
-            const startDate = createWIBDate(ticketFromDate);
-            const endDate = createWIBDate(ticketUntilDate);
-
-            const currentDate = today >= startDate ? new Date(today) : new Date(startDate);
-            let count = 0;
-
-            while (count < 4 && currentDate <= endDate) {
-              const dateString = toLocalDateString(currentDate);
-              ticketDates.push({
-                ticket,
-                date: createWIBDate(dateString),
-                isToday: dateString === todayDateString,
-              });
-              currentDate.setDate(currentDate.getDate() + 1);
-              count++;
-            }
-          }
 
           setTicketsWithDates(ticketDates);
         }
@@ -159,7 +136,7 @@ const TicketSection = () => {
         </div>
       ) : (
         <div className="text-center py-16">
-          <p className="text-gray-500 text-sm">No tickets available at the moment</p>
+          <p className="text-gray-500 text-sm">Booking dates are not available right now. Please check back soon.</p>
         </div>
       )}
     </section>

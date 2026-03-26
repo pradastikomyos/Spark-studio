@@ -6,7 +6,6 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql
 SET search_path = public;
-
 CREATE OR REPLACE FUNCTION public.update_vouchers_updated_at()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -15,7 +14,6 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql
 SET search_path = public;
-
 CREATE OR REPLACE FUNCTION public.validate_and_reserve_voucher(
   p_code TEXT,
   p_user_id UUID,
@@ -129,7 +127,6 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql
 SET search_path = public;
-
 CREATE OR REPLACE FUNCTION public.release_voucher_quota(
   p_voucher_id UUID
 )
@@ -143,14 +140,12 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql
 SET search_path = public;
-
 DROP POLICY IF EXISTS "Admins can view all scans" ON public.stage_scans;
 CREATE POLICY "Admins can view all scans"
   ON public.stage_scans
   FOR SELECT
   TO public
   USING (public.is_admin());
-
 DROP POLICY IF EXISTS "Anyone can create scans" ON public.stage_scans;
 DROP POLICY IF EXISTS "Public can record active stage scans" ON public.stage_scans;
 CREATE POLICY "Public can record active stage scans"
@@ -168,6 +163,5 @@ CREATE POLICY "Public can record active stage scans"
         AND public.stages.status = 'active'
     )
   );
-
 CREATE INDEX IF NOT EXISTS idx_stage_scans_stage_id_scanned_at
   ON public.stage_scans(stage_id, scanned_at DESC);
