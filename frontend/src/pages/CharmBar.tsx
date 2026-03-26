@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowRight, Play } from 'lucide-react';
+import { ArrowRight } from 'lucide-react';
 import { PageTransition } from '../components/PageTransition';
 import { DEFAULT_CHARM_BAR_PAGE_SETTINGS, useCharmBarSettings } from '../hooks/useCharmBarSettings';
 import { getCmsFontStyle } from '../lib/cmsTypography';
@@ -70,29 +70,33 @@ export default function CharmBar() {
             </h2>
           </div>
 
-          <div className="grid grid-cols-3 gap-3 md:gap-6 lg:gap-14">
-            {content.steps.map((step) => (
-              <article key={step.title} className="flex h-full flex-col text-center">
-                <div className="mb-3 overflow-hidden bg-white shadow-[0_8px_20px_rgba(0,0,0,0.06)] lg:mb-8 lg:shadow-[0_18px_50px_rgba(0,0,0,0.08)]">
-                  <img src={step.image_url} alt={step.title} className="aspect-[4/5] w-full object-cover" />
-                </div>
-                <h3 className="font-serif text-[13px] font-black uppercase leading-[1.1] sm:text-lg lg:text-[2.2rem]" style={getCmsFontStyle(customizeFonts.heading)}>
-                  {step.title}
-                </h3>
-                <p className="mx-auto mt-2 max-w-sm text-[9px] leading-[1.2] text-black/70 sm:text-xs md:mt-4 lg:mt-6 lg:text-base lg:leading-7" style={getCmsFontStyle(customizeFonts.body)}>
-                  {step.body}
-                </p>
-                <div className="mt-2 lg:mt-8">
-                  <Link
-                    to={step.cta_href || '/shop'}
-                    className="inline-flex items-center justify-center bg-black px-2 py-1.5 text-[8px] font-semibold uppercase tracking-[0.1em] text-white transition-colors hover:bg-[#ff4b86] sm:px-4 sm:py-2 sm:text-xs lg:px-6 lg:py-3 lg:text-sm lg:tracking-[0.16em]"
-                    style={getCmsFontStyle(customizeFonts.body)}
-                  >
-                    {step.cta_label}
-                  </Link>
-                </div>
-              </article>
-            ))}
+          <div className="-mx-6 overflow-x-auto px-6 md:mx-0 md:overflow-visible md:px-0">
+            <div className="min-w-[880px] md:min-w-0">
+              <div className="grid grid-cols-3 gap-14">
+                {content.steps.map((step) => (
+                  <article key={step.title} className="flex h-full flex-col text-center">
+                    <div className="mb-8 overflow-hidden bg-white shadow-[0_18px_50px_rgba(0,0,0,0.08)]">
+                      <img src={step.image_url} alt={step.title} className="aspect-[4/5] w-full object-cover" />
+                    </div>
+                    <h3 className="font-serif text-[2.2rem] font-black uppercase leading-[1.1]" style={getCmsFontStyle(customizeFonts.heading)}>
+                      {step.title}
+                    </h3>
+                    <p className="mx-auto mt-6 max-w-sm text-base leading-7 text-black/70" style={getCmsFontStyle(customizeFonts.body)}>
+                      {step.body}
+                    </p>
+                    <div className="mt-8">
+                      <Link
+                        to={step.cta_href || '/shop'}
+                        className="inline-flex items-center justify-center bg-black px-6 py-3 text-sm font-semibold uppercase tracking-[0.16em] text-white transition-colors hover:bg-[#ff4b86]"
+                        style={getCmsFontStyle(customizeFonts.body)}
+                      >
+                        {step.cta_label}
+                      </Link>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            </div>
           </div>
         </section>
 
@@ -103,12 +107,12 @@ export default function CharmBar() {
             </p>
           </div>
 
-          <div className="grid grid-cols-3 gap-2 md:gap-6">
+          <div className="grid grid-cols-[minmax(0,0.78fr)_minmax(0,1.14fr)_minmax(0,0.78fr)] items-center gap-3 md:gap-8">
             {content.video_cards.map((video, index) => (
               <div
                 key={video.title}
-                className={`group relative overflow-hidden bg-[#d9d9d9] shadow-[0_8px_20px_rgba(0,0,0,0.06)] lg:shadow-[0_22px_50px_rgba(0,0,0,0.1)] ${
-                  index === 1 ? 'md:-translate-y-4' : ''
+                className={`group relative overflow-hidden bg-[#d9d9d9] shadow-[0_8px_20px_rgba(0,0,0,0.06)] md:shadow-[0_22px_50px_rgba(0,0,0,0.1)] ${
+                  index === 1 ? 'scale-[1.04]' : ''
                 }`}
               >
                 <video
@@ -120,12 +124,7 @@ export default function CharmBar() {
                   className="aspect-[3/4] w-full object-cover"
                 />
                 <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/35 via-black/5 to-black/10" />
-                <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-                  <span className="flex h-8 w-8 items-center justify-center rounded-full bg-white/90 text-black shadow-[0_4px_10px_rgba(0,0,0,0.1)] transition-transform duration-300 group-hover:scale-105 lg:h-16 lg:w-16 lg:shadow-[0_10px_24px_rgba(0,0,0,0.16)]">
-                    <Play className="ml-0.5 h-3 w-3 fill-current lg:ml-1 lg:h-7 lg:w-7" />
-                  </span>
-                </div>
-                <div className="absolute left-2 top-2 text-[7px] font-semibold uppercase tracking-[0.1em] text-white sm:text-[9px] lg:left-5 lg:top-5 lg:text-[11px] lg:tracking-[0.24em]" style={getCmsFontStyle(videoGalleryFonts.heading)}>
+                <div className="absolute left-2 top-2 text-[7px] font-semibold uppercase tracking-[0.1em] text-white sm:text-[9px] md:left-5 md:top-5 md:text-[11px] md:tracking-[0.24em]" style={getCmsFontStyle(videoGalleryFonts.heading)}>
                   {video.title}
                 </div>
               </div>
@@ -147,14 +146,11 @@ export default function CharmBar() {
                   className="aspect-[3/4] w-full object-cover"
                 />
                 <div className="pointer-events-none absolute inset-0 bg-black/18" />
-                <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-6 text-center text-white">
+                <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center text-center text-white">
                   <span className="font-serif text-4xl font-black uppercase leading-none sm:text-5xl" style={getCmsFontStyle(howItWorksFonts.heading)}>
                     Auto play
                     <br />
                     video
-                  </span>
-                  <span className="flex h-16 w-16 items-center justify-center rounded-full bg-white/90 text-black shadow-[0_10px_24px_rgba(0,0,0,0.16)] transition-transform duration-300 group-hover:scale-105">
-                    <Play className="ml-1 h-7 w-7 fill-current" />
                   </span>
                 </div>
               </div>
