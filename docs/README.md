@@ -12,6 +12,6 @@ Dokumentasi ini dibuat supaya repo tetap rapi saat proyek tumbuh.
 ## Runbooks & Audit
 
 - Frontend audit (inventaris): `docs/frontend-audit.md`
+- ImageKit migration runbook: `docs/imagekit-migration-runbook.md`
 - Skeleton loading baseline: `docs/skeleton-loading-baseline.md`
 - Skeleton loading runbook: `docs/skeleton-loading-runbook.md`
-

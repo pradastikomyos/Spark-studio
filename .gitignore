@@ -17,6 +17,7 @@ dist-ssr
 .env
 .env.local
 .env.production
+.env.imagekit-migration
 
 # Editor directories and files
 .vscode/*
@@ -42,6 +43,7 @@ react-best-practices/
 # Database backups (local only)
 backup_*.sql
 *.backup.sql
+backups/
 
 # Supabase deployment artifacts (local only)
 supabase/.temp/

@@ -19,6 +19,17 @@ export function getMidtransEnv() {
   }
 }
 
+export function getImageKitEnv() {
+  const productImagesBasePathRaw = Deno.env.get('IMAGEKIT_PRODUCT_IMAGES_BASE_PATH') ?? '/products'
+  const normalizedBasePath = `/${productImagesBasePathRaw.replace(/^\/+|\/+$/g, '')}`.replace(/\/{2,}/g, '/')
+  return {
+    publicKey: getRequiredEnv('IMAGEKIT_PUBLIC_KEY'),
+    privateKey: getRequiredEnv('IMAGEKIT_PRIVATE_KEY'),
+    urlEndpoint: getRequiredEnv('IMAGEKIT_URL_ENDPOINT').replace(/\/+$/, ''),
+    productImagesBasePath: normalizedBasePath === '/' ? '/products' : normalizedBasePath,
+  }
+}
+
 export function getPublicAppUrl(): string | null {
   const value =
     Deno.env.get('PUBLIC_APP_URL') ||

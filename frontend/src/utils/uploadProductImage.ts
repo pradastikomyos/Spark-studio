@@ -1,8 +1,10 @@
 import { supabase } from '../lib/supabase';
+import { deleteImageKitFile, isSupabaseProductImageUrl, type ProductImageRecordInput, uploadFileToImageKit } from '../lib/imagekit';
 import { bytesToMb } from './merchant';
 import { MAX_PRODUCT_IMAGE_SIZE_MB, PRODUCT_IMAGE_UPLOAD_CONCURRENCY } from '../constants/productImages';
 
 type UploadProductImageOptions = {
+  accessToken?: string;
   maxSizeMb?: number;
   retryAttempts?: number;
   retryDelayMs?: number;
@@ -22,15 +24,33 @@ const withTimeout = async <T>(promise: Promise<T>, ms: number, message: string):
   }
 };
 
-export async function uploadProductImage(file: File, productId: string, options: UploadProductImageOptions = {}): Promise<string> {
+function isMissingRemoteFileError(message: string): boolean {
+  const normalized = message.toLowerCase();
+  return normalized.includes('404') || normalized.includes('not found') || normalized.includes('no object');
+}
+
+export type ProductImageDeleteInput = {
+  id?: number;
+  image_url: string;
+  image_provider?: 'supabase' | 'imagekit';
+  provider_file_id?: string | null;
+  provider_file_path?: string | null;
+};
+
+export async function uploadProductImage(
+  file: File,
+  productId: string,
+  options: UploadProductImageOptions = {}
+): Promise<ProductImageRecordInput> {
   const maxSizeMb = options.maxSizeMb ?? MAX_PRODUCT_IMAGE_SIZE_MB;
   const timeoutMs = options.timeoutMs ?? 120000;
+  const accessToken = options.accessToken?.trim();
   
   // Cross-platform MIME type validation
   // Windows may return empty string for file.type, so we also check file extension
   const allowedTypes = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/jpg']);
-  const fileName = file.name.toLowerCase();
-  const hasValidExtension = /\.(jpe?g|png|webp)$/i.test(fileName);
+  const normalizedFileName = file.name.toLowerCase();
+  const hasValidExtension = /\.(jpe?g|png|webp)$/i.test(normalizedFileName);
   const hasValidMimeType = Boolean(file.type) && allowedTypes.has(file.type);
   
   // Accept if either MIME type OR extension is valid (defensive for Windows)
@@ -52,7 +72,7 @@ export async function uploadProductImage(file: File, productId: string, options:
     ext = 'jpg';
   } else if (hasValidExtension) {
     // Fallback: extract from filename (for Windows where file.type might be empty)
-    const match = fileName.match(/\.(jpe?g|png|webp)$/i);
+    const match = normalizedFileName.match(/\.(jpe?g|png|webp)$/i);
     if (match) {
       ext = match[1].toLowerCase() === 'jpeg' ? 'jpg' : match[1].toLowerCase();
     }
@@ -61,63 +81,37 @@ export async function uploadProductImage(file: File, productId: string, options:
     globalThis.crypto && 'randomUUID' in globalThis.crypto && typeof globalThis.crypto.randomUUID === 'function'
       ? globalThis.crypto.randomUUID()
       : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
-
-  const objectPath = `${productId}/${uuid}.${ext}`;
-
-  let contentType: string | undefined;
-  if (hasValidMimeType) {
-    contentType = file.type === 'image/jpg' ? 'image/jpeg' : file.type;
-  } else if (ext === 'png') {
-    contentType = 'image/png';
-  } else if (ext === 'webp') {
-    contentType = 'image/webp';
-  } else if (ext === 'jpg') {
-    contentType = 'image/jpeg';
+  if (!accessToken) {
+    throw new Error('Missing access token for ImageKit upload.');
   }
 
-  const uploadOptions: { contentType?: string; cacheControl: string; upsert: boolean } = {
-    cacheControl: '31536000',
-    upsert: false,
-  };
-  if (contentType) uploadOptions.contentType = contentType;
+  const fileName = `${uuid}.${ext}`;
 
-  const uploadPromise = supabase.storage.from('product-images').upload(objectPath, file, uploadOptions);
-  const { error: uploadError } = await withTimeout(
-    uploadPromise,
+  return withTimeout(
+    uploadFileToImageKit({
+      accessToken,
+      file,
+      fileName,
+      productId,
+    }),
     timeoutMs,
     'Upload gambar terlalu lama (timeout). Coba lagi saat koneksi lebih stabil.'
   );
-
-  if (uploadError) {
-    const message = uploadError.message || 'Failed to upload image';
-    if (message.toLowerCase().includes('bucket') && message.toLowerCase().includes('not found')) {
-      throw new Error('Storage bucket "product-images" not found. Create it in Supabase Storage, then try again.');
-    }
-    throw new Error(message);
-  }
-
-  const { data } = supabase.storage.from('product-images').getPublicUrl(objectPath);
-  const publicUrl = data?.publicUrl;
-  if (!publicUrl) {
-    throw new Error('Failed to get public URL for uploaded image');
-  }
-
-  return publicUrl;
 }
 
 /**
  * Upload multiple product images and save to product_images table
- * Returns array of uploaded image URLs
+ * Returns array of uploaded image records
  */
 export async function uploadProductImages(
   files: File[],
   productId: number,
   options: UploadProductImageOptions = {}
-): Promise<string[]> {
+): Promise<ProductImageRecordInput[]> {
   const maxAttempts = options.retryAttempts ?? 3;
   const baseDelayMs = options.retryDelayMs ?? 1000;
   const concurrency = Math.max(1, Math.floor(options.concurrency ?? PRODUCT_IMAGE_UPLOAD_CONCURRENCY));
-  const uploadWithRetry = async (file: File): Promise<string> => {
+  const uploadWithRetry = async (file: File): Promise<ProductImageRecordInput> => {
     let lastError: unknown;
     for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
       try {
@@ -139,7 +133,7 @@ export async function uploadProductImages(
     return Promise.all(uploadPromises);
   }
 
-  const results = new Array<string>(files.length);
+  const results = new Array<ProductImageRecordInput>(files.length);
   let nextIndex = 0;
   const worker = async () => {
     while (true) {
@@ -159,12 +153,18 @@ export async function uploadProductImages(
  */
 export async function saveProductImages(
   productId: number,
-  imageUrls: string[],
+  imageRecordsInput: ProductImageRecordInput[],
   startOrder: number = 0
 ): Promise<void> {
-  const imageRecords = imageUrls.map((url, idx) => ({
+  const nowIso = new Date().toISOString();
+  const imageRecords = imageRecordsInput.map((image, idx) => ({
     product_id: productId,
-    image_url: url,
+    image_url: image.image_url,
+    image_provider: image.image_provider,
+    provider_file_id: image.provider_file_id,
+    provider_file_path: image.provider_file_path,
+    provider_original_url: image.provider_original_url,
+    migrated_at: image.image_provider === 'imagekit' ? nowIso : null,
     display_order: startOrder + idx,
     is_primary: startOrder === 0 && idx === 0, // First image is primary if starting from 0
   }));
@@ -179,22 +179,51 @@ export async function saveProductImages(
 /**
  * Delete product image from storage and database
  */
-export async function deleteProductImage(imageUrl: string, productId: number): Promise<void> {
-  // Extract path from URL
-  const url = new URL(imageUrl);
-  const pathMatch = url.pathname.match(/\/storage\/v1\/object\/public\/product-images\/(.+)$/);
-  
-  if (!pathMatch) {
-    throw new Error('Invalid image URL format');
-  }
+export async function deleteProductImage(
+  image: ProductImageDeleteInput,
+  productId: number,
+  options: { accessToken?: string } = {}
+): Promise<void> {
+  const provider = image.image_provider ?? (isSupabaseProductImageUrl(image.image_url) ? 'supabase' : 'imagekit');
+  if (provider === 'imagekit') {
+    const fileId = image.provider_file_id?.trim();
+    const accessToken = options.accessToken?.trim();
+    if (!fileId) {
+      throw new Error('ImageKit file id is missing for this product image.');
+    }
+    if (!accessToken) {
+      throw new Error('Missing access token for ImageKit deletion.');
+    }
+    try {
+      await deleteImageKitFile({ accessToken, fileId, productImageId: image.id ?? null });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to delete ImageKit file';
+      if (!isMissingRemoteFileError(message)) {
+        throw new Error(message);
+      }
+      console.warn('ImageKit file already missing, continuing DB delete:', message);
+    }
+  } else {
+    // Extract path from URL
+    const url = new URL(image.image_url);
+    const pathMatch = url.pathname.match(/\/storage\/v1\/object\/public\/product-images\/(.+)$/);
+    
+    if (!pathMatch) {
+      throw new Error('Invalid legacy Supabase image URL format');
+    }
 
-  const objectPath = pathMatch[1];
+    const objectPath = pathMatch[1];
 
-  // Delete from storage
-  const { error: storageError } = await supabase.storage.from('product-images').remove([objectPath]);
+    // Delete from storage
+    const { error: storageError } = await supabase.storage.from('product-images').remove([objectPath]);
 
-  if (storageError) {
-    console.error('Failed to delete from storage:', storageError);
+    if (storageError) {
+      const message = storageError.message || 'Failed to delete legacy Supabase storage object';
+      if (!isMissingRemoteFileError(message)) {
+        throw new Error(message);
+      }
+      console.warn('Legacy Supabase storage object already missing, continuing DB delete:', message);
+    }
   }
 
   // Delete from database
@@ -202,7 +231,7 @@ export async function deleteProductImage(imageUrl: string, productId: number): P
     .from('product_images')
     .delete()
     .eq('product_id', productId)
-    .eq('image_url', imageUrl);
+    .eq('image_url', image.image_url);
 
   if (dbError) {
     throw new Error(`Failed to delete image record: ${dbError.message}`);

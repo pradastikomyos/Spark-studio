@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase';
+import { buildImageKitThumbUrl, isImageKitUrl } from '../lib/imagekit';
 
 const PRODUCT_IMAGE_PATH_PATTERN = /\/storage\/v1\/object\/public\/product-images\/(.+)$/;
 
@@ -10,6 +11,9 @@ const INVENTORY_THUMBNAIL_OPTIONS = {
 
 export function toInventoryThumbUrl(imageUrl: string): string {
   if (!imageUrl) return imageUrl;
+  if (isImageKitUrl(imageUrl)) {
+    return buildImageKitThumbUrl(imageUrl, { width: 640, quality: 75 });
+  }
 
   try {
     const parsedUrl = new URL(imageUrl);

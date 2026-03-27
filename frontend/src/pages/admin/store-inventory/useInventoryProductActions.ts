@@ -94,17 +94,39 @@ export function useInventoryProductActions(params: UseInventoryProductActionsPar
     setSaveError(null);
     setEditingProductId(productId);
     setExistingImages([]);
-    setExistingImagesLoading(true);
-    setShowProductForm(true);
+      setExistingImagesLoading(true);
+      setShowProductForm(true);
 
     try {
       const { data } = await withTimeout(
-        supabase.from('product_images').select('image_url, is_primary').eq('product_id', productId).order('display_order'),
+        supabase
+          .from('product_images')
+          .select('id, image_url, is_primary, image_provider, provider_file_id, provider_file_path')
+          .eq('product_id', productId)
+          .order('display_order'),
         REQUEST_TIMEOUT_MS,
         'Request timeout. Please try again.'
       );
 
-      setExistingImages(data?.map((img: { image_url: string; is_primary: boolean }) => ({ url: img.image_url, is_primary: img.is_primary })) || []);
+      setExistingImages(
+        data?.map(
+          (img: {
+            id: number;
+            image_url: string;
+            is_primary: boolean;
+            image_provider?: 'supabase' | 'imagekit' | null;
+            provider_file_id?: string | null;
+            provider_file_path?: string | null;
+          }) => ({
+            id: img.id,
+            url: img.image_url,
+            is_primary: img.is_primary,
+            image_provider: img.image_provider ?? 'supabase',
+            provider_file_id: img.provider_file_id ?? null,
+            provider_file_path: img.provider_file_path ?? null,
+          })
+        ) || []
+      );
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to load product images';
       showToast('error', message);
@@ -298,12 +320,21 @@ export function useInventoryProductActions(params: UseInventoryProductActionsPar
       }
 
       if (removedImageUrls.length > 0) {
-        const { error } = await withTimeout(
-          supabase.from('product_images').delete().eq('product_id', productId).in('image_url', removedImageUrls),
-          REQUEST_TIMEOUT_MS,
-          'Request timeout. Please try again.'
-        );
-        if (error) throw error;
+        const { deleteProductImage } = await import('../../../utils/uploadProductImage');
+        const removedExistingImages = existingImages.filter((image) => removedImageUrls.includes(image.url));
+        for (const image of removedExistingImages) {
+          await deleteProductImage(
+            {
+              id: image.id,
+              image_url: image.url,
+              image_provider: image.image_provider ?? 'supabase',
+              provider_file_id: image.provider_file_id ?? null,
+              provider_file_path: image.provider_file_path ?? null,
+            },
+            productId,
+            { accessToken: token }
+          );
+        }
       }
 
       if (newImages.length > 0) {
@@ -315,12 +346,13 @@ export function useInventoryProductActions(params: UseInventoryProductActionsPar
         );
 
         const startOrder = existingImageRows && existingImageRows.length > 0 ? existingImageRows[0].display_order + 1 : 0;
-        const uploadedUrls = await uploadProductImages(newImages, productId, {
+        const uploadedImages = await uploadProductImages(newImages, productId, {
+          accessToken: token,
           maxSizeMb: MAX_PRODUCT_IMAGE_SIZE_MB,
           timeoutMs: PRODUCT_IMAGE_UPLOAD_TIMEOUT_MS,
           concurrency: PRODUCT_IMAGE_UPLOAD_CONCURRENCY,
         });
-        await saveProductImages(productId, uploadedUrls, startOrder);
+        await saveProductImages(productId, uploadedImages, startOrder);
       }
 
       const existingVariants = (productsRaw.find((product) => product.id === productId)?.product_variants || []).filter((variant) => variant.is_active !== false);

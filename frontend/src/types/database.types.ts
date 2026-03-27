@@ -10,6 +10,11 @@ export interface ProductImage {
   id: number;
   product_id: number;
   image_url: string;
+  image_provider: 'supabase' | 'imagekit';
+  provider_file_id: string | null;
+  provider_file_path: string | null;
+  provider_original_url: string | null;
+  migrated_at: string | null;
   display_order: number;
   is_primary: boolean;
   created_at: string;

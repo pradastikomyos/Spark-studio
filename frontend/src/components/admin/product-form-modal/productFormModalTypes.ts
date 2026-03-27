@@ -31,8 +31,12 @@ export type ProductDraft = {
 };
 
 export type ExistingImage = {
+  id?: number;
   url: string;
   is_primary: boolean;
+  image_provider?: 'supabase' | 'imagekit';
+  provider_file_id?: string | null;
+  provider_file_path?: string | null;
 };
 
 export type ProductFormModalProps = {
