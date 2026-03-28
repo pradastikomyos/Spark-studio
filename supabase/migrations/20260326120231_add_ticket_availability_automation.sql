@@ -138,4 +138,4 @@ BEGIN
 END;
 $$;
 
-SELECT public.ensure_ticket_availability_coverage(1, 60, 100);
+SELECT public.ensure_ticket_availability_coverage(1, 60, 100);;
