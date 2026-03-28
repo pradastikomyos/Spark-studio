@@ -34,18 +34,19 @@ Implikasi:
 2. Secara billing, project tidak bisa menjadi `Free` selama masih berada di organisasi `Pro`.
 3. End-state yang benar adalah: project dipindahkan ke organisasi `Free` terpisah.
 
-Snapshot eksekusi aktual per `2026-03-27`:
+Snapshot eksekusi aktual per `2026-03-28`:
 
 1. Backup bucket `product-images` sudah selesai ke folder lokal `backups/product-images/`.
 2. Manifest migrasi runtime sudah selesai dengan `1598` row `product_images` yang direferensikan aplikasi.
 3. Seluruh `1598` row `product_images` sudah dimigrasikan ke ImageKit dan metadata provider-nya lengkap.
-4. Frontend production sudah dideploy dan sudah merender produk sampel dari URL ImageKit.
-5. Bucket Supabase lama belum dibersihkan, sesuai keputusan operasional untuk menahan rollback buffer minimal `24 jam`.
-6. Terdapat `35` object orphan di bucket lama yang tidak direferensikan oleh tabel `product_images`; object ini harus ikut dibersihkan pada fase cleanup, tetapi tidak memblokir runtime cutover.
+4. Frontend production sudah dideploy dan dirapikan agar tidak lagi punya dependency langsung ke bucket `product-images`.
+5. Bucket `product-images` Supabase sudah dikosongkan dan dihapus.
+6. Audit pasca-cleanup menunjukkan `0` referensi legacy Supabase di `products.image_url`, `product_images`, dan `product_variants.attributes`.
+7. Backup lokal tetap dipertahankan sebagai rollback artefak terakhir meskipun bucket remote sudah dihapus.
 
 ## 3. Sumber Integrasi yang Relevan
 
-File yang saat ini mengikat gambar produk ke Supabase Storage:
+File yang sebelumnya mengikat gambar produk ke Supabase Storage:
 
 1. `frontend/src/utils/uploadProductImage.ts`
 2. `frontend/src/utils/inventoryImage.ts`
@@ -54,9 +55,9 @@ File yang saat ini mengikat gambar produk ke Supabase Storage:
 Temuan penting:
 
 1. `product_images.image_url` saat ini bertipe `TEXT`, jadi URL provider baru dapat dipakai tanpa membongkar relasi tabel.
-2. Upload produk saat ini masih langsung ke `supabase.storage.from('product-images')`.
-3. Thumbnail inventory admin saat ini memakai transform URL Supabase Storage.
-4. Pola backend server-side yang sudah ada adalah `supabase.functions.invoke(...)`, sehingga integrasi aman ke ImageKit sebaiknya mengikuti pola ini, bukan menambah backend terpisah.
+2. Upload produk sekarang sudah masuk ke ImageKit melalui Edge Function `imagekit-auth`.
+3. Thumbnail inventory admin sekarang memakai URL ImageKit atau URL asli, tanpa transform Supabase untuk gambar produk.
+4. Pola backend server-side yang dipakai tetap `supabase.functions.invoke(...)`, jadi tidak perlu backend tambahan di luar stack yang sudah ada.
 
 ## 4. Kriteria Sukses
 

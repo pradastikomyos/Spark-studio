@@ -1,5 +1,5 @@
 import { supabase } from '../lib/supabase';
-import { deleteImageKitFile, isSupabaseProductImageUrl, type ProductImageRecordInput, uploadFileToImageKit } from '../lib/imagekit';
+import { deleteImageKitFile, type ProductImageRecordInput, uploadFileToImageKit } from '../lib/imagekit';
 import { bytesToMb } from './merchant';
 import { MAX_PRODUCT_IMAGE_SIZE_MB, PRODUCT_IMAGE_UPLOAD_CONCURRENCY } from '../constants/productImages';
 
@@ -184,7 +184,7 @@ export async function deleteProductImage(
   productId: number,
   options: { accessToken?: string } = {}
 ): Promise<void> {
-  const provider = image.image_provider ?? (isSupabaseProductImageUrl(image.image_url) ? 'supabase' : 'imagekit');
+  const provider = image.image_provider ?? (image.provider_file_id ? 'imagekit' : 'supabase');
   if (provider === 'imagekit') {
     const fileId = image.provider_file_id?.trim();
     const accessToken = options.accessToken?.trim();
@@ -204,26 +204,7 @@ export async function deleteProductImage(
       console.warn('ImageKit file already missing, continuing DB delete:', message);
     }
   } else {
-    // Extract path from URL
-    const url = new URL(image.image_url);
-    const pathMatch = url.pathname.match(/\/storage\/v1\/object\/public\/product-images\/(.+)$/);
-    
-    if (!pathMatch) {
-      throw new Error('Invalid legacy Supabase image URL format');
-    }
-
-    const objectPath = pathMatch[1];
-
-    // Delete from storage
-    const { error: storageError } = await supabase.storage.from('product-images').remove([objectPath]);
-
-    if (storageError) {
-      const message = storageError.message || 'Failed to delete legacy Supabase storage object';
-      if (!isMissingRemoteFileError(message)) {
-        throw new Error(message);
-      }
-      console.warn('Legacy Supabase storage object already missing, continuing DB delete:', message);
-    }
+    console.warn('Skipping legacy Supabase storage delete for product image; storage bucket has been retired.');
   }
 
   // Delete from database

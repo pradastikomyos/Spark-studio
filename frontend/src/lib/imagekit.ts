@@ -35,16 +35,6 @@ type DeleteImageKitFileParams = {
   productImageId?: number | null;
 };
 
-export function isSupabaseProductImageUrl(imageUrl: string): boolean {
-  if (!imageUrl) return false;
-  try {
-    const url = new URL(imageUrl);
-    return /\/storage\/v1\/object\/public\/product-images\/.+$/i.test(url.pathname);
-  } catch {
-    return false;
-  }
-}
-
 export function isImageKitUrl(imageUrl: string): boolean {
   if (!imageUrl) return false;
   try {
