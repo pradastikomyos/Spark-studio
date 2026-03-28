@@ -120,12 +120,10 @@ export function useMyOrders(userId: string | null | undefined) {
 
         for (const item of (itemsData as OrderItemRow[] | null) || []) {
           const product = item.product_variants?.products;
-          let imageUrl: string | undefined = product?.image_url || undefined;
-
-          if (!imageUrl && product?.product_images && Array.isArray(product.product_images)) {
-            const primaryImage = product.product_images.find((img) => img.is_primary);
-            imageUrl = primaryImage?.image_url || product.product_images[0]?.image_url || undefined;
-          }
+          const productImages = product?.product_images && Array.isArray(product.product_images) ? product.product_images : [];
+          const primaryImage = productImages.find((img) => img.is_primary && img.image_url);
+          const fallbackImage = productImages.find((img) => img.image_url);
+          const imageUrl = primaryImage?.image_url || fallbackImage?.image_url || product?.image_url || undefined;
 
           const mappedItem: ProductOrderItem = {
             id: item.id,
