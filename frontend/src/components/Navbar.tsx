@@ -158,17 +158,28 @@ const Navbar = () => {
       <div className={`sticky top-0 bg-white z-[110] border-b border-gray-200 transition-shadow ${scrolled ? 'shadow-md' : ''}`}>
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between py-3 lg:py-4">
-          <div className="hidden lg:flex items-center gap-3 w-1/3">
-            <LanguageSwitcher />
+          <div className="w-1/3 flex items-center gap-3">
+            <div className="hidden lg:block">
+              <LanguageSwitcher />
+            </div>
+            <button
+              type="button"
+              onClick={handleMobileLanguageToggle}
+              className="lg:hidden px-2.5 py-1.5 rounded-md border border-gray-300 text-[11px] font-black uppercase tracking-wider text-gray-800 active:bg-gray-50"
+              aria-label={t('language.switch')}
+              title={`${t('language.switch')}: ${isIndonesian ? 'English' : 'Bahasa Indonesia'}`}
+            >
+              {isIndonesian ? 'ID' : 'EN'}
+            </button>
           </div>
 
-          <div className="lg:w-1/3 flex justify-start lg:justify-center">
+          <div className="w-1/3 flex justify-center">
             <Link to="/" className="inline-flex items-center" aria-label="Home">
               <Logo className="text-4xl md:text-5xl" />
             </Link>
           </div>
 
-          <div className="ml-auto lg:w-1/3 flex items-center justify-end gap-4">
+          <div className="ml-auto w-1/3 flex items-center justify-end gap-3 lg:gap-4">
             <div className="hidden lg:block">
               <img src="/images/landing/stage55.png" alt="Stage 55" className="h-14 w-auto md:h-18 object-contain" />
             </div>
@@ -265,16 +276,6 @@ const Navbar = () => {
 
             <div className="lg:hidden flex items-center gap-2">
               <img src="/images/landing/stage55.png" alt="Stage 55" className="h-10 w-auto object-contain" />
-
-              <button
-                type="button"
-                onClick={handleMobileLanguageToggle}
-                className="px-2.5 py-1.5 rounded-md border border-gray-300 text-[11px] font-black uppercase tracking-wider text-gray-800 active:bg-gray-50"
-                aria-label={t('language.switch')}
-                title={`${t('language.switch')}: ${isIndonesian ? 'English' : 'Bahasa Indonesia'}`}
-              >
-                {isIndonesian ? 'ID' : 'EN'}
-              </button>
 
               {!user && (
                 <Link

@@ -1,5 +1,5 @@
 import { useDeferredValue, useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { ChevronLeft, ChevronRight, Search, X } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useCart } from '../contexts/cartStore';
@@ -160,9 +160,34 @@ const Shop = () => {
   const queryClient = useQueryClient();
   const { addItem } = useCart();
   const { showToast } = useToast();
-  const [activeCategory, setActiveCategory] = useState<string>('all');
-  const [activeSubcategory, setActiveSubcategory] = useState<string>('all');
-  const [searchQuery, setSearchQuery] = useState('');
+  
+  const [searchParams, setSearchParams] = useSearchParams();
+  
+  const activeCategory = searchParams.get('category') || 'all';
+  const activeSubcategory = searchParams.get('subcategory') || 'all';
+  const activeSubSubcategory = searchParams.get('subsubcategory') || 'all';
+  const searchQueryParam = searchParams.get('q') || '';
+  
+  const [searchQuery, setSearchQuery] = useState(searchQueryParam);
+
+  // Sync internal search query state if query param changes
+  useEffect(() => {
+    setSearchQuery(searchQueryParam);
+  }, [searchQueryParam]);
+
+  const updateFilters = (updates: Record<string, string | null>) => {
+    setSearchParams((prev) => {
+      const newParams = new URLSearchParams(prev);
+      Object.entries(updates).forEach(([key, value]) => {
+        if (value === null || value === 'all' || value === '') {
+          newParams.delete(key);
+        } else {
+          newParams.set(key, value);
+        }
+      });
+      return newParams;
+    }, { replace: true });
+  };
 
   const deferredSearchQuery = useDeferredValue(searchQuery);
 
@@ -195,17 +220,27 @@ const Shop = () => {
       }
     }
 
-    // Build allowed slug map (Set for O(1) lookup) and children-by-parent-slug
     const allowed = new Map<string, Set<string>>();
     const childrenByParentSlug = new Map<string, typeof categories>();
 
-    for (const parent of parents) {
-      const children = childrenByParentId.get(parent.id) ?? [];
-      const slugSet = new Set<string>([parent.slug]);
-      for (const child of children) slugSet.add(child.slug);
-      allowed.set(parent.slug, slugSet);
+    const getAllDescendantSlugs = (categoryId: number): string[] => {
+      const children = childrenByParentId.get(categoryId) ?? [];
+      let slugs: string[] = [];
+      for (const child of children) {
+        slugs.push(child.slug);
+        slugs = slugs.concat(getAllDescendantSlugs(child.id));
+      }
+      return slugs;
+    };
+
+    for (const category of categories) {
+      allowed.set(category.slug, new Set([category.slug, ...getAllDescendantSlugs(category.id)]));
+    }
+
+    for (const category of categories) {
+      const children = childrenByParentId.get(category.id) ?? [];
       childrenByParentSlug.set(
-        parent.slug,
+        category.slug,
         children.slice().sort((a, b) => a.name.localeCompare(b.name))
       );
     }
@@ -221,15 +256,19 @@ const Shop = () => {
     let currentProducts = products;
 
     if (activeCategory !== 'all') {
+      let activeNode = activeCategory;
       if (activeSubcategory !== 'all') {
-        currentProducts = products.filter((p) => p.categorySlug === activeSubcategory);
-      } else {
-        const allowedSlugs = allowedSlugMap.get(activeCategory);
-        if (allowedSlugs) {
-          currentProducts = products.filter((p) => p.categorySlug && allowedSlugs.has(p.categorySlug));
-        } else {
-          currentProducts = products.filter((p) => p.categorySlug === activeCategory);
+        activeNode = activeSubcategory;
+        if (activeSubSubcategory !== 'all') {
+          activeNode = activeSubSubcategory;
         }
+      }
+
+      const allowedSlugs = allowedSlugMap.get(activeNode);
+      if (allowedSlugs) {
+        currentProducts = products.filter((p) => p.categorySlug && allowedSlugs.has(p.categorySlug));
+      } else {
+        currentProducts = products.filter((p) => p.categorySlug === activeNode);
       }
     }
 
@@ -262,12 +301,17 @@ const Shop = () => {
     }
 
     return currentProducts;
-  }, [products, activeCategory, activeSubcategory, allowedSlugMap, deferredSearchQuery]);
+  }, [products, activeCategory, activeSubcategory, activeSubSubcategory, allowedSlugMap, deferredSearchQuery]);
 
   const activeSubcategories = useMemo(() => {
     if (activeCategory === 'all') return [];
     return childCategoriesByParentSlug.get(activeCategory) ?? [];
   }, [activeCategory, childCategoriesByParentSlug]);
+
+  const activeSubSubcategories = useMemo(() => {
+    if (activeSubcategory === 'all') return [];
+    return childCategoriesByParentSlug.get(activeSubcategory) ?? [];
+  }, [activeSubcategory, childCategoriesByParentSlug]);
 
   const handleAddToCart = (product: Product) => {
     if (!product.defaultVariantId || !product.defaultVariantName) return;
@@ -297,7 +341,7 @@ const Shop = () => {
     });
   };
 
-  const resultsResetSignal = `${activeCategory}:${activeSubcategory}:${deferredSearchQuery.trim().toLowerCase()}`;
+  const resultsResetSignal = `${activeCategory}:${activeSubcategory}:${activeSubSubcategory}:${deferredSearchQuery.trim().toLowerCase()}`;
 
   return (
     <PageTransition>
@@ -333,7 +377,10 @@ const Shop = () => {
                   <input
                     type="text"
                     value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
+                    onChange={(e) => {
+                      setSearchQuery(e.target.value);
+                      updateFilters({ q: e.target.value });
+                    }}
                     placeholder="Search products..."
                     className="w-full pl-10 pr-10 py-2.5 bg-gray-50 border border-gray-200 rounded-full text-sm focus:outline-none focus:border-[#ff4b86] focus:ring-1 focus:ring-[#ff4b86] ux-transition-color"
                   />
@@ -341,7 +388,10 @@ const Shop = () => {
                   {searchQuery ? (
                     <button
                       type="button"
-                      onClick={() => setSearchQuery('')}
+                      onClick={() => {
+                        setSearchQuery('');
+                        updateFilters({ q: null });
+                      }}
                       className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 p-0.5 rounded-full hover:bg-gray-200 ux-transition-color"
                     >
                       <X className="w-4 h-4" />
@@ -354,8 +404,11 @@ const Shop = () => {
                 <button
                   type="button"
                   onClick={() => {
-                    setActiveCategory('all');
-                    setActiveSubcategory('all');
+                    updateFilters({
+                      category: null,
+                      subcategory: null,
+                      subsubcategory: null,
+                    });
                   }}
                   className={`text-sm whitespace-nowrap pb-3 border-b-2 px-2 ux-transition-color ${
                     activeCategory === 'all'
@@ -370,8 +423,11 @@ const Shop = () => {
                     type="button"
                     key={category.slug}
                     onClick={() => {
-                      setActiveCategory(category.slug);
-                      setActiveSubcategory('all');
+                      updateFilters({
+                        category: category.slug,
+                        subcategory: null,
+                        subsubcategory: null,
+                      });
                     }}
                     className={`text-sm whitespace-nowrap pb-3 border-b-2 px-2 ux-transition-color ${
                       activeCategory === category.slug
@@ -385,11 +441,16 @@ const Shop = () => {
               </div>
 
               {activeCategory !== 'all' && activeSubcategories.length > 0 ? (
-                <div className="w-full overflow-x-auto hide-scrollbar pb-4 px-2">
+                <div className="w-full justify-center md:justify-start flex overflow-x-auto hide-scrollbar pb-2 px-2">
                   <div className="flex gap-2">
                     <button
                       type="button"
-                      onClick={() => setActiveSubcategory('all')}
+                      onClick={() => {
+                        updateFilters({
+                          subcategory: null,
+                          subsubcategory: null,
+                        });
+                      }}
                       className={`px-5 py-2 rounded-full text-xs font-semibold whitespace-nowrap border ux-transition-color ${
                         activeSubcategory === 'all'
                           ? 'bg-[#ff4b86] text-white border-[#ff4b86] shadow-sm'
@@ -402,11 +463,48 @@ const Shop = () => {
                       <button
                         key={subcategory.slug}
                         type="button"
-                        onClick={() => setActiveSubcategory(subcategory.slug)}
+                        onClick={() => {
+                          updateFilters({
+                            subcategory: subcategory.slug,
+                            subsubcategory: null,
+                          });
+                        }}
                         className={`px-5 py-2 rounded-full text-xs font-semibold whitespace-nowrap border ux-transition-color ${
                           activeSubcategory === subcategory.slug
                             ? 'bg-[#ff4b86] text-white border-[#ff4b86] shadow-sm'
                             : 'bg-white text-gray-500 border-gray-200 hover:border-[#ff4b86] hover:text-[#ff4b86]'
+                        }`}
+                      >
+                        {subcategory.name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+
+              {activeCategory !== 'all' && activeSubcategory !== 'all' && activeSubSubcategories.length > 0 ? (
+                <div className="w-full justify-center md:justify-start flex overflow-x-auto hide-scrollbar pb-3 px-2">
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => updateFilters({ subsubcategory: null })}
+                      className={`px-4 py-1.5 rounded-full text-[11px] font-semibold whitespace-nowrap border ux-transition-color ${
+                        activeSubSubcategory === 'all'
+                          ? 'bg-[#ff4b86]/10 text-[#ff4b86] border-[#ff4b86]/30'
+                          : 'bg-gray-50 text-gray-500 border-gray-200 hover:border-[#ff4b86]/50 hover:text-[#ff4b86]'
+                      }`}
+                    >
+                      All {activeSubcategories.find(s => s.slug === activeSubcategory)?.name || ''}
+                    </button>
+                    {activeSubSubcategories.map((subcategory) => (
+                      <button
+                        key={subcategory.slug}
+                        type="button"
+                        onClick={() => updateFilters({ subsubcategory: subcategory.slug })}
+                        className={`px-4 py-1.5 rounded-full text-[11px] font-semibold whitespace-nowrap border ux-transition-color ${
+                          activeSubSubcategory === subcategory.slug
+                            ? 'bg-[#ff4b86]/10 text-[#ff4b86] border-[#ff4b86]/30'
+                            : 'bg-gray-50 text-gray-500 border-gray-200 hover:border-[#ff4b86]/50 hover:text-[#ff4b86]'
                         }`}
                       >
                         {subcategory.name}
