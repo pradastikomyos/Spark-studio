@@ -157,7 +157,7 @@ const Navbar = () => {
       {/* Top Bar - Sticky */}
       <div className={`sticky top-0 bg-white z-[110] border-b border-gray-200 transition-shadow ${scrolled ? 'shadow-md' : ''}`}>
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between py-3 lg:py-4">
+        <div className="flex items-center justify-between py-4 lg:py-5">
           <div className="w-1/3 flex items-center gap-3">
             <div className="hidden lg:block">
               <LanguageSwitcher />
@@ -165,7 +165,7 @@ const Navbar = () => {
             <button
               type="button"
               onClick={handleMobileLanguageToggle}
-              className="lg:hidden px-2.5 py-1.5 rounded-md border border-gray-300 text-[11px] font-black uppercase tracking-wider text-gray-800 active:bg-gray-50"
+              className="lg:hidden px-3.5 py-2.5 rounded-md border border-gray-300 text-sm font-black uppercase tracking-wider text-gray-800 active:bg-gray-50"
               aria-label={t('language.switch')}
               title={`${t('language.switch')}: ${isIndonesian ? 'English' : 'Bahasa Indonesia'}`}
             >
@@ -175,7 +175,7 @@ const Navbar = () => {
 
           <div className="w-1/3 flex justify-center">
             <Link to="/" className="inline-flex items-center" aria-label="Home">
-              <Logo className="text-4xl md:text-5xl" />
+              <Logo className="h-[3.5rem] md:h-[4.5rem]" />
             </Link>
           </div>
 
@@ -275,7 +275,7 @@ const Navbar = () => {
             )}
 
             <div className="lg:hidden flex items-center gap-2">
-              <img src="/images/landing/stage55.png" alt="Stage 55" className="h-10 w-auto object-contain" />
+              <img src="/images/landing/stage55.png" alt="Stage 55" className="h-[3.5rem] w-auto object-contain" />
 
               {!user && (
                 <Link
@@ -284,14 +284,14 @@ const Navbar = () => {
                   aria-label={t('auth.signIn')}
                   title={t('auth.signIn')}
                 >
-                  <UserRound className="h-5 w-5" />
+                  <UserRound className="h-[1.375rem] w-[1.375rem]" />
                 </Link>
               )}
 
               <Link to="/cart" className="relative p-2 text-gray-700 active:text-main-600" aria-label={t('nav.cart')}>
                 <ShoppingCart className="h-6 w-6" />
                 {totalQuantity > 0 && (
-                  <span className="absolute -top-0.5 -right-0.5 bg-main-600 text-white text-[10px] w-4 h-4 flex items-center justify-center rounded-full">
+                  <span className="absolute -top-0.5 -right-0.5 bg-main-600 text-white text-[10px] w-4.5 h-4.5 flex items-center justify-center rounded-full">
                     {totalQuantity}
                   </span>
                 )}
@@ -349,7 +349,7 @@ const Navbar = () => {
 
       <div className="lg:hidden">
         <div
-          className="relative flex items-center justify-center min-h-[92px] overflow-hidden py-2 sm:min-h-[96px] md:min-h-[104px]"
+          className="relative flex items-center justify-center min-h-[80px] overflow-hidden py-1 sm:min-h-[88px]"
         >
           <div
             className="pointer-events-none absolute left-1/2 top-1/2 z-0 -translate-x-1/2 -translate-y-1/2"
@@ -366,7 +366,7 @@ const Navbar = () => {
 
           <div
             ref={mobileNavScrollerRef}
-            className="relative z-10 flex w-full items-center overflow-x-auto py-8 scroll-smooth snap-x snap-mandatory [overscroll-behavior-x:contain] [scrollbar-width:none] [touch-action:pan-x] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+            className="relative z-10 flex w-full items-center overflow-x-auto py-3 scroll-smooth snap-x snap-mandatory [overscroll-behavior-x:contain] [scrollbar-width:none] [touch-action:pan-x] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
             style={{ WebkitOverflowScrolling: 'touch' }}
           >
             <div
