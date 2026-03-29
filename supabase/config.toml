@@ -41,6 +41,44 @@ enabled = true
 [analytics]
 enabled = false
 
+[functions.create-midtrans-token]
+verify_jwt = false
+
+[functions.create-midtrans-product-token]
+verify_jwt = false
+
 [functions.create-cashier-product-order]
-# Cashier app provides a valid Supabase JWT; keep verify_jwt enabled for platform-level auth gate.
-verify_jwt = true
+verify_jwt = false
+
+[functions.sync-midtrans-status]
+verify_jwt = false
+
+[functions.sync-midtrans-product-status]
+verify_jwt = false
+
+[functions.cancel-product-order]
+verify_jwt = false
+
+[functions.complete-product-pickup]
+verify_jwt = false
+
+[functions.imagekit-auth]
+verify_jwt = false
+
+[functions.imagekit-delete]
+verify_jwt = false
+
+[functions.expire-product-orders]
+verify_jwt = false
+
+[functions.midtrans-webhook]
+verify_jwt = false
+
+[functions.expire-tickets]
+verify_jwt = false
+
+[functions.reconcile-midtrans-payments]
+verify_jwt = false
+
+[functions.retention-cleanup]
+verify_jwt = false

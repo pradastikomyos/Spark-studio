@@ -4,7 +4,6 @@ alter table public.product_images
   add column if not exists provider_file_path text,
   add column if not exists provider_original_url text,
   add column if not exists migrated_at timestamptz;
-
 update public.product_images
 set image_provider = case
   when image_url like '%ik.imagekit.io%' then 'imagekit'
@@ -12,7 +11,6 @@ set image_provider = case
 end
 where image_provider is null
    or image_provider not in ('supabase', 'imagekit');
-
 do $$
 begin
   if not exists (
@@ -26,10 +24,8 @@ begin
       check (image_provider in ('supabase', 'imagekit'));
   end if;
 end $$;
-
 create index if not exists product_images_provider_idx
   on public.product_images(product_id, image_provider);
-
 create unique index if not exists product_images_provider_file_id_unique
   on public.product_images(provider_file_id)
   where provider_file_id is not null;

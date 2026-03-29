@@ -1,35 +1,27 @@
 import { serve } from '../_shared/deps.ts'
-import { getCorsHeaders, handleCors, json } from '../_shared/http.ts'
-import { getSupabaseEnv } from '../_shared/env.ts'
-import { createServiceClient, getUserFromAuthHeader } from '../_shared/supabase.ts'
+import { handleCors, json, jsonError } from '../_shared/http.ts'
+import { createServiceClient } from '../_shared/supabase.ts'
+import { requireAuthenticatedRequest } from '../_shared/auth.ts'
 
 serve(async (req) => {
   const corsResponse = handleCors(req)
   if (corsResponse) return corsResponse
-  const corsHeaders = getCorsHeaders(req)
 
   if (req.method !== 'POST') {
     return json(req, { error: 'Method not allowed' }, { status: 405 })
   }
 
   try {
-    const { url: supabaseUrl, anonKey: supabaseAnonKey, serviceRoleKey: supabaseServiceKey } = getSupabaseEnv()
+    const authResult = await requireAuthenticatedRequest(req)
+    if (authResult.response) return authResult.response
 
-    const authHeader = req.headers.get('Authorization')
-    if (!authHeader) return json(req, { error: 'Missing authorization header' }, { status: 401 })
-
-    const { user, error: authError } = await getUserFromAuthHeader({
-      url: supabaseUrl,
-      anonKey: supabaseAnonKey,
-      authHeader,
-    })
-    if (authError || !user?.id) return json(req, { error: 'Invalid token' }, { status: 401 })
+    const auth = authResult.context!
 
     const body = await req.json().catch(() => ({}))
     const orderNumber = String(body?.order_number || '').trim()
     if (!orderNumber) return json(req, { error: 'Missing order_number' }, { status: 400 })
 
-    const supabase = createServiceClient(supabaseUrl, supabaseServiceKey)
+    const supabase = createServiceClient(auth.supabaseEnv.url, auth.supabaseEnv.serviceRoleKey)
 
     const { data: order, error: orderError } = await supabase
       .from('order_products')
@@ -38,7 +30,7 @@ serve(async (req) => {
       .single()
 
     if (orderError || !order) return json(req, { error: 'Order not found' }, { status: 404 })
-    if (String(order.user_id) !== user.id) return json(req, { error: 'Forbidden' }, { status: 403 })
+    if (String(order.user_id) !== auth.user.id) return json(req, { error: 'Forbidden' }, { status: 403 })
 
     const currentStatus = String((order as { status?: unknown }).status || '').toLowerCase()
     const currentPaymentStatus = String((order as { payment_status?: unknown }).payment_status || '').toLowerCase()
@@ -61,10 +53,7 @@ serve(async (req) => {
       .maybeSingle()
 
     if (updateError) {
-      return new Response(JSON.stringify({ error: 'Failed to cancel order', details: updateError.message }), {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
+      return jsonError(req, 500, { error: 'Failed to cancel order', details: updateError.message })
     }
 
     if (!updated) {
@@ -115,9 +104,6 @@ serve(async (req) => {
 
     return json(req, { status: 'ok', result: 'cancelled', order: updated })
   } catch (e) {
-    return new Response(JSON.stringify({ error: 'Internal server error', details: e instanceof Error ? e.message : String(e) }), {
-      status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    })
+    return jsonError(req, 500, { error: 'Internal server error', details: e instanceof Error ? e.message : String(e) })
   }
 })

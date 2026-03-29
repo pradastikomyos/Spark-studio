@@ -68,5 +68,13 @@ describe('product order status helpers', () => {
         channel: 'cashier',
       })
     ).toBe(false);
+
+    expect(
+      shouldAutoSyncProductOrder({
+        payment_status: 'unpaid',
+        status: 'awaiting_payment',
+        channel: 'cashier',
+      })
+    ).toBe(false);
   });
 });

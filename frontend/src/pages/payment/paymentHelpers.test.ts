@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { buildBookingSuccessState, formatPaymentDate, getPaymentBookingDetails, hasRequiredPaymentDetails } from './paymentHelpers';
+import {
+  buildBookingSuccessState,
+  formatPaymentDate,
+  getPaymentBookingDetails,
+  hasRequiredPaymentDetails,
+  normalizePaymentTimeSlot,
+} from './paymentHelpers';
 
 describe('paymentHelpers', () => {
   it('builds booking details with defaults and total', () => {
@@ -35,5 +41,17 @@ describe('paymentHelpers', () => {
       isPending: true,
       customerName: 'Nadia',
     });
+  });
+
+  it('normalizes stored seconds-based time slots for payment requests', () => {
+    expect(normalizePaymentTimeSlot('12:00:00')).toBe('12:00');
+    expect(
+      getPaymentBookingDetails({
+        ticketId: 1,
+        price: 85000,
+        date: '2026-03-29',
+        time: '12:00:00',
+      }).timeSlot
+    ).toBe('12:00');
   });
 });

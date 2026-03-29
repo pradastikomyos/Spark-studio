@@ -1,51 +1,30 @@
 import { serve } from '../_shared/deps.ts'
-import { getCorsHeaders, handleCors } from '../_shared/http.ts'
-import { getMidtransEnv, getSupabaseEnv } from '../_shared/env.ts'
-import { createServiceClient, getUserFromAuthHeader } from '../_shared/supabase.ts'
+import { handleCors, json, jsonError } from '../_shared/http.ts'
+import { getMidtransEnv } from '../_shared/env.ts'
+import { createServiceClient } from '../_shared/supabase.ts'
 import { getMidtransBasicAuthHeader, getStatusBaseUrl } from '../_shared/midtrans.ts'
 import { mapMidtransStatus } from '../_shared/tickets.ts'
 import { issueTicketsIfNeeded, releaseTicketCapacityIfNeeded } from '../_shared/payment-effects.ts'
+import { requireAuthenticatedRequest } from '../_shared/auth.ts'
 
 serve(async (req) => {
   const corsResponse = handleCors(req)
   if (corsResponse) return corsResponse
-  const corsHeaders = getCorsHeaders(req)
 
   try {
-    const { url: supabaseUrl, anonKey: supabaseAnonKey, serviceRoleKey: supabaseServiceKey } = getSupabaseEnv()
+    const authResult = await requireAuthenticatedRequest(req)
+    if (authResult.response) return authResult.response
+
+    const auth = authResult.context!
     const { serverKey: midtransServerKey, isProduction: midtransIsProduction } = getMidtransEnv()
 
-    const authHeader = req.headers.get('Authorization')
-    if (!authHeader) {
-      return new Response(JSON.stringify({ error: 'Missing authorization header' }), {
-        status: 401,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
-    }
-
-    const { user, error: authError } = await getUserFromAuthHeader({
-      url: supabaseUrl,
-      anonKey: supabaseAnonKey,
-      authHeader,
-    })
-
-    if (authError || !user?.id) {
-      return new Response(JSON.stringify({ error: 'Invalid token' }), {
-        status: 401,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
-    }
-
     // Use service role key for database operations
-    const supabase = createServiceClient(supabaseUrl, supabaseServiceKey)
+    const supabase = createServiceClient(auth.supabaseEnv.url, auth.supabaseEnv.serviceRoleKey)
 
     const body = await req.json().catch(() => ({}))
     const orderNumber = String(body?.order_number || '')
     if (!orderNumber) {
-      return new Response(JSON.stringify({ error: 'Missing order_number' }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
+      return jsonError(req, 400, 'Missing order_number')
     }
 
     const { data: order, error: orderError } = await supabase
@@ -55,17 +34,11 @@ serve(async (req) => {
       .single()
 
     if (orderError || !order) {
-      return new Response(JSON.stringify({ error: 'Order not found' }), {
-        status: 404,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
+      return jsonError(req, 404, 'Order not found')
     }
 
-    if (order.user_id !== user.id) {
-      return new Response(JSON.stringify({ error: 'Forbidden' }), {
-        status: 403,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
+    if (order.user_id !== auth.user.id) {
+      return jsonError(req, 403, 'Forbidden')
     }
 
     const baseUrl = getStatusBaseUrl(midtransIsProduction)
@@ -81,10 +54,7 @@ serve(async (req) => {
 
     const statusData = await statusResponse.json().catch(() => null)
     if (!statusResponse.ok) {
-      return new Response(JSON.stringify({ error: 'Failed to fetch Midtrans status', details: statusData }), {
-        status: 502,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
+      return jsonError(req, 502, { error: 'Failed to fetch Midtrans status', details: statusData })
     }
 
     const newStatus = mapMidtransStatus(statusData?.transaction_status, statusData?.fraud_status)
@@ -102,10 +72,7 @@ serve(async (req) => {
       .single()
 
     if (updateError || !updatedOrder) {
-      return new Response(JSON.stringify({ error: 'Failed to update order' }), {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
+      return jsonError(req, 500, 'Failed to update order')
     }
 
     if (newStatus === 'paid') {
@@ -154,13 +121,8 @@ serve(async (req) => {
       }
     }
 
-    return new Response(JSON.stringify({ status: 'ok', order: updatedOrder }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    })
+    return json(req, { status: 'ok', order: updatedOrder })
   } catch {
-    return new Response(JSON.stringify({ error: 'Internal server error' }), {
-      status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    })
+    return jsonError(req, 500, 'Internal server error')
   }
 })

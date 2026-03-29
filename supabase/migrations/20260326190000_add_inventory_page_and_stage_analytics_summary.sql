@@ -61,7 +61,6 @@ AS $$
   LIMIT GREATEST(COALESCE(p_page_size, 24), 1)
   OFFSET (GREATEST(COALESCE(p_page, 1), 1) - 1) * GREATEST(COALESCE(p_page_size, 24), 1);
 $$;
-
 CREATE OR REPLACE FUNCTION public.get_stage_analytics_summary(
   p_time_filter TEXT DEFAULT 'all'
 )

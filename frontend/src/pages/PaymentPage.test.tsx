@@ -17,6 +17,10 @@ vi.mock('../lib/supabase', () => ({
             getUser: vi.fn(),
             getSession: vi.fn(),
             signOut: vi.fn(),
+            refreshSession: vi.fn(),
+        },
+        functions: {
+            invoke: vi.fn(),
         }
     }
 }))
@@ -73,9 +77,9 @@ describe('PaymentPage', () => {
         vi.mocked(supabase.auth.getSession).mockResolvedValue({
             data: { session: { access_token: 'valid' } }
         } as any)
-        global.fetch = vi.fn().mockResolvedValue({
-            ok: true,
-            json: async () => ({ token: 'snap-token', order_id: '123', order_number: 'ORD-123' })
+        vi.mocked(supabase.functions.invoke).mockResolvedValue({
+            data: { token: 'snap-token', order_id: '123', order_number: 'ORD-123' },
+            error: null,
         }) as any
     })
 
@@ -136,11 +140,14 @@ describe('PaymentPage', () => {
                 data: { session: { access_token: 'token' } }
             } as any)
 
-            global.fetch = vi.fn().mockResolvedValue({
-                ok: false,
-                status: 401,
-                json: async () => ({ error: 'Unauthorized' })
-            })
+            vi.mocked(supabase.auth.refreshSession).mockResolvedValue({
+                data: { session: null },
+                error: { message: 'Refresh failed' },
+            } as any)
+            vi.mocked(supabase.functions.invoke).mockResolvedValue({
+                data: null,
+                error: { status: 401, message: 'Unauthorized' },
+            } as any)
 
             render(<MemoryRouter><PaymentPage /></MemoryRouter>)
 
@@ -160,9 +167,9 @@ describe('PaymentPage', () => {
                 data: { session: { access_token: 'token' } }
             } as any)
 
-            global.fetch = vi.fn().mockResolvedValue({
-                ok: true,
-                json: async () => ({ token: 'snap-token', order_id: '123', order_number: 'ORD-123' })
+            vi.mocked(supabase.functions.invoke).mockResolvedValue({
+                data: { token: 'snap-token', order_id: '123', order_number: 'ORD-123' },
+                error: null,
             }) as any
 
             // Mock window.snap.pay
@@ -193,9 +200,9 @@ describe('PaymentPage', () => {
                 data: { session: { access_token: 'token' } }
             } as any)
 
-            global.fetch = vi.fn().mockResolvedValue({
-                ok: true,
-                json: async () => ({ token: 'snap-token', order_id: '123', order_number: 'ORD-123' })
+            vi.mocked(supabase.functions.invoke).mockResolvedValue({
+                data: { token: 'snap-token', order_id: '123', order_number: 'ORD-123' },
+                error: null,
             }) as any
 
             // Mock window.snap.pay
@@ -221,6 +228,41 @@ describe('PaymentPage', () => {
                         })
                     })
                 )
+            })
+        })
+
+        it('should retry once after a transient 401 before logging out', async () => {
+            vi.mocked(supabase.auth.getSession).mockResolvedValue({
+                data: { session: { access_token: 'token', expires_at: Math.floor(Date.now() / 1000) + 3600 } }
+            } as any)
+            vi.mocked(supabase.auth.refreshSession).mockResolvedValue({
+                data: { session: { access_token: 'refreshed-token', expires_at: Math.floor(Date.now() / 1000) + 3600 } },
+                error: null,
+            } as any)
+            vi.mocked(supabase.functions.invoke)
+                .mockResolvedValueOnce({
+                    data: null,
+                    error: { status: 401, message: 'Unauthorized' },
+                } as any)
+                .mockResolvedValueOnce({
+                    data: { token: 'snap-token', order_id: '123', order_number: 'ORD-123' },
+                    error: null,
+                } as any)
+
+            const mockSnapPay = vi.fn().mockImplementation((_token, callbacks) => {
+                callbacks.onSuccess({ status_code: '200' })
+            })
+            global.window.snap = { pay: mockSnapPay } as any
+
+            render(<MemoryRouter><PaymentPage /></MemoryRouter>)
+
+            const payButton = await screen.findByRole('button', { name: /Pay/i })
+            fireEvent.click(payButton)
+
+            await waitFor(() => {
+                expect(supabase.auth.refreshSession).toHaveBeenCalled()
+                expect(supabase.functions.invoke).toHaveBeenCalledTimes(2)
+                expect(supabase.auth.signOut).not.toHaveBeenCalled()
             })
         })
     })

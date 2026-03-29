@@ -1,7 +1,6 @@
 import { serve } from '../_shared/deps.ts'
-import { getCorsHeaders, handleCors } from '../_shared/http.ts'
-import { getSupabaseEnv } from '../_shared/env.ts'
-import { createServiceClient, getUserFromAuthHeader } from '../_shared/supabase.ts'
+import { handleCors, json, jsonError } from '../_shared/http.ts'
+import { requireAdminContext } from '../_shared/admin.ts'
 import { ensureProductPaidSideEffects } from '../_shared/payment-effects.ts'
 
 type RequestBody = {
@@ -11,100 +10,42 @@ type RequestBody = {
 serve(async (req) => {
   const corsResponse = handleCors(req)
   if (corsResponse) return corsResponse
-  const corsHeaders = getCorsHeaders(req)
-
-  const { url: supabaseUrl, anonKey: supabaseAnonKey, serviceRoleKey: supabaseServiceKey } = getSupabaseEnv()
 
   try {
-    const authHeader = req.headers.get('Authorization') ?? req.headers.get('authorization')
-    if (!authHeader) {
-      return new Response(JSON.stringify({ error: 'Missing authorization header' }), {
-        status: 401,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
-    }
+    const adminResult = await requireAdminContext(req)
+    if (adminResult.response) return adminResult.response
 
-    // CRITICAL FIX: Use ANON KEY with Authorization header in client config
-    // According to Supabase docs: Pass Authorization header to client, then call getUser() without params
-    const { user, error: authError } = await getUserFromAuthHeader({
-      url: supabaseUrl,
-      anonKey: supabaseAnonKey,
-      authHeader,
-    })
-
-    if (authError || !user?.id || !user.email) {
-      return new Response(JSON.stringify({ error: 'Invalid token', details: authError?.message ?? null }), {
-        status: 401,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
-    }
-
-    // Use service role key for database operations
-    const supabaseService = createServiceClient(supabaseUrl, supabaseServiceKey)
-
-    const { data: roleRows, error: roleError } = await supabaseService
-      .from('user_role_assignments')
-      .select('role_name')
-      .eq('user_id', user.id)
-
-    if (roleError) {
-      return new Response(JSON.stringify({ error: 'Failed to verify role' }), {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
-    }
-
-    const adminRoles = new Set(['admin', 'super_admin', 'super-admin'])
-    const isAdmin =
-      Array.isArray(roleRows) &&
-      roleRows.some((r) => {
-        const role = String((r as { role_name?: string }).role_name ?? '').toLowerCase()
-        return adminRoles.has(role)
-      })
-    if (!isAdmin) {
-      return new Response(JSON.stringify({ error: 'Forbidden' }), {
-        status: 403,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
-    }
+    const admin = adminResult.context
+    if (!admin) return json(req, { error: 'Unauthorized' }, { status: 401 })
 
     const body = (await req.json()) as RequestBody
     const pickupCode = String(body.pickupCode || '').trim()
     if (!pickupCode) {
-      return new Response(JSON.stringify({ error: 'Missing pickup code' }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
+      return jsonError(req, 400, 'Missing pickup code')
     }
 
-    const pickedUpBy = user.id
+    const pickedUpBy = admin.user.id
 
-    const { data: order, error: orderError } = await supabaseService
+    const { data: order, error: orderError } = await admin.supabaseService
       .from('order_products')
       .select('id, order_number, channel, status, payment_status, total, pickup_code, pickup_status, pickup_expires_at')
       .eq('pickup_code', pickupCode)
       .single()
 
     if (orderError || !order) {
-      return new Response(JSON.stringify({ error: 'Order not found' }), {
-        status: 404,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
+      return jsonError(req, 404, 'Order not found')
     }
 
     const paymentStatus = String((order as { payment_status?: string }).payment_status || '').toLowerCase()
     const channel = String((order as { channel?: string }).channel || '').toLowerCase()
     if (paymentStatus !== 'paid') {
       if (channel !== 'cashier') {
-        return new Response(JSON.stringify({ error: 'Order not paid' }), {
-          status: 409,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        })
+        return jsonError(req, 409, 'Order not paid')
       }
 
       const nowIso = new Date().toISOString()
       await ensureProductPaidSideEffects({
-        supabase: supabaseService,
+        supabase: admin.supabaseService,
         order: order as unknown as {
           id: number
           order_number: string
@@ -123,64 +64,49 @@ serve(async (req) => {
     }
 
     if (String((order as { pickup_status?: string }).pickup_status || '').toLowerCase() === 'completed') {
-      return new Response(JSON.stringify({ error: 'Order already completed' }), {
-        status: 409,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
+      return jsonError(req, 409, 'Order already completed')
     }
 
     const expiresAt = (order as { pickup_expires_at?: string | null }).pickup_expires_at
     if (expiresAt && Date.now() > new Date(expiresAt).getTime()) {
-      await supabaseService
+      await admin.supabaseService
         .from('order_products')
         .update({ pickup_status: 'expired', updated_at: new Date().toISOString() })
         .eq('id', (order as { id: number }).id)
-      return new Response(JSON.stringify({ error: 'Pickup code expired' }), {
-        status: 409,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
+      return jsonError(req, 409, 'Pickup code expired')
     }
 
     const orderId = (order as { id: number }).id
-    const { data: items, error: itemsError } = await supabaseService
+    const { data: items, error: itemsError } = await admin.supabaseService
       .from('order_product_items')
       .select('product_variant_id, quantity')
       .eq('order_product_id', orderId)
 
     if (itemsError || !Array.isArray(items)) {
-      return new Response(JSON.stringify({ error: 'Failed to load order items' }), {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
+      return jsonError(req, 500, 'Failed to load order items')
     }
 
     for (const row of items) {
       const variantId = Number((row as { product_variant_id: number | string }).product_variant_id)
       const qty = Math.max(1, Math.floor(Number((row as { quantity: number | string }).quantity)))
 
-      const { data: variant, error: variantError } = await supabaseService
+      const { data: variant, error: variantError } = await admin.supabaseService
         .from('product_variants')
         .select('id, stock, reserved_stock')
         .eq('id', variantId)
         .single()
 
       if (variantError || !variant) {
-        return new Response(JSON.stringify({ error: 'Variant not found' }), {
-          status: 409,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        })
+        return jsonError(req, 409, 'Variant not found')
       }
 
       const stock = (variant as { stock?: number }).stock ?? 0
       const reserved = (variant as { reserved_stock?: number }).reserved_stock ?? 0
       if (reserved < qty || stock < qty) {
-        return new Response(JSON.stringify({ error: 'Insufficient stock' }), {
-          status: 409,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        })
+        return jsonError(req, 409, 'Insufficient stock')
       }
 
-      const { error: updateVariantError } = await supabaseService
+      const { error: updateVariantError } = await admin.supabaseService
         .from('product_variants')
         .update({
           stock: stock - qty,
@@ -190,14 +116,11 @@ serve(async (req) => {
         .eq('id', variantId)
 
       if (updateVariantError) {
-        return new Response(JSON.stringify({ error: 'Failed to update stock' }), {
-          status: 500,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        })
+        return jsonError(req, 500, 'Failed to update stock')
       }
     }
 
-    const { error: updateOrderError } = await supabaseService
+    const { error: updateOrderError } = await admin.supabaseService
       .from('order_products')
       .update({
         pickup_status: 'completed',
@@ -209,19 +132,11 @@ serve(async (req) => {
       .eq('id', orderId)
 
     if (updateOrderError) {
-      return new Response(JSON.stringify({ error: 'Failed to update order' }), {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
+      return jsonError(req, 500, 'Failed to update order')
     }
 
-    return new Response(JSON.stringify({ status: 'ok' }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    })
+    return json(req, { status: 'ok' })
   } catch {
-    return new Response(JSON.stringify({ error: 'Internal server error' }), {
-      status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    })
+    return jsonError(req, 500, 'Internal server error')
   }
 })

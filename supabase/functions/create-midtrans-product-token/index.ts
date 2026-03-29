@@ -1,9 +1,10 @@
 import { serve } from '../_shared/deps.ts'
 import { getMidtransBasicAuthHeader, getSnapUrl } from '../_shared/midtrans.ts'
-import { getCorsHeaders, handleCors } from '../_shared/http.ts'
-import { getMidtransEnv, getPublicAppUrl, getSupabaseEnv } from '../_shared/env.ts'
-import { createServiceClient, getUserFromAuthHeader } from '../_shared/supabase.ts'
+import { handleCors, json, jsonError } from '../_shared/http.ts'
+import { getMidtransEnv, getPublicAppUrl } from '../_shared/env.ts'
+import { createServiceClient } from '../_shared/supabase.ts'
 import { toNumber } from '../_shared/payment-effects.ts'
+import { requireAuthenticatedRequest } from '../_shared/auth.ts'
 
 type ProductItem = {
   productVariantId: number
@@ -23,71 +24,31 @@ type CreateTokenRequest = {
 serve(async (req) => {
   const corsResponse = handleCors(req)
   if (corsResponse) return corsResponse
-  const corsHeaders = getCorsHeaders(req)
-
-  const { url: supabaseUrl, anonKey: supabaseAnonKey, serviceRoleKey: supabaseServiceKey } = getSupabaseEnv()
-  const { serverKey: midtransServerKey, isProduction: midtransIsProduction } = getMidtransEnv()
 
   try {
-    const authHeader = req.headers.get('Authorization')
-    if (!authHeader) {
-      return new Response(JSON.stringify({ error: 'Missing authorization header' }), {
-        status: 401,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
-    }
+    const authResult = await requireAuthenticatedRequest(req)
+    if (authResult.response) return authResult.response
 
-    // CRITICAL FIX: Use ANON KEY with Authorization header in client config
-    // According to Supabase docs: Pass Authorization header to client, then call getUser() without params
-    // This ensures proper JWT validation with RLS context
-    const { user, error: authError } = await getUserFromAuthHeader({
-      url: supabaseUrl,
-      anonKey: supabaseAnonKey,
-      authHeader,
-    })
-
-    if (authError || !user?.id) {
-      console.error('Auth error:', authError)
-      const isExpired = authError?.message?.toLowerCase().includes('expired')
-      return new Response(
-        JSON.stringify({
-          error: isExpired ? 'Session Expired' : 'Unauthorized',
-          code: isExpired ? 'SESSION_EXPIRED' : 'INVALID_TOKEN',
-          message: authError?.message || 'Invalid or expired session'
-        }),
-        {
-          status: 401,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        }
-      )
-    }
+    const auth = authResult.context!
+    const { serverKey: midtransServerKey, isProduction: midtransIsProduction } = getMidtransEnv()
 
     // Create separate client with SERVICE ROLE KEY for database operations
-    const supabase = createServiceClient(supabaseUrl, supabaseServiceKey)
+    const supabase = createServiceClient(auth.supabaseEnv.url, auth.supabaseEnv.serviceRoleKey)
 
     const payload = (await req.json()) as CreateTokenRequest
     if (!payload.items || payload.items.length === 0) {
-      return new Response(JSON.stringify({ error: 'No items provided' }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
+      return jsonError(req, 400, 'No items provided')
     }
 
     if (!payload.customerName?.trim()) {
-      return new Response(JSON.stringify({ error: 'Missing customer name' }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
+      return jsonError(req, 400, 'Missing customer name')
     }
 
     if (!payload.customerEmail?.trim()) {
-      return new Response(JSON.stringify({ error: 'Missing customer email' }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
+      return jsonError(req, 400, 'Missing customer email')
     }
 
-    const userId = user.id
+    const userId = auth.user.id
 
     const normalizedItems: ProductItem[] = payload.items.map((i) => ({
       productVariantId: toNumber(i.productVariantId, 0),
@@ -97,10 +58,7 @@ serve(async (req) => {
     }))
 
     if (normalizedItems.some((i) => !i.productVariantId || !i.name || i.price < 0)) {
-      return new Response(JSON.stringify({ error: 'Invalid items' }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
+      return jsonError(req, 400, 'Invalid items')
     }
 
     const aggregatedItemsByVariant = new Map<number, { productVariantId: number; name: string; quantity: number }>()
@@ -126,10 +84,7 @@ serve(async (req) => {
       .in('id', variantIds)
 
     if (variantsError || !Array.isArray(variantRows)) {
-      return new Response(JSON.stringify({ error: 'Failed to load product variants' }), {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
+      return jsonError(req, 500, 'Failed to load product variants')
     }
 
     const variantMap = new Map<number, { id: number; price: unknown; stock: unknown; reserved_stock: unknown; is_active: unknown }>()
@@ -141,17 +96,11 @@ serve(async (req) => {
     for (const item of aggregatedItems) {
       const variant = variantMap.get(item.productVariantId)
       if (!variant) {
-        return new Response(JSON.stringify({ error: `Variant not found: ${item.productVariantId}` }), {
-          status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        })
+        return jsonError(req, 400, `Variant not found: ${item.productVariantId}`)
       }
       const unitPrice = toNumber((variant as { price: unknown }).price, 0)
       if (unitPrice <= 0) {
-        return new Response(JSON.stringify({ error: `Invalid price for variant: ${item.productVariantId}` }), {
-          status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        })
+        return jsonError(req, 400, `Invalid price for variant: ${item.productVariantId}`)
       }
       resolvedItems.push({ ...item, unitPrice })
     }
@@ -174,10 +123,7 @@ serve(async (req) => {
         .in('id', variantIds)
 
       if (categoryError || !variantCategories) {
-        return new Response(JSON.stringify({ error: 'Failed to load product categories' }), {
-          status: 500,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        })
+        return jsonError(req, 500, 'Failed to load product categories')
       }
 
       const productIds = variantCategories.map((v: { product_id: number }) => v.product_id)
@@ -187,10 +133,7 @@ serve(async (req) => {
         .in('id', productIds)
 
       if (productsError || !products) {
-        return new Response(JSON.stringify({ error: 'Failed to load product categories' }), {
-          status: 500,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        })
+        return jsonError(req, 500, 'Failed to load product categories')
       }
 
       const categoryIds = products.map((p: { category_id: number }) => p.category_id).filter((id: number) => id != null)
@@ -204,17 +147,11 @@ serve(async (req) => {
       })
 
       if (voucherError) {
-        return new Response(
-          JSON.stringify({
-            error: 'Failed to validate voucher',
-            code: 'VOUCHER_VALIDATION_ERROR',
-            details: voucherError.message,
-          }),
-          {
-            status: 500,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          }
-        )
+        return jsonError(req, 500, {
+          error: 'Failed to validate voucher',
+          code: 'VOUCHER_VALIDATION_ERROR',
+          details: voucherError.message,
+        })
       }
 
       // RPC returns array with single row
@@ -232,16 +169,10 @@ serve(async (req) => {
         else if (errorMsg.includes('Minimum')) errorCode = 'VOUCHER_MIN_PURCHASE'
         else if (errorMsg.includes('kategori')) errorCode = 'VOUCHER_CATEGORY_MISMATCH'
 
-        return new Response(
-          JSON.stringify({
-            error: errorMsg,
-            code: errorCode,
-          }),
-          {
-            status: 400,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          }
-        )
+        return jsonError(req, 400, {
+          error: errorMsg,
+          code: errorCode,
+        })
       }
 
       // Voucher validated successfully - store details
@@ -284,18 +215,12 @@ serve(async (req) => {
     for (const item of resolvedItems) {
       const row = variantMap.get(item.productVariantId)
       if (!row) {
-        return new Response(JSON.stringify({ error: 'Variant not found' }), {
-          status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        })
+        return jsonError(req, 400, 'Variant not found')
       }
 
       const isActive = (row as { is_active: unknown }).is_active
       if (isActive === false) {
-        return new Response(JSON.stringify({ error: `Variant inactive: ${item.productVariantId}` }), {
-          status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        })
+        return jsonError(req, 400, `Variant inactive: ${item.productVariantId}`)
       }
 
       // Atomic reservation using RPC - prevents race conditions
@@ -317,10 +242,7 @@ serve(async (req) => {
             p_quantity: previous.quantity,
           })
         }
-        return new Response(JSON.stringify({ error: `Out of stock for ${item.name}` }), {
-          status: 409,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        })
+        return jsonError(req, 409, `Out of stock for ${item.name}`)
       }
 
       reservedAdjustments.push({ variantId: item.productVariantId, quantity: item.quantity })
@@ -363,10 +285,7 @@ serve(async (req) => {
         })
       }
 
-      return new Response(JSON.stringify({ error: 'Failed to create order', details: orderError?.message }), {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
+      return jsonError(req, 500, { error: 'Failed to create order', details: orderError?.message })
     }
 
     const orderId = (order as unknown as { id: number }).id
@@ -399,10 +318,7 @@ serve(async (req) => {
         })
       }
 
-      return new Response(JSON.stringify({ error: 'Failed to create order items', details: itemsError.message }), {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
+      return jsonError(req, 500, { error: 'Failed to create order items', details: itemsError.message })
     }
 
     const midtransUrl = getSnapUrl(midtransIsProduction)
@@ -430,10 +346,7 @@ serve(async (req) => {
         })
       }
 
-      return new Response(JSON.stringify({ error: 'Missing app url' }), {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
+      return jsonError(req, 500, 'Missing app url')
     }
 
     const midtransPayload = {
@@ -482,10 +395,7 @@ serve(async (req) => {
         })
       }
 
-      return new Response(JSON.stringify({ error: 'Failed to create payment token', details: midtransData }), {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
+      return jsonError(req, 500, { error: 'Failed to create payment token', details: midtransData })
     }
 
     await supabase
@@ -496,20 +406,14 @@ serve(async (req) => {
       })
       .eq('id', orderId)
 
-    return new Response(
-      JSON.stringify({
-        token: (midtransData as { token?: string }).token,
-        redirect_url: (midtransData as { redirect_url?: string }).redirect_url,
-        order_number: orderNumber,
-        order_id: orderId,
-        discount_amount: discountAmount,  // Include discount for frontend display
-      }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    )
-  } catch {
-    return new Response(JSON.stringify({ error: 'Internal server error' }), {
-      status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    return json(req, {
+      token: (midtransData as { token?: string }).token,
+      redirect_url: (midtransData as { redirect_url?: string }).redirect_url,
+      order_number: orderNumber,
+      order_id: orderId,
+      discount_amount: discountAmount,  // Include discount for frontend display
     })
+  } catch {
+    return jsonError(req, 500, 'Internal server error')
   }
 })

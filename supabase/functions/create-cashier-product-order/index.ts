@@ -1,8 +1,8 @@
 import { serve } from '../_shared/deps.ts'
-import { getCorsHeaders, handleCors } from '../_shared/http.ts'
-import { getSupabaseEnv } from '../_shared/env.ts'
-import { createServiceClient, getUserFromAuthHeader } from '../_shared/supabase.ts'
+import { handleCors, json, jsonError } from '../_shared/http.ts'
+import { createServiceClient } from '../_shared/supabase.ts'
 import { toNumber } from '../_shared/payment-effects.ts'
+import { requireAuthenticatedRequest } from '../_shared/auth.ts'
 
 type ProductItem = {
   productVariantId: number
@@ -49,65 +49,27 @@ async function getUniquePickupCode(supabase: ReturnType<typeof createServiceClie
 serve(async (req) => {
   const corsResponse = handleCors(req)
   if (corsResponse) return corsResponse
-  const corsHeaders = getCorsHeaders(req)
-
-  const { url: supabaseUrl, anonKey: supabaseAnonKey, serviceRoleKey: supabaseServiceKey } = getSupabaseEnv()
 
   try {
-    const authHeader = req.headers.get('Authorization') ?? req.headers.get('authorization')
-    
-    if (!authHeader) {
-      return new Response(JSON.stringify({ error: 'Missing authorization header' }), {
-        status: 401,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
-    }
+    const authResult = await requireAuthenticatedRequest(req)
+    if (authResult.response) return authResult.response
 
-    const { user, error: authError } = await getUserFromAuthHeader({
-      url: supabaseUrl,
-      anonKey: supabaseAnonKey,
-      authHeader,
-    })
+    const auth = authResult.context!
+    const userId = auth.user.id
 
-    if (authError || !user?.id) {
-      const isExpired = authError?.message?.toLowerCase().includes('expired')
-      return new Response(
-        JSON.stringify({
-          error: isExpired ? 'Session Expired' : 'Unauthorized',
-          code: isExpired ? 'SESSION_EXPIRED' : 'INVALID_TOKEN',
-          message: authError?.message || 'Invalid or expired session',
-        }),
-        {
-          status: 401,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        }
-      )
-    }
-
-    const userId = user.id
-
-    const supabase = createServiceClient(supabaseUrl, supabaseServiceKey)
+    const supabase = createServiceClient(auth.supabaseEnv.url, auth.supabaseEnv.serviceRoleKey)
 
     const payload = (await req.json()) as CreateCashierOrderRequest
     if (!payload.items || payload.items.length === 0) {
-      return new Response(JSON.stringify({ error: 'No items provided' }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
+      return jsonError(req, 400, 'No items provided')
     }
 
     if (!payload.customerName?.trim()) {
-      return new Response(JSON.stringify({ error: 'Missing customer name' }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
+      return jsonError(req, 400, 'Missing customer name')
     }
 
     if (!payload.customerEmail?.trim()) {
-      return new Response(JSON.stringify({ error: 'Missing customer email' }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
+      return jsonError(req, 400, 'Missing customer email')
     }
 
     const normalizedItems: ProductItem[] = payload.items.map((i) => ({
@@ -118,10 +80,7 @@ serve(async (req) => {
     }))
 
     if (normalizedItems.some((i) => !i.productVariantId || !i.name || i.price < 0)) {
-      return new Response(JSON.stringify({ error: 'Invalid items' }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
+      return jsonError(req, 400, 'Invalid items')
     }
 
     const aggregatedItemsByVariant = new Map<number, { productVariantId: number; name: string; quantity: number }>()
@@ -147,10 +106,7 @@ serve(async (req) => {
       .in('id', variantIds)
 
     if (variantsError || !Array.isArray(variantRows)) {
-      return new Response(JSON.stringify({ error: 'Failed to load product variants' }), {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
+      return jsonError(req, 500, 'Failed to load product variants')
     }
 
     const variantMap = new Map<number, { id: number; price: unknown; stock: unknown; reserved_stock: unknown; is_active: unknown }>()
@@ -162,17 +118,11 @@ serve(async (req) => {
     for (const item of aggregatedItems) {
       const variant = variantMap.get(item.productVariantId)
       if (!variant) {
-        return new Response(JSON.stringify({ error: `Variant not found: ${item.productVariantId}` }), {
-          status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        })
+        return jsonError(req, 400, `Variant not found: ${item.productVariantId}`)
       }
       const unitPrice = toNumber((variant as { price: unknown }).price, 0)
       if (unitPrice <= 0) {
-        return new Response(JSON.stringify({ error: `Invalid price for variant: ${item.productVariantId}` }), {
-          status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        })
+        return jsonError(req, 400, `Invalid price for variant: ${item.productVariantId}`)
       }
       resolvedItems.push({ ...item, unitPrice })
     }
@@ -194,10 +144,7 @@ serve(async (req) => {
         .in('id', variantIds)
 
       if (categoryError || !variantCategories) {
-        return new Response(JSON.stringify({ error: 'Failed to load product categories' }), {
-          status: 500,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        })
+        return jsonError(req, 500, 'Failed to load product categories')
       }
 
       const productIds = variantCategories.map((v: { product_id: number }) => v.product_id)
@@ -207,10 +154,7 @@ serve(async (req) => {
         .in('id', productIds)
 
       if (productsError || !products) {
-        return new Response(JSON.stringify({ error: 'Failed to load product categories' }), {
-          status: 500,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        })
+        return jsonError(req, 500, 'Failed to load product categories')
       }
 
       const categoryIds = products.map((p: { category_id: number }) => p.category_id).filter((id: number) => id != null)
@@ -224,17 +168,11 @@ serve(async (req) => {
       })
 
       if (voucherError) {
-        return new Response(
-          JSON.stringify({
-            error: 'Failed to validate voucher',
-            code: 'VOUCHER_VALIDATION_ERROR',
-            details: voucherError.message,
-          }),
-          {
-            status: 500,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          }
-        )
+        return jsonError(req, 500, {
+          error: 'Failed to validate voucher',
+          code: 'VOUCHER_VALIDATION_ERROR',
+          details: voucherError.message,
+        })
       }
 
       // RPC returns array with single row
@@ -252,16 +190,10 @@ serve(async (req) => {
         else if (errorMsg.includes('Minimum')) errorCode = 'VOUCHER_MIN_PURCHASE'
         else if (errorMsg.includes('kategori')) errorCode = 'VOUCHER_CATEGORY_MISMATCH'
 
-        return new Response(
-          JSON.stringify({
-            error: errorMsg,
-            code: errorCode,
-          }),
-          {
-            status: 400,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          }
-        )
+        return jsonError(req, 400, {
+          error: errorMsg,
+          code: errorCode,
+        })
       }
 
       // Voucher validated successfully - store details
@@ -280,32 +212,23 @@ serve(async (req) => {
     if (!pickupCode) {
       const fallback = await getUniquePickupCode(supabase)
       if (!fallback) {
-        return new Response(JSON.stringify({ error: 'Failed to generate pickup code' }), {
-          status: 500,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        })
+        return jsonError(req, 500, 'Failed to generate pickup code')
       }
       pickupCode = fallback
     }
 
-    const pickupExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
+    const cashierQrExpiresAt = new Date(Date.now() + 30 * 60 * 1000).toISOString()
 
     const reservedAdjustments: { variantId: number; quantity: number }[] = []
     for (const item of resolvedItems) {
       const row = variantMap.get(item.productVariantId)
       if (!row) {
-        return new Response(JSON.stringify({ error: 'Variant not found' }), {
-          status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        })
+        return jsonError(req, 400, 'Variant not found')
       }
 
       const isActive = (row as { is_active: unknown }).is_active
       if (isActive === false) {
-        return new Response(JSON.stringify({ error: `Variant inactive: ${item.productVariantId}` }), {
-          status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        })
+        return jsonError(req, 400, `Variant inactive: ${item.productVariantId}`)
       }
 
       const { data: reservedOk, error: reserveError } = await supabase.rpc('reserve_product_stock', {
@@ -327,10 +250,7 @@ serve(async (req) => {
           })
         }
         const status = reserveError ? 500 : 409
-        return new Response(JSON.stringify({ error: `Out of stock for ${item.name}`, details: reserveError?.message }), {
-          status,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        })
+        return jsonError(req, status, { error: `Out of stock for ${item.name}`, details: reserveError?.message })
       }
 
       reservedAdjustments.push({ variantId: item.productVariantId, quantity: item.quantity })
@@ -343,10 +263,9 @@ serve(async (req) => {
       .insert({
         order_number: orderNumber,
         user_id: userId,
-        channel: 'offline',
-        status: 'paid',
-        payment_status: 'paid',
-        paid_at: now.toISOString(),
+        channel: 'cashier',
+        status: 'awaiting_payment',
+        payment_status: 'unpaid',
         subtotal: totalAmount,
         discount_amount: discountAmount,
         shipping_cost: 0,
@@ -354,10 +273,10 @@ serve(async (req) => {
         total: finalTotal,
         voucher_id: voucherId,
         voucher_code: voucherCode,
-        payment_expired_at: null,
+        payment_expired_at: cashierQrExpiresAt,
         pickup_code: pickupCode,
-        pickup_status: 'pending_pickup',
-        pickup_expires_at: pickupExpiresAt,
+        pickup_status: 'pending',
+        pickup_expires_at: cashierQrExpiresAt,
         created_at: now.toISOString(),
         updated_at: now.toISOString(),
       })
@@ -377,10 +296,7 @@ serve(async (req) => {
         })
       }
 
-      return new Response(JSON.stringify({ error: 'Failed to create order', details: orderError?.message }), {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
+      return jsonError(req, 500, { error: 'Failed to create order', details: orderError?.message })
     }
 
     const orderId = (order as unknown as { id: number }).id
@@ -412,10 +328,7 @@ serve(async (req) => {
         })
       }
 
-      return new Response(JSON.stringify({ error: 'Failed to create order items', details: itemsError.message }), {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
+      return jsonError(req, 500, { error: 'Failed to create order items', details: itemsError.message })
     }
 
     if (voucherId) {
@@ -436,18 +349,9 @@ serve(async (req) => {
       }
     }
 
-    return new Response(JSON.stringify({ order_number: orderNumber, discount_amount: discountAmount }), {
-      status: 200,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    })
+    return json(req, { order_number: orderNumber, discount_amount: discountAmount }, { status: 200 })
   } catch (e) {
     const errorMessage = e instanceof Error ? e.message : String(e)
-    return new Response(
-      JSON.stringify({ error: 'Internal server error', details: errorMessage }),
-      {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      }
-    )
+    return jsonError(req, 500, { error: 'Internal server error', details: errorMessage })
   }
 })

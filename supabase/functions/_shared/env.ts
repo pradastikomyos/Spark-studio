@@ -4,6 +4,20 @@ function getRequiredEnv(name: string): string {
   return value
 }
 
+function normalizeUrl(value: string): string {
+  return value.trim().replace(/\/+$/, '')
+}
+
+function readUrlList(name: string): string[] {
+  const value = Deno.env.get(name)
+  if (!value) return []
+
+  return value
+    .split(',')
+    .map((item) => normalizeUrl(item))
+    .filter(Boolean)
+}
+
 export function getSupabaseEnv() {
   return {
     url: getRequiredEnv('SUPABASE_URL'),
@@ -30,12 +44,25 @@ export function getImageKitEnv() {
   }
 }
 
+export function getAllowedAppOrigins(): string[] {
+  const values = [
+    ...readUrlList('APP_ALLOWED_ORIGINS'),
+    ...readUrlList('ALLOWED_CORS_ORIGINS'),
+    Deno.env.get('PUBLIC_APP_URL'),
+    Deno.env.get('SITE_URL'),
+    Deno.env.get('VITE_PUBLIC_APP_URL'),
+    Deno.env.get('VITE_APP_URL'),
+  ]
+
+  return Array.from(
+    new Set(
+      values
+        .map((value) => (typeof value === 'string' ? normalizeUrl(value) : ''))
+        .filter(Boolean)
+    )
+  )
+}
+
 export function getPublicAppUrl(): string | null {
-  const value =
-    Deno.env.get('PUBLIC_APP_URL') ||
-    Deno.env.get('SITE_URL') ||
-    Deno.env.get('VITE_PUBLIC_APP_URL') ||
-    Deno.env.get('VITE_APP_URL')
-  if (!value) return null
-  return value.replace(/\/+$/, '')
+  return getAllowedAppOrigins()[0] ?? null
 }

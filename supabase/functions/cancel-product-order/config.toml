@@ -1,3 +1,0 @@
-# User-facing function with manual auth handling in code
-# verify_jwt = true as backup layer, but code handles auth for better error messages
-verify_jwt = true

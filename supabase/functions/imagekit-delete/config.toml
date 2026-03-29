@@ -1,3 +1,0 @@
-# Admin function - auth handled manually in code
-# Code validates JWT + admin role check for proper 403 responses
-verify_jwt = false

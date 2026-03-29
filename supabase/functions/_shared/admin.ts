@@ -1,6 +1,6 @@
 import { json } from './http.ts'
-import { getSupabaseEnv } from './env.ts'
-import { createServiceClient, getUserFromAuthHeader } from './supabase.ts'
+import { createServiceClient } from './supabase.ts'
+import { requireAuthenticatedRequest } from './auth.ts'
 
 const ADMIN_ROLES = new Set(['admin', 'super_admin', 'super-admin'])
 
@@ -10,39 +10,21 @@ type AdminContext = {
 }
 
 export async function requireAdminContext(req: Request): Promise<{ context?: AdminContext; response?: Response }> {
-  const { url: supabaseUrl, anonKey: supabaseAnonKey, serviceRoleKey: supabaseServiceKey } = getSupabaseEnv()
-  const authHeader = req.headers.get('Authorization') ?? req.headers.get('authorization')
+  const authResult = await requireAuthenticatedRequest(req)
+  if (authResult.response) return { response: authResult.response }
 
-  if (!authHeader) {
+  const authContext = authResult.context
+  if (!authContext) {
     return {
-      response: json(req, { error: 'Missing authorization header' }, { status: 401 }),
+      response: json(req, { error: 'Unauthorized' }, { status: 401 }),
     }
   }
 
-  const { user, error: authError } = await getUserFromAuthHeader({
-    url: supabaseUrl,
-    anonKey: supabaseAnonKey,
-    authHeader,
-  })
-
-  if (authError || !user?.id) {
-    return {
-      response: json(
-        req,
-        {
-          error: 'Invalid token',
-          details: authError?.message ?? null,
-        },
-        { status: 401 }
-      ),
-    }
-  }
-
-  const supabaseService = createServiceClient(supabaseUrl, supabaseServiceKey)
+  const supabaseService = createServiceClient(authContext.supabaseEnv.url, authContext.supabaseEnv.serviceRoleKey)
   const { data: roleRows, error: roleError } = await supabaseService
     .from('user_role_assignments')
     .select('role_name')
-    .eq('user_id', user.id)
+    .eq('user_id', authContext.user.id)
 
   if (roleError) {
     return {
@@ -66,8 +48,8 @@ export async function requireAdminContext(req: Request): Promise<{ context?: Adm
   return {
     context: {
       user: {
-        id: user.id,
-        email: user.email,
+        id: authContext.user.id,
+        email: authContext.user.email,
       },
       supabaseService,
     },

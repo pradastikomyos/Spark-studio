@@ -17,6 +17,19 @@ export function normalizeAvailabilityTimeSlot(value: string): string | null {
   return value
 }
 
+export function normalizeBookingTimeSlot(value: unknown): string {
+  const normalized = String(value ?? '').trim()
+  if (!normalized) return ''
+  if (normalized === 'all-day') return normalized
+
+  const match = normalized.match(/^(\d{2}):(\d{2})(?::\d{2})?$/)
+  if (match) {
+    return `${match[1]}:${match[2]}`
+  }
+
+  return normalized
+}
+
 export function normalizeTicketTimeSlots(value: unknown): string[] {
   if (Array.isArray(value)) {
     return value.map((slot) => String(slot).trim()).filter(Boolean)

@@ -146,6 +146,31 @@ export function useInventoryProductActions(params: UseInventoryProductActionsPar
     try {
       const token = await ensureFreshToken(session);
       if (!token) throw new Error('Session expired. Please refresh and log in again.');
+      const { deleteProductImage } = await import('../../../utils/uploadProductImage');
+      const { data: productImages, error: productImagesError } = await withTimeout(
+        supabase
+          .from('product_images')
+          .select('id, image_url, image_provider, provider_file_id, provider_file_path')
+          .eq('product_id', deletingProduct.id),
+        REQUEST_TIMEOUT_MS,
+        'Request timeout. Please try again.'
+      );
+      if (productImagesError) throw productImagesError;
+
+      for (const image of productImages || []) {
+        await deleteProductImage(
+          {
+            id: Number((image as { id: number | string }).id),
+            image_url: String((image as { image_url?: string }).image_url ?? ''),
+            image_provider: ((image as { image_provider?: 'supabase' | 'imagekit' | null }).image_provider ?? 'supabase'),
+            provider_file_id: (image as { provider_file_id?: string | null }).provider_file_id ?? null,
+            provider_file_path: (image as { provider_file_path?: string | null }).provider_file_path ?? null,
+          },
+          deletingProduct.id,
+          { accessToken: token }
+        );
+      }
+
       const deletedAt = new Date().toISOString();
       const { error } = await withTimeout(
         supabase.from('products').update({ deleted_at: deletedAt }).eq('id', deletingProduct.id),

@@ -58,9 +58,14 @@ export function classifyProductOrder(
   return 'history';
 }
 
-export function shouldAutoSyncProductOrder(order: Pick<ProductOrderBase, 'payment_status' | 'status'>) {
+export function shouldAutoSyncProductOrder(order: Pick<ProductOrderBase, 'payment_status' | 'status' | 'channel'>) {
   const paymentStatus = normalize(order.payment_status);
   const orderStatus = normalize(order.status);
+  const channel = normalize(order.channel);
+
+  if (channel === 'cashier') {
+    return false;
+  }
 
   return (
     paymentStatus !== 'paid' &&

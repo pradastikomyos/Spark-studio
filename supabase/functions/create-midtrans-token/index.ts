@@ -1,10 +1,11 @@
 import { serve } from '../_shared/deps.ts'
 import { getMidtransBasicAuthHeader, getSnapUrl } from '../_shared/midtrans.ts'
-import { getCorsHeaders, handleCors } from '../_shared/http.ts'
-import { getMidtransEnv, getPublicAppUrl, getSupabaseEnv } from '../_shared/env.ts'
-import { createServiceClient, getUserFromAuthHeader } from '../_shared/supabase.ts'
+import { handleCors, json, jsonError } from '../_shared/http.ts'
+import { getMidtransEnv, getPublicAppUrl } from '../_shared/env.ts'
+import { createServiceClient } from '../_shared/supabase.ts'
 import { toNumber } from '../_shared/payment-effects.ts'
-import { normalizeTicketTimeSlots } from '../_shared/tickets.ts'
+import { normalizeBookingTimeSlot, normalizeTicketTimeSlots } from '../_shared/tickets.ts'
+import { requireAuthenticatedRequest } from '../_shared/auth.ts'
 
 interface OrderItem {
   ticketId: number
@@ -52,66 +53,26 @@ function addDaysWib(dateString: string, days: number): string {
 serve(async (req) => {
   const corsResponse = handleCors(req)
   if (corsResponse) return corsResponse
-  const corsHeaders = getCorsHeaders(req)
 
   try {
-    const { url: supabaseUrl, anonKey: supabaseAnonKey, serviceRoleKey: supabaseServiceKey } = getSupabaseEnv()
+    const authResult = await requireAuthenticatedRequest(req)
+    if (authResult.response) return authResult.response
+
+    const auth = authResult.context!
     const { serverKey: midtransServerKey, isProduction: midtransIsProduction } = getMidtransEnv()
 
-    // Get the authorization header to verify user
-    const authHeader = req.headers.get('Authorization')
-    if (!authHeader) {
-      return new Response(JSON.stringify({ error: 'Missing authorization header' }), {
-        status: 401,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
-    }
-
-    // CRITICAL FIX: Use anon key for JWT verification with Authorization header in client config
-    // According to Supabase docs: Pass Authorization header to client, then call getUser() without params
-    // This ensures proper JWT validation with RLS context
-    
-    // Create client with ANON KEY and Authorization header for JWT verification
-    const { user, error: authError } = await getUserFromAuthHeader({
-      url: supabaseUrl,
-      anonKey: supabaseAnonKey,
-      authHeader,
-    })
-
-    if (authError || !user?.id) {
-      console.error('Auth error:', authError)
-      const isExpired = authError?.message?.toLowerCase().includes('expired')
-      return new Response(
-        JSON.stringify({
-          error: isExpired ? 'Session Expired' : 'Unauthorized',
-          code: isExpired ? 'SESSION_EXPIRED' : 'INVALID_TOKEN',
-          message: authError?.message || 'Invalid or expired session'
-        }),
-        {
-          status: 401,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        }
-      )
-    }
-
     // Create separate client with SERVICE ROLE KEY for database operations
-    const supabase = createServiceClient(supabaseUrl, supabaseServiceKey)
+    const supabase = createServiceClient(auth.supabaseEnv.url, auth.supabaseEnv.serviceRoleKey)
 
     const payload = (await req.json()) as CreateTokenRequest
     const items = payload.items
 
     if (!items || items.length === 0) {
-      return new Response(JSON.stringify({ error: 'No items provided' }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
+      return jsonError(req, 400, 'No items provided')
     }
 
     if (!payload.customerName?.trim() || !payload.customerEmail?.trim()) {
-      return new Response(JSON.stringify({ error: 'Missing customer info' }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
+      return jsonError(req, 400, 'Missing customer info')
     }
 
     // Validate that sessions haven't ended yet
@@ -127,27 +88,23 @@ serve(async (req) => {
     let minMinutesToSessionEnd = Infinity
 
     for (const item of items) {
+      const normalizedTimeSlot = normalizeBookingTimeSlot(item.timeSlot)
+
       // Skip validation for all-day tickets
-      if (item.timeSlot === 'all-day') continue
+      if (normalizedTimeSlot === 'all-day') continue
 
       // Parse booking date and time in WIB
       // item.date format: YYYY-MM-DD, item.timeSlot format: HH:MM
-      const sessionStartTimeWIB = new Date(`${item.date}T${item.timeSlot}:00+07:00`)
+      const sessionStartTimeWIB = new Date(`${item.date}T${normalizedTimeSlot}:00+07:00`)
       const sessionEndTimeWIB = new Date(sessionStartTimeWIB.getTime() + SESSION_DURATION_MINUTES * 60 * 1000)
 
       // NEW: Check if session has ended (not if it's about to start)
       if (now > sessionEndTimeWIB) {
-        console.error(`Session has ended: ${item.date} ${item.timeSlot} WIB (ended at ${sessionEndTimeWIB.toISOString()})`)
-        return new Response(
-          JSON.stringify({
-            error: 'Session has ended',
-            details: `The selected session (${item.timeSlot} on ${item.date}) has already ended. Please select a different time slot.`
-          }),
-          {
-            status: 400,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          }
-        )
+        console.error(`Session has ended: ${item.date} ${normalizedTimeSlot} WIB (ended at ${sessionEndTimeWIB.toISOString()})`)
+        return jsonError(req, 400, {
+          error: 'Session has ended',
+          details: `The selected session (${normalizedTimeSlot} on ${item.date}) has already ended. Please select a different time slot.`,
+        })
       }
 
       // Track earliest session end time for payment expiry calculation
@@ -172,12 +129,12 @@ serve(async (req) => {
 
     console.log(`Payment expiry set to ${paymentExpiryMinutes} minutes (session ends in ${minMinutesToSessionEnd} minutes)`)
 
-    const userId = user.id
+    const userId = auth.user.id
 
     const normalizedItems = items.map((item) => ({
       ticketId: toNumber(item.ticketId, 0),
       date: String(item.date || ''),
-      timeSlot: String(item.timeSlot || ''),
+      timeSlot: normalizeBookingTimeSlot(item.timeSlot),
       quantity: Math.max(1, Math.floor(toNumber(item.quantity, 1))),
     }))
 
@@ -190,10 +147,7 @@ serve(async (req) => {
           i.quantity <= 0
       )
     ) {
-      return new Response(JSON.stringify({ error: 'Invalid items' }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
+      return jsonError(req, 400, 'Invalid items')
     }
 
     const ticketIds = Array.from(new Set(normalizedItems.map((i) => i.ticketId)))
@@ -203,10 +157,7 @@ serve(async (req) => {
       .in('id', ticketIds)
 
     if (ticketsError || !Array.isArray(ticketRows)) {
-      return new Response(JSON.stringify({ error: 'Failed to load tickets' }), {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
+      return jsonError(req, 500, 'Failed to load tickets')
     }
 
     const { data: settingsRows, error: settingsError } = await supabase
@@ -215,10 +166,7 @@ serve(async (req) => {
       .in('ticket_id', ticketIds)
 
     if (settingsError || !Array.isArray(settingsRows)) {
-      return new Response(JSON.stringify({ error: 'Failed to load ticket booking settings' }), {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
+      return jsonError(req, 500, 'Failed to load ticket booking settings')
     }
 
     const ticketMap = new Map<number, {
@@ -263,16 +211,10 @@ serve(async (req) => {
     for (const item of normalizedItems) {
       const ticket = ticketMap.get(item.ticketId)
       if (!ticket) {
-        return new Response(JSON.stringify({ error: `Ticket not found: ${item.ticketId}` }), {
-          status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        })
+        return jsonError(req, 400, `Ticket not found: ${item.ticketId}`)
       }
       if ((ticket as { is_active: unknown }).is_active === false) {
-        return new Response(JSON.stringify({ error: `Ticket inactive: ${item.ticketId}` }), {
-          status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        })
+        return jsonError(req, 400, `Ticket inactive: ${item.ticketId}`)
       }
       const ticketSettings = settingsMap.get(item.ticketId) ?? {
         max_tickets_per_booking: DEFAULT_MAX_TICKETS_PER_BOOKING,
@@ -282,32 +224,20 @@ serve(async (req) => {
       const availableUntil = extractDateOnly((ticket as { available_until: unknown }).available_until)
       const maxBookableDate = addDaysWib(todayWib, ticketSettings.booking_window_days)
       if (item.date < todayWib || item.date > maxBookableDate) {
-        return new Response(JSON.stringify({ error: `Date outside booking window: ${item.date}` }), {
-          status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        })
+        return jsonError(req, 400, `Date outside booking window: ${item.date}`)
       }
       if ((availableFrom && item.date < availableFrom) || (availableUntil && item.date > availableUntil)) {
-        return new Response(JSON.stringify({ error: `Date unavailable for ticket: ${item.date}` }), {
-          status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        })
+        return jsonError(req, 400, `Date unavailable for ticket: ${item.date}`)
       }
       if (item.timeSlot !== 'all-day') {
         const allowedSlots = normalizeTicketTimeSlots((ticket as { time_slots: unknown }).time_slots)
         if (allowedSlots.length > 0 && !allowedSlots.some((slot) => slot.slice(0, 5) === item.timeSlot)) {
-          return new Response(JSON.stringify({ error: `Invalid time slot for ticket: ${item.timeSlot}` }), {
-            status: 400,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          })
+          return jsonError(req, 400, `Invalid time slot for ticket: ${item.timeSlot}`)
         }
       }
       const unitPrice = toNumber((ticket as { price: unknown }).price, 0)
       if (unitPrice <= 0) {
-        return new Response(JSON.stringify({ error: `Invalid ticket price: ${item.ticketId}` }), {
-          status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        })
+        return jsonError(req, 400, `Invalid ticket price: ${item.ticketId}`)
       }
       quantitiesByTicket.set(item.ticketId, (quantitiesByTicket.get(item.ticketId) ?? 0) + item.quantity)
       resolvedItems.push({
@@ -326,13 +256,7 @@ serve(async (req) => {
         booking_window_days: DEFAULT_BOOKING_WINDOW_DAYS,
       }
       if (totalQuantity > ticketSettings.max_tickets_per_booking) {
-        return new Response(
-          JSON.stringify({ error: `Maximum ${ticketSettings.max_tickets_per_booking} tickets per booking` }),
-          {
-            status: 400,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          }
-        )
+        return jsonError(req, 400, `Maximum ${ticketSettings.max_tickets_per_booking} tickets per booking`)
       }
     }
 
@@ -359,7 +283,7 @@ serve(async (req) => {
         p_quantity: hold.quantity,
       })
 
-      if (reserveError || reserved !== true) {
+      if (reserveError) {
         for (const previous of reservedHolds) {
           await supabase.rpc('release_ticket_capacity', {
             p_ticket_id: previous.ticketId,
@@ -369,10 +293,24 @@ serve(async (req) => {
           })
         }
 
-        return new Response(JSON.stringify({ error: 'Slot sold out' }), {
-          status: 409,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        console.error('Ticket capacity reservation error:', reserveError)
+        return jsonError(req, 500, {
+          error: 'Failed to reserve ticket capacity',
+          details: reserveError.message,
         })
+      }
+
+      if (reserved !== true) {
+        for (const previous of reservedHolds) {
+          await supabase.rpc('release_ticket_capacity', {
+            p_ticket_id: previous.ticketId,
+            p_date: previous.date,
+            p_time_slot: previous.timeSlot,
+            p_quantity: previous.quantity,
+          })
+        }
+
+        return jsonError(req, 409, 'Slot sold out')
       }
 
       reservedHolds.push(hold)
@@ -408,10 +346,7 @@ serve(async (req) => {
           p_quantity: hold.quantity,
         })
       }
-      return new Response(JSON.stringify({ error: 'Failed to create order' }), {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
+      return jsonError(req, 500, 'Failed to create order')
     }
 
     // Create order items
@@ -443,10 +378,7 @@ serve(async (req) => {
           p_quantity: hold.quantity,
         })
       }
-      return new Response(JSON.stringify({ error: 'Failed to create order items' }), {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
+      return jsonError(req, 500, 'Failed to create order items')
     }
 
     // Create Midtrans Snap token
@@ -462,10 +394,7 @@ serve(async (req) => {
 
     const appUrl = getPublicAppUrl() ?? req.headers.get('origin') ?? ''
     if (!appUrl) {
-      return new Response(JSON.stringify({ error: 'Missing app url' }), {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
+      return jsonError(req, 500, 'Missing app url')
     }
 
     const midtransPayload = {
@@ -512,10 +441,7 @@ serve(async (req) => {
           p_quantity: hold.quantity,
         })
       }
-      return new Response(JSON.stringify({ error: 'Failed to create payment token', details: midtransData }), {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
+      return jsonError(req, 500, { error: 'Failed to create payment token', details: midtransData })
     }
 
     // Update order with payment data
@@ -528,22 +454,14 @@ serve(async (req) => {
       })
       .eq('id', order.id)
 
-    return new Response(
-      JSON.stringify({
-        token: midtransData.token,
-        redirect_url: midtransData.redirect_url,
-        order_number: orderNumber,
-        order_id: order.id,
-      }),
-      {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      }
-    )
+    return json(req, {
+      token: midtransData.token,
+      redirect_url: midtransData.redirect_url,
+      order_number: orderNumber,
+      order_id: order.id,
+    })
   } catch (error) {
     console.error('Error:', error)
-    return new Response(JSON.stringify({ error: 'Internal server error' }), {
-      status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    })
+    return jsonError(req, 500, 'Internal server error')
   }
 })
