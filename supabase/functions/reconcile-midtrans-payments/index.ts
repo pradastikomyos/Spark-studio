@@ -1,14 +1,420 @@
 import { serve } from '../_shared/deps.ts'
+import { getMidtransEnv, getSupabaseEnv } from '../_shared/env.ts'
 import { getCorsHeaders, handleCors, json } from '../_shared/http.ts'
-import { getSupabaseEnv } from '../_shared/env.ts'
-import { createServiceClient } from '../_shared/supabase.ts'
+import { getMidtransBasicAuthHeader, getStatusBaseUrl } from '../_shared/midtrans.ts'
 import {
   ensureProductPaidSideEffects,
   issueTicketsIfNeeded,
   logWebhookEvent,
   releaseProductReservedStockIfNeeded,
   releaseTicketCapacityIfNeeded,
+  toNumber,
 } from '../_shared/payment-effects.ts'
+import { createServiceClient } from '../_shared/supabase.ts'
+import { mapMidtransStatus } from '../_shared/tickets.ts'
+
+type TicketOrderRow = {
+  id: number
+  user_id: string | null
+  order_number: string
+  status?: string | null
+  tickets_issued_at?: string | null
+  capacity_released_at?: string | null
+}
+
+type ProductOrderRow = {
+  id: number
+  user_id?: string | null
+  order_number: string
+  status?: string | null
+  payment_status?: string | null
+  pickup_code?: string | null
+  pickup_status?: string | null
+  pickup_expires_at?: string | null
+  total?: unknown
+  stock_released_at?: string | null
+  voucher_id?: string | null
+  voucher_code?: string | null
+  discount_amount?: unknown
+}
+
+type MidtransStatusResult =
+  | { ok: true; mappedStatus: string; statusData: unknown }
+  | { ok: false; error: string; statusData: unknown }
+
+function isFinalOrPaidMidtransStatus(status: string) {
+  return status === 'paid' || status === 'expired' || status === 'failed' || status === 'refunded'
+}
+
+async function fetchMidtransStatus(params: {
+  baseUrl: string
+  authString: string
+  orderNumber: string
+}): Promise<MidtransStatusResult> {
+  const statusResponse = await fetch(`${params.baseUrl}/v2/${encodeURIComponent(params.orderNumber)}/status`, {
+    method: 'GET',
+    headers: {
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+      Authorization: params.authString,
+    },
+  })
+
+  const statusData = await statusResponse.json().catch(() => null)
+  if (!statusResponse.ok) {
+    return {
+      ok: false,
+      error: `Failed to fetch Midtrans status (${statusResponse.status})`,
+      statusData,
+    }
+  }
+
+  return {
+    ok: true,
+    mappedStatus: mapMidtransStatus(
+      (statusData as { transaction_status?: unknown })?.transaction_status,
+      (statusData as { fraud_status?: unknown })?.fraud_status
+    ),
+    statusData,
+  }
+}
+
+async function reconcileStaleTicketOrder(params: {
+  supabase: ReturnType<typeof createServiceClient>
+  order: TicketOrderRow
+  baseUrl: string
+  authString: string
+  nowIso: string
+}) {
+  const { supabase, order, baseUrl, authString, nowIso } = params
+
+  try {
+    const midtransResult = await fetchMidtransStatus({
+      baseUrl,
+      authString,
+      orderNumber: order.order_number,
+    })
+
+    if (!midtransResult.ok) {
+      await logWebhookEvent(supabase, {
+        orderNumber: order.order_number,
+        eventType: 'reconcile_ticket_status_fetch_failed',
+        payload: { error: midtransResult.error, response: midtransResult.statusData },
+        success: false,
+        errorMessage: midtransResult.error,
+        processedAt: nowIso,
+      })
+      return { checked: 1, finalized: 0 }
+    }
+
+    const nextStatus = midtransResult.mappedStatus
+    if (!isFinalOrPaidMidtransStatus(nextStatus)) {
+      await logWebhookEvent(supabase, {
+        orderNumber: order.order_number,
+        eventType: 'reconcile_ticket_still_pending',
+        payload: { status: nextStatus },
+        success: true,
+        processedAt: nowIso,
+      })
+      return { checked: 1, finalized: 0 }
+    }
+
+    const { data: updatedOrder, error: updateError } = await supabase
+      .from('orders')
+      .update({
+        status: nextStatus,
+        payment_data: midtransResult.statusData,
+        updated_at: nowIso,
+      })
+      .eq('id', order.id)
+      .select('id, user_id, order_number, status, tickets_issued_at, capacity_released_at')
+      .single()
+
+    if (updateError || !updatedOrder) {
+      await logWebhookEvent(supabase, {
+        orderNumber: order.order_number,
+        eventType: 'reconcile_ticket_update_failed',
+        payload: { error: updateError?.message ?? 'Unknown error', status: nextStatus },
+        success: false,
+        errorMessage: updateError?.message ?? 'Unknown error',
+        processedAt: nowIso,
+      })
+      return { checked: 1, finalized: 0 }
+    }
+
+    const { data: orderItems } = await supabase
+      .from('order_items')
+      .select('id, ticket_id, selected_date, selected_time_slots, quantity')
+      .eq('order_id', order.id)
+
+    if (Array.isArray(orderItems) && orderItems.length > 0) {
+      if (nextStatus === 'paid') {
+        await issueTicketsIfNeeded({
+          supabase,
+          order: updatedOrder as TicketOrderRow,
+          orderItems: orderItems as Array<{
+            id: number
+            ticket_id: number
+            selected_date: string
+            selected_time_slots: unknown
+            quantity: number
+          }>,
+          nowIso,
+        })
+      }
+
+      if (nextStatus === 'expired' || nextStatus === 'failed' || nextStatus === 'refunded') {
+        await releaseTicketCapacityIfNeeded({
+          supabase,
+          order: updatedOrder as TicketOrderRow,
+          orderItems: orderItems as Array<{
+            id: number
+            ticket_id: number
+            selected_date: string
+            selected_time_slots: unknown
+            quantity: number
+          }>,
+          nowIso,
+        })
+      }
+    }
+
+    await logWebhookEvent(supabase, {
+      orderNumber: order.order_number,
+      eventType: 'reconcile_ticket_pending_finalized',
+      payload: { status: nextStatus },
+      success: true,
+      processedAt: nowIso,
+    })
+
+    return { checked: 1, finalized: 1 }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error'
+    await logWebhookEvent(supabase, {
+      orderNumber: order.order_number,
+      eventType: 'reconcile_ticket_failed',
+      payload: { error: message },
+      success: false,
+      errorMessage: message,
+      processedAt: nowIso,
+    })
+    return { checked: 1, finalized: 0 }
+  }
+}
+
+async function reconcileStaleProductOrder(params: {
+  supabase: ReturnType<typeof createServiceClient>
+  order: ProductOrderRow
+  baseUrl: string
+  authString: string
+  nowIso: string
+}) {
+  const { supabase, order, baseUrl, authString, nowIso } = params
+
+  try {
+    const midtransResult = await fetchMidtransStatus({
+      baseUrl,
+      authString,
+      orderNumber: order.order_number,
+    })
+
+    if (!midtransResult.ok) {
+      await logWebhookEvent(supabase, {
+        orderNumber: order.order_number,
+        eventType: 'reconcile_product_status_fetch_failed',
+        payload: { error: midtransResult.error, response: midtransResult.statusData },
+        success: false,
+        errorMessage: midtransResult.error,
+        processedAt: nowIso,
+      })
+      return { checked: 1, finalized: 0 }
+    }
+
+    const nextStatus = midtransResult.mappedStatus
+    if (!isFinalOrPaidMidtransStatus(nextStatus)) {
+      await logWebhookEvent(supabase, {
+        orderNumber: order.order_number,
+        eventType: 'reconcile_product_still_pending',
+        payload: { status: nextStatus },
+        success: true,
+        processedAt: nowIso,
+      })
+      return { checked: 1, finalized: 0 }
+    }
+
+    const currentPaymentStatus = String(order.payment_status || '').toLowerCase()
+    const currentStatus = String(order.status || '').toLowerCase()
+    const currentPickupStatus = String(order.pickup_status || '').toLowerCase()
+    const voucherId = order.voucher_id ?? null
+    const voucherCode = order.voucher_code ?? null
+    const voucherUserId = order.user_id ?? null
+
+    const paymentStatus =
+      nextStatus === 'paid'
+        ? 'paid'
+        : nextStatus === 'refunded'
+          ? 'refunded'
+          : nextStatus === 'failed' || nextStatus === 'expired'
+            ? 'failed'
+            : 'unpaid'
+
+    const orderStatus =
+      nextStatus === 'paid'
+        ? 'processing'
+        : nextStatus === 'expired'
+          ? 'expired'
+          : nextStatus === 'failed'
+            ? 'cancelled'
+            : order.status || 'awaiting_payment'
+
+    const updateFields: Record<string, unknown> = {
+      status: orderStatus,
+      payment_status: paymentStatus,
+      payment_data: midtransResult.statusData,
+      updated_at: nowIso,
+    }
+
+    if (nextStatus === 'expired') {
+      updateFields.expired_at = nowIso
+    }
+
+    const { data: updatedOrder, error: updateError } = await supabase
+      .from('order_products')
+      .update(updateFields)
+      .eq('id', order.id)
+      .select(
+        'id, user_id, order_number, status, payment_status, pickup_code, pickup_status, pickup_expires_at, total, stock_released_at, voucher_id, voucher_code, discount_amount'
+      )
+      .single()
+
+    if (updateError || !updatedOrder) {
+      await logWebhookEvent(supabase, {
+        orderNumber: order.order_number,
+        eventType: 'reconcile_product_update_failed',
+        payload: { error: updateError?.message ?? 'Unknown error', status: nextStatus },
+        success: false,
+        errorMessage: updateError?.message ?? 'Unknown error',
+        processedAt: nowIso,
+      })
+      return { checked: 1, finalized: 0 }
+    }
+
+    if (nextStatus === 'paid' && (currentPaymentStatus !== 'paid' || !updatedOrder.pickup_code)) {
+      await ensureProductPaidSideEffects({
+        supabase,
+        order: updatedOrder as ProductOrderRow,
+        nowIso,
+        grossAmount: (midtransResult.statusData as { gross_amount?: unknown })?.gross_amount,
+        defaultStatus: orderStatus,
+        shouldSetPaidAt: true,
+      })
+    }
+
+    const voucherDiscountAmount = toNumber(updatedOrder.discount_amount, 0)
+    if (nextStatus === 'paid' && voucherId && voucherUserId) {
+      const { error: voucherUsageError } = await supabase
+        .from('voucher_usage')
+        .upsert(
+          {
+            voucher_id: voucherId,
+            user_id: voucherUserId,
+            order_product_id: updatedOrder.id,
+            discount_amount: voucherDiscountAmount,
+            used_at: nowIso,
+          },
+          { onConflict: 'order_product_id' }
+        )
+
+      if (voucherUsageError) {
+        await logWebhookEvent(supabase, {
+          orderNumber: order.order_number,
+          eventType: 'voucher_usage_create_failed',
+          payload: { voucher_id: voucherId, voucher_code: voucherCode, error: voucherUsageError.message },
+          success: false,
+          errorMessage: voucherUsageError.message,
+          processedAt: nowIso,
+        })
+      }
+    }
+
+    const shouldReleaseVoucherQuota =
+      (nextStatus === 'expired' || nextStatus === 'failed') && currentPaymentStatus !== 'paid'
+
+    if (shouldReleaseVoucherQuota && voucherId) {
+      const { data: released, error: releaseError } = await supabase.rpc('release_voucher_quota', {
+        p_voucher_id: voucherId,
+      })
+
+      await logWebhookEvent(supabase, {
+        orderNumber: order.order_number,
+        eventType: 'voucher_quota_released',
+        payload: {
+          voucher_id: voucherId,
+          voucher_code: voucherCode,
+          result: released,
+          status: nextStatus,
+          error: releaseError?.message,
+        },
+        success: !releaseError,
+        errorMessage: releaseError?.message ?? null,
+        processedAt: nowIso,
+      })
+    }
+
+    const shouldReleaseReserve =
+      (nextStatus === 'expired' || nextStatus === 'failed' || nextStatus === 'refunded') &&
+      currentPaymentStatus !== 'paid' &&
+      currentStatus !== 'cancelled' &&
+      currentStatus !== 'expired' &&
+      currentPickupStatus !== 'completed'
+
+    if (shouldReleaseReserve) {
+      try {
+        await releaseProductReservedStockIfNeeded({
+          supabase,
+          order: updatedOrder as ProductOrderRow,
+          nowIso,
+        })
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Failed to release reserved stock'
+        await logWebhookEvent(supabase, {
+          orderNumber: order.order_number,
+          eventType: 'stock_release_failed',
+          payload: { error: message },
+          success: false,
+          errorMessage: message,
+          processedAt: nowIso,
+        })
+
+        await supabase
+          .from('order_products')
+          .update({ status: 'requires_review', pickup_status: 'pending_review', updated_at: nowIso })
+          .eq('id', updatedOrder.id)
+      }
+    }
+
+    await logWebhookEvent(supabase, {
+      orderNumber: order.order_number,
+      eventType: 'reconcile_product_pending_finalized',
+      payload: { status: nextStatus },
+      success: true,
+      processedAt: nowIso,
+    })
+
+    return { checked: 1, finalized: 1 }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error'
+    await logWebhookEvent(supabase, {
+      orderNumber: order.order_number,
+      eventType: 'reconcile_product_failed',
+      payload: { error: message },
+      success: false,
+      errorMessage: message,
+      processedAt: nowIso,
+    })
+    return { checked: 1, finalized: 0 }
+  }
+}
 
 serve(async (req) => {
   const corsResponse = handleCors(req)
@@ -21,8 +427,66 @@ serve(async (req) => {
 
   try {
     const { url: supabaseUrl, serviceRoleKey: supabaseServiceKey } = getSupabaseEnv()
+    const { serverKey: midtransServerKey, isProduction: midtransIsProduction } = getMidtransEnv()
     const supabase = createServiceClient(supabaseUrl, supabaseServiceKey)
+    const baseUrl = getStatusBaseUrl(midtransIsProduction)
+    const authString = getMidtransBasicAuthHeader(midtransServerKey)
     const nowIso = new Date().toISOString()
+
+    let staleTicketCheckedCount = 0
+    let staleTicketFinalizedCount = 0
+    let staleProductCheckedCount = 0
+    let staleProductFinalizedCount = 0
+
+    const finalizedTicketOrderIds = new Set<number>()
+    const finalizedProductOrderIds = new Set<number>()
+
+    const { data: staleTicketOrders } = await supabase
+      .from('orders')
+      .select('id, user_id, order_number, status, tickets_issued_at, capacity_released_at')
+      .eq('status', 'pending')
+      .is('tickets_issued_at', null)
+      .lt('expires_at', nowIso)
+
+    if (Array.isArray(staleTicketOrders)) {
+      for (const order of staleTicketOrders as TicketOrderRow[]) {
+        const result = await reconcileStaleTicketOrder({
+          supabase,
+          order,
+          baseUrl,
+          authString,
+          nowIso,
+        })
+        staleTicketCheckedCount += result.checked
+        staleTicketFinalizedCount += result.finalized
+        if (result.finalized > 0) finalizedTicketOrderIds.add(order.id)
+      }
+    }
+
+    const { data: staleProductOrders } = await supabase
+      .from('order_products')
+      .select(
+        'id, user_id, order_number, status, payment_status, pickup_code, pickup_status, pickup_expires_at, total, stock_released_at, voucher_id, voucher_code, discount_amount'
+      )
+      .neq('channel', 'cashier')
+      .in('payment_status', ['unpaid', 'pending'])
+      .not('status', 'in', '(cancelled,expired,completed)')
+      .lt('payment_expired_at', nowIso)
+
+    if (Array.isArray(staleProductOrders)) {
+      for (const order of staleProductOrders as ProductOrderRow[]) {
+        const result = await reconcileStaleProductOrder({
+          supabase,
+          order,
+          baseUrl,
+          authString,
+          nowIso,
+        })
+        staleProductCheckedCount += result.checked
+        staleProductFinalizedCount += result.finalized
+        if (result.finalized > 0) finalizedProductOrderIds.add(order.id)
+      }
+    }
 
     const { data: paidTicketOrders } = await supabase
       .from('orders')
@@ -31,8 +495,8 @@ serve(async (req) => {
 
     let ticketFixCount = 0
     if (Array.isArray(paidTicketOrders)) {
-      for (const order of paidTicketOrders) {
-        if (order.tickets_issued_at) continue
+      for (const order of paidTicketOrders as TicketOrderRow[]) {
+        if (finalizedTicketOrderIds.has(order.id) || order.tickets_issued_at) continue
         const { data: orderItems } = await supabase
           .from('order_items')
           .select('id, ticket_id, selected_date, selected_time_slots, quantity')
@@ -41,15 +505,14 @@ serve(async (req) => {
         if (Array.isArray(orderItems) && orderItems.length > 0) {
           await issueTicketsIfNeeded({
             supabase,
-            order: order as unknown as {
+            order,
+            orderItems: orderItems as Array<{
               id: number
-              order_number: string
-              user_id: string | null
-              status?: string | null
-              tickets_issued_at?: string | null
-              capacity_released_at?: string | null
-            },
-            orderItems: orderItems as Array<{ id: number; ticket_id: number; selected_date: string; selected_time_slots: unknown; quantity: number }>,
+              ticket_id: number
+              selected_date: string
+              selected_time_slots: unknown
+              quantity: number
+            }>,
             nowIso,
           })
           ticketFixCount += 1
@@ -64,8 +527,8 @@ serve(async (req) => {
 
     let ticketReleaseCount = 0
     if (Array.isArray(failedTicketOrders)) {
-      for (const order of failedTicketOrders) {
-        if (order.capacity_released_at) continue
+      for (const order of failedTicketOrders as TicketOrderRow[]) {
+        if (finalizedTicketOrderIds.has(order.id) || order.capacity_released_at) continue
         const { data: orderItems } = await supabase
           .from('order_items')
           .select('id, ticket_id, selected_date, selected_time_slots, quantity')
@@ -74,15 +537,14 @@ serve(async (req) => {
         if (Array.isArray(orderItems) && orderItems.length > 0) {
           await releaseTicketCapacityIfNeeded({
             supabase,
-            order: order as unknown as {
+            order,
+            orderItems: orderItems as Array<{
               id: number
-              order_number: string
-              user_id: string | null
-              status?: string | null
-              tickets_issued_at?: string | null
-              capacity_released_at?: string | null
-            },
-            orderItems: orderItems as Array<{ id: number; ticket_id: number; selected_date: string; selected_time_slots: unknown; quantity: number }>,
+              ticket_id: number
+              selected_date: string
+              selected_time_slots: unknown
+              quantity: number
+            }>,
             nowIso,
           })
           ticketReleaseCount += 1
@@ -97,21 +559,11 @@ serve(async (req) => {
 
     let productFixCount = 0
     if (Array.isArray(paidProductOrders)) {
-      for (const order of paidProductOrders) {
-        if (order.pickup_code) continue
+      for (const order of paidProductOrders as ProductOrderRow[]) {
+        if (finalizedProductOrderIds.has(order.id) || order.pickup_code) continue
         await ensureProductPaidSideEffects({
           supabase,
-          order: order as unknown as {
-            id: number
-            order_number: string
-            status?: string | null
-            payment_status?: string | null
-            total?: unknown
-            pickup_code?: string | null
-            pickup_status?: string | null
-            pickup_expires_at?: string | null
-            stock_released_at?: string | null
-          },
+          order,
           nowIso,
           defaultStatus: String(order.status || 'processing'),
           shouldSetPaidAt: false,
@@ -128,21 +580,11 @@ serve(async (req) => {
 
     let productReleaseCount = 0
     if (Array.isArray(failedProductOrders)) {
-      for (const order of failedProductOrders) {
-        if (order.stock_released_at) continue
+      for (const order of failedProductOrders as ProductOrderRow[]) {
+        if (finalizedProductOrderIds.has(order.id) || order.stock_released_at) continue
         await releaseProductReservedStockIfNeeded({
           supabase,
-          order: order as unknown as {
-            id: number
-            order_number: string
-            status?: string | null
-            payment_status?: string | null
-            total?: unknown
-            pickup_code?: string | null
-            pickup_status?: string | null
-            pickup_expires_at?: string | null
-            stock_released_at?: string | null
-          },
+          order,
           nowIso,
         })
         productReleaseCount += 1
@@ -153,6 +595,10 @@ serve(async (req) => {
       orderNumber: 'reconcile',
       eventType: 'reconcile_summary',
       payload: {
+        stale_ticket_checked_count: staleTicketCheckedCount,
+        stale_ticket_finalized_count: staleTicketFinalizedCount,
+        stale_product_checked_count: staleProductCheckedCount,
+        stale_product_finalized_count: staleProductFinalizedCount,
         ticket_fix_count: ticketFixCount,
         ticket_release_count: ticketReleaseCount,
         product_fix_count: productFixCount,
@@ -166,6 +612,10 @@ serve(async (req) => {
       req,
       {
         status: 'ok',
+        stale_ticket_checked_count: staleTicketCheckedCount,
+        stale_ticket_finalized_count: staleTicketFinalizedCount,
+        stale_product_checked_count: staleProductCheckedCount,
+        stale_product_finalized_count: staleProductFinalizedCount,
         ticket_fix_count: ticketFixCount,
         ticket_release_count: ticketReleaseCount,
         product_fix_count: productFixCount,

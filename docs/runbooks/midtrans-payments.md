@@ -43,12 +43,23 @@ This runbook covers ticket payments, product payments, webhook handling, manual 
 3. Webhook or sync finalizes payment state.
 4. Paid orders generate pickup data.
 5. Failed or expired orders release reserved stock and voucher quota.
+6. If webhook or client sync misses a final state after local payment expiry, `reconcile-midtrans-payments` re-queries Midtrans and finalizes the order.
+
+### Cashier Product Orders
+
+1. Frontend calls `create-cashier-product-order` to create a cashier reservation with a QR pickup code.
+2. The order is stored as `channel = 'cashier'` and remains unpaid until admin scans the QR.
+3. `complete-product-pickup` is the moment that marks the order paid and completed for cashier flow.
+4. Expired cashier reservations release reserved stock and voucher quota automatically.
+5. Cashier reservation expiry is enforced by `expire-product-orders`, not by Midtrans sync.
 
 ## Reliability Rules
 
 - Webhook, sync, and reconciliation must reuse the same side-effects logic.
 - Ticket issuance, capacity release, pickup generation, and stock release must be idempotent.
 - Final status in DB is the source of truth for frontend UI.
+- Midtrans online payment finality stays webhook-first, with cron-backed reconciliation as the fallback.
+- App-owned expiry windows such as cashier QR and pickup QR are enforced by a frequent cron sweep, not a daily batch.
 
 ## Current Hardening Status
 
@@ -57,6 +68,26 @@ This runbook covers ticket payments, product payments, webhook handling, manual 
 - Reconciliation exists for mismatch repair.
 - Idempotency markers are used for ticket issuance and release flows.
 - Success pages use realtime plus polling fallback instead of assuming a single happy path.
+- Cashier QR expiry and pickup QR expiry are enforced by `expire-product-orders`.
+- Stale online Midtrans orders are re-checked by `reconcile-midtrans-payments`.
+
+## Cron Jobs
+
+- `reconcile-midtrans-payments-every-5-minutes`
+  - every 5 minutes
+  - re-checks stale online ticket and product orders whose local expiry has passed
+- `expire-product-orders-every-5-minutes`
+  - every 5 minutes
+  - expires unpaid cashier QR reservations and expired pickup QR codes
+- `expire-tickets-daily`
+  - 00:05 WIB
+  - marks past-date tickets as expired in DB
+- `ensure-ticket-availability-daily`
+  - 00:15 WIB
+  - extends ticket availability coverage
+- `retention-cleanup-daily`
+  - 01:00 WIB
+  - prunes webhook logs and stale reservation tables
 
 ## Midtrans To App Status Mapping
 
@@ -75,6 +106,22 @@ This runbook covers ticket payments, product payments, webhook handling, manual 
 - Check whether the order is already `paid` in the database.
 - Check whether ticket issuance or pickup generation is missing.
 - Run the sync function if the webhook path looks delayed.
+- Check `cron.job` when stale pending orders do not clear after local expiry.
+
+## Cron Audit Query
+
+```sql
+select jobname, schedule, command
+from cron.job
+where jobname in (
+  'reconcile-midtrans-payments-every-5-minutes',
+  'expire-product-orders-every-5-minutes',
+  'expire-tickets-daily',
+  'ensure-ticket-availability-daily',
+  'retention-cleanup-daily'
+)
+order by jobname;
+```
 
 ## Audit Queries
 
