@@ -1,8 +1,7 @@
 import { ADMIN_MENU_SECTIONS } from '../../../constants/adminMenu';
+export { TAB_RETURN_EVENT } from '../../../constants/browserEvents';
 import type { OrderSummaryRow } from '../../../hooks/useProductOrders';
 import type { ProductOrdersTab } from './productOrdersTypes';
-
-export const TAB_RETURN_EVENT = 'tab-returned-from-idle';
 
 const EMPTY_STATE_COPY: Record<ProductOrdersTab, { icon: string; message: string }> = {
   pending: { icon: 'inventory_2', message: 'Tidak ada pesanan menunggu pickup.' },

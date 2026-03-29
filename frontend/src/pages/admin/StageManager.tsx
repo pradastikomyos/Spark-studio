@@ -6,13 +6,12 @@ import { supabase } from '../../lib/supabase';
 import { queryKeys } from '../../lib/queryKeys';
 import AdminLayout from '../../components/AdminLayout';
 import { ADMIN_MENU_ITEMS, ADMIN_MENU_SECTIONS } from '../../constants/adminMenu';
+import { TAB_RETURN_EVENT } from '../../constants/browserEvents';
 import { toLocalDateString } from '../../utils/formatters';
 import { useStages, useCreateStage, useUpdateStage, useDeleteStage, type StageWithStats, type StageRow } from '../../hooks/useStages';
 import StageFormModal from '../../components/admin/StageFormModal';
 import StageGalleryModal from '../../components/admin/StageGalleryModal';
 import StageReviewsModal from '../../components/admin/StageReviewsModal';
-
-const TAB_RETURN_EVENT = 'tab-returned-from-idle';
 
 const StageManager = () => {
     const { signOut, isAdmin } = useAuth();

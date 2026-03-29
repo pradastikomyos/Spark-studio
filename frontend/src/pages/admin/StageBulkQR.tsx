@@ -2,11 +2,10 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import AdminLayout from '../../components/AdminLayout';
 import { ADMIN_MENU_ITEMS, ADMIN_MENU_SECTIONS } from '../../constants/adminMenu';
+import { TAB_RETURN_EVENT } from '../../constants/browserEvents';
 import TableRowSkeleton from '../../components/skeletons/TableRowSkeleton';
 import { useToast } from '../../components/Toast';
 import { useStageQRCodes, type StageQRCode } from '../../hooks/useStageQRCodes';
-
-const TAB_RETURN_EVENT = 'tab-returned-from-idle';
 const EMPTY_STAGES: StageQRCode[] = [];
 
 const StageBulkQR = () => {

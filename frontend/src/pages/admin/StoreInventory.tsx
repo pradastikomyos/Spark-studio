@@ -7,6 +7,7 @@ import QRScannerModal from '../../components/admin/QRScannerModal';
 import TableRowSkeleton from '../../components/skeletons/TableRowSkeleton';
 import { useToast } from '../../components/Toast';
 import { ADMIN_MENU_ITEMS, ADMIN_MENU_SECTIONS } from '../../constants/adminMenu';
+import { TAB_RETURN_EVENT } from '../../constants/browserEvents';
 import { useAuth } from '../../contexts/AuthContext';
 import { useInventory, type ProductRow } from '../../hooks/useInventory';
 import { useSessionRefresh } from '../../hooks/useSessionRefresh';
@@ -19,8 +20,6 @@ import { mapInventoryProducts } from './store-inventory/inventoryProducts';
 import { useInventoryImageMetrics } from './store-inventory/useInventoryImageMetrics';
 import { useInventoryProductActions } from './store-inventory/useInventoryProductActions';
 import { useStoreInventoryFilters } from './store-inventory/useStoreInventoryFilters';
-
-const TAB_RETURN_EVENT = 'tab-returned-from-idle';
 const INVENTORY_PRODUCTS_PER_PAGE = 24;
 
 const StoreInventory = () => {

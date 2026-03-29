@@ -4,10 +4,9 @@ import { supabase } from '../../lib/supabase';
 import AdminLayout from '../../components/AdminLayout';
 import QRScannerModal from '../../components/admin/QRScannerModal';
 import { ADMIN_MENU_ITEMS, ADMIN_MENU_SECTIONS } from '../../constants/adminMenu';
+import { TAB_RETURN_EVENT } from '../../constants/browserEvents';
 import { createWIBDate, addMinutes, nowWIB, SESSION_DURATION_MINUTES, toLocalDateString } from '../../utils/timezone';
 import { withTimeout } from '../../utils/queryHelpers';
-
-const TAB_RETURN_EVENT = 'tab-returned-from-idle';
 const REQUEST_TIMEOUT_MS = 60000;
 
 const OrderTicket = () => {
