@@ -46,6 +46,7 @@ export interface CharmBarPageSettings {
   how_it_works_cta_label: string;
   how_it_works_cta_href: string;
   section_fonts: CharmBarSectionFonts;
+  best_seller_charms: number[];
 }
 
 export const DEFAULT_CHARM_BAR_PAGE_SETTINGS: CharmBarPageSettings = {
@@ -56,31 +57,31 @@ export const DEFAULT_CHARM_BAR_PAGE_SETTINGS: CharmBarPageSettings = {
       title: 'ITALIAN BRACELET',
       description: 'Choose your base bracelet in silver, gold, or rose gold.',
       image_url: `${CHARM_BAR_ASSET_BASE}/CHARM%20VISUAL%201.png`,
-      href: '/shop',
+      href: '/shop?category=charm&subcategory=italian-bracelet',
     },
     {
       title: 'BEST-SELLERS',
       description: 'Most-loved charm combinations from the current edit.',
       image_url: `${CHARM_BAR_ASSET_BASE}/CHARM%20VISUAL%203.png`,
-      href: '/shop',
+      href: '/shop?category=charm&subcategory=bestseller-group',
     },
     {
       title: "WHAT'S NEW",
       description: 'Fresh arrivals to build the latest bracelet stack.',
       image_url: `${CHARM_BAR_ASSET_BASE}/CHARM%20VISUAL%202.png`,
-      href: '/shop',
+      href: '/shop?category=charm&subcategory=newest-group',
     },
     {
       title: 'GOLDEN CHARMS',
       description: 'Warm metallic accents for a brighter custom look.',
       image_url: `${CHARM_BAR_ASSET_BASE}/CHARM%20VISUAL%203.png`,
-      href: '/shop',
+      href: '/shop?category=charm&subcategory=gold-group',
     },
     {
       title: 'SILVER CHARMS',
       description: 'Classic silver pieces for a cleaner charm story.',
       image_url: `${CHARM_BAR_ASSET_BASE}/CHARM%20VISUAL%202.png`,
-      href: '/shop',
+      href: '/shop?category=charm&subcategory=silver-group',
     },
   ],
   customize_title: 'CUSTOMIZE YOUR BRACELET',
@@ -129,6 +130,7 @@ export const DEFAULT_CHARM_BAR_PAGE_SETTINGS: CharmBarPageSettings = {
     video_gallery: { heading: 'cardo', body: 'nunito_sans' },
     how_it_works: { heading: 'cardo', body: 'nunito_sans' },
   },
+  best_seller_charms: [],
 };
 
 function normalizeQuickLinks(value: unknown): CharmBarQuickLink[] {
@@ -254,6 +256,9 @@ function normalizeSettings(data: Record<string, unknown>): CharmBarPageSettings 
         ? data.how_it_works_cta_href
         : DEFAULT_CHARM_BAR_PAGE_SETTINGS.how_it_works_cta_href,
     section_fonts: normalizeSectionFontMap(data.section_fonts, DEFAULT_CHARM_BAR_PAGE_SETTINGS.section_fonts),
+    best_seller_charms: Array.isArray(data.best_seller_charms)
+      ? data.best_seller_charms.map(Number).filter(n => !isNaN(n))
+      : [],
   };
 }
 

@@ -15,6 +15,7 @@ import {
 } from '../../hooks/useCharmBarSettings';
 import { slugify } from '../../utils/merchant';
 import CmsSectionFontFields from '../../components/admin/CmsSectionFontFields';
+import { useProducts, type Product } from '../../hooks/useProducts';
 
 type AssetKind = 'image' | 'video';
 
@@ -111,6 +112,27 @@ export default function CharmBarPageManager() {
   const [howItWorksCtaLabel, setHowItWorksCtaLabel] = useState(DEFAULT_CHARM_BAR_PAGE_SETTINGS.how_it_works_cta_label);
   const [howItWorksCtaHref, setHowItWorksCtaHref] = useState(DEFAULT_CHARM_BAR_PAGE_SETTINGS.how_it_works_cta_href);
   const [sectionFonts, setSectionFonts] = useState<CharmBarSectionFonts>(DEFAULT_CHARM_BAR_PAGE_SETTINGS.section_fonts);
+  const [bestSellerCharms, setBestSellerCharms] = useState<number[]>(DEFAULT_CHARM_BAR_PAGE_SETTINGS.best_seller_charms);
+  
+  const { data: products = [] } = useProducts();
+  const [productSearchQuery, setProductSearchQuery] = useState('');
+
+  // Selected products to display as chips
+  const selectedProducts = products.filter(p => bestSellerCharms.includes(p.id));
+  
+  // Available products to add (filtered by search, excluding already selected, showing up to 10)
+  const availableProducts = products
+    .filter(p => !bestSellerCharms.includes(p.id))
+    .filter(p => p.name.toLowerCase().includes(productSearchQuery.toLowerCase()))
+    .slice(0, 10);
+
+  const toggleBestSeller = (productId: number) => {
+    setBestSellerCharms(curr => 
+      curr.includes(productId) 
+        ? curr.filter(id => id !== productId)
+        : [...curr, productId]
+    );
+  };
 
   useEffect(() => {
     const next = settings ?? DEFAULT_CHARM_BAR_PAGE_SETTINGS;
@@ -127,6 +149,7 @@ export default function CharmBarPageManager() {
     setHowItWorksCtaLabel(next.how_it_works_cta_label);
     setHowItWorksCtaHref(next.how_it_works_cta_href);
     setSectionFonts(next.section_fonts);
+    setBestSellerCharms(next.best_seller_charms);
   }, [settings]);
 
   const handleUploadAsset = useCallback(
@@ -184,6 +207,7 @@ export default function CharmBarPageManager() {
       how_it_works_cta_label: howItWorksCtaLabel,
       how_it_works_cta_href: howItWorksCtaHref,
       section_fonts: sectionFonts,
+      best_seller_charms: bestSellerCharms,
     };
 
     try {
@@ -524,6 +548,86 @@ export default function CharmBarPageManager() {
                 </div>
               </div>
             ))}
+          </div>
+        </section>
+
+        <section className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
+          <div className="border-b border-gray-100 pb-3">
+            <h2 className="text-xl font-semibold text-gray-900">Best Seller Charms</h2>
+            <p className="mt-1 text-sm text-gray-500">Pick up to 10 charms to automatically display in the "Best Seller" subcategory tab on the Shop page.</p>
+          </div>
+
+          <div className="mt-6">
+            <div className="mb-4">
+              <label className="mb-2 block text-xs font-bold uppercase tracking-widest text-gray-500">Search Product</label>
+              <input
+                type="text"
+                value={productSearchQuery}
+                onChange={(event) => setProductSearchQuery(event.target.value)}
+                placeholder="Search charm by name..."
+                className="w-full rounded-xl border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm focus:border-black focus:outline-none"
+              />
+              
+              {productSearchQuery && availableProducts.length > 0 && (
+                <div className="mt-2 rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden z-20">
+                  {availableProducts.map((p: Product) => (
+                    <button
+                      key={p.id}
+                      type="button"
+                      onClick={() => {
+                        toggleBestSeller(p.id);
+                        setProductSearchQuery('');
+                      }}
+                      className="w-full text-left px-4 py-2 hover:bg-gray-50 text-sm border-b border-gray-50 last:border-none flex items-center justify-between"
+                    >
+                      <span className="font-medium text-gray-900 line-clamp-1">{p.name}</span>
+                      <span className="material-symbols-outlined text-[16px] text-[#ff4b86]">add_circle</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+              {productSearchQuery && availableProducts.length === 0 && (
+                <div className="mt-2 rounded-xl border border-gray-200 bg-white shadow-sm p-4 text-center text-sm text-gray-500">
+                  No products found. (Already added or doesn't exist)
+                </div>
+              )}
+            </div>
+
+            <div className="space-y-3">
+              <label className="block text-xs font-bold uppercase tracking-widest text-gray-500">
+                Selected Best Sellers ({bestSellerCharms.length}/10)
+              </label>
+              
+              {selectedProducts.length === 0 ? (
+                <div className="p-4 rounded-xl border border-dashed border-gray-300 bg-gray-50 text-center text-sm text-gray-500">
+                  No products selected for Best Seller.
+                </div>
+              ) : (
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  {selectedProducts.map((p: Product) => (
+                    <div key={p.id} className="flex items-center gap-3 p-3 rounded-xl border border-gray-200 bg-white shadow-sm pr-4">
+                      {p.image ? (
+                        <img src={p.image} alt={p.name} className="w-12 h-12 rounded-lg object-cover bg-gray-100" />
+                      ) : (
+                        <div className="w-12 h-12 rounded-lg bg-gray-100 flex items-center justify-center">
+                          <span className="material-symbols-outlined text-gray-300 text-xl">{p.placeholder || 'image'}</span>
+                        </div>
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-gray-900 truncate">{p.name}</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => toggleBestSeller(p.id)}
+                        className="w-8 h-8 rounded-full border border-red-200 text-red-600 hover:bg-red-50 flex items-center justify-center shrink-0 transition-colors"
+                      >
+                        <span className="material-symbols-outlined text-[18px]">close</span>
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         </section>
 

@@ -8,6 +8,7 @@ import { useProducts, type Product } from '../hooks/useProducts';
 import { useCategories } from '../hooks/useCategories';
 import { useBanners } from '../hooks/useBanners';
 import { fetchProductDetail } from '../hooks/useProduct';
+import { useCharmBarSettings } from '../hooks/useCharmBarSettings';
 import { useToast } from '../components/Toast';
 import { PageTransition } from '../components/PageTransition';
 import ProductCardSkeleton from '../components/skeletons/ProductCardSkeleton';
@@ -194,8 +195,9 @@ const Shop = () => {
   const { data: products = [], error: productsError, isLoading: productsLoading, refetch: refetchProducts } = useProducts();
   const { data: categories = [], error: categoriesError, isLoading: categoriesLoading, refetch: refetchCategories } = useCategories();
   const { data: shopBanners = [] } = useBanners('shop');
+  const { settings: charmBarSettings, isLoading: charmBarLoading } = useCharmBarSettings();
 
-  const loading = (productsLoading || categoriesLoading) && products.length === 0;
+  const loading = (productsLoading || categoriesLoading || charmBarLoading) && products.length === 0;
   const error = productsError || categoriesError;
 
   useEffect(() => {
@@ -262,6 +264,19 @@ const Shop = () => {
       } else if (activeCategory === 'charm' && activeSubcategory === 'silver-group') {
         const silverSlugs = new Set(['silver-charm-pendant', 'silver-charm-welded']);
         currentProducts = products.filter((p) => p.categorySlug && silverSlugs.has(p.categorySlug));
+      } else if (activeCategory === 'charm' && activeSubcategory === 'newest-group') {
+        const charmSlugs = allowedSlugMap.get('charm');
+        if (charmSlugs) {
+          currentProducts = [...products]
+            .filter((p) => p.categorySlug && charmSlugs.has(p.categorySlug))
+            .sort((a, b) => b.id - a.id)
+            .slice(0, 10);
+        } else {
+          currentProducts = [];
+        }
+      } else if (activeCategory === 'charm' && activeSubcategory === 'bestseller-group') {
+        const bestSellerIds = new Set(charmBarSettings?.best_seller_charms || []);
+        currentProducts = products.filter((p) => bestSellerIds.has(p.id));
       } else {
         let activeNode = activeCategory;
         if (activeSubcategory !== 'all') {
@@ -309,7 +324,7 @@ const Shop = () => {
     }
 
     return currentProducts;
-  }, [products, activeCategory, activeSubcategory, activeSubSubcategory, allowedSlugMap, deferredSearchQuery]);
+  }, [products, activeCategory, activeSubcategory, activeSubSubcategory, allowedSlugMap, deferredSearchQuery, charmBarSettings]);
 
   const activeSubcategories = useMemo(() => {
     if (activeCategory === 'all') return [];
@@ -488,6 +503,38 @@ const Shop = () => {
                     ))}
                     {activeCategory === 'charm' && (
                       <>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            updateFilters({
+                              subcategory: 'newest-group',
+                              subsubcategory: null,
+                            });
+                          }}
+                          className={`px-5 py-2 rounded-full text-xs font-semibold whitespace-nowrap border ux-transition-color ${
+                            activeSubcategory === 'newest-group'
+                              ? 'bg-[#ff4b86] text-white border-[#ff4b86] shadow-sm'
+                              : 'bg-white text-gray-500 border-gray-200 hover:border-[#ff4b86] hover:text-[#ff4b86]'
+                          }`}
+                        >
+                          Newest Charm
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            updateFilters({
+                              subcategory: 'bestseller-group',
+                              subsubcategory: null,
+                            });
+                          }}
+                          className={`px-5 py-2 rounded-full text-xs font-semibold whitespace-nowrap border ux-transition-color ${
+                            activeSubcategory === 'bestseller-group'
+                              ? 'bg-[#ff4b86] text-white border-[#ff4b86] shadow-sm'
+                              : 'bg-white text-gray-500 border-gray-200 hover:border-[#ff4b86] hover:text-[#ff4b86]'
+                          }`}
+                        >
+                          Best Seller
+                        </button>
                         <button
                           type="button"
                           onClick={() => {
