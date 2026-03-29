@@ -256,19 +256,27 @@ const Shop = () => {
     let currentProducts = products;
 
     if (activeCategory !== 'all') {
-      let activeNode = activeCategory;
-      if (activeSubcategory !== 'all') {
-        activeNode = activeSubcategory;
-        if (activeSubSubcategory !== 'all') {
-          activeNode = activeSubSubcategory;
-        }
-      }
-
-      const allowedSlugs = allowedSlugMap.get(activeNode);
-      if (allowedSlugs) {
-        currentProducts = products.filter((p) => p.categorySlug && allowedSlugs.has(p.categorySlug));
+      if (activeCategory === 'charm' && activeSubcategory === 'gold-group') {
+        const goldSlugs = new Set(['golden-charm-pendant', 'golden-charm-welded']);
+        currentProducts = products.filter((p) => p.categorySlug && goldSlugs.has(p.categorySlug));
+      } else if (activeCategory === 'charm' && activeSubcategory === 'silver-group') {
+        const silverSlugs = new Set(['silver-charm-pendant', 'silver-charm-welded']);
+        currentProducts = products.filter((p) => p.categorySlug && silverSlugs.has(p.categorySlug));
       } else {
-        currentProducts = products.filter((p) => p.categorySlug === activeNode);
+        let activeNode = activeCategory;
+        if (activeSubcategory !== 'all') {
+          activeNode = activeSubcategory;
+          if (activeSubSubcategory !== 'all') {
+            activeNode = activeSubSubcategory;
+          }
+        }
+
+        const allowedSlugs = allowedSlugMap.get(activeNode);
+        if (allowedSlugs) {
+          currentProducts = products.filter((p) => p.categorySlug && allowedSlugs.has(p.categorySlug));
+        } else {
+          currentProducts = products.filter((p) => p.categorySlug === activeNode);
+        }
       }
     }
 
@@ -478,6 +486,42 @@ const Shop = () => {
                         {subcategory.name}
                       </button>
                     ))}
+                    {activeCategory === 'charm' && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            updateFilters({
+                              subcategory: 'gold-group',
+                              subsubcategory: null,
+                            });
+                          }}
+                          className={`px-5 py-2 rounded-full text-xs font-semibold whitespace-nowrap border ux-transition-color ${
+                            activeSubcategory === 'gold-group'
+                              ? 'bg-[#ff4b86] text-white border-[#ff4b86] shadow-sm'
+                              : 'bg-white text-gray-500 border-gray-200 hover:border-[#ff4b86] hover:text-[#ff4b86]'
+                          }`}
+                        >
+                          Gold
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            updateFilters({
+                              subcategory: 'silver-group',
+                              subsubcategory: null,
+                            });
+                          }}
+                          className={`px-5 py-2 rounded-full text-xs font-semibold whitespace-nowrap border ux-transition-color ${
+                            activeSubcategory === 'silver-group'
+                              ? 'bg-[#ff4b86] text-white border-[#ff4b86] shadow-sm'
+                              : 'bg-white text-gray-500 border-gray-200 hover:border-[#ff4b86] hover:text-[#ff4b86]'
+                          }`}
+                        >
+                          Silver
+                        </button>
+                      </>
+                    )}
                   </div>
                 </div>
               ) : null}
