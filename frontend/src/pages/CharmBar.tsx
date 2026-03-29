@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowRight } from 'lucide-react';
 import { PageTransition } from '../components/PageTransition';
@@ -7,9 +7,17 @@ import { getCmsFontStyle } from '../lib/cmsTypography';
 
 export default function CharmBar() {
   const { settings } = useCharmBarSettings();
+  const [activeImageIndex, setActiveImageIndex] = useState(0);
 
   useEffect(() => {
     window.scrollTo(0, 0);
+  }, []);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setActiveImageIndex((prev) => prev + 1);
+    }, 1500);
+    return () => clearInterval(interval);
   }, []);
 
   const content = settings ?? DEFAULT_CHARM_BAR_PAGE_SETTINGS;
@@ -41,12 +49,23 @@ export default function CharmBar() {
                 to={item.href || '/shop'}
                 className="group text-center"
               >
-                <div className="mx-auto mb-2 aspect-square w-full max-w-[150px] overflow-hidden rounded-[20%] border border-black/10 bg-white shadow-sm transition-transform duration-300 group-hover:-translate-y-1 lg:mb-4 lg:rounded-[1.75rem] lg:shadow-[0_16px_40px_rgba(0,0,0,0.07)]">
-                  <img
-                    src={item.image_url}
-                    alt={item.title}
-                    className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
-                  />
+                <div className="mx-auto mb-2 relative aspect-square w-full max-w-[150px] overflow-hidden rounded-[20%] border border-black/10 bg-white shadow-sm transition-transform duration-300 group-hover:-translate-y-1 lg:mb-4 lg:rounded-[1.75rem] lg:shadow-[0_16px_40px_rgba(0,0,0,0.07)]">
+                  {(() => {
+                    const images = item.image_urls?.length ? item.image_urls : [item.image_url];
+                    return images.map((img, idx) => {
+                      const isActive = idx === (activeImageIndex % images.length);
+                      return (
+                        <img
+                          key={idx}
+                          src={img || item.image_url} // fallback in case of empty string
+                          alt={`${item.title} ${idx + 1}`}
+                          className={`absolute inset-0 h-full w-full object-cover transition-all duration-700 ease-in-out group-hover:scale-105 ${
+                            isActive ? 'opacity-100 z-10' : 'opacity-0 z-0'
+                          }`}
+                        />
+                      );
+                    });
+                  })()}
                 </div>
                 <p
                   className="text-[8px] font-bold uppercase leading-tight tracking-[0.05em] underline decoration-black/60 decoration-1 underline-offset-[2px] sm:text-[10px] lg:text-[13px] lg:leading-normal lg:tracking-[0.12em] lg:underline-offset-[5px]"

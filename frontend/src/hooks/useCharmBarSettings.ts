@@ -15,6 +15,7 @@ export interface CharmBarQuickLink {
   title: string;
   description: string;
   image_url: string;
+  image_urls: string[];
   href: string;
 }
 
@@ -57,30 +58,35 @@ export const DEFAULT_CHARM_BAR_PAGE_SETTINGS: CharmBarPageSettings = {
       title: 'ITALIAN BRACELET',
       description: 'Choose your base bracelet in silver, gold, or rose gold.',
       image_url: `${CHARM_BAR_ASSET_BASE}/CHARM%20VISUAL%201.png`,
+      image_urls: [`${CHARM_BAR_ASSET_BASE}/CHARM%20VISUAL%201.png`],
       href: '/shop?category=charm&subcategory=italian-bracelet',
     },
     {
       title: 'BEST-SELLERS',
       description: 'Most-loved charm combinations from the current edit.',
       image_url: `${CHARM_BAR_ASSET_BASE}/CHARM%20VISUAL%203.png`,
+      image_urls: [`${CHARM_BAR_ASSET_BASE}/CHARM%20VISUAL%203.png`],
       href: '/shop?category=charm&subcategory=bestseller-group',
     },
     {
       title: "WHAT'S NEW",
       description: 'Fresh arrivals to build the latest bracelet stack.',
       image_url: `${CHARM_BAR_ASSET_BASE}/CHARM%20VISUAL%202.png`,
+      image_urls: [`${CHARM_BAR_ASSET_BASE}/CHARM%20VISUAL%202.png`],
       href: '/shop?category=charm&subcategory=newest-group',
     },
     {
       title: 'GOLDEN CHARMS',
       description: 'Warm metallic accents for a brighter custom look.',
       image_url: `${CHARM_BAR_ASSET_BASE}/CHARM%20VISUAL%203.png`,
+      image_urls: [`${CHARM_BAR_ASSET_BASE}/CHARM%20VISUAL%203.png`],
       href: '/shop?category=charm&subcategory=gold-group',
     },
     {
       title: 'SILVER CHARMS',
       description: 'Classic silver pieces for a cleaner charm story.',
       image_url: `${CHARM_BAR_ASSET_BASE}/CHARM%20VISUAL%202.png`,
+      image_urls: [`${CHARM_BAR_ASSET_BASE}/CHARM%20VISUAL%202.png`],
       href: '/shop?category=charm&subcategory=silver-group',
     },
   ],
@@ -143,13 +149,17 @@ function normalizeQuickLinks(value: unknown): CharmBarQuickLink[] {
       const title = typeof record.title === 'string' ? record.title : '';
       const description = typeof record.description === 'string' ? record.description : '';
       const imageUrl = typeof record.image_url === 'string' ? record.image_url : '';
+      const imageUrls = Array.isArray(record.image_urls)
+        ? record.image_urls.filter((u): u is string => typeof u === 'string').filter(u => u.trim() !== '')
+        : (imageUrl ? [imageUrl] : []);
       const href = typeof record.href === 'string' ? record.href : '/shop';
 
       if (!title.trim()) return null;
       return {
         title,
         description,
-        image_url: imageUrl,
+        image_url: imageUrls[0] || imageUrl || '',
+        image_urls: imageUrls.slice(0, 3), // max 3 images
         href,
       };
     })

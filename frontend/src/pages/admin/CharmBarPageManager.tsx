@@ -220,7 +220,7 @@ export default function CharmBarPageManager() {
     }
   };
 
-  const updateQuickLink = (index: number, field: keyof CharmBarQuickLink, value: string) => {
+  const updateQuickLink = <K extends keyof CharmBarQuickLink>(index: number, field: K, value: CharmBarQuickLink[K]) => {
     setQuickLinks((current) =>
       current.map((item, itemIndex) => (itemIndex === index ? { ...item, [field]: value } : item))
     );
@@ -295,7 +295,7 @@ export default function CharmBarPageManager() {
               onClick={() =>
                 setQuickLinks((current) => [
                   ...current,
-                  { title: 'NEW LINK', description: '', image_url: '', href: '/shop' },
+                  { title: 'NEW LINK', description: '', image_url: '', image_urls: [], href: '/shop' },
                 ])
               }
               className="rounded-full border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
@@ -356,15 +356,38 @@ export default function CharmBarPageManager() {
                     />
                   </div>
 
-                  <AssetField
-                    label="Card image"
-                    value={item.image_url}
-                    kind="image"
-                    onChange={(value) => updateQuickLink(index, 'image_url', value)}
-                    onUpload={(file) =>
-                      void handleUploadAsset(file, (url) => updateQuickLink(index, 'image_url', url), `charm-bar-link-${index + 1}`, 'image')
-                    }
-                  />
+                  <div>
+                    <label className="mb-2 block text-xs font-bold uppercase tracking-widest text-gray-500">Images (Card loops up to 3 images)</label>
+                    <div className="flex flex-col gap-4">
+                      {[0, 1, 2].map((imgIndex) => (
+                        <AssetField
+                          key={imgIndex}
+                          label={`Image ${imgIndex + 1}`}
+                          value={item.image_urls?.[imgIndex] || (imgIndex === 0 ? item.image_url : '') || ''}
+                          kind="image"
+                          onChange={(value) => {
+                            const newUrls = [...(item.image_urls || [item.image_url])];
+                            newUrls[imgIndex] = value;
+                            updateQuickLink(index, 'image_urls', newUrls);
+                            if (imgIndex === 0) updateQuickLink(index, 'image_url', value);
+                          }}
+                          onUpload={(file) =>
+                            void handleUploadAsset(
+                              file,
+                              (url) => {
+                                const newUrls = [...(item.image_urls || [item.image_url])];
+                                newUrls[imgIndex] = url;
+                                updateQuickLink(index, 'image_urls', newUrls as any);
+                                if (imgIndex === 0) updateQuickLink(index, 'image_url', url as any);
+                              },
+                              `charm-bar-link-${index + 1}-img${imgIndex + 1}`,
+                              'image'
+                            )
+                          }
+                        />
+                      ))}
+                    </div>
+                  </div>
                 </div>
               </div>
             ))}
