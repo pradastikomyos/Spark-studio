@@ -1,3 +1,6 @@
+-- Historical note: this migration name was reused later by
+-- 20260326190000_add_inventory_page_and_stage_analytics_summary.sql.
+-- Keep both files for ordering history; do not rename the earlier file.
 CREATE OR REPLACE FUNCTION public.list_inventory_product_page(
   p_search_query TEXT DEFAULT '',
   p_category_slug TEXT DEFAULT '',

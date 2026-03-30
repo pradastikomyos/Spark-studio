@@ -5,13 +5,10 @@ import { createServiceClient } from '../_shared/supabase.ts'
 import { generateSignature } from '../_shared/midtrans.ts'
 import { mapMidtransStatus } from '../_shared/tickets.ts'
 import {
-  ensureProductPaidSideEffects,
-  issueTicketsIfNeeded,
-  logWebhookEvent,
-  releaseProductReservedStockIfNeeded,
-  releaseTicketCapacityIfNeeded,
-  toNumber,
-} from '../_shared/payment-effects.ts'
+  processProductOrderTransition,
+  processTicketOrderTransition,
+} from '../_shared/payment-processors.ts'
+import { logWebhookEvent } from '../_shared/payment-effects.ts'
 
 serve(async (req) => {
   const corsResponse = handleCors(req, { allowAllOrigins: true })
@@ -175,165 +172,41 @@ serve(async (req) => {
 
     const { data: productOrder } = await supabase
       .from('order_products')
-      .select('id, user_id, status, payment_status, pickup_code, pickup_status, pickup_expires_at, total, stock_released_at, voucher_id, voucher_code, discount_amount')
+      .select('id, user_id, order_number, status, payment_status, pickup_code, pickup_status, pickup_expires_at, total, stock_released_at, voucher_id, voucher_code, discount_amount')
       .eq('order_number', orderId)
       .single()
 
     if (productOrder) {
-      const currentPaymentStatus = String((productOrder as { payment_status?: string }).payment_status || '').toLowerCase()
-      const currentStatus = String((productOrder as { status?: string }).status || '').toLowerCase()
-      const currentPickupStatus = String((productOrder as { pickup_status?: string | null }).pickup_status || '').toLowerCase()
-      const voucherId = (productOrder as { voucher_id?: string | null }).voucher_id ?? null
-      const voucherCode = (productOrder as { voucher_code?: string | null }).voucher_code ?? null
-      const voucherUserId = (productOrder as { user_id?: string | null }).user_id ?? null
-      const voucherDiscountAmount = toNumber((productOrder as { discount_amount?: unknown }).discount_amount, 0)
-
-      const paymentStatus =
-        newStatus === 'paid'
-          ? 'paid'
-          : newStatus === 'refunded'
-            ? 'refunded'
-            : newStatus === 'failed' || newStatus === 'expired'
-              ? 'failed'
-              : 'unpaid'
-
-      const status =
-        newStatus === 'paid'
-          ? 'processing'
-          : newStatus === 'expired'
-            ? 'expired'
-            : newStatus === 'failed'
-              ? 'cancelled'
-              : currentStatus || 'awaiting_payment'
-
-      if (newStatus === 'paid' && (currentPaymentStatus !== 'paid' || !productOrder.pickup_code)) {
-        await ensureProductPaidSideEffects({
-          supabase,
-          order: productOrder as unknown as {
-            id: number
-            order_number: string
-            status?: string | null
-            payment_status?: string | null
-            total?: unknown
-            pickup_code?: string | null
-            pickup_status?: string | null
-            pickup_expires_at?: string | null
-            stock_released_at?: string | null
-          },
-          nowIso,
-          grossAmount,
-          defaultStatus: status,
-          shouldSetPaidAt: true,
-        })
-      } else {
-        const updateFields: Record<string, unknown> = {
-          status,
-          payment_status: paymentStatus,
-          updated_at: nowIso,
-        }
-        if (newStatus === 'expired') updateFields.expired_at = nowIso
-
-        await supabase
-          .from('order_products')
-          .update(updateFields)
-          .eq('id', (productOrder as { id: number }).id)
-      }
-
-      if (newStatus === 'paid' && voucherId && voucherUserId) {
-        const { error: voucherUsageError } = await supabase
-          .from('voucher_usage')
-          .upsert(
-            {
-              voucher_id: voucherId,
-              user_id: voucherUserId,
-              order_product_id: (productOrder as { id: number }).id,
-              discount_amount: voucherDiscountAmount,
-              used_at: nowIso,
-            },
-            { onConflict: 'order_product_id' }
-          )
-
-        if (voucherUsageError) {
-          await logWebhookEvent(supabase, {
-            orderNumber: orderId,
-            eventType: 'voucher_usage_create_failed',
-            payload: { voucher_id: voucherId, voucher_code: voucherCode, error: voucherUsageError.message },
-            success: false,
-            errorMessage: voucherUsageError.message,
-            processedAt: nowIso,
-          })
-        }
-      }
-
-      const shouldReleaseVoucherQuota =
-        (newStatus === 'expired' || newStatus === 'failed') && currentPaymentStatus !== 'paid'
-
-      if (shouldReleaseVoucherQuota && voucherId) {
-        const { data: released, error: releaseError } = await supabase.rpc('release_voucher_quota', {
-          p_voucher_id: voucherId,
-        })
-        await logWebhookEvent(supabase, {
-          orderNumber: orderId,
-          eventType: 'voucher_quota_released',
-          payload: {
-            voucher_id: voucherId,
-            voucher_code: voucherCode,
-            result: released,
-            status: newStatus,
-            error: releaseError?.message,
-          },
-          success: !releaseError,
-          errorMessage: releaseError?.message ?? null,
-          processedAt: nowIso,
-        })
-      }
-
-      const shouldReleaseReserve =
-        (newStatus === 'expired' || newStatus === 'failed' || newStatus === 'refunded') &&
-        currentPaymentStatus !== 'paid' &&
-        currentStatus !== 'cancelled' &&
-        currentStatus !== 'expired' &&
-        currentPickupStatus !== 'completed'
-
-      if (shouldReleaseReserve) {
-        try {
-          await releaseProductReservedStockIfNeeded({
-            supabase,
-            order: productOrder as unknown as {
-              id: number
-              order_number: string
-              status?: string | null
-              payment_status?: string | null
-              total?: unknown
-              pickup_code?: string | null
-              pickup_status?: string | null
-              pickup_expires_at?: string | null
-              stock_released_at?: string | null
-            },
-            nowIso,
-          })
-        } catch (error) {
-          const message = error instanceof Error ? error.message : 'Failed to release reserved stock'
-          await logWebhookEvent(supabase, {
-            orderNumber: orderId,
-            eventType: 'stock_release_failed',
-            payload: { error: message },
-            success: false,
-            errorMessage: message,
-            processedAt: nowIso,
-          })
-          await supabase
-            .from('order_products')
-            .update({ status: 'requires_review', pickup_status: 'pending_review', updated_at: nowIso })
-            .eq('id', (productOrder as { id: number }).id)
-        }
-      }
+      const result = await processProductOrderTransition({
+        supabase,
+        order: productOrder as {
+          id: number
+          user_id?: string | null
+          order_number: string
+          status?: string | null
+          payment_status?: string | null
+          pickup_code?: string | null
+          pickup_status?: string | null
+          pickup_expires_at?: string | null
+          total?: unknown
+          stock_released_at?: string | null
+          voucher_id?: string | null
+          voucher_code?: string | null
+          discount_amount?: unknown
+        },
+        nextStatus: newStatus,
+        paymentData: notification,
+        grossAmount,
+        nowIso,
+        shouldSetPaidAt: true,
+      })
 
       await logWebhookEvent(supabase, {
         orderNumber: orderId,
         eventType: 'product_order_processed',
         payload: notification,
-        success: true,
+        success: !result.updateError && !result.effectError,
+        errorMessage: result.updateError ?? result.effectError,
         processedAt: nowIso,
       })
 
@@ -341,7 +214,8 @@ serve(async (req) => {
         orderNumber: orderId,
         eventType: idempotencyEventType,
         payload: notification,
-        success: true,
+        success: !result.updateError && !result.effectError,
+        errorMessage: result.updateError ?? result.effectError,
         processedAt: nowIso,
       })
 
@@ -372,84 +246,37 @@ serve(async (req) => {
       })
     }
 
-    const previousOrderStatus = String((order as { status?: unknown }).status || '').toLowerCase()
-
-    const { error: updateError } = await supabase
-      .from('orders')
-      .update({
-        status: newStatus,
-        payment_data: notification,
-        updated_at: nowIso,
-      })
-      .eq('id', order.id)
-
-    if (updateError) {
-      console.error('Failed to update order:', updateError)
-    }
-
-    const shouldReleaseCapacity =
-      (newStatus === 'expired' || newStatus === 'failed' || newStatus === 'refunded') && previousOrderStatus !== 'paid'
-    if (shouldReleaseCapacity) {
-      const orderItemsRows = (order as { order_items?: unknown }).order_items
-      if (Array.isArray(orderItemsRows)) {
-        await releaseTicketCapacityIfNeeded({
-          supabase,
-          order: order as unknown as {
+    const orderItemsRows = (order as { order_items?: unknown }).order_items
+    const result = await processTicketOrderTransition({
+      supabase,
+      order: order as {
+        id: number
+        order_number: string
+        user_id: string | null
+        status?: string | null
+        tickets_issued_at?: string | null
+        capacity_released_at?: string | null
+      },
+      nextStatus: newStatus,
+      paymentData: notification,
+      orderItems: Array.isArray(orderItemsRows)
+        ? (orderItemsRows as Array<{
             id: number
-            order_number: string
-            user_id: string | null
-            status?: string | null
-            tickets_issued_at?: string | null
-            capacity_released_at?: string | null
-          },
-          orderItems: orderItemsRows as Array<{ id: number; ticket_id: number; selected_date: string; selected_time_slots: unknown; quantity: number }>,
-          nowIso,
-        })
-      }
-    }
-
-    if (newStatus === 'paid') {
-      const { data: orderItems, error: itemsError } = await supabase.from('order_items').select('*').eq('order_id', order.id)
-
-      if (!itemsError && Array.isArray(orderItems)) {
-        try {
-          await issueTicketsIfNeeded({
-            supabase,
-            order: order as unknown as {
-              id: number
-              order_number: string
-              user_id: string | null
-              status?: string | null
-              tickets_issued_at?: string | null
-              capacity_released_at?: string | null
-            },
-            orderItems: orderItems as Array<{ id: number; ticket_id: number; selected_date: string; selected_time_slots: unknown; quantity: number }>,
-            nowIso,
-          })
-        } catch (error) {
-          const message = error instanceof Error ? error.message : 'Failed to issue tickets'
-          await logWebhookEvent(supabase, {
-            orderNumber: orderId,
-            eventType: 'ticket_issue_failed',
-            payload: { error: message },
-            success: false,
-            errorMessage: message,
-            processedAt: nowIso,
-          })
-          await supabase
-            .from('orders')
-            .update({ status: 'requires_review', updated_at: nowIso })
-            .eq('id', order.id)
-        }
-      }
-    }
+            ticket_id: number
+            selected_date: string
+            selected_time_slots: unknown
+            quantity: number
+          }>)
+        : undefined,
+      nowIso,
+    })
 
     await logWebhookEvent(supabase, {
       orderNumber: orderId,
       eventType: 'ticket_order_processed',
       payload: notification,
-      success: !updateError,
-      errorMessage: updateError?.message ?? null,
+      success: !result.updateError && !result.effectError,
+      errorMessage: result.updateError ?? result.effectError,
       processedAt: nowIso,
     })
 
@@ -457,8 +284,8 @@ serve(async (req) => {
       orderNumber: orderId,
       eventType: idempotencyEventType,
       payload: notification,
-      success: !updateError,
-      errorMessage: updateError?.message ?? null,
+      success: !result.updateError && !result.effectError,
+      errorMessage: result.updateError ?? result.effectError,
       processedAt: nowIso,
     })
 

@@ -51,6 +51,10 @@ vi.mock('../../hooks/useGlamPageSettings', () => ({
 }));
 
 vi.mock('../../hooks/useProducts', () => ({
+  useProductPickerOptions: () => ({
+    data: [],
+    isLoading: false,
+  }),
   useProducts: () => ({
     data: [],
     isLoading: false,

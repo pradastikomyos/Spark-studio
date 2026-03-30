@@ -104,10 +104,10 @@ type ExtendedDatabase = Database & {
   }
 }
 
-type TicketOrder = ExtendedDatabase['public']['Tables']['orders']['Row']
-type TicketOrderItem = ExtendedDatabase['public']['Tables']['order_items']['Row']
-type ProductOrder = ExtendedDatabase['public']['Tables']['order_products']['Row']
-type ProductOrderItem = ExtendedDatabase['public']['Tables']['order_product_items']['Row']
+export type TicketOrder = ExtendedDatabase['public']['Tables']['orders']['Row']
+export type TicketOrderItem = ExtendedDatabase['public']['Tables']['order_items']['Row']
+export type ProductOrder = ExtendedDatabase['public']['Tables']['order_products']['Row']
+export type ProductOrderItem = ExtendedDatabase['public']['Tables']['order_product_items']['Row']
 
 export function toNumber(value: unknown, fallback: number) {
   if (typeof value === 'number') return Number.isFinite(value) ? value : fallback

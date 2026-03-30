@@ -55,6 +55,8 @@ export type UseInventoryParams = {
 export type InventoryDiagnostics = {
   fetchMs: number;
   fullScan: boolean;
+  source: 'rpc' | 'fallback-live' | 'fallback-cache';
+  warning: string | null;
 };
 
 export type InventoryQueryData = {
@@ -69,6 +71,8 @@ type InventoryProductFetchResult = {
   error: unknown;
   count: number | null;
   fullScan: boolean;
+  source: InventoryDiagnostics['source'];
+  warning: string | null;
 };
 
 type InventoryPageRow = {
@@ -76,7 +80,14 @@ type InventoryPageRow = {
   total_count: number | string | null;
 };
 
+type InventoryFallbackCacheEntry = {
+  filteredRows: ProductRow[];
+  totalCount: number;
+};
+
 const INVENTORY_FULL_SCAN_PAGE_SIZE = 500;
+const INVENTORY_FULL_SCAN_WARNING =
+  'Stock filter fallback is using a full product scan because the inventory RPC failed.';
 const INVENTORY_PRODUCTS_SELECT = `
   id,
   name,
@@ -105,6 +116,8 @@ type InventoryListFilters = {
   searchQuery: string;
   categoryFilter: string;
 };
+
+const inventoryFallbackCache = new Map<string, InventoryFallbackCacheEntry>();
 
 const normalizeSearchTerm = (searchQuery: string) =>
   searchQuery
@@ -179,6 +192,11 @@ const orderProductsByIds = (products: ProductRow[], productIds: number[]) => {
   });
 };
 
+const getFallbackCacheKey = (
+  filters: InventoryListFilters,
+  stockFilter: UseInventoryParams['stockFilter']
+) => `${normalizeSearchTerm(filters.searchQuery)}::${filters.categoryFilter.trim()}::${stockFilter}`;
+
 async function fetchAllInventoryProducts(
   signal: AbortSignal,
   filters: InventoryListFilters
@@ -231,6 +249,8 @@ async function fetchInventoryPage(
     error,
     count: count ?? 0,
     fullScan: false,
+    source: 'rpc',
+    warning: null,
   };
 }
 
@@ -273,6 +293,8 @@ async function fetchInventoryStockFilteredPage(
         error: null,
         count: totalCount,
         fullScan: false,
+        source: 'rpc',
+        warning: null,
       };
     }
 
@@ -294,8 +316,25 @@ async function fetchInventoryStockFilteredPage(
       error: null,
       count: totalCount,
       fullScan: false,
+      source: 'rpc',
+      warning: null,
     };
   } catch (error) {
+    const cacheKey = getFallbackCacheKey(filters, stockFilter);
+    const cachedEntry = inventoryFallbackCache.get(cacheKey);
+    if (cachedEntry) {
+      const start = Math.max(0, (safePage - 1) * safePageSize);
+
+      return {
+        data: cachedEntry.filteredRows.slice(start, start + safePageSize),
+        error: null,
+        count: cachedEntry.totalCount,
+        fullScan: true,
+        source: 'fallback-cache',
+        warning: INVENTORY_FULL_SCAN_WARNING,
+      };
+    }
+
     console.warn('Inventory stock filter RPC failed, falling back to client-side filtering:', error);
     const fallbackResult = await fetchAllInventoryProducts(signal, filters);
     if (fallbackResult.error) {
@@ -304,17 +343,25 @@ async function fetchInventoryStockFilteredPage(
         error: fallbackResult.error,
         count: 0,
         fullScan: true,
+        source: 'fallback-live',
+        warning: INVENTORY_FULL_SCAN_WARNING,
       };
     }
 
     const filteredByStock = ((fallbackResult.data || []) as ProductRow[]).filter((row) => matchesStockFilter(row, stockFilter));
     const start = Math.max(0, (safePage - 1) * safePageSize);
+    inventoryFallbackCache.set(cacheKey, {
+      filteredRows: filteredByStock,
+      totalCount: filteredByStock.length,
+    });
 
     return {
       data: filteredByStock.slice(start, start + safePageSize),
       error: null,
       count: filteredByStock.length,
       fullScan: true,
+      source: 'fallback-live',
+      warning: INVENTORY_FULL_SCAN_WARNING,
     };
   }
 }
@@ -376,6 +423,8 @@ export function useInventory(params: UseInventoryParams) {
           diagnostics: {
             fetchMs: Math.max(0, endedAt - startedAt),
             fullScan,
+            source: productsResult.source,
+            warning: productsResult.warning,
           },
         } satisfies InventoryQueryData;
       } catch (error) {
@@ -383,7 +432,12 @@ export function useInventory(params: UseInventoryParams) {
           throw new Error('Request timeout');
         }
         if (error instanceof Error && error.name === 'AbortError') {
-          return { products: [], categories: [], totalCount: 0, diagnostics: { fetchMs: 0, fullScan: false } };
+          return {
+            products: [],
+            categories: [],
+            totalCount: 0,
+            diagnostics: { fetchMs: 0, fullScan: false, source: 'rpc', warning: null },
+          };
         }
         throw error;
       } finally {

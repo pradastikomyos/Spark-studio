@@ -7,12 +7,16 @@ Source of truth for schema, RPC, and RLS is `supabase/migrations/`.
 - Do not leave production-only schema changes in the Supabase Dashboard without a matching migration file.
 - Every database change must end in a committed migration.
 - Use MCP, SQL editor, or CLI for debug and verification, but persist the final result in `supabase/migrations/`.
+- Migration filenames must be unique in both timestamp and descriptive suffix.
+- Before creating a migration, grep the folder for the intended suffix to avoid duplicate names.
+- If a migration is superseded or duplicated, keep history intact and add an explicit comment explaining the relationship instead of renaming old files.
 
 ## Normal Flow
 
 1. Make the schema, RPC, or RLS change in a safe environment.
 2. Generate a migration:
    - `supabase db diff -f <migration_name>`
+   - `ls supabase/migrations | grep <migration_name>` should be empty first
 3. Review the SQL.
 4. Apply it:
    - `supabase db push`

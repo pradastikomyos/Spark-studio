@@ -1,6 +1,5 @@
-import { useEffect, useState } from 'react';
-import { supabase } from '../lib/supabase';
 import { normalizeSectionFontMap, type SectionFontConfig } from '../lib/cmsTypography';
+import { useCmsSingletonSettings } from './useCmsSingletonSettings';
 
 const CHARM_BAR_ASSET_BASE = '/images/Charm%20Bar%20assets';
 
@@ -273,86 +272,10 @@ function normalizeSettings(data: Record<string, unknown>): CharmBarPageSettings 
 }
 
 export function useCharmBarSettings() {
-  const [settings, setSettings] = useState<CharmBarPageSettings | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<Error | null>(null);
-
-  const fetchSettings = async () => {
-    try {
-      setIsLoading(true);
-      setError(null);
-
-      const { data, error } = await supabase
-        .from('charm_bar_page_settings')
-        .select('*')
-        .order('updated_at', { ascending: false })
-        .limit(1)
-        .single();
-
-      if (error) {
-        if (error.code === 'PGRST116') {
-          setSettings(null);
-        } else {
-          throw error;
-        }
-      } else {
-        setSettings(normalizeSettings(data as Record<string, unknown>));
-      }
-    } catch (err: unknown) {
-      console.error('Error fetching charm bar page settings:', err);
-      setError(err instanceof Error ? err : new Error('Failed to fetch charm bar page settings'));
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    void fetchSettings();
-  }, []);
-
-  const updateSettings = async (updates: Partial<CharmBarPageSettings>) => {
-    try {
-      setIsLoading(true);
-      setError(null);
-
-      if (!settings?.id || settings.id === DEFAULT_CHARM_BAR_PAGE_SETTINGS.id) {
-        const { data: newData, error: insertError } = await supabase
-          .from('charm_bar_page_settings')
-          .insert([updates])
-          .select()
-          .single();
-
-        if (insertError) throw insertError;
-        const normalized = normalizeSettings(newData as Record<string, unknown>);
-        setSettings(normalized);
-        return normalized;
-      }
-
-      const { data, error } = await supabase
-        .from('charm_bar_page_settings')
-        .update(updates)
-        .eq('id', settings.id)
-        .select()
-        .single();
-
-      if (error) throw error;
-      const normalized = normalizeSettings(data as Record<string, unknown>);
-      setSettings(normalized);
-      return normalized;
-    } catch (err: unknown) {
-      console.error('Error updating charm bar page settings:', err);
-      setError(err instanceof Error ? err : new Error('Failed to update charm bar page settings'));
-      throw err;
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  return {
-    settings,
-    isLoading,
-    error,
-    updateSettings,
-    refetch: fetchSettings,
-  };
+  return useCmsSingletonSettings<CharmBarPageSettings>({
+    table: 'charm_bar_page_settings',
+    defaultId: DEFAULT_CHARM_BAR_PAGE_SETTINGS.id,
+    normalize: normalizeSettings,
+    errorLabel: 'charm bar page settings',
+  });
 }

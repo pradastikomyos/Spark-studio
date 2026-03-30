@@ -7,7 +7,7 @@ import LookProductSidebar from '../components/dressing-room/LookProductSidebar';
 import { DRESSING_ROOM_DEMO } from '../mock/dressingRoomDemo';
 import { useCategories } from '../hooks/useCategories';
 import { useDressingRoomCollection, type DressingRoomLook as DBLook } from '../hooks/useDressingRoomCollection';
-import { useProducts } from '../hooks/useProducts';
+import { useProductSummaries } from '../hooks/useProducts';
 import { getOptimizedDressingRoomImageUrl, normalizeDressingRoomImageUrl } from '../utils/dressingRoomImageUrl';
 import { formatCurrency } from '../utils/formatters';
 
@@ -225,7 +225,7 @@ interface LookDetailSectionProps {
 }
 
 function FashionCatalogSection() {
-  const { data: products = [], isLoading: productsLoading, error: productsError } = useProducts();
+  const { data: products = [], isLoading: productsLoading, error: productsError } = useProductSummaries();
   const { data: categories = [], isLoading: categoriesLoading, error: categoriesError } = useCategories();
   const [searchQuery, setSearchQuery] = useState('');
   const [page, setPage] = useState(1);

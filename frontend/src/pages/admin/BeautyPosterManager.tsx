@@ -5,7 +5,7 @@ import { useToast } from '../../components/Toast';
 import { ADMIN_MENU_ITEMS, ADMIN_MENU_SECTIONS } from '../../constants/adminMenu';
 import { supabase } from '../../lib/supabase';
 import { DEFAULT_GLAM_PAGE_SETTINGS, type GlamStarLink, useGlamPageSettings } from '../../hooks/useGlamPageSettings';
-import { useProducts, type Product } from '../../hooks/useProducts';
+import { useProductPickerOptions, type ProductPickerOption } from '../../hooks/useProducts';
 import { slugify } from '../../utils/merchant';
 import { formatCurrency } from '../../utils/formatters';
 import CmsSectionFontFields from '../../components/admin/CmsSectionFontFields';
@@ -30,9 +30,9 @@ function StarProductPicker({
 }: {
   title: string;
   selectedProductId: number | null;
-  selectedProduct: Product | null;
+  selectedProduct: ProductPickerOption | null;
   selectedImageUrl: string | null;
-  products: Product[];
+  products: ProductPickerOption[];
   onSelect: (productId: number | null) => void;
   onChangeImage: (value: string) => void;
   onUploadImage: (file: File) => void;
@@ -231,7 +231,7 @@ export default function BeautyPosterManager() {
   const { signOut } = useAuth();
   const { showToast } = useToast();
   const { settings, isLoading, updateSettings } = useGlamPageSettings();
-  const { data: products = [], isLoading: productsLoading } = useProducts();
+  const { data: products = [], isLoading: productsLoading } = useProductPickerOptions();
 
   const [saving, setSaving] = useState(false);
   const [heroTitle, setHeroTitle] = useState(DEFAULT_GLAM_PAGE_SETTINGS.hero_title);

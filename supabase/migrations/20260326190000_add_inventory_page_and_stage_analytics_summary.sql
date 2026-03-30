@@ -1,3 +1,6 @@
+-- Historical note: this file reused the add_inventory_page_and_stage_analytics_summary
+-- suffix after 20260326143421_add_inventory_page_and_stage_analytics_summary.sql.
+-- Keep the duplicate-name history intact and document it in-place.
 CREATE OR REPLACE FUNCTION public.list_inventory_product_page(
   p_search_query TEXT DEFAULT '',
   p_category_slug TEXT DEFAULT '',

@@ -3,12 +3,16 @@ import { getMidtransEnv, getSupabaseEnv } from '../_shared/env.ts'
 import { getCorsHeaders, handleCors, json } from '../_shared/http.ts'
 import { getMidtransBasicAuthHeader, getStatusBaseUrl } from '../_shared/midtrans.ts'
 import {
+  isFinalOrPaidMidtransStatus,
+  processProductOrderTransition,
+  processTicketOrderTransition,
+} from '../_shared/payment-processors.ts'
+import {
   ensureProductPaidSideEffects,
   issueTicketsIfNeeded,
   logWebhookEvent,
   releaseProductReservedStockIfNeeded,
   releaseTicketCapacityIfNeeded,
-  toNumber,
 } from '../_shared/payment-effects.ts'
 import { createServiceClient } from '../_shared/supabase.ts'
 import { mapMidtransStatus } from '../_shared/tickets.ts'
@@ -41,10 +45,6 @@ type ProductOrderRow = {
 type MidtransStatusResult =
   | { ok: true; mappedStatus: string; statusData: unknown }
   | { ok: false; error: string; statusData: unknown }
-
-function isFinalOrPaidMidtransStatus(status: string) {
-  return status === 'paid' || status === 'expired' || status === 'failed' || status === 'refunded'
-}
 
 async function fetchMidtransStatus(params: {
   baseUrl: string
@@ -119,71 +119,32 @@ async function reconcileStaleTicketOrder(params: {
       return { checked: 1, finalized: 0 }
     }
 
-    const { data: updatedOrder, error: updateError } = await supabase
-      .from('orders')
-      .update({
-        status: nextStatus,
-        payment_data: midtransResult.statusData,
-        updated_at: nowIso,
-      })
-      .eq('id', order.id)
-      .select('id, user_id, order_number, status, tickets_issued_at, capacity_released_at')
-      .single()
+    const result = await processTicketOrderTransition({
+      supabase,
+      order,
+      nextStatus,
+      paymentData: midtransResult.statusData,
+      nowIso,
+    })
 
-    if (updateError || !updatedOrder) {
+    if (result.updateError || !result.order) {
       await logWebhookEvent(supabase, {
         orderNumber: order.order_number,
         eventType: 'reconcile_ticket_update_failed',
-        payload: { error: updateError?.message ?? 'Unknown error', status: nextStatus },
+        payload: { error: result.updateError ?? 'Unknown error', status: nextStatus },
         success: false,
-        errorMessage: updateError?.message ?? 'Unknown error',
+        errorMessage: result.updateError ?? 'Unknown error',
         processedAt: nowIso,
       })
       return { checked: 1, finalized: 0 }
-    }
-
-    const { data: orderItems } = await supabase
-      .from('order_items')
-      .select('id, ticket_id, selected_date, selected_time_slots, quantity')
-      .eq('order_id', order.id)
-
-    if (Array.isArray(orderItems) && orderItems.length > 0) {
-      if (nextStatus === 'paid') {
-        await issueTicketsIfNeeded({
-          supabase,
-          order: updatedOrder as TicketOrderRow,
-          orderItems: orderItems as Array<{
-            id: number
-            ticket_id: number
-            selected_date: string
-            selected_time_slots: unknown
-            quantity: number
-          }>,
-          nowIso,
-        })
-      }
-
-      if (nextStatus === 'expired' || nextStatus === 'failed' || nextStatus === 'refunded') {
-        await releaseTicketCapacityIfNeeded({
-          supabase,
-          order: updatedOrder as TicketOrderRow,
-          orderItems: orderItems as Array<{
-            id: number
-            ticket_id: number
-            selected_date: string
-            selected_time_slots: unknown
-            quantity: number
-          }>,
-          nowIso,
-        })
-      }
     }
 
     await logWebhookEvent(supabase, {
       orderNumber: order.order_number,
       eventType: 'reconcile_ticket_pending_finalized',
       payload: { status: nextStatus },
-      success: true,
+      success: !result.effectError,
+      errorMessage: result.effectError,
       processedAt: nowIso,
     })
 
@@ -242,162 +203,34 @@ async function reconcileStaleProductOrder(params: {
       return { checked: 1, finalized: 0 }
     }
 
-    const currentPaymentStatus = String(order.payment_status || '').toLowerCase()
-    const currentStatus = String(order.status || '').toLowerCase()
-    const currentPickupStatus = String(order.pickup_status || '').toLowerCase()
-    const voucherId = order.voucher_id ?? null
-    const voucherCode = order.voucher_code ?? null
-    const voucherUserId = order.user_id ?? null
+    const result = await processProductOrderTransition({
+      supabase,
+      order,
+      nextStatus,
+      paymentData: midtransResult.statusData,
+      grossAmount: (midtransResult.statusData as { gross_amount?: unknown })?.gross_amount,
+      nowIso,
+      shouldSetPaidAt: true,
+    })
 
-    const paymentStatus =
-      nextStatus === 'paid'
-        ? 'paid'
-        : nextStatus === 'refunded'
-          ? 'refunded'
-          : nextStatus === 'failed' || nextStatus === 'expired'
-            ? 'failed'
-            : 'unpaid'
-
-    const orderStatus =
-      nextStatus === 'paid'
-        ? 'processing'
-        : nextStatus === 'expired'
-          ? 'expired'
-          : nextStatus === 'failed'
-            ? 'cancelled'
-            : order.status || 'awaiting_payment'
-
-    const updateFields: Record<string, unknown> = {
-      status: orderStatus,
-      payment_status: paymentStatus,
-      payment_data: midtransResult.statusData,
-      updated_at: nowIso,
-    }
-
-    if (nextStatus === 'expired') {
-      updateFields.expired_at = nowIso
-    }
-
-    const { data: updatedOrder, error: updateError } = await supabase
-      .from('order_products')
-      .update(updateFields)
-      .eq('id', order.id)
-      .select(
-        'id, user_id, order_number, status, payment_status, pickup_code, pickup_status, pickup_expires_at, total, stock_released_at, voucher_id, voucher_code, discount_amount'
-      )
-      .single()
-
-    if (updateError || !updatedOrder) {
+    if (result.updateError || !result.order) {
       await logWebhookEvent(supabase, {
         orderNumber: order.order_number,
         eventType: 'reconcile_product_update_failed',
-        payload: { error: updateError?.message ?? 'Unknown error', status: nextStatus },
+        payload: { error: result.updateError ?? 'Unknown error', status: nextStatus },
         success: false,
-        errorMessage: updateError?.message ?? 'Unknown error',
+        errorMessage: result.updateError ?? 'Unknown error',
         processedAt: nowIso,
       })
       return { checked: 1, finalized: 0 }
-    }
-
-    if (nextStatus === 'paid' && (currentPaymentStatus !== 'paid' || !updatedOrder.pickup_code)) {
-      await ensureProductPaidSideEffects({
-        supabase,
-        order: updatedOrder as ProductOrderRow,
-        nowIso,
-        grossAmount: (midtransResult.statusData as { gross_amount?: unknown })?.gross_amount,
-        defaultStatus: orderStatus,
-        shouldSetPaidAt: true,
-      })
-    }
-
-    const voucherDiscountAmount = toNumber(updatedOrder.discount_amount, 0)
-    if (nextStatus === 'paid' && voucherId && voucherUserId) {
-      const { error: voucherUsageError } = await supabase
-        .from('voucher_usage')
-        .upsert(
-          {
-            voucher_id: voucherId,
-            user_id: voucherUserId,
-            order_product_id: updatedOrder.id,
-            discount_amount: voucherDiscountAmount,
-            used_at: nowIso,
-          },
-          { onConflict: 'order_product_id' }
-        )
-
-      if (voucherUsageError) {
-        await logWebhookEvent(supabase, {
-          orderNumber: order.order_number,
-          eventType: 'voucher_usage_create_failed',
-          payload: { voucher_id: voucherId, voucher_code: voucherCode, error: voucherUsageError.message },
-          success: false,
-          errorMessage: voucherUsageError.message,
-          processedAt: nowIso,
-        })
-      }
-    }
-
-    const shouldReleaseVoucherQuota =
-      (nextStatus === 'expired' || nextStatus === 'failed') && currentPaymentStatus !== 'paid'
-
-    if (shouldReleaseVoucherQuota && voucherId) {
-      const { data: released, error: releaseError } = await supabase.rpc('release_voucher_quota', {
-        p_voucher_id: voucherId,
-      })
-
-      await logWebhookEvent(supabase, {
-        orderNumber: order.order_number,
-        eventType: 'voucher_quota_released',
-        payload: {
-          voucher_id: voucherId,
-          voucher_code: voucherCode,
-          result: released,
-          status: nextStatus,
-          error: releaseError?.message,
-        },
-        success: !releaseError,
-        errorMessage: releaseError?.message ?? null,
-        processedAt: nowIso,
-      })
-    }
-
-    const shouldReleaseReserve =
-      (nextStatus === 'expired' || nextStatus === 'failed' || nextStatus === 'refunded') &&
-      currentPaymentStatus !== 'paid' &&
-      currentStatus !== 'cancelled' &&
-      currentStatus !== 'expired' &&
-      currentPickupStatus !== 'completed'
-
-    if (shouldReleaseReserve) {
-      try {
-        await releaseProductReservedStockIfNeeded({
-          supabase,
-          order: updatedOrder as ProductOrderRow,
-          nowIso,
-        })
-      } catch (error) {
-        const message = error instanceof Error ? error.message : 'Failed to release reserved stock'
-        await logWebhookEvent(supabase, {
-          orderNumber: order.order_number,
-          eventType: 'stock_release_failed',
-          payload: { error: message },
-          success: false,
-          errorMessage: message,
-          processedAt: nowIso,
-        })
-
-        await supabase
-          .from('order_products')
-          .update({ status: 'requires_review', pickup_status: 'pending_review', updated_at: nowIso })
-          .eq('id', updatedOrder.id)
-      }
     }
 
     await logWebhookEvent(supabase, {
       orderNumber: order.order_number,
       eventType: 'reconcile_product_pending_finalized',
       payload: { status: nextStatus },
-      success: true,
+      success: !result.effectError,
+      errorMessage: result.effectError,
       processedAt: nowIso,
     })
 

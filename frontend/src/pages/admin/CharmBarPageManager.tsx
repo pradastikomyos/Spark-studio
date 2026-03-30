@@ -3,94 +3,42 @@ import AdminLayout from '../../components/AdminLayout';
 import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '../../components/Toast';
 import { ADMIN_MENU_ITEMS, ADMIN_MENU_SECTIONS } from '../../constants/adminMenu';
-import { supabase } from '../../lib/supabase';
 import {
   DEFAULT_CHARM_BAR_PAGE_SETTINGS,
   type CharmBarPageSettings,
   type CharmBarQuickLink,
-  type CharmBarSectionFonts,
   type CharmBarStep,
   type CharmBarVideoCard,
   useCharmBarSettings,
 } from '../../hooks/useCharmBarSettings';
-import { slugify } from '../../utils/merchant';
 import CmsSectionFontFields from '../../components/admin/CmsSectionFontFields';
-import { useProducts, type Product } from '../../hooks/useProducts';
+import CmsAssetField from '../../components/admin/CmsAssetField';
+import { useProductPickerOptions, type ProductPickerOption } from '../../hooks/useProducts';
+import { uploadCmsAsset } from '../../lib/cmsAssetUpload';
 
 type AssetKind = 'image' | 'video';
 
-function AssetField({
-  label,
-  value,
-  kind,
-  onChange,
-  onUpload,
-}: {
-  label: string;
-  value: string;
-  kind: AssetKind;
-  onChange: (value: string) => void;
-  onUpload: (file: File) => void;
-}) {
-  const accept = kind === 'image' ? 'image/*' : 'video/*';
+type CharmBarPageDraft = Omit<CharmBarPageSettings, 'id'>;
 
-  return (
-    <div className="space-y-3">
-      <label className="block text-xs font-bold uppercase tracking-widest text-gray-500">{label}</label>
-      <div className="flex flex-col gap-4 rounded-2xl border border-gray-200 bg-gray-50 p-4 md:flex-row">
-        {value ? (
-          kind === 'image' ? (
-            <img
-              src={value}
-              alt={label}
-              className="h-28 w-full rounded-xl border border-gray-200 bg-white object-cover md:w-40"
-            />
-          ) : (
-            <video
-              src={value}
-              controls
-              muted
-              className="h-28 w-full rounded-xl border border-gray-200 bg-black object-cover md:w-40"
-            />
-          )
-        ) : (
-          <div className="flex h-28 w-full items-center justify-center rounded-xl border border-dashed border-gray-300 bg-white text-gray-400 md:w-40">
-            <span className="material-symbols-outlined">{kind === 'image' ? 'image' : 'movie'}</span>
-          </div>
-        )}
+function createCharmBarDraft(source?: CharmBarPageSettings | null): CharmBarPageDraft {
+  const next = source ?? DEFAULT_CHARM_BAR_PAGE_SETTINGS;
 
-        <div className="flex-1 space-y-3">
-          <div className="relative">
-            <input
-              type="file"
-              accept={accept}
-              onChange={(event) => {
-                const file = event.target.files?.[0];
-                if (file) onUpload(file);
-                event.target.value = '';
-              }}
-              className="absolute inset-0 z-10 h-full w-full cursor-pointer opacity-0"
-            />
-            <button
-              type="button"
-              className="flex w-full items-center justify-center gap-2 rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-100"
-            >
-              <span className="material-symbols-outlined text-[18px]">upload</span>
-              Upload {kind}
-            </button>
-          </div>
-
-          <input
-            type="text"
-            value={value}
-            onChange={(event) => onChange(event.target.value)}
-            className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm focus:border-black focus:outline-none"
-            placeholder={`Or paste a direct ${kind} URL`}
-          />
-        </div>
-      </div>
-    </div>
-  );
+  return {
+    hero_image_url: next.hero_image_url || '',
+    quick_links: next.quick_links || [],
+    customize_title: next.customize_title || '',
+    steps: next.steps || [],
+    video_intro_text: next.video_intro_text || '',
+    video_cards: next.video_cards || [],
+    how_it_works_title: next.how_it_works_title || '',
+    how_it_works_intro: next.how_it_works_intro || '',
+    how_it_works_steps: next.how_it_works_steps || [],
+    how_it_works_video_url: next.how_it_works_video_url || '',
+    how_it_works_cta_label: next.how_it_works_cta_label || '',
+    how_it_works_cta_href: next.how_it_works_cta_href || '',
+    section_fonts: next.section_fonts,
+    best_seller_charms: next.best_seller_charms || [],
+  };
 }
 
 export default function CharmBarPageManager() {
@@ -99,90 +47,48 @@ export default function CharmBarPageManager() {
   const { settings, isLoading, updateSettings } = useCharmBarSettings();
 
   const [saving, setSaving] = useState(false);
-  const [heroImageUrl, setHeroImageUrl] = useState(DEFAULT_CHARM_BAR_PAGE_SETTINGS.hero_image_url);
-  const [quickLinks, setQuickLinks] = useState<CharmBarQuickLink[]>(DEFAULT_CHARM_BAR_PAGE_SETTINGS.quick_links);
-  const [customizeTitle, setCustomizeTitle] = useState(DEFAULT_CHARM_BAR_PAGE_SETTINGS.customize_title);
-  const [steps, setSteps] = useState<CharmBarStep[]>(DEFAULT_CHARM_BAR_PAGE_SETTINGS.steps);
-  const [videoIntroText, setVideoIntroText] = useState(DEFAULT_CHARM_BAR_PAGE_SETTINGS.video_intro_text);
-  const [videoCards, setVideoCards] = useState<CharmBarVideoCard[]>(DEFAULT_CHARM_BAR_PAGE_SETTINGS.video_cards);
-  const [howItWorksTitle, setHowItWorksTitle] = useState(DEFAULT_CHARM_BAR_PAGE_SETTINGS.how_it_works_title);
-  const [howItWorksIntro, setHowItWorksIntro] = useState(DEFAULT_CHARM_BAR_PAGE_SETTINGS.how_it_works_intro);
-  const [howItWorksSteps, setHowItWorksSteps] = useState<string[]>(DEFAULT_CHARM_BAR_PAGE_SETTINGS.how_it_works_steps);
-  const [howItWorksVideoUrl, setHowItWorksVideoUrl] = useState(DEFAULT_CHARM_BAR_PAGE_SETTINGS.how_it_works_video_url);
-  const [howItWorksCtaLabel, setHowItWorksCtaLabel] = useState(DEFAULT_CHARM_BAR_PAGE_SETTINGS.how_it_works_cta_label);
-  const [howItWorksCtaHref, setHowItWorksCtaHref] = useState(DEFAULT_CHARM_BAR_PAGE_SETTINGS.how_it_works_cta_href);
-  const [sectionFonts, setSectionFonts] = useState<CharmBarSectionFonts>(DEFAULT_CHARM_BAR_PAGE_SETTINGS.section_fonts);
-  const [bestSellerCharms, setBestSellerCharms] = useState<number[]>(DEFAULT_CHARM_BAR_PAGE_SETTINGS.best_seller_charms);
-  
-  const { data: products = [] } = useProducts();
+  const [draft, setDraft] = useState<CharmBarPageDraft>(() => createCharmBarDraft(DEFAULT_CHARM_BAR_PAGE_SETTINGS));
+  const { data: products = [] } = useProductPickerOptions();
   const [productSearchQuery, setProductSearchQuery] = useState('');
 
+  const updateDraft = useCallback((updates: Partial<CharmBarPageDraft>) => {
+    setDraft((current) => ({ ...current, ...updates }));
+  }, []);
+
   // Selected products to display as chips
-  const selectedProducts = products.filter(p => bestSellerCharms.includes(p.id));
+  const selectedProducts = products.filter((product) => draft.best_seller_charms.includes(product.id));
   
   // Available products to add (filtered by search, excluding already selected, showing up to 10)
   const availableProducts = products
-    .filter(p => !bestSellerCharms.includes(p.id))
-    .filter(p => p.name.toLowerCase().includes(productSearchQuery.toLowerCase()))
+    .filter((product) => !draft.best_seller_charms.includes(product.id))
+    .filter((product) => product.name.toLowerCase().includes(productSearchQuery.toLowerCase()))
     .slice(0, 10);
 
   const toggleBestSeller = (productId: number) => {
-    setBestSellerCharms(curr => 
-      curr.includes(productId) 
-        ? curr.filter(id => id !== productId)
-        : [...curr, productId]
-    );
+    setDraft((current) => ({
+      ...current,
+      best_seller_charms: current.best_seller_charms.includes(productId)
+        ? current.best_seller_charms.filter((id) => id !== productId)
+        : [...current.best_seller_charms, productId],
+    }));
   };
 
   useEffect(() => {
-    const next = settings ?? DEFAULT_CHARM_BAR_PAGE_SETTINGS;
-    setHeroImageUrl(next.hero_image_url);
-    setQuickLinks(next.quick_links);
-    setCustomizeTitle(next.customize_title);
-    setSteps(next.steps);
-    setVideoIntroText(next.video_intro_text);
-    setVideoCards(next.video_cards);
-    setHowItWorksTitle(next.how_it_works_title);
-    setHowItWorksIntro(next.how_it_works_intro);
-    setHowItWorksSteps(next.how_it_works_steps);
-    setHowItWorksVideoUrl(next.how_it_works_video_url);
-    setHowItWorksCtaLabel(next.how_it_works_cta_label);
-    setHowItWorksCtaHref(next.how_it_works_cta_href);
-    setSectionFonts(next.section_fonts);
-    setBestSellerCharms(next.best_seller_charms);
+    setDraft(createCharmBarDraft(settings));
   }, [settings]);
 
   const handleUploadAsset = useCallback(
     async (file: File, onComplete: (url: string) => void, prefix: string, kind: AssetKind) => {
       try {
-        if (!file.type.startsWith(`${kind}/`)) {
-          showToast('error', `Please upload a valid ${kind} file`);
-          return;
-        }
-
-        const maxSizeMb = kind === 'image' ? 5 : 50;
-        if (file.size > maxSizeMb * 1024 * 1024) {
-          showToast('error', `${kind} size must be less than ${maxSizeMb}MB`);
-          return;
-        }
-
-        const ext = file.name.split('.').pop() || (kind === 'image' ? 'png' : 'mp4');
-        const baseName = slugify(file.name.replace(/\.[^.]+$/, '')) || `${kind}-asset`;
-        const fileName = `${prefix}-${baseName}-${Date.now()}.${ext}`;
-        const filePath = `cms/${fileName}`;
-
-        const { error: uploadError } = await supabase.storage
-          .from('charm-bar-assets')
-          .upload(filePath, file, { upsert: true });
-
-        if (uploadError) throw uploadError;
-
-        const {
-          data: { publicUrl },
-        } = supabase.storage.from('charm-bar-assets').getPublicUrl(filePath);
-
-        onComplete(publicUrl);
-        showToast('success', `${kind === 'image' ? 'Image' : 'Video'} uploaded successfully`);
+        await uploadCmsAsset({
+          file,
+          bucket: 'charm-bar-assets',
+          prefix,
+          kind,
+          folder: 'cms',
+          showToast,
+          onUploaded: onComplete,
+        });
       } catch (err: unknown) {
         showToast('error', err instanceof Error ? err.message : `Failed to upload ${kind}`);
       }
@@ -194,20 +100,20 @@ export default function CharmBarPageManager() {
     setSaving(true);
 
     const payload: Partial<CharmBarPageSettings> = {
-      hero_image_url: heroImageUrl,
-      quick_links: quickLinks,
-      customize_title: customizeTitle,
-      steps,
-      video_intro_text: videoIntroText,
-      video_cards: videoCards,
-      how_it_works_title: howItWorksTitle,
-      how_it_works_intro: howItWorksIntro,
-      how_it_works_steps: howItWorksSteps.map((step) => step.trim()).filter(Boolean),
-      how_it_works_video_url: howItWorksVideoUrl,
-      how_it_works_cta_label: howItWorksCtaLabel,
-      how_it_works_cta_href: howItWorksCtaHref,
-      section_fonts: sectionFonts,
-      best_seller_charms: bestSellerCharms,
+      hero_image_url: draft.hero_image_url,
+      quick_links: draft.quick_links,
+      customize_title: draft.customize_title,
+      steps: draft.steps,
+      video_intro_text: draft.video_intro_text,
+      video_cards: draft.video_cards,
+      how_it_works_title: draft.how_it_works_title,
+      how_it_works_intro: draft.how_it_works_intro,
+      how_it_works_steps: draft.how_it_works_steps.map((step) => step.trim()).filter(Boolean),
+      how_it_works_video_url: draft.how_it_works_video_url,
+      how_it_works_cta_label: draft.how_it_works_cta_label,
+      how_it_works_cta_href: draft.how_it_works_cta_href,
+      section_fonts: draft.section_fonts,
+      best_seller_charms: draft.best_seller_charms,
     };
 
     try {
@@ -221,25 +127,27 @@ export default function CharmBarPageManager() {
   };
 
   const updateQuickLink = <K extends keyof CharmBarQuickLink>(index: number, field: K, value: CharmBarQuickLink[K]) => {
-    setQuickLinks((current) =>
-      current.map((item, itemIndex) => (itemIndex === index ? { ...item, [field]: value } : item))
-    );
+    updateDraft({
+      quick_links: draft.quick_links.map((item, itemIndex) => (itemIndex === index ? { ...item, [field]: value } : item)),
+    });
   };
 
   const updateStep = (index: number, field: keyof CharmBarStep, value: string) => {
-    setSteps((current) =>
-      current.map((item, itemIndex) => (itemIndex === index ? { ...item, [field]: value } : item))
-    );
+    updateDraft({
+      steps: draft.steps.map((item, itemIndex) => (itemIndex === index ? { ...item, [field]: value } : item)),
+    });
   };
 
   const updateVideoCard = (index: number, field: keyof CharmBarVideoCard, value: string) => {
-    setVideoCards((current) =>
-      current.map((item, itemIndex) => (itemIndex === index ? { ...item, [field]: value } : item))
-    );
+    updateDraft({
+      video_cards: draft.video_cards.map((item, itemIndex) => (itemIndex === index ? { ...item, [field]: value } : item)),
+    });
   };
 
   const updateHowItWorksStep = (index: number, value: string) => {
-    setHowItWorksSteps((current) => current.map((item, itemIndex) => (itemIndex === index ? value : item)));
+    updateDraft({
+      how_it_works_steps: draft.how_it_works_steps.map((item, itemIndex) => (itemIndex === index ? value : item)),
+    });
   };
 
   if (isLoading && !settings) {
@@ -274,12 +182,15 @@ export default function CharmBarPageManager() {
           </div>
 
           <div className="mt-6">
-            <AssetField
+            <CmsAssetField
               label="Hero image"
-              value={heroImageUrl}
+              value={draft.hero_image_url}
               kind="image"
-              onChange={setHeroImageUrl}
-              onUpload={(file) => void handleUploadAsset(file, setHeroImageUrl, 'charm-bar-hero', 'image')}
+              onChange={(value) => updateDraft({ hero_image_url: value })}
+              onUpload={(file) => void handleUploadAsset(file, (url) => updateDraft({ hero_image_url: url }), 'charm-bar-hero', 'image')}
+              previewClassName="h-28 w-full rounded-xl border border-gray-200 bg-white object-cover md:w-40"
+              uploadLabel="Upload image"
+              placeholder="Or paste a direct image URL"
             />
           </div>
         </section>
@@ -293,10 +204,12 @@ export default function CharmBarPageManager() {
             <button
               type="button"
               onClick={() =>
-                setQuickLinks((current) => [
-                  ...current,
+                updateDraft({
+                  quick_links: [
+                    ...draft.quick_links,
                   { title: 'NEW LINK', description: '', image_url: '', image_urls: [], href: '/shop' },
-                ])
+                  ],
+                })
               }
               className="rounded-full border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
             >
@@ -306,19 +219,23 @@ export default function CharmBarPageManager() {
 
           <div className="mt-6 max-w-xl">
             <CmsSectionFontFields
-              value={sectionFonts.quick_links}
-              onChange={(nextValue) => setSectionFonts((current) => ({ ...current, quick_links: nextValue }))}
+              value={draft.section_fonts.quick_links}
+              onChange={(nextValue) =>
+                updateDraft({ section_fonts: { ...draft.section_fonts, quick_links: nextValue } })
+              }
             />
           </div>
 
           <div className="mt-6 grid gap-5 xl:grid-cols-2">
-            {quickLinks.map((item, index) => (
+            {draft.quick_links.map((item, index) => (
               <div key={`${item.title}-${index}`} className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
                 <div className="mb-4 flex items-center justify-between gap-3">
                   <p className="text-sm font-semibold text-gray-900">Quick Link #{index + 1}</p>
                   <button
                     type="button"
-                    onClick={() => setQuickLinks((current) => current.filter((_, itemIndex) => itemIndex !== index))}
+                    onClick={() =>
+                      updateDraft({ quick_links: draft.quick_links.filter((_, itemIndex) => itemIndex !== index) })
+                    }
                     className="rounded-full border border-red-200 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-red-600 hover:bg-red-50"
                   >
                     Remove
@@ -360,7 +277,7 @@ export default function CharmBarPageManager() {
                     <label className="mb-2 block text-xs font-bold uppercase tracking-widest text-gray-500">Images (Card loops up to 3 images)</label>
                     <div className="flex flex-col gap-4">
                       {[0, 1, 2].map((imgIndex) => (
-                        <AssetField
+                        <CmsAssetField
                           key={imgIndex}
                           label={`Image ${imgIndex + 1}`}
                           value={item.image_urls?.[imgIndex] || (imgIndex === 0 ? item.image_url : '') || ''}
@@ -377,13 +294,16 @@ export default function CharmBarPageManager() {
                               (url) => {
                                 const newUrls = [...(item.image_urls || [item.image_url])];
                                 newUrls[imgIndex] = url;
-                                updateQuickLink(index, 'image_urls', newUrls as any);
-                                if (imgIndex === 0) updateQuickLink(index, 'image_url', url as any);
+                                updateQuickLink(index, 'image_urls', newUrls);
+                                if (imgIndex === 0) updateQuickLink(index, 'image_url', url);
                               },
                               `charm-bar-link-${index + 1}-img${imgIndex + 1}`,
                               'image'
                             )
                           }
+                          previewClassName="h-28 w-full rounded-xl border border-gray-200 bg-white object-cover md:w-40"
+                          uploadLabel="Upload image"
+                          placeholder="Or paste a direct image URL"
                         />
                       ))}
                     </div>
@@ -403,10 +323,12 @@ export default function CharmBarPageManager() {
             <button
               type="button"
               onClick={() =>
-                setSteps((current) => [
-                  ...current,
+                updateDraft({
+                  steps: [
+                    ...draft.steps,
                   { title: 'NEW STEP', body: '', image_url: '', cta_label: 'LEARN MORE', cta_href: '/shop' },
-                ])
+                  ],
+                })
               }
               className="rounded-full border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
             >
@@ -416,8 +338,10 @@ export default function CharmBarPageManager() {
 
           <div className="mt-6 max-w-xl">
             <CmsSectionFontFields
-              value={sectionFonts.customize}
-              onChange={(nextValue) => setSectionFonts((current) => ({ ...current, customize: nextValue }))}
+              value={draft.section_fonts.customize}
+              onChange={(nextValue) =>
+                updateDraft({ section_fonts: { ...draft.section_fonts, customize: nextValue } })
+              }
             />
           </div>
 
@@ -425,20 +349,20 @@ export default function CharmBarPageManager() {
             <label className="mb-2 block text-xs font-bold uppercase tracking-widest text-gray-500">Section title</label>
             <input
               type="text"
-              value={customizeTitle}
-              onChange={(event) => setCustomizeTitle(event.target.value)}
+              value={draft.customize_title}
+              onChange={(event) => updateDraft({ customize_title: event.target.value })}
               className="w-full rounded-xl border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm focus:border-black focus:outline-none"
             />
           </div>
 
           <div className="mt-6 grid gap-5 xl:grid-cols-2">
-            {steps.map((step, index) => (
+            {draft.steps.map((step, index) => (
               <div key={`${step.title}-${index}`} className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
                 <div className="mb-4 flex items-center justify-between gap-3">
                   <p className="text-sm font-semibold text-gray-900">Step #{index + 1}</p>
                   <button
                     type="button"
-                    onClick={() => setSteps((current) => current.filter((_, itemIndex) => itemIndex !== index))}
+                    onClick={() => updateDraft({ steps: draft.steps.filter((_, itemIndex) => itemIndex !== index) })}
                     className="rounded-full border border-red-200 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-red-600 hover:bg-red-50"
                   >
                     Remove
@@ -487,7 +411,7 @@ export default function CharmBarPageManager() {
                     </div>
                   </div>
 
-                  <AssetField
+                  <CmsAssetField
                     label="Step image"
                     value={step.image_url}
                     kind="image"
@@ -495,6 +419,9 @@ export default function CharmBarPageManager() {
                     onUpload={(file) =>
                       void handleUploadAsset(file, (url) => updateStep(index, 'image_url', url), `charm-bar-step-${index + 1}`, 'image')
                     }
+                    previewClassName="h-28 w-full rounded-xl border border-gray-200 bg-white object-cover md:w-40"
+                    uploadLabel="Upload image"
+                    placeholder="Or paste a direct image URL"
                   />
                 </div>
               </div>
@@ -510,7 +437,9 @@ export default function CharmBarPageManager() {
             </div>
             <button
               type="button"
-              onClick={() => setVideoCards((current) => [...current, { title: 'NEW VIDEO', video_url: '' }])}
+              onClick={() =>
+                updateDraft({ video_cards: [...draft.video_cards, { title: 'NEW VIDEO', video_url: '' }] })
+              }
               className="rounded-full border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
             >
               Add video
@@ -519,8 +448,10 @@ export default function CharmBarPageManager() {
 
           <div className="mt-6 max-w-xl">
             <CmsSectionFontFields
-              value={sectionFonts.video_gallery}
-              onChange={(nextValue) => setSectionFonts((current) => ({ ...current, video_gallery: nextValue }))}
+              value={draft.section_fonts.video_gallery}
+              onChange={(nextValue) =>
+                updateDraft({ section_fonts: { ...draft.section_fonts, video_gallery: nextValue } })
+              }
             />
           </div>
 
@@ -528,20 +459,22 @@ export default function CharmBarPageManager() {
             <label className="mb-2 block text-xs font-bold uppercase tracking-widest text-gray-500">Intro label</label>
             <input
               type="text"
-              value={videoIntroText}
-              onChange={(event) => setVideoIntroText(event.target.value)}
+              value={draft.video_intro_text}
+              onChange={(event) => updateDraft({ video_intro_text: event.target.value })}
               className="w-full rounded-xl border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm focus:border-black focus:outline-none"
             />
           </div>
 
           <div className="mt-6 grid gap-5 xl:grid-cols-2">
-            {videoCards.map((video, index) => (
+            {draft.video_cards.map((video, index) => (
               <div key={`${video.title}-${index}`} className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
                 <div className="mb-4 flex items-center justify-between gap-3">
                   <p className="text-sm font-semibold text-gray-900">Video #{index + 1}</p>
                   <button
                     type="button"
-                    onClick={() => setVideoCards((current) => current.filter((_, itemIndex) => itemIndex !== index))}
+                    onClick={() =>
+                      updateDraft({ video_cards: draft.video_cards.filter((_, itemIndex) => itemIndex !== index) })
+                    }
                     className="rounded-full border border-red-200 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-red-600 hover:bg-red-50"
                   >
                     Remove
@@ -559,7 +492,7 @@ export default function CharmBarPageManager() {
                     />
                   </div>
 
-                  <AssetField
+                  <CmsAssetField
                     label="Video file"
                     value={video.video_url}
                     kind="video"
@@ -567,6 +500,9 @@ export default function CharmBarPageManager() {
                     onUpload={(file) =>
                       void handleUploadAsset(file, (url) => updateVideoCard(index, 'video_url', url), `charm-bar-video-${index + 1}`, 'video')
                     }
+                    previewClassName="h-28 w-full rounded-xl border border-gray-200 bg-black object-cover md:w-40"
+                    uploadLabel="Upload video"
+                    placeholder="Or paste a direct video URL"
                   />
                 </div>
               </div>
@@ -593,7 +529,7 @@ export default function CharmBarPageManager() {
               
               {productSearchQuery && availableProducts.length > 0 && (
                 <div className="mt-2 rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden z-20">
-                  {availableProducts.map((p: Product) => (
+                  {availableProducts.map((p: ProductPickerOption) => (
                     <button
                       key={p.id}
                       type="button"
@@ -618,7 +554,7 @@ export default function CharmBarPageManager() {
 
             <div className="space-y-3">
               <label className="block text-xs font-bold uppercase tracking-widest text-gray-500">
-                Selected Best Sellers ({bestSellerCharms.length}/10)
+                Selected Best Sellers ({draft.best_seller_charms.length}/10)
               </label>
               
               {selectedProducts.length === 0 ? (
@@ -627,7 +563,7 @@ export default function CharmBarPageManager() {
                 </div>
               ) : (
                 <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                  {selectedProducts.map((p: Product) => (
+                  {selectedProducts.map((p: ProductPickerOption) => (
                     <div key={p.id} className="flex items-center gap-3 p-3 rounded-xl border border-gray-200 bg-white shadow-sm pr-4">
                       {p.image ? (
                         <img src={p.image} alt={p.name} className="w-12 h-12 rounded-lg object-cover bg-gray-100" />
@@ -663,8 +599,10 @@ export default function CharmBarPageManager() {
               </div>
               <div className="w-full max-w-xl">
                 <CmsSectionFontFields
-                  value={sectionFonts.how_it_works}
-                  onChange={(nextValue) => setSectionFonts((current) => ({ ...current, how_it_works: nextValue }))}
+                  value={draft.section_fonts.how_it_works}
+                  onChange={(nextValue) =>
+                    updateDraft({ section_fonts: { ...draft.section_fonts, how_it_works: nextValue } })
+                  }
                 />
               </div>
             </div>
@@ -676,8 +614,8 @@ export default function CharmBarPageManager() {
                 <label className="mb-2 block text-xs font-bold uppercase tracking-widest text-gray-500">Title</label>
                 <input
                   type="text"
-                  value={howItWorksTitle}
-                  onChange={(event) => setHowItWorksTitle(event.target.value)}
+                  value={draft.how_it_works_title}
+                  onChange={(event) => updateDraft({ how_it_works_title: event.target.value })}
                   className="w-full rounded-xl border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm focus:border-black focus:outline-none"
                 />
               </div>
@@ -685,8 +623,8 @@ export default function CharmBarPageManager() {
               <div>
                 <label className="mb-2 block text-xs font-bold uppercase tracking-widest text-gray-500">Intro</label>
                 <textarea
-                  value={howItWorksIntro}
-                  onChange={(event) => setHowItWorksIntro(event.target.value)}
+                  value={draft.how_it_works_intro}
+                  onChange={(event) => updateDraft({ how_it_works_intro: event.target.value })}
                   rows={4}
                   className="w-full rounded-xl border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm focus:border-black focus:outline-none"
                 />
@@ -697,7 +635,9 @@ export default function CharmBarPageManager() {
                   <label className="block text-xs font-bold uppercase tracking-widest text-gray-500">Numbered steps</label>
                   <button
                     type="button"
-                    onClick={() => setHowItWorksSteps((current) => [...current, 'New instruction'])}
+                    onClick={() =>
+                      updateDraft({ how_it_works_steps: [...draft.how_it_works_steps, 'New instruction'] })
+                    }
                     className="rounded-full border border-gray-300 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-gray-700 hover:bg-gray-50"
                   >
                     Add step
@@ -705,7 +645,7 @@ export default function CharmBarPageManager() {
                 </div>
 
                 <div className="space-y-3">
-                  {howItWorksSteps.map((step, index) => (
+                  {draft.how_it_works_steps.map((step, index) => (
                     <div key={`${index + 1}-${step}`} className="flex gap-3">
                       <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-gray-200 bg-white text-sm font-semibold text-gray-500">
                         {index + 1}
@@ -718,7 +658,11 @@ export default function CharmBarPageManager() {
                       />
                       <button
                         type="button"
-                        onClick={() => setHowItWorksSteps((current) => current.filter((_, itemIndex) => itemIndex !== index))}
+                        onClick={() =>
+                          updateDraft({
+                            how_it_works_steps: draft.how_it_works_steps.filter((_, itemIndex) => itemIndex !== index),
+                          })
+                        }
                         className="rounded-xl border border-red-200 px-3 text-red-600 hover:bg-red-50"
                         aria-label={`Remove step ${index + 1}`}
                       >
@@ -734,8 +678,8 @@ export default function CharmBarPageManager() {
                   <label className="mb-2 block text-xs font-bold uppercase tracking-widest text-gray-500">CTA label</label>
                   <input
                     type="text"
-                    value={howItWorksCtaLabel}
-                    onChange={(event) => setHowItWorksCtaLabel(event.target.value)}
+                    value={draft.how_it_works_cta_label}
+                    onChange={(event) => updateDraft({ how_it_works_cta_label: event.target.value })}
                     className="w-full rounded-xl border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm focus:border-black focus:outline-none"
                   />
                 </div>
@@ -743,20 +687,25 @@ export default function CharmBarPageManager() {
                   <label className="mb-2 block text-xs font-bold uppercase tracking-widest text-gray-500">CTA link</label>
                   <input
                     type="text"
-                    value={howItWorksCtaHref}
-                    onChange={(event) => setHowItWorksCtaHref(event.target.value)}
+                    value={draft.how_it_works_cta_href}
+                    onChange={(event) => updateDraft({ how_it_works_cta_href: event.target.value })}
                     className="w-full rounded-xl border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm focus:border-black focus:outline-none"
                   />
                 </div>
               </div>
             </div>
 
-            <AssetField
+            <CmsAssetField
               label="How it works video"
-              value={howItWorksVideoUrl}
+              value={draft.how_it_works_video_url}
               kind="video"
-              onChange={setHowItWorksVideoUrl}
-              onUpload={(file) => void handleUploadAsset(file, setHowItWorksVideoUrl, 'charm-bar-how-it-works', 'video')}
+              onChange={(value) => updateDraft({ how_it_works_video_url: value })}
+              onUpload={(file) =>
+                void handleUploadAsset(file, (url) => updateDraft({ how_it_works_video_url: url }), 'charm-bar-how-it-works', 'video')
+              }
+              previewClassName="h-28 w-full rounded-xl border border-gray-200 bg-black object-cover md:w-40"
+              uploadLabel="Upload video"
+              placeholder="Or paste a direct video URL"
             />
           </div>
         </section>

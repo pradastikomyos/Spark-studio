@@ -1,10 +1,10 @@
-import { useDeferredValue, useEffect, useMemo, useState } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { ChevronLeft, ChevronRight, Search, X } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useCart } from '../contexts/cartStore';
 import { formatCurrency } from '../utils/formatters';
-import { useProducts, type Product } from '../hooks/useProducts';
+import { useProductSummaries, type Product } from '../hooks/useProducts';
 import { useCategories } from '../hooks/useCategories';
 import { useBanners } from '../hooks/useBanners';
 import { fetchProductDetail } from '../hooks/useProduct';
@@ -14,6 +14,9 @@ import { PageTransition } from '../components/PageTransition';
 import ProductCardSkeleton from '../components/skeletons/ProductCardSkeleton';
 import { queryKeys } from '../lib/queryKeys';
 import { HeroBannerCarousel } from '../components/HeroBannerCarousel';
+import { buildShopCategoryIndex } from './shop/buildShopCategoryIndex';
+import { filterShopProducts } from './shop/filterShopProducts';
+import { useShopFilters } from './shop/useShopFilters';
 
 const PRODUCTS_PER_PAGE = 20;
 
@@ -161,38 +164,18 @@ const Shop = () => {
   const queryClient = useQueryClient();
   const { addItem } = useCart();
   const { showToast } = useToast();
-  
-  const [searchParams, setSearchParams] = useSearchParams();
-  
-  const activeCategory = searchParams.get('category') || 'all';
-  const activeSubcategory = searchParams.get('subcategory') || 'all';
-  const activeSubSubcategory = searchParams.get('subsubcategory') || 'all';
-  const searchQueryParam = searchParams.get('q') || '';
-  
-  const [searchQuery, setSearchQuery] = useState(searchQueryParam);
+  const {
+    activeCategory,
+    activeSubcategory,
+    activeSubSubcategory,
+    searchQuery,
+    setSearchQuery,
+    updateFilters,
+    deferredSearchQuery,
+    resultsResetSignal,
+  } = useShopFilters();
 
-  // Sync internal search query state if query param changes
-  useEffect(() => {
-    setSearchQuery(searchQueryParam);
-  }, [searchQueryParam]);
-
-  const updateFilters = (updates: Record<string, string | null>) => {
-    setSearchParams((prev) => {
-      const newParams = new URLSearchParams(prev);
-      Object.entries(updates).forEach(([key, value]) => {
-        if (value === null || value === 'all' || value === '') {
-          newParams.delete(key);
-        } else {
-          newParams.set(key, value);
-        }
-      });
-      return newParams;
-    }, { replace: true });
-  };
-
-  const deferredSearchQuery = useDeferredValue(searchQuery);
-
-  const { data: products = [], error: productsError, isLoading: productsLoading, refetch: refetchProducts } = useProducts();
+  const { data: products = [], error: productsError, isLoading: productsLoading, refetch: refetchProducts } = useProductSummaries();
   const { data: categories = [], error: categoriesError, isLoading: categoriesLoading, refetch: refetchCategories } = useCategories();
   const { data: shopBanners = [] } = useBanners('shop');
   const { settings: charmBarSettings, isLoading: charmBarLoading } = useCharmBarSettings();
@@ -206,125 +189,24 @@ const Shop = () => {
     }
   }, [error, showToast]);
 
-  const { parentCategories, childCategoriesByParentSlug, allowedSlugMap } = useMemo(() => {
-    // Single-pass: partition into parents & group children by parent_id
-    const parents: typeof categories = [];
-    const childrenByParentId = new Map<number, typeof categories>();
+  const { parentCategories, childCategoriesByParentSlug, allowedSlugMap } = useMemo(
+    () => buildShopCategoryIndex(categories),
+    [categories]
+  );
 
-    for (const category of categories) {
-      if (category.parent_id === null) {
-        parents.push(category);
-      } else {
-        const parentId = category.parent_id as number;
-        const list = childrenByParentId.get(parentId) ?? [];
-        list.push(category);
-        childrenByParentId.set(parentId, list);
-      }
-    }
-
-    const allowed = new Map<string, Set<string>>();
-    const childrenByParentSlug = new Map<string, typeof categories>();
-
-    const getAllDescendantSlugs = (categoryId: number): string[] => {
-      const children = childrenByParentId.get(categoryId) ?? [];
-      let slugs: string[] = [];
-      for (const child of children) {
-        slugs.push(child.slug);
-        slugs = slugs.concat(getAllDescendantSlugs(child.id));
-      }
-      return slugs;
-    };
-
-    for (const category of categories) {
-      allowed.set(category.slug, new Set([category.slug, ...getAllDescendantSlugs(category.id)]));
-    }
-
-    for (const category of categories) {
-      const children = childrenByParentId.get(category.id) ?? [];
-      childrenByParentSlug.set(
-        category.slug,
-        children.slice().sort((a, b) => a.name.localeCompare(b.name))
-      );
-    }
-
-    return {
-      parentCategories: parents.slice().sort((a, b) => a.name.localeCompare(b.name)),
-      childCategoriesByParentSlug: childrenByParentSlug,
-      allowedSlugMap: allowed,
-    };
-  }, [categories]);
-
-  const filteredProducts = useMemo(() => {
-    let currentProducts = products;
-
-    if (activeCategory !== 'all') {
-      if (activeCategory === 'charm' && activeSubcategory === 'gold-group') {
-        const goldSlugs = new Set(['golden-charm-pendant', 'golden-charm-welded']);
-        currentProducts = products.filter((p) => p.categorySlug && goldSlugs.has(p.categorySlug));
-      } else if (activeCategory === 'charm' && activeSubcategory === 'silver-group') {
-        const silverSlugs = new Set(['silver-charm-pendant', 'silver-charm-welded']);
-        currentProducts = products.filter((p) => p.categorySlug && silverSlugs.has(p.categorySlug));
-      } else if (activeCategory === 'charm' && activeSubcategory === 'newest-group') {
-        const charmSlugs = allowedSlugMap.get('charm');
-        if (charmSlugs) {
-          currentProducts = [...products]
-            .filter((p) => p.categorySlug && charmSlugs.has(p.categorySlug))
-            .sort((a, b) => b.id - a.id)
-            .slice(0, 10);
-        } else {
-          currentProducts = [];
-        }
-      } else if (activeCategory === 'charm' && activeSubcategory === 'bestseller-group') {
-        const bestSellerIds = new Set(charmBarSettings?.best_seller_charms || []);
-        currentProducts = products.filter((p) => bestSellerIds.has(p.id));
-      } else {
-        let activeNode = activeCategory;
-        if (activeSubcategory !== 'all') {
-          activeNode = activeSubcategory;
-          if (activeSubSubcategory !== 'all') {
-            activeNode = activeSubSubcategory;
-          }
-        }
-
-        const allowedSlugs = allowedSlugMap.get(activeNode);
-        if (allowedSlugs) {
-          currentProducts = products.filter((p) => p.categorySlug && allowedSlugs.has(p.categorySlug));
-        } else {
-          currentProducts = products.filter((p) => p.categorySlug === activeNode);
-        }
-      }
-    }
-
-    if (deferredSearchQuery.trim()) {
-      const query = deferredSearchQuery.toLowerCase().trim();
-      currentProducts = currentProducts.filter(
-        (p) => p.name.toLowerCase().includes(query) || (p.description && p.description.toLowerCase().includes(query))
-      );
-    }
-
-    if (activeCategory === 'all') {
-      const makeupSlugs = allowedSlugMap.get('makeup');
-      const makeupSlugsSet = makeupSlugs ?? new Set<string>();
-
-      return [...currentProducts].sort((a, b) => {
-        const getScore = (p: Product) => {
-          const slug = p.categorySlug?.toLowerCase() || '';
-          if (slug === 'headliner') return 3;
-          if (slug === 'starglitter' || slug === 'star-glitter') return 2;
-          if (makeupSlugsSet.has(slug)) return 1;
-          return 0;
-        };
-
-        const scoreA = getScore(a);
-        const scoreB = getScore(b);
-
-        if (scoreA !== scoreB) return scoreB - scoreA;
-        return 0;
-      });
-    }
-
-    return currentProducts;
-  }, [products, activeCategory, activeSubcategory, activeSubSubcategory, allowedSlugMap, deferredSearchQuery, charmBarSettings]);
+  const filteredProducts = useMemo(
+    () =>
+      filterShopProducts({
+        products,
+        activeCategory,
+        activeSubcategory,
+        activeSubSubcategory,
+        searchQuery: deferredSearchQuery,
+        allowedSlugMap,
+        bestSellerIds: charmBarSettings?.best_seller_charms || [],
+      }),
+    [products, activeCategory, activeSubcategory, activeSubSubcategory, deferredSearchQuery, allowedSlugMap, charmBarSettings]
+  );
 
   const activeSubcategories = useMemo(() => {
     if (activeCategory === 'all') return [];
@@ -363,8 +245,6 @@ const Shop = () => {
       staleTime: 60000,
     });
   };
-
-  const resultsResetSignal = `${activeCategory}:${activeSubcategory}:${activeSubSubcategory}:${deferredSearchQuery.trim().toLowerCase()}`;
 
   return (
     <PageTransition>

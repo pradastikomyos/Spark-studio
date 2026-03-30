@@ -4,12 +4,28 @@ import { render, screen } from '@testing-library/react';
 import StoreInventory from './StoreInventory';
 
 const refetchMock = vi.fn();
-const inventoryResult = {
+const inventoryResult: {
+  data: {
+    products: [];
+    categories: [];
+    totalCount: number;
+    diagnostics: {
+      fetchMs: number;
+      fullScan: boolean;
+      source: 'rpc' | 'fallback-live' | 'fallback-cache';
+      warning: string | null;
+    };
+  };
+  error: null;
+  isLoading: boolean;
+  isFetching: boolean;
+  refetch: typeof refetchMock;
+} = {
   data: {
     products: [],
     categories: [],
     totalCount: 0,
-    diagnostics: { fetchMs: 1, fullScan: false },
+    diagnostics: { fetchMs: 1, fullScan: false, source: 'rpc' as const, warning: null },
   },
   error: null,
   isLoading: false,
@@ -112,5 +128,22 @@ describe('StoreInventory', () => {
     expect(screen.getByDisplayValue('glow')).toBeInTheDocument();
     expect(screen.getByText('No Products Found')).toBeInTheDocument();
     expect(screen.getByText('product-form-open')).toBeInTheDocument();
+  });
+
+  it('renders inventory fallback warnings when diagnostics report a full scan', () => {
+    inventoryResult.data.diagnostics = {
+      fetchMs: 8,
+      fullScan: true,
+      source: 'fallback-live',
+      warning: 'Stock filter fallback is using a full product scan because the inventory RPC failed.',
+    };
+
+    render(<StoreInventory />);
+
+    expect(
+      screen.getByText('Stock filter fallback is using a full product scan because the inventory RPC failed.')
+    ).toBeInTheDocument();
+
+    inventoryResult.data.diagnostics = { fetchMs: 1, fullScan: false, source: 'rpc', warning: null };
   });
 });

@@ -76,6 +76,8 @@ const StoreInventory = () => {
       metric: 'inventory_list_fetch',
       fetchMs: Math.round(data.diagnostics.fetchMs),
       fullScan: data.diagnostics.fullScan,
+      source: data.diagnostics.source,
+      warning: data.diagnostics.warning,
       page: filters.currentPage,
       pageSize: INVENTORY_PRODUCTS_PER_PAGE,
       totalCount: data.totalCount,
@@ -183,6 +185,12 @@ const StoreInventory = () => {
       />
 
       <section className="flex flex-col gap-6">
+        {data?.diagnostics.warning ? (
+          <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+            {data.diagnostics.warning}
+          </div>
+        ) : null}
+
         <InventoryToolbar
           resolvedTotalProducts={resolvedTotalProducts}
           isFetching={isFetching}

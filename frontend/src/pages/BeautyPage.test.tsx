@@ -58,6 +58,21 @@ vi.mock('../hooks/useGlamPageSettings', () => ({
 }));
 
 vi.mock('../hooks/useProducts', () => ({
+  useProductSummaries: () => ({
+    data: [
+      {
+        id: 1,
+        name: 'Starlit Gloss',
+        description: 'A glossy finish.',
+        price: 120000,
+        image: 'https://example.com/product.jpg',
+        placeholder: 'image',
+        categorySlug: 'makeup',
+      },
+    ],
+    isLoading: false,
+    error: null,
+  }),
   useProducts: () => ({
     data: [
       {

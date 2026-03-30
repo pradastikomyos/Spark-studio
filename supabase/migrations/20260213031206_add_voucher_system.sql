@@ -1,3 +1,6 @@
+-- Historical note: this voucher-system migration was followed by
+-- 20260213032737_add_voucher_system.sql with the same descriptive suffix.
+-- Keep both files for history; do not rename or rewrite either migration.
 -- ============================================
 -- Migration: Voucher/Discount System
 -- Date: 2026-02-13

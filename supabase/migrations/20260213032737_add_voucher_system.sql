@@ -1,3 +1,6 @@
+-- Historical note: this file reused the add_voucher_system suffix after
+-- 20260213031206_add_voucher_system.sql. Keep the duplicate-name history
+-- intact and document the relationship instead of renaming old files.
 -- ============================================
 -- Migration: Voucher/Discount System
 -- Date: 2026-02-13

@@ -4,7 +4,7 @@ import { Search, ChevronLeft, ChevronRight } from 'lucide-react';
 import { PageTransition } from '../components/PageTransition';
 import ProductQuickViewModal from '../components/ProductQuickViewModal';
 import { DEFAULT_GLAM_PAGE_SETTINGS, useGlamPageSettings } from '../hooks/useGlamPageSettings';
-import { useProducts } from '../hooks/useProducts';
+import { useProductSummaries } from '../hooks/useProducts';
 import { formatCurrency } from '../utils/formatters';
 import { getCmsFontStyle } from '../lib/cmsTypography';
 
@@ -46,7 +46,7 @@ type QuickViewState = {
 
 export default function BeautyPage() {
   const { settings, error: settingsError } = useGlamPageSettings();
-  const { data: products = [], isLoading: productsLoading, error: productsError } = useProducts();
+  const { data: products = [], isLoading: productsLoading, error: productsError } = useProductSummaries();
   const [searchQuery, setSearchQuery] = useState('');
   const [page, setPage] = useState(1);
   const [quickView, setQuickView] = useState<QuickViewState>({ open: false, productId: null });
