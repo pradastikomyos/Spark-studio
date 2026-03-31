@@ -19,6 +19,8 @@ export const queryKeys = {
 
   dashboardStats: () => ['dashboard-stats'] as const,
   productOrders: () => ['admin-product-orders'] as const,
+  productOrderDetails: () => ['admin-product-order-detail'] as const,
+  productOrderDetail: (pickupCode: string) => ['admin-product-order-detail', pickupCode] as const,
 
   stages: () => ['stages-with-stats'] as const,
   stageQrCodes: () => ['stage-qr-codes'] as const,

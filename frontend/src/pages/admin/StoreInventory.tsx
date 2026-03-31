@@ -7,10 +7,8 @@ import QRScannerModal from '../../components/admin/QRScannerModal';
 import TableRowSkeleton from '../../components/skeletons/TableRowSkeleton';
 import { useToast } from '../../components/Toast';
 import { ADMIN_MENU_ITEMS, ADMIN_MENU_SECTIONS } from '../../constants/adminMenu';
-import { TAB_RETURN_EVENT } from '../../constants/browserEvents';
 import { useAuth } from '../../contexts/AuthContext';
 import { useInventory, type ProductRow } from '../../hooks/useInventory';
-import { useSessionRefresh } from '../../hooks/useSessionRefresh';
 import { DeleteProductDialog } from './store-inventory/DeleteProductDialog';
 import { InventoryEmptyState } from './store-inventory/InventoryEmptyState';
 import { InventoryGrid } from './store-inventory/InventoryGrid';
@@ -25,7 +23,6 @@ const INVENTORY_PRODUCTS_PER_PAGE = 24;
 const StoreInventory = () => {
   const { signOut, session } = useAuth();
   const { showToast } = useToast();
-  useSessionRefresh();
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -88,17 +85,6 @@ const StoreInventory = () => {
       },
     });
   }, [data, filters.currentPage, filters.searchQuery, filters.categoryFilter, filters.stockFilter]);
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const handleTabReturn = async () => {
-      await refetch();
-    };
-    window.addEventListener(TAB_RETURN_EVENT, handleTabReturn);
-    return () => {
-      window.removeEventListener(TAB_RETURN_EVENT, handleTabReturn);
-    };
-  }, [refetch]);
 
   const inventoryCategories = useMemo(() => data?.categories ?? [], [data?.categories]);
   const categoryOptions = useMemo(

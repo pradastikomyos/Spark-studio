@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { waitFor, renderHook } from '@testing-library/react'
+import { waitFor, renderHook, act } from '@testing-library/react'
 import fc from 'fast-check'
 import { AuthProvider, useAuth } from './AuthContext'
 import { supabase } from '../lib/supabase'
@@ -10,9 +10,17 @@ import { validationResultArb } from '../test/generators'
 // Mock dependencies
 vi.mock('../lib/supabase', () => ({
     supabase: {
+        from: vi.fn(() => ({
+            select: vi.fn(() => ({
+                eq: vi.fn(() => ({
+                    abortSignal: vi.fn().mockResolvedValue({ data: [], error: null })
+                }))
+            }))
+        })),
         auth: {
             getSession: vi.fn(),
             getUser: vi.fn(),
+            refreshSession: vi.fn(),
             signOut: vi.fn(),
             onAuthStateChange: vi.fn().mockReturnValue({ data: { subscription: { unsubscribe: vi.fn() } } }),
             signInWithPassword: vi.fn(),
@@ -35,6 +43,10 @@ describe('AuthContext', () => {
         // Default mock implementation
         vi.mocked(supabase.auth.getSession).mockResolvedValue({ data: { session: null }, error: null } as any)
         vi.mocked(supabase.auth.getUser).mockResolvedValue({ data: { user: null }, error: null } as any)
+        vi.mocked(supabase.auth.refreshSession).mockResolvedValue({
+            data: { session: null },
+            error: { message: 'invalid refresh token' }
+        } as any)
         vi.mocked(validateSessionWithRetry).mockResolvedValue({ valid: false })
         vi.mocked(isAdmin).mockResolvedValue(false)
     })
@@ -80,6 +92,34 @@ describe('AuthContext', () => {
             await waitFor(() => expect(result.current.initialized).toBe(true))
             expect(supabase.auth.signOut).toHaveBeenCalled()
         })
+
+        it('should preserve the local session while recovering from a network validation error', async () => {
+            const localSession = {
+                access_token: 'token-1',
+                user: { id: 'user-1' }
+            }
+
+            vi.mocked(supabase.auth.getSession).mockResolvedValue({ data: { session: localSession }, error: null } as any)
+            vi.mocked(validateSessionWithRetry).mockResolvedValue({
+                valid: false,
+                error: { type: 'network', message: 'timeout', retryable: true }
+            })
+            vi.mocked(supabase.from).mockReturnValue({
+                select: vi.fn(() => ({
+                    eq: vi.fn(() => ({
+                        abortSignal: vi.fn().mockRejectedValue(new Error('network timeout'))
+                    }))
+                }))
+            } as any)
+
+            const { result } = renderHook(() => useAuth(), { wrapper: AuthProvider })
+            await waitFor(() => expect(result.current.initialized).toBe(true))
+
+            expect(result.current.user?.id).toBe('user-1')
+            expect(result.current.sessionStatus).toBe('recovering')
+            expect(result.current.adminStatus).toBe('checking')
+            expect(supabase.auth.signOut).not.toHaveBeenCalled()
+        })
     })
 
     describe('Task 2.3: Property 16 - Server-Side Token Validation Authority', () => {
@@ -114,7 +154,9 @@ describe('AuthContext', () => {
             renderHook(() => useAuth(), { wrapper: AuthProvider })
 
             // Advance time by 5.1s
-            await vi.advanceTimersByTimeAsync(5100)
+            await act(async () => {
+                await vi.advanceTimersByTimeAsync(5100)
+            })
 
             // It should have caught the timeout and called signOut
             expect(supabase.auth.signOut).toHaveBeenCalled()
@@ -125,20 +167,24 @@ describe('AuthContext', () => {
 
     describe('validateSession method', () => {
         it('should update state and return true on success', async () => {
+            const localSession = {
+                access_token: 'token-1',
+                user: { id: 'user-1' }
+            }
             const mockResult = {
                 valid: true,
                 user: { id: 'user-1' },
-                session: { access_token: 'token-1', user: { id: 'user-1' } }
+                session: localSession
             }
+            vi.mocked(supabase.auth.getSession).mockResolvedValue({ data: { session: localSession }, error: null } as any)
             vi.mocked(validateSessionWithRetry).mockResolvedValue(mockResult as any)
 
             const { result } = renderHook(() => useAuth(), { wrapper: AuthProvider })
             await waitFor(() => expect(result.current.initialized).toBe(true))
 
-            let success: boolean = false
-            await waitFor(async () => {
+            let success = false
+            await act(async () => {
                 success = await result.current.validateSession()
-                return success === true
             })
 
             expect(success).toBe(true)
@@ -146,6 +192,11 @@ describe('AuthContext', () => {
         })
 
         it('should return false and sign out on failure', async () => {
+            const localSession = {
+                access_token: 'token-expired',
+                user: { id: 'user-1' }
+            }
+            vi.mocked(supabase.auth.getSession).mockResolvedValue({ data: { session: localSession }, error: null } as any)
             vi.mocked(validateSessionWithRetry).mockResolvedValue({
                 valid: false,
                 error: { type: 'expired', message: 'Expired', retryable: false }
@@ -154,7 +205,10 @@ describe('AuthContext', () => {
             const { result } = renderHook(() => useAuth(), { wrapper: AuthProvider })
             await waitFor(() => expect(result.current.initialized).toBe(true))
 
-            const success = await result.current.validateSession()
+            let success = true
+            await act(async () => {
+                success = await result.current.validateSession()
+            })
             expect(success).toBe(false)
             expect(supabase.auth.signOut).toHaveBeenCalled()
         })

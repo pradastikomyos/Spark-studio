@@ -1,5 +1,4 @@
 import { ADMIN_MENU_SECTIONS } from '../../../constants/adminMenu';
-export { TAB_RETURN_EVENT } from '../../../constants/browserEvents';
 import type { OrderSummaryRow } from '../../../hooks/useProductOrders';
 import type { ProductOrdersTab } from './productOrdersTypes';
 
@@ -11,7 +10,7 @@ const EMPTY_STATE_COPY: Record<ProductOrdersTab, { icon: string; message: string
 
 export function getPendingOrders(orders: OrderSummaryRow[]) {
   return orders
-    .filter((order) => order.pickup_status === 'pending_pickup')
+    .filter((order) => order.pickup_status === 'pending_pickup' || order.pickup_status === 'pending_review')
     .sort((left, right) => {
       const leftTime = left.paid_at || left.created_at || '';
       const rightTime = right.paid_at || right.created_at || '';
@@ -52,12 +51,14 @@ export function getDisplayOrders(
 
 export function getPickupStatusClass(pickupStatus: string | null) {
   if (pickupStatus === 'pending_pickup') return 'bg-yellow-100 text-yellow-700';
+  if (pickupStatus === 'pending_review') return 'bg-orange-100 text-orange-700';
   if (pickupStatus === 'completed') return 'bg-green-100 text-green-700';
   return 'bg-gray-100 text-gray-700';
 }
 
 export function getPickupStatusLabel(pickupStatus: string | null) {
   if (pickupStatus === 'pending_pickup') return 'Pending';
+  if (pickupStatus === 'pending_review') return 'Review';
   if (pickupStatus === 'completed') return 'Selesai';
   return pickupStatus ?? 'pending';
 }

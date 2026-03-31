@@ -49,6 +49,8 @@ vi.spyOn(AuthContext, 'useAuth').mockReturnValue({
   user: null,
   session: null,
   initialized: true,
+  sessionStatus: 'ready',
+  adminStatus: 'denied',
   isAdmin: false,
   loggingOut: false,
   validateSession: mockValidateSession,

@@ -1,15 +1,20 @@
 /* eslint-disable react-refresh/only-export-components */
-import { createContext, useContext, useEffect, useState, useCallback, useMemo } from 'react';
+import { createContext, useContext, useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { User, Session, AuthError } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
-import { isAdmin as checkIsAdmin } from '../utils/auth';
+import { createQuerySignal } from '../lib/fetchers';
 import { validateSessionWithRetry } from '../utils/sessionValidation';
 import { SessionErrorHandler } from '../utils/sessionErrorHandler';
+
+type SessionStatus = 'ready' | 'recovering' | 'expired';
+type AdminStatus = 'checking' | 'ready' | 'denied';
 
 interface AuthContextType {
   user: User | null;
   session: Session | null;
   initialized: boolean; // NEW: true when auth check is complete
+  sessionStatus: SessionStatus;
+  adminStatus: AdminStatus;
   isAdmin: boolean;
   loggingOut: boolean;
   signIn: (email: string, password: string) => Promise<{ error: AuthError | null }>;
@@ -21,12 +26,31 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+const AUTH_RECOVERY_DELAY_MS = 30 * 1000;
+const ADMIN_ROLE_CHECK_TIMEOUT_MS = 10000;
+const ADMIN_ROLES = new Set(['admin', 'super_admin', 'super-admin']);
+
+const isNetworkIssue = (error: unknown) => {
+  if (error && typeof error === 'object' && 'type' in error) {
+    return (error as { type?: unknown }).type === 'network';
+  }
+
+  if (!(error instanceof Error)) return false;
+
+  const message = error.message.toLowerCase();
+  return message.includes('network') || message.includes('timeout') || message.includes('fetch');
+};
+
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [initialized, setInitialized] = useState(false); // KEY: blocks render until ready
+  const [sessionStatus, setSessionStatus] = useState<SessionStatus>('expired');
+  const [adminStatus, setAdminStatus] = useState<AdminStatus>('checking');
   const [isAdmin, setIsAdmin] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
+  const recoveryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const validateSessionRef = useRef<(() => Promise<boolean>) | null>(null);
 
   const errorHandler = useMemo(
     () =>
@@ -35,6 +59,50 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       }),
     []
   );
+
+  const clearRecoveryTimer = useCallback(() => {
+    if (recoveryTimerRef.current) {
+      clearTimeout(recoveryTimerRef.current);
+      recoveryTimerRef.current = null;
+    }
+  }, []);
+
+  const resetAuthState = useCallback((nextSessionStatus: SessionStatus = 'expired') => {
+    clearRecoveryTimer();
+    setUser(null);
+    setSession(null);
+    setIsAdmin(false);
+    setSessionStatus(nextSessionStatus);
+    setAdminStatus('denied');
+  }, [clearRecoveryTimer]);
+
+  const scheduleRecovery = useCallback((delayMs = AUTH_RECOVERY_DELAY_MS) => {
+    if (recoveryTimerRef.current) return;
+
+    recoveryTimerRef.current = setTimeout(() => {
+      recoveryTimerRef.current = null;
+      void validateSessionRef.current?.();
+    }, delayMs);
+  }, []);
+
+  const markSessionRecovering = useCallback((localSession: Session | null) => {
+    if (!localSession) {
+      resetAuthState();
+      return;
+    }
+
+    setSession(localSession);
+    setUser(localSession.user);
+    setSessionStatus('recovering');
+    setAdminStatus((prev) => (prev === 'ready' && isAdmin ? 'ready' : 'checking'));
+  }, [isAdmin, resetAuthState]);
+
+  const applyValidatedSession = useCallback((nextSession: Session, nextUser: User) => {
+    clearRecoveryTimer();
+    setSession(nextSession);
+    setUser(nextUser);
+    setSessionStatus('ready');
+  }, [clearRecoveryTimer]);
 
   // NEW: Manual session refresh
   const refreshSession = useCallback(async () => {
@@ -48,6 +116,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       if (data.session) {
         setSession(data.session);
         setUser(data.session.user);
+        setSessionStatus('ready');
         console.log('[AuthContext] Session refreshed successfully');
       }
     } catch (error) {
@@ -57,76 +126,121 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   }, []);
 
   // Memoized admin check to avoid re-creating function
-  const checkAdminStatus = useCallback(async (userId: string | undefined) => {
+  const checkAdminStatus = useCallback(async (userId: string | undefined, allowRecovery = false): Promise<boolean | null> => {
     if (!userId) {
       setIsAdmin(false);
-      return;
+      setAdminStatus('denied');
+      return false;
     }
+
+    setAdminStatus('checking');
+
+    const { signal, cleanup, didTimeout } = createQuerySignal(undefined, ADMIN_ROLE_CHECK_TIMEOUT_MS);
+
     try {
-      const adminStatus = await checkIsAdmin(userId);
-      setIsAdmin(adminStatus);
-    } catch (error) {
-      if (error instanceof Error && !error.message.includes('RLS')) {
-        // Suppress RLS errors for non-admin users
+      const { data, error } = await supabase
+        .from('user_role_assignments')
+        .select('role_name')
+        .eq('user_id', userId)
+        .abortSignal(signal);
+
+      if (error) {
+        throw error;
       }
+
+      const hasAdminRole = data?.some((row) => ADMIN_ROLES.has(String(row.role_name ?? '').toLowerCase())) ?? false;
+      setIsAdmin(hasAdminRole);
+      setAdminStatus(hasAdminRole ? 'ready' : 'denied');
+      return hasAdminRole;
+    } catch (error) {
+      if ((didTimeout() || isNetworkIssue(error)) && allowRecovery) {
+        setAdminStatus((prev) => (prev === 'ready' && isAdmin ? 'ready' : 'checking'));
+        scheduleRecovery();
+        return null;
+      }
+
       setIsAdmin(false);
+      setAdminStatus('denied');
+      return false;
+    } finally {
+      cleanup();
     }
-  }, []);
+  }, [isAdmin, scheduleRecovery]);
+
+  const validateSessionInternal = useCallback(
+    async function validateSessionInternal(localSession: Session | null, allowRecovery = true, tryRefresh = true): Promise<boolean> {
+      if (!localSession) {
+        resetAuthState();
+        return false;
+      }
+
+      const result = await validateSessionWithRetry();
+      if (result.valid && result.user && result.session) {
+        applyValidatedSession(result.session, result.user);
+        const resolvedAdmin = await checkAdminStatus(result.user.id, allowRecovery);
+        if (resolvedAdmin === null) {
+          scheduleRecovery();
+        }
+        return true;
+      }
+
+      if (result.error?.type === 'network' && allowRecovery) {
+        markSessionRecovering(localSession);
+        void checkAdminStatus(localSession.user.id, true);
+        scheduleRecovery();
+        return true;
+      }
+
+      if (tryRefresh) {
+        try {
+          const { data, error } = await supabase.auth.refreshSession();
+          if (!error && data.session) {
+            return validateSessionInternal(data.session, allowRecovery, false);
+          }
+
+          if (allowRecovery && isNetworkIssue(error)) {
+            markSessionRecovering(localSession);
+            void checkAdminStatus(localSession.user.id, true);
+            scheduleRecovery();
+            return true;
+          }
+        } catch (refreshError) {
+          if (allowRecovery && isNetworkIssue(refreshError)) {
+            markSessionRecovering(localSession);
+            void checkAdminStatus(localSession.user.id, true);
+            scheduleRecovery();
+            return true;
+          }
+        }
+      }
+
+      await supabase.auth.signOut();
+      resetAuthState();
+      return false;
+    },
+    [applyValidatedSession, checkAdminStatus, markSessionRecovering, resetAuthState, scheduleRecovery]
+  );
 
   // NEW: Explicit session validation method with automatic refresh
   // Enterprise pattern: Google/Slack/Notion - try refresh before declaring session invalid
   const validateSession = useCallback(async (): Promise<boolean> => {
     console.log('[AuthContext] Validating session...');
-    
-    // Step 1: Check current session
-    const result = await validateSessionWithRetry();
-    let finalErrorType = result.error?.type;
 
-    if (result.valid && result.user && result.session) {
-      console.log('[AuthContext] Session valid');
-      setUser(result.user);
-      setSession(result.session);
-      await checkAdminStatus(result.user.id);
-      return true;
-    }
+    const {
+      data: { session: currentSession },
+    } = await supabase.auth.getSession();
 
-    // Step 2: Session invalid - try to refresh FIRST (enterprise pattern)
-    // Google/Slack/Notion all do silent token refresh before showing errors
-    console.log('[AuthContext] Session invalid, attempting automatic refresh...');
-    try {
-      await refreshSession();
-      
-      // Step 3: Validate again after refresh
-      const retryResult = await validateSessionWithRetry();
-      finalErrorType = retryResult.error?.type ?? finalErrorType;
-      if (retryResult.valid && retryResult.user && retryResult.session) {
-        console.log('[AuthContext] Session refreshed successfully and now valid');
-        setUser(retryResult.user);
-        setSession(retryResult.session);
-        await checkAdminStatus(retryResult.user.id);
-        return true;
-      }
-      
-      console.log('[AuthContext] Session still invalid after refresh');
-    } catch (refreshError) {
-      console.error('[AuthContext] Refresh failed:', refreshError);
-    }
+    return validateSessionInternal(currentSession ?? session, true, true);
+  }, [session, validateSessionInternal]);
 
-    // Step 4: Clear state only (let caller handle error display)
-    // Separation of concerns: validateSession is a utility, not an error handler
-    console.log('[AuthContext] Session validation failed after refresh attempt');
-    if (finalErrorType !== 'network') {
-      await supabase.auth.signOut();
-    }
-    setUser(null);
-    setSession(null);
-    setIsAdmin(false);
-    return false;
-  }, [checkAdminStatus, refreshSession]);
+  useEffect(() => {
+    validateSessionRef.current = validateSession;
+  }, [validateSession]);
 
   useEffect(() => {
     let isMounted = true;
     let isInitializing = true; // Track if initial auth check is in progress
+    let initialSession: Session | null = null;
 
     // STEP 1: Get initial session with timeout protection and server-side validation
     const initializeAuth = async () => {
@@ -139,48 +253,32 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         ]);
 
         const { data: { session } } = await getSessionWithTimeout;
+        initialSession = session ?? null;
 
         if (!isMounted) return;
 
-        // Validate session using the new validation utility with retry logic
-        if (session) {
-          const result = await validateSessionWithRetry();
-
-          if (!isMounted) return;
-
-          if (result.valid && result.user && result.session) {
-            // Session is valid
-            setSession(result.session);
-            setUser(result.user);
-            if (result.user.id) {
-              await checkAdminStatus(result.user.id);
-            }
-          } else {
-            // Session is invalid on server, clear it
-
-            await errorHandler.handleAuthError(result.error || { status: 401 }, {
-              returnPath: window.location.pathname
-            });
-            setSession(null);
-            setUser(null);
-            setIsAdmin(false);
-          }
+        if (initialSession) {
+          await validateSessionInternal(initialSession, true, true);
         } else {
-          setSession(null);
-          setUser(null);
-          setIsAdmin(false);
+          resetAuthState();
         }
 
         if (!isMounted) return;
       } catch (error) {
         if (!isMounted) return;
-        await errorHandler.handleAuthError(error, { returnPath: window.location.pathname });
-        if (error instanceof Error && error.message.includes('timeout')) {
+        if (isNetworkIssue(error) && initialSession) {
+          markSessionRecovering(initialSession);
+          scheduleRecovery();
+        } else {
+          await errorHandler.handleAuthError(error, { returnPath: window.location.pathname });
+          if (error instanceof Error && error.message.includes('timeout')) {
+            await supabase.auth.signOut();
+          }
+          resetAuthState();
+        }
+        if (error instanceof Error && error.message.includes('timeout') && !initialSession) {
           await supabase.auth.signOut();
         }
-        setSession(null);
-        setUser(null);
-        setIsAdmin(false);
       } finally {
         isInitializing = false;
         if (isMounted) {
@@ -206,9 +304,21 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
         if (!isMounted || eventId !== authEventId) return;
 
-        if (result.valid && result.user) {
-          await checkAdminStatus(result.user.id);
+        if (result.valid && result.user && result.session) {
+          applyValidatedSession(result.session, result.user);
+          const resolvedAdmin = await checkAdminStatus(result.user.id, true);
+          if (resolvedAdmin === null) {
+            scheduleRecovery();
+          }
           console.log(`[AuthContext] ${event} validation ok in ${durationMs}ms`);
+          return;
+        }
+
+        if (result.error?.type === 'network' && nextSession) {
+          markSessionRecovering(nextSession);
+          void checkAdminStatus(nextSession.user.id, true);
+          scheduleRecovery();
+          console.warn(`[AuthContext] ${event} validation deferred after network issue in ${durationMs}ms`);
           return;
         }
 
@@ -235,11 +345,16 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       }
 
       if (event === 'SIGNED_OUT') {
-        setIsAdmin(false);
+        resetAuthState();
         return;
       }
 
       if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+        if (nextSession) {
+          setSession(nextSession);
+          setUser(nextSession.user);
+          setSessionStatus('recovering');
+        }
         authEventId += 1;
         const currentEventId = authEventId;
         void runPostAuthValidation(event, nextSession, currentEventId);
@@ -249,9 +364,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
     return () => {
       isMounted = false;
+      clearRecoveryTimer();
       subscription?.unsubscribe();
     };
-  }, [checkAdminStatus, errorHandler]);
+  }, [applyValidatedSession, checkAdminStatus, clearRecoveryTimer, errorHandler, markSessionRecovering, resetAuthState, scheduleRecovery, validateSessionInternal]);
 
   const signIn = async (email: string, password: string) => {
     const { error } = await supabase.auth.signInWithPassword({
@@ -297,6 +413,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         user,
         session,
         initialized,
+        sessionStatus,
+        adminStatus,
         isAdmin,
         loggingOut,
         signIn,

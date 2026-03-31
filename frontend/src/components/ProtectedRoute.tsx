@@ -1,4 +1,5 @@
 import { Navigate } from 'react-router-dom';
+import BrandedLoader from './BrandedLoader';
 import { useAuth } from '../contexts/AuthContext';
 
 interface ProtectedRouteProps {
@@ -7,7 +8,7 @@ interface ProtectedRouteProps {
 }
 
 const ProtectedRoute = ({ children, adminOnly = false }: ProtectedRouteProps) => {
-  const { user, isAdmin } = useAuth();
+  const { user, isAdmin, adminStatus } = useAuth();
 
   // NOTE: We don't need to check "initialized" here because App.tsx AuthGate
   // already ensures we only render routes AFTER auth is fully initialized.
@@ -16,6 +17,14 @@ const ProtectedRoute = ({ children, adminOnly = false }: ProtectedRouteProps) =>
   if (!user) {
     // User not logged in - redirect to login
     return <Navigate to="/login" replace />;
+  }
+
+  if (adminOnly && adminStatus === 'checking') {
+    return (
+      <div className="flex min-h-[40vh] items-center justify-center px-6 py-12">
+        <BrandedLoader text="Restoring admin access..." size="sm" />
+      </div>
+    );
   }
 
   if (adminOnly && !isAdmin) {

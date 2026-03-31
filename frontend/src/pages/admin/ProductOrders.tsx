@@ -2,7 +2,6 @@ import AdminLayout from '../../components/AdminLayout';
 import QRScannerModal from '../../components/admin/QRScannerModal';
 import { useAuth } from '../../contexts/AuthContext';
 import { ADMIN_MENU_ITEMS, ADMIN_MENU_SECTIONS } from '../../constants/adminMenu';
-import { useSessionRefresh } from '../../hooks/useSessionRefresh';
 import { useProductOrders } from '../../hooks/useProductOrders';
 import { useToast } from '../../components/Toast';
 import { ProductOrderDetailsModal } from './product-orders/ProductOrderDetailsModal';
@@ -14,9 +13,6 @@ export default function ProductOrders() {
   const { signOut, session } = useAuth();
   const { showToast } = useToast();
 
-  // Enable background session refresh for long-idle admin sessions
-  useSessionRefresh();
-
   const { data, error, isLoading, isFetching, refetch } = useProductOrders();
   const orders = data?.orders ?? [];
   const pendingCount = data?.pendingCount ?? 0;
@@ -25,7 +21,6 @@ export default function ProductOrders() {
     orders,
     pendingCount,
     ordersError,
-    refetch,
     session,
     showToast,
   });

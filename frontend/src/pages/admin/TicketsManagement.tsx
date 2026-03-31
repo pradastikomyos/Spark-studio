@@ -3,7 +3,6 @@ import { useAuth } from '../../contexts/AuthContext';
 import AdminLayout from '../../components/AdminLayout';
 import PurchasedTicketsTable from '../../components/admin/PurchasedTicketsTable';
 import { ADMIN_MENU_ITEMS, ADMIN_MENU_SECTIONS } from '../../constants/adminMenu';
-import { TAB_RETURN_EVENT } from '../../constants/browserEvents';
 import { useTicketsManagement } from '../../hooks/useTicketsManagement';
 import TableRowSkeleton from '../../components/skeletons/TableRowSkeleton';
 import { useToast } from '../../components/Toast';
@@ -17,18 +16,6 @@ const TicketsManagement = () => {
   const { data, error, isLoading, isFetching, refetch } = useTicketsManagement();
   const tickets = data?.tickets ?? [];
   const stats = data?.stats ?? { totalValid: 0, entered: 0 };
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const handleTabReturn = () => {
-      refetch();
-    };
-
-    window.addEventListener(TAB_RETURN_EVENT, handleTabReturn);
-    return () => {
-      window.removeEventListener(TAB_RETURN_EVENT, handleTabReturn);
-    };
-  }, [refetch]);
 
   useEffect(() => {
     if (error) {

@@ -47,6 +47,8 @@ vi.spyOn(AuthContext, 'useAuth').mockReturnValue({
     session: { access_token: 'token', refresh_token: 'refresh', expires_in: 3600, token_type: 'bearer', user: null as any },
     isAdmin: false,
     initialized: true,
+    sessionStatus: 'ready',
+    adminStatus: 'denied',
     loggingOut: false,
     validateSession: mockValidateSession,
     refreshSession: mockRefreshSession,

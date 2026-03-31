@@ -1,4 +1,5 @@
-import { useQuery } from '@tanstack/react-query';
+import { useEffect } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { APIError, createQuerySignal } from '../lib/fetchers';
 import { queryKeys } from '../lib/queryKeys';
@@ -33,7 +34,9 @@ export type OrderSummaryRow = {
 };
 
 export function useProductOrders() {
-  return useQuery({
+  const queryClient = useQueryClient();
+
+  const query = useQuery({
     queryKey: queryKeys.productOrders(),
     queryFn: async ({ signal }) => {
       const { signal: timeoutSignal, cleanup, didTimeout } = createQuerySignal(signal);
@@ -51,7 +54,7 @@ export function useProductOrders() {
             .select('id', { count: 'exact', head: true })
             .abortSignal(timeoutSignal)
             .eq('payment_status', 'paid')
-            .eq('pickup_status', 'pending_pickup'),
+            .in('pickup_status', ['pending_pickup', 'pending_review']),
         ]);
 
         if (ordersResult.error) {
@@ -78,4 +81,32 @@ export function useProductOrders() {
     refetchOnReconnect: true,
     staleTime: 0,
   });
+
+  useEffect(() => {
+    let invalidateTimeoutId: ReturnType<typeof setTimeout> | null = null;
+    const scheduleInvalidate = () => {
+      if (invalidateTimeoutId) return;
+      invalidateTimeoutId = setTimeout(() => {
+        invalidateTimeoutId = null;
+        void queryClient.invalidateQueries({ queryKey: queryKeys.productOrders() });
+        void queryClient.invalidateQueries({ queryKey: queryKeys.productOrderDetails() });
+      }, 700);
+    };
+
+    const channel = supabase
+      .channel('admin_product_orders_changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'order_products' }, scheduleInvalidate)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'order_product_items' }, scheduleInvalidate)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'product_variants' }, scheduleInvalidate)
+      .subscribe();
+
+    return () => {
+      if (invalidateTimeoutId) {
+        clearTimeout(invalidateTimeoutId);
+      }
+      supabase.removeChannel(channel);
+    };
+  }, [queryClient]);
+
+  return query;
 }

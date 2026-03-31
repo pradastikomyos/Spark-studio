@@ -83,6 +83,7 @@ type InventoryPageRow = {
 type InventoryFallbackCacheEntry = {
   filteredRows: ProductRow[];
   totalCount: number;
+  version: number;
 };
 
 const INVENTORY_FULL_SCAN_PAGE_SIZE = 500;
@@ -118,6 +119,12 @@ type InventoryListFilters = {
 };
 
 const inventoryFallbackCache = new Map<string, InventoryFallbackCacheEntry>();
+let inventoryFallbackVersion = 0;
+
+export const clearInventoryFallbackCache = () => {
+  inventoryFallbackVersion += 1;
+  inventoryFallbackCache.clear();
+};
 
 const normalizeSearchTerm = (searchQuery: string) =>
   searchQuery
@@ -322,7 +329,7 @@ async function fetchInventoryStockFilteredPage(
   } catch (error) {
     const cacheKey = getFallbackCacheKey(filters, stockFilter);
     const cachedEntry = inventoryFallbackCache.get(cacheKey);
-    if (cachedEntry) {
+    if (cachedEntry && cachedEntry.version === inventoryFallbackVersion) {
       const start = Math.max(0, (safePage - 1) * safePageSize);
 
       return {
@@ -353,6 +360,7 @@ async function fetchInventoryStockFilteredPage(
     inventoryFallbackCache.set(cacheKey, {
       filteredRows: filteredByStock,
       totalCount: filteredByStock.length,
+      version: inventoryFallbackVersion,
     });
 
     return {
@@ -444,7 +452,7 @@ export function useInventory(params: UseInventoryParams) {
         cleanup();
       }
     },
-    refetchOnWindowFocus: false,
+    refetchOnWindowFocus: true,
     refetchOnReconnect: true,
     staleTime: 30000,
   });
@@ -455,6 +463,7 @@ export function useInventory(params: UseInventoryParams) {
       if (invalidateTimeoutId) return;
       invalidateTimeoutId = setTimeout(() => {
         invalidateTimeoutId = null;
+        clearInventoryFallbackCache();
         queryClient.invalidateQueries({ queryKey: queryKeys.inventory() });
       }, 700);
     };

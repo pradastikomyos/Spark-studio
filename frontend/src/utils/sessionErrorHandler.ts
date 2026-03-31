@@ -97,6 +97,9 @@ export class SessionErrorHandler {
    * Checks if an error is a network error
    */
   private isNetworkError(error: unknown): boolean {
+    if (error && typeof error === 'object' && 'type' in error) {
+      return (error as { type?: unknown }).type === 'network'
+    }
     if (error instanceof Error) {
       return (
         error.message.includes('network') ||

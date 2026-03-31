@@ -2,7 +2,6 @@ import { useTranslation } from 'react-i18next';
 import AdminLayout from '../../components/AdminLayout';
 import { useAuth } from '../../contexts/AuthContext';
 import { ADMIN_MENU_ITEMS, ADMIN_MENU_SECTIONS } from '../../constants/adminMenu';
-import { useSessionRefresh } from '../../hooks/useSessionRefresh';
 import { VoucherFormModal } from './voucher-manager/VoucherFormModal';
 import { VoucherPagination } from './voucher-manager/VoucherPagination';
 import { VoucherTable } from './voucher-manager/VoucherTable';
@@ -12,8 +11,6 @@ import { useVoucherManagerController } from './voucher-manager/useVoucherManager
 export default function VoucherManager() {
   const { signOut } = useAuth();
   const { t } = useTranslation();
-
-  useSessionRefresh();
 
   const {
     vouchers,

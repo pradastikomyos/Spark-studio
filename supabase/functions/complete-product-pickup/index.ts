@@ -7,6 +7,34 @@ type RequestBody = {
   pickupCode: string
 }
 
+type CompletePickupResult = {
+  ok?: boolean
+  code?: string
+  message?: string
+  orderId?: number
+  pickupCode?: string
+  pickupStatus?: string
+}
+
+function mapPickupErrorStatus(code: string | undefined): number {
+  if (!code) return 500
+  if (code === 'order_not_found') return 404
+  if (code === 'missing_pickup_code' || code === 'missing_picked_up_by') return 400
+  if (
+    code === 'order_not_paid' ||
+    code === 'already_completed' ||
+    code === 'pickup_expired' ||
+    code === 'pickup_cancelled' ||
+    code === 'variant_not_found' ||
+    code === 'insufficient_stock' ||
+    code === 'no_order_items' ||
+    code === 'invalid_order_item'
+  ) {
+    return 409
+  }
+  return 500
+}
+
 serve(async (req) => {
   const corsResponse = handleCors(req)
   if (corsResponse) return corsResponse
@@ -19,7 +47,7 @@ serve(async (req) => {
     if (!admin) return json(req, { error: 'Unauthorized' }, { status: 401 })
 
     const body = (await req.json()) as RequestBody
-    const pickupCode = String(body.pickupCode || '').trim()
+    const pickupCode = String(body.pickupCode || '').trim().toUpperCase()
     if (!pickupCode) {
       return jsonError(req, 400, 'Missing pickup code')
     }
@@ -76,67 +104,37 @@ serve(async (req) => {
       return jsonError(req, 409, 'Pickup code expired')
     }
 
-    const orderId = (order as { id: number }).id
-    const { data: items, error: itemsError } = await admin.supabaseService
-      .from('order_product_items')
-      .select('product_variant_id, quantity')
-      .eq('order_product_id', orderId)
+    const { data: completionResult, error: completionError } = await admin.supabaseService.rpc(
+      'complete_product_pickup_atomic',
+      {
+        p_pickup_code: pickupCode,
+        p_picked_up_by: pickedUpBy,
+      }
+    )
 
-    if (itemsError || !Array.isArray(items)) {
-      return jsonError(req, 500, 'Failed to load order items')
+    if (completionError) {
+      console.error('[complete-product-pickup] RPC failed:', completionError)
+      return jsonError(req, 500, 'Failed to complete pickup')
     }
 
-    for (const row of items) {
-      const variantId = Number((row as { product_variant_id: number | string }).product_variant_id)
-      const qty = Math.max(1, Math.floor(Number((row as { quantity: number | string }).quantity)))
-
-      const { data: variant, error: variantError } = await admin.supabaseService
-        .from('product_variants')
-        .select('id, stock, reserved_stock')
-        .eq('id', variantId)
-        .single()
-
-      if (variantError || !variant) {
-        return jsonError(req, 409, 'Variant not found')
-      }
-
-      const stock = (variant as { stock?: number }).stock ?? 0
-      const reserved = (variant as { reserved_stock?: number }).reserved_stock ?? 0
-      if (reserved < qty || stock < qty) {
-        return jsonError(req, 409, 'Insufficient stock')
-      }
-
-      const { error: updateVariantError } = await admin.supabaseService
-        .from('product_variants')
-        .update({
-          stock: stock - qty,
-          reserved_stock: reserved - qty,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', variantId)
-
-      if (updateVariantError) {
-        return jsonError(req, 500, 'Failed to update stock')
-      }
+    const result =
+      completionResult && typeof completionResult === 'object' ? (completionResult as CompletePickupResult) : null
+    if (!result) {
+      return jsonError(req, 500, 'Invalid pickup completion result')
     }
 
-    const { error: updateOrderError } = await admin.supabaseService
-      .from('order_products')
-      .update({
-        pickup_status: 'completed',
-        picked_up_at: new Date().toISOString(),
-        picked_up_by: pickedUpBy,
-        status: 'completed',
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', orderId)
-
-    if (updateOrderError) {
-      return jsonError(req, 500, 'Failed to update order')
+    if (!result.ok) {
+      return jsonError(req, mapPickupErrorStatus(result.code), result.message || 'Failed to complete pickup')
     }
 
-    return json(req, { status: 'ok' })
-  } catch {
+    return json(req, {
+      status: 'ok',
+      orderId: result.orderId ?? null,
+      pickupCode: result.pickupCode ?? pickupCode,
+      pickupStatus: result.pickupStatus ?? 'completed',
+    })
+  } catch (error) {
+    console.error('[complete-product-pickup] Unexpected error:', error)
     return jsonError(req, 500, 'Internal server error')
   }
 })

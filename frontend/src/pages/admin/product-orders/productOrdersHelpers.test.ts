@@ -5,6 +5,7 @@ import {
   getDisplayOrders,
   getEmptyStateCopy,
   getPendingOrders,
+  getPickupStatusClass,
   getPickupStatusLabel,
   getTodaysOrders,
 } from './productOrdersHelpers';
@@ -29,10 +30,11 @@ describe('productOrdersHelpers', () => {
   it('sorts pending orders by paid or created time descending', () => {
     const orders = [
       createOrder({ id: 1, paid_at: '2026-03-07T08:00:00.000Z' }),
+      createOrder({ id: 3, pickup_status: 'pending_review', paid_at: '2026-03-07T09:00:00.000Z' }),
       createOrder({ id: 2, paid_at: '2026-03-07T10:00:00.000Z' }),
     ];
 
-    expect(getPendingOrders(orders).map((order) => order.id)).toEqual([2, 1]);
+    expect(getPendingOrders(orders).map((order) => order.id)).toEqual([2, 3, 1]);
   });
 
   it('filters todays orders against current day', () => {
@@ -58,5 +60,7 @@ describe('productOrdersHelpers', () => {
     expect(getCompletedOrders(completed).map((order) => order.id)).toEqual([3]);
     expect(getEmptyStateCopy('completed').message).toContain('selesai');
     expect(getPickupStatusLabel('pending_pickup')).toBe('Pending');
+    expect(getPickupStatusLabel('pending_review')).toBe('Review');
+    expect(getPickupStatusClass('pending_review')).toContain('bg-orange-100');
   });
 });

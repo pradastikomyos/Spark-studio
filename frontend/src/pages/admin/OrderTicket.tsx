@@ -1,16 +1,12 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
-import { supabase } from '../../lib/supabase';
 import AdminLayout from '../../components/AdminLayout';
 import QRScannerModal from '../../components/admin/QRScannerModal';
 import { ADMIN_MENU_ITEMS, ADMIN_MENU_SECTIONS } from '../../constants/adminMenu';
-import { TAB_RETURN_EVENT } from '../../constants/browserEvents';
-import { createWIBDate, addMinutes, nowWIB, SESSION_DURATION_MINUTES, toLocalDateString } from '../../utils/timezone';
-import { withTimeout } from '../../utils/queryHelpers';
-const REQUEST_TIMEOUT_MS = 60000;
+import { validateEntranceTicket } from './order-ticket/validateEntranceTicket';
 
 const OrderTicket = () => {
-  const { signOut } = useAuth();
+  const { signOut, session } = useAuth();
   const [showScanner, setShowScanner] = useState(false);
   const [validating, setValidating] = useState(false);
   const [lastScanResult, setLastScanResult] = useState<{
@@ -24,17 +20,6 @@ const OrderTicket = () => {
     };
   } | null>(null);
 
-  type PurchasedTicketRow = {
-    id: number;
-    ticket_code: string;
-    status: string;
-    valid_date: string;
-    time_slot: string | null;
-    used_at: string | null;
-    user_id: string | null;
-    tickets?: { name: string } | null;
-  };
-
   const validateTicket = useCallback(
     async (rawCode: string): Promise<void> => {
       const code = rawCode.trim();
@@ -45,205 +30,34 @@ const OrderTicket = () => {
       setLastScanResult(null);
 
       try {
-        // Step 1: Fetch ticket data (without profiles join)
-        const { data, error } = await withTimeout(
-          supabase
-            .from('purchased_tickets')
-            .select(`
-              id, 
-              ticket_code, 
-              status, 
-              valid_date,
-              time_slot,
-              used_at,
-              user_id,
-              tickets!inner(name)
-            `)
-            .eq('ticket_code', code)
-            .maybeSingle(),
-          REQUEST_TIMEOUT_MS,
-          'Request timeout. Please try again.'
-        );
+        const ticket = await validateEntranceTicket({
+          ticketCode: code,
+          session,
+        });
 
-        if (error) {
-          const errMsg = 'Gagal mengambil data tiket: ' + error.message;
-          setLastScanResult({ type: 'error', message: errMsg });
-          throw new Error(errMsg);
-        }
-
-        const ticketData = data as PurchasedTicketRow | null;
-
-        if (!ticketData) {
-          const errMsg = 'Kode tiket tidak ditemukan di sistem.';
-          setLastScanResult({ type: 'error', message: errMsg });
-          throw new Error(errMsg);
-        }
-
-        // Step 2: Fetch user profile data separately
-        let userName = '-';
-
-        if (ticketData.user_id) {
-          const { data: profileData } = await withTimeout(
-            supabase
-              .from('profiles')
-              .select('name')
-              .eq('id', ticketData.user_id)
-              .maybeSingle(),
-            REQUEST_TIMEOUT_MS,
-            'Request timeout. Please try again.'
-          );
-
-          if (profileData) {
-            userName = profileData.name || '-';
-          }
-        }
-
-        if (!ticketData) {
-          const errMsg = 'Kode tiket tidak ditemukan di sistem.';
-          setLastScanResult({ type: 'error', message: errMsg });
-          throw new Error(errMsg);
-        }
-
-        if (ticketData.status !== 'active') {
-          const errMsg = ticketData.status === 'used'
-            ? `Tiket sudah digunakan pada ${new Date(ticketData.used_at || '').toLocaleString('id-ID')}`
-            : `Status tiket: ${ticketData.status}.`;
-          setLastScanResult({ type: 'error', message: errMsg });
-          throw new Error(errMsg);
-        }
-
-        // Use local timezone for date comparison (not UTC!)
-        const todayLocal = toLocalDateString(nowWIB());
-
-        if (ticketData.valid_date < todayLocal) {
-          // Add T00:00:00 to parse as local time, not UTC
-          const errMsg = `Tiket kadaluarsa. Tanggal valid adalah ${new Date(ticketData.valid_date + 'T00:00:00').toLocaleDateString('id-ID')}.`;
-          setLastScanResult({ type: 'error', message: errMsg });
-          throw new Error(errMsg);
-        }
-
-        if (ticketData.valid_date > todayLocal) {
-          const errMsg = `Tiket belum valid. Berlaku mulai ${new Date(ticketData.valid_date + 'T00:00:00').toLocaleDateString('id-ID')}.`;
-          setLastScanResult({ type: 'error', message: errMsg });
-          throw new Error(errMsg);
-        }
-
-        // CRITICAL: Validate session time window
-        // User can only scan during their booked session time (start to end)
-        if (ticketData.time_slot) {
-          const now = nowWIB();
-          const sessionStart = createWIBDate(todayLocal, ticketData.time_slot);
-          const sessionEnd = addMinutes(sessionStart, SESSION_DURATION_MINUTES);
-
-          // Check if current time is BEFORE session starts
-          if (now < sessionStart) {
-            const timeDisplay = ticketData.time_slot.substring(0, 5);
-            const sessionStartDisplay = sessionStart.toLocaleTimeString('id-ID', {
-              timeZone: 'Asia/Jakarta',
-              hour: '2-digit',
-              minute: '2-digit',
-              hour12: false
-            });
-            const errMsg = `⏰ SESI BELUM DIMULAI. Sesi ${timeDisplay} dimulai jam ${sessionStartDisplay}.`;
-            setLastScanResult({ type: 'error', message: errMsg });
-            throw new Error(errMsg);
-          }
-
-          // Check if current time is AFTER session ends
-          if (now > sessionEnd) {
-            const timeDisplay = ticketData.time_slot.substring(0, 5);
-            const sessionEndDisplay = sessionEnd.toLocaleTimeString('id-ID', {
-              timeZone: 'Asia/Jakarta',
-              hour: '2-digit',
-              minute: '2-digit',
-              hour12: false
-            });
-            const errMsg = `⛔ SESI BERAKHIR. Sesi ${timeDisplay} berakhir jam ${sessionEndDisplay}.`;
-            setLastScanResult({ type: 'error', message: errMsg });
-            throw new Error(errMsg);
-          }
-
-          // SUCCESS: Within session time window
-          const minutesLeft = Math.floor((sessionEnd.getTime() - now.getTime()) / (60 * 1000));
-          console.log(`[QR Scan] Valid scan within session. ${minutesLeft} minutes remaining.`);
-        }
-
-        // Update ticket status to 'used' with timestamp
-        console.log('Attempting to update ticket ID:', ticketData.id);
-        const { data: updatedTicket, error: updateError } = await withTimeout(
-          supabase
-            .from('purchased_tickets')
-            .update({
-              status: 'used',
-              used_at: new Date().toISOString()
-            })
-            .eq('id', ticketData.id)
-            .eq('status', 'active')
-            .select('id, status')
-            .maybeSingle(),
-          REQUEST_TIMEOUT_MS,
-          'Request timeout. Please try again.'
-        );
-
-        console.log('Update result:', { updatedTicket, updateError });
-
-        if (updateError) {
-          console.error('Update error:', updateError);
-          const errMsg = `Gagal update tiket: ${updateError.message}`;
-          setLastScanResult({ type: 'error', message: errMsg });
-          throw new Error(errMsg);
-        }
-
-        // Verify the update actually happened
-        if (!updatedTicket) {
-          const errMsg = 'Gagal memperbarui status tiket. Kemungkinan ada masalah permission database.';
-          console.error('No updated ticket returned - possible RLS issue');
-          setLastScanResult({ type: 'error', message: errMsg });
-          throw new Error(errMsg);
-        }
-
-        // Double-check the status was updated correctly
-        if (updatedTicket.status !== 'used') {
-          const errMsg = 'Status tiket tidak berhasil diperbarui. Silakan coba lagi.';
-          setLastScanResult({ type: 'error', message: errMsg });
-          throw new Error(errMsg);
-        }
-
-        // SUCCESS - only reach here if everything worked
         setLastScanResult({
           type: 'success',
           message: 'Tiket berhasil divalidasi! Masuk diizinkan.',
           ticketInfo: {
-            code: ticketData.ticket_code,
-            userName: userName,
-            ticketName: ticketData.tickets?.name || '-',
-            validDate: new Date(ticketData.valid_date).toLocaleDateString('id-ID'),
-          }
+            code: ticket.code,
+            userName: ticket.userName,
+            ticketName: ticket.ticketName,
+            validDate: ticket.validDate
+              ? new Date(`${ticket.validDate}T00:00:00`).toLocaleDateString('id-ID')
+              : '-',
+          },
         });
-        // Don't throw - success!
       } catch (err) {
+        const message = err instanceof Error ? err.message : 'Gagal memvalidasi tiket';
+        setLastScanResult({ type: 'error', message });
         console.error('Validation error:', err);
-        // Re-throw to let QRScannerModal know this failed
         throw err;
       } finally {
         setValidating(false);
       }
     },
-    [validating]
+    [session, validating]
   );
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const handleTabReturn = () => {
-      if (validating) return;
-      setShowScanner(false);
-      setLastScanResult(null);
-    };
-    window.addEventListener(TAB_RETURN_EVENT, handleTabReturn);
-    return () => {
-      window.removeEventListener(TAB_RETURN_EVENT, handleTabReturn);
-    };
-  }, [validating]);
 
   return (
     <AdminLayout

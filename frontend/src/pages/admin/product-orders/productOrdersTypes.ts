@@ -26,7 +26,6 @@ export type UseProductOrdersControllerParams = {
   orders: OrderSummaryRow[];
   pendingCount: number;
   ordersError: string | null;
-  refetch: () => Promise<unknown>;
   session: Session | null;
   showToast: (type: 'success' | 'error' | 'warning' | 'info', message: string) => void;
 };

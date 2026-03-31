@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import { supabase } from '../../../lib/supabase';
+import { clearInventoryFallbackCache } from '../../../hooks/useInventory';
 import {
   MAX_PRODUCT_IMAGE_SIZE_MB,
   PRODUCT_IMAGE_UPLOAD_CONCURRENCY,
@@ -187,6 +188,7 @@ export function useInventoryProductActions(params: UseInventoryProductActionsPar
       if (cascadeError) throw cascadeError;
 
       setDeletingProduct(null);
+      clearInventoryFallbackCache();
       await refetch();
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to delete product';
@@ -459,6 +461,7 @@ export function useInventoryProductActions(params: UseInventoryProductActionsPar
       setShowProductForm(false);
       setEditingProductId(null);
       if (typeof window !== 'undefined') sessionStorage.removeItem(ADMIN_PRODUCT_DRAFT_KEY);
+      clearInventoryFallbackCache();
       await refetch();
     } catch (error) {
       if (rollbackProducts) {

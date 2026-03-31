@@ -1,12 +1,13 @@
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { OrderSummaryRow } from '../../../hooks/useProductOrders';
+import { queryKeys } from '../../../lib/queryKeys';
 import {
   buildProductOrdersMenuSections,
   getCompletedOrders,
   getDisplayOrders,
   getPendingOrders,
   getTodaysOrders,
-  TAB_RETURN_EVENT,
 } from './productOrdersHelpers';
 import { completeProductPickup, loadProductOrderDetailsByPickupCode } from './productOrdersData';
 import type { ProductOrderDetails, ProductOrdersTab, UseProductOrdersControllerParams } from './productOrdersTypes';
@@ -17,39 +18,77 @@ export function useProductOrdersController({
   orders,
   pendingCount,
   ordersError,
-  refetch,
   session,
   showToast,
 }: UseProductOrdersControllerParams) {
+  const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<ProductOrdersTab>('pending');
   const [scannerOpen, setScannerOpen] = useState(false);
   const [lookupCode, setLookupCode] = useState('');
   const [lookupError, setLookupError] = useState<string | null>(null);
-  const [details, setDetails] = useState<ProductOrderDetails | null>(null);
-  const [submitting, setSubmitting] = useState(false);
+  const [selectedPickupCode, setSelectedPickupCode] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const handleTabReturn = () => {
-      void refetch();
-    };
-    window.addEventListener(TAB_RETURN_EVENT, handleTabReturn);
-    return () => {
-      window.removeEventListener(TAB_RETURN_EVENT, handleTabReturn);
-    };
-  }, [refetch]);
 
   useEffect(() => {
     if (ordersError) showToast('error', ordersError);
   }, [ordersError, showToast]);
 
-  const loadDetails = useCallback(async (pickupCode: string) => {
-    const nextDetails = await loadProductOrderDetailsByPickupCode(pickupCode);
-    setDetails(nextDetails);
-    return nextDetails;
-  }, []);
+  const detailsQuery = useQuery<ProductOrderDetails>({
+    queryKey: selectedPickupCode ? queryKeys.productOrderDetail(selectedPickupCode) : [...queryKeys.productOrderDetails(), 'idle'],
+    enabled: Boolean(selectedPickupCode),
+    queryFn: () => loadProductOrderDetailsByPickupCode(String(selectedPickupCode)),
+    retry: false,
+    refetchOnWindowFocus: true,
+    refetchOnReconnect: true,
+    staleTime: 0,
+  });
+
+  useEffect(() => {
+    if (!selectedPickupCode || !detailsQuery.error) return;
+    showToast('warning', detailsQuery.error.message || 'Order tidak lagi tersedia untuk pickup');
+    setSelectedPickupCode(null);
+    setActionError(null);
+  }, [detailsQuery.error, selectedPickupCode, showToast]);
+
+  const openDetails = useCallback(
+    async (pickupCode: string) => {
+      const normalizedCode = pickupCode.trim().toUpperCase();
+      if (!normalizedCode) throw new Error('Kode pickup tidak valid');
+
+      const nextDetails = await queryClient.fetchQuery({
+        queryKey: queryKeys.productOrderDetail(normalizedCode),
+        queryFn: () => loadProductOrderDetailsByPickupCode(normalizedCode),
+        staleTime: 0,
+      });
+      setLookupCode(normalizedCode);
+      setSelectedPickupCode(normalizedCode);
+      return nextDetails;
+    },
+    [queryClient]
+  );
+
+  const completePickupMutation = useMutation({
+    mutationFn: async (pickupCode: string) =>
+      completeProductPickup({
+        pickupCode,
+        session,
+      }),
+    onSuccess: async (_, pickupCode) => {
+      setSelectedPickupCode(null);
+      setLookupCode('');
+      setActionError(null);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.productOrders() }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.productOrderDetail(pickupCode) }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.productOrderDetails() }),
+      ]);
+      showToast('success', 'Pickup produk berhasil diverifikasi');
+    },
+    onError: (error) => {
+      setActionError(error instanceof Error ? error.message : 'Gagal memverifikasi barang');
+    },
+  });
 
   const handleLookup = useCallback(async () => {
     const trimmed = lookupCode.trim().toUpperCase();
@@ -57,11 +96,11 @@ export function useProductOrdersController({
     setLookupError(null);
     setActionError(null);
     try {
-      await loadDetails(trimmed);
+      await openDetails(trimmed);
     } catch (error) {
       setLookupError(error instanceof Error ? error.message : 'Gagal mencari order');
     }
-  }, [loadDetails, lookupCode]);
+  }, [lookupCode, openDetails]);
 
   const flashLookupInput = useCallback((color: 'green' | 'red') => {
     setTimeout(() => {
@@ -83,51 +122,39 @@ export function useProductOrdersController({
       setActionError(null);
 
       try {
-        await loadDetails(code);
+        await openDetails(code);
         flashLookupInput('green');
       } catch (error) {
         setLookupError(error instanceof Error ? error.message : 'Gagal mencari order');
         flashLookupInput('red');
       }
     },
-    [flashLookupInput, loadDetails]
+    [flashLookupInput, openDetails]
   );
 
   const handleSelectOrder = useCallback(
     async (pickupCode: string | null) => {
       if (!pickupCode) return;
       try {
-        await loadDetails(String(pickupCode));
+        await openDetails(String(pickupCode));
       } catch {
         return;
       }
     },
-    [loadDetails]
+    [openDetails]
   );
 
   const handleCloseDetails = useCallback(() => {
-    setDetails(null);
+    setSelectedPickupCode(null);
     setActionError(null);
   }, []);
 
   const handleCompletePickup = useCallback(async () => {
-    if (!details?.order.pickup_code) return;
-    setSubmitting(true);
+    const pickupCode = detailsQuery.data?.order.pickup_code;
+    if (!pickupCode) return;
     setActionError(null);
-    try {
-      await completeProductPickup({
-        pickupCode: details.order.pickup_code,
-        session,
-      });
-      setDetails(null);
-      setLookupCode('');
-      await refetch();
-    } catch (error) {
-      setActionError(error instanceof Error ? error.message : 'Gagal memverifikasi barang');
-    } finally {
-      setSubmitting(false);
-    }
-  }, [details?.order.pickup_code, refetch, session]);
+    await completePickupMutation.mutateAsync(pickupCode);
+  }, [completePickupMutation, detailsQuery.data?.order.pickup_code]);
 
   const safeOrders = orders.length > 0 ? orders : EMPTY_ORDERS;
   const pendingOrders = useMemo(() => getPendingOrders(safeOrders), [safeOrders]);
@@ -144,8 +171,8 @@ export function useProductOrdersController({
     scannerOpen,
     lookupCode,
     lookupError,
-    details,
-    submitting,
+    details: detailsQuery.data ?? null,
+    submitting: completePickupMutation.isPending,
     actionError,
     inputRef,
     pendingOrders,
