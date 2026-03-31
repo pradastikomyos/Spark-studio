@@ -62,6 +62,9 @@ verify_jwt = false
 [functions.complete-product-pickup]
 verify_jwt = false
 
+[functions.validate-entrance-ticket]
+verify_jwt = false
+
 [functions.imagekit-auth]
 verify_jwt = false
 
