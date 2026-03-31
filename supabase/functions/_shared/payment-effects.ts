@@ -1,5 +1,5 @@
 import type { SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2.90.1'
-import type { Database, Json } from '../../../frontend/src/types/database.types.ts'
+import type { Database, Json } from './database.types.ts'
 import { normalizeAvailabilityTimeSlot, normalizeSelectedTimeSlots } from './tickets.ts'
 
 type OrdersRow = {
