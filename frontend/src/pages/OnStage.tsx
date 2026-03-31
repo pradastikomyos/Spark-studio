@@ -173,7 +173,7 @@ const OnStage = () => {
             className="inline-block transition-transform hover:-translate-y-1 hover:drop-shadow-2xl active:translate-y-0 active:drop-shadow-lg duration-300"
           >
             <img 
-              src="/images/landing/TICKET FIX.PNG"
+              src="/images/landing/TICKET BOARD ENTRANCE website.png"
               alt="BE A STAR Ticket" 
               className="w-full max-w-3xl lg:max-w-5xl xl:max-w-6xl mx-auto object-contain drop-shadow-xl"
             />
