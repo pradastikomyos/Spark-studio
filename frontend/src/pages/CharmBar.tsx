@@ -167,9 +167,9 @@ export default function CharmBar() {
                 <div className="pointer-events-none absolute inset-0 bg-black/18" />
                 <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center text-center text-white">
                   <span className="font-serif text-4xl font-black uppercase leading-none sm:text-5xl" style={getCmsFontStyle(howItWorksFonts.heading)}>
-                    Auto play
+                    {/* Auto play
                     <br />
-                    video
+                    video */}
                   </span>
                 </div>
               </div>
