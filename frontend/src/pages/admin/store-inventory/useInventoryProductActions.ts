@@ -173,13 +173,6 @@ export function useInventoryProductActions(params: UseInventoryProductActionsPar
       }
 
       const deletedAt = new Date().toISOString();
-      const { error } = await withTimeout(
-        supabase.from('products').update({ deleted_at: deletedAt }).eq('id', deletingProduct.id),
-        REQUEST_TIMEOUT_MS,
-        'Request timeout. Please try again.'
-      );
-      if (error) throw error;
-
       const { error: cascadeError } = await withTimeout(
         supabase.rpc('soft_delete_product_cascade', { p_product_id: deletingProduct.id, p_deleted_at: deletedAt }),
         REQUEST_TIMEOUT_MS,

@@ -159,6 +159,13 @@ const StoreInventory = () => {
           </button>
         </>
       }
+      headerSearchValue={filters.searchInput}
+      headerSearchPlaceholder="Search products..."
+      onHeaderSearchChange={(value) => {
+        filters.setSearchInput(value);
+        filters.setCurrentPage(1);
+      }}
+      onHeaderSearchSubmit={filters.commitSearchInput}
       onLogout={signOut}
       mainClassName="relative"
     >

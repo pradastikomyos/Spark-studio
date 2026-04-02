@@ -43,6 +43,7 @@ const filterResult = {
   setCategoryFilter: vi.fn(),
   setStockFilter: vi.fn(),
   setCurrentPage: vi.fn(),
+  commitSearchInput: vi.fn(),
 };
 
 const productActionResult = {

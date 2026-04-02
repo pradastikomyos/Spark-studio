@@ -12,8 +12,8 @@ Use this guide for `Admin -> Store & Inventory -> Add Product`.
 ## Product Rules
 
 - `Name`: required
-- `Slug`: required and unique
-- `Product SKU`: required and unique
+- `Slug`: required and unique among active products
+- `Product SKU`: required and unique among active products
 - `Category`: required
 - `Description`: optional
 - `Active`: optional
@@ -21,7 +21,7 @@ Use this guide for `Admin -> Store & Inventory -> Add Product`.
 ## Variant Rules
 
 - `Variant Name`: required
-- `Variant SKU`: required and globally unique
+- `Variant SKU`: required and unique among active variants
 - `Price`: required and greater than zero
 - `Stock`: may be zero
 - `Size`: optional
@@ -45,7 +45,9 @@ Use this guide for `Admin -> Store & Inventory -> Add Product`.
 ## Troubleshooting
 
 - "SKU already exists":
-  - use a different product or variant SKU
+  - check whether another active product or active variant is already using that SKU
+- deleted product recreated with the same slug or product SKU:
+  - this is supported; a completed delete should release the previous identifiers for reuse
 - image missing in detail page:
   - verify upload success and try a hard refresh after deployment
 - stock zero but product should stay visible:

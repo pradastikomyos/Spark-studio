@@ -26,6 +26,10 @@ type AdminLayoutProps = {
   title: string;
   subtitle?: string;
   headerActions?: ReactNode;
+  headerSearchValue?: string;
+  headerSearchPlaceholder?: string;
+  onHeaderSearchChange?: (value: string) => void;
+  onHeaderSearchSubmit?: () => void;
   children: ReactNode;
   onLogout: () => Promise<void | { error: Error | null }> | void;
   logoutRedirectPath?: string;
@@ -39,6 +43,10 @@ const AdminLayout = ({
   title,
   subtitle,
   headerActions,
+  headerSearchValue,
+  headerSearchPlaceholder = 'Search...',
+  onHeaderSearchChange,
+  onHeaderSearchSubmit,
   children,
   onLogout,
   logoutRedirectPath = '/login',
@@ -113,6 +121,8 @@ const AdminLayout = ({
     if (!user?.email) return 'A';
     return user.email.charAt(0).toUpperCase();
   };
+
+  const showHeaderSearch = typeof onHeaderSearchChange === 'function';
 
   return (
     <div className="flex h-screen w-full overflow-hidden">
@@ -251,16 +261,25 @@ const AdminLayout = ({
 	                <div className="flex items-center gap-3 whitespace-nowrap pr-1">{headerActions}</div>
 	              </div>
 	            ) : null}
-	            <div className="relative w-full max-w-xs hidden sm:block">
-	              <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">
-	                search
-	              </span>
-              <input
-                className="w-full bg-white border border-gray-200 rounded-lg py-2 pl-9 pr-4 text-sm text-gray-900 focus:ring-1 focus:ring-main-500 focus:border-main-500 placeholder-gray-400"
-                placeholder="Search..."
-                type="text"
-              />
-            </div>
+            {showHeaderSearch ? (
+              <div className="relative w-full max-w-xs hidden sm:block">
+                <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">
+                  search
+                </span>
+                <input
+                  className="w-full bg-white border border-gray-200 rounded-lg py-2 pl-9 pr-4 text-sm text-gray-900 focus:ring-1 focus:ring-main-500 focus:border-main-500 placeholder-gray-400"
+                  placeholder={headerSearchPlaceholder}
+                  type="text"
+                  value={headerSearchValue ?? ''}
+                  onChange={(event) => onHeaderSearchChange?.(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') {
+                      onHeaderSearchSubmit?.();
+                    }
+                  }}
+                />
+              </div>
+            ) : null}
             <div className="h-10 w-10 rounded-full bg-white border border-gray-200 flex items-center justify-center text-sm font-bold text-gray-900">
               {getUserInitials()}
             </div>

@@ -72,5 +72,10 @@ export function useStoreInventoryFilters(params: UseStoreInventoryFiltersParams)
     setCategoryFilter,
     setStockFilter,
     setCurrentPage,
+    commitSearchInput: () => {
+      const nextSearch = searchInput.trim();
+      setSearchQuery(nextSearch);
+      setCurrentPage(1);
+    },
   };
 }
