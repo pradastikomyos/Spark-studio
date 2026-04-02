@@ -89,7 +89,10 @@ type InventoryFallbackCacheEntry = {
 const INVENTORY_FULL_SCAN_PAGE_SIZE = 500;
 const INVENTORY_FULL_SCAN_WARNING =
   'Stock filter fallback is using a full product scan because the inventory RPC failed.';
-const INVENTORY_PRODUCTS_SELECT = `
+
+const getInventorySelect = (categoryFilter: string) => {
+  const isFilteringByCategory = categoryFilter.trim() !== '' && categoryFilter.trim() !== 'uncategorized';
+  return `
   id,
   name,
   slug,
@@ -98,7 +101,7 @@ const INVENTORY_PRODUCTS_SELECT = `
   sku,
   is_active,
   deleted_at,
-  categories(id, name, slug, is_active),
+  categories${isFilteringByCategory ? '!inner' : ''}(id, name, slug, is_active),
   product_images(image_url, is_primary, display_order),
   product_variants(
     id,
@@ -112,6 +115,7 @@ const INVENTORY_PRODUCTS_SELECT = `
     is_active
   )
 `;
+};
 
 type InventoryListFilters = {
   searchQuery: string;
@@ -155,7 +159,11 @@ const applyInventoryFilters = <T>(query: T, filters: InventoryListFilters): T =>
 
   const normalizedCategory = filters.categoryFilter.trim();
   if (normalizedCategory) {
-    next = next.eq('categories.slug', normalizedCategory) as typeof next;
+    if (normalizedCategory === 'uncategorized') {
+      next = (next as any).is('category_id', null) as typeof next;
+    } else {
+      next = next.eq('categories.slug', normalizedCategory) as typeof next;
+    }
   }
 
   return next as unknown as T;
@@ -212,7 +220,7 @@ async function fetchAllInventoryProducts(
     const products = await supabasePaginatedFetcher<ProductRow>((from, to) => {
       let query = supabase
         .from('products')
-        .select(INVENTORY_PRODUCTS_SELECT)
+        .select(getInventorySelect(filters.categoryFilter))
         .abortSignal(signal)
         .is('deleted_at', null)
         .order('name', { ascending: true })
@@ -241,7 +249,7 @@ async function fetchInventoryPage(
 
   let query = supabase
     .from('products')
-    .select(INVENTORY_PRODUCTS_SELECT, { count: 'exact' })
+    .select(getInventorySelect(filters.categoryFilter), { count: 'exact' })
     .abortSignal(signal)
     .is('deleted_at', null)
     .order('name', { ascending: true })
@@ -307,7 +315,7 @@ async function fetchInventoryStockFilteredPage(
 
     const { data: detailData, error: detailError } = await supabase
       .from('products')
-      .select(INVENTORY_PRODUCTS_SELECT)
+      .select(getInventorySelect(filters.categoryFilter))
       .abortSignal(signal)
       .is('deleted_at', null)
       .in('id', productIds);
