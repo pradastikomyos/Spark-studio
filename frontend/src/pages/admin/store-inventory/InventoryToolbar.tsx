@@ -4,11 +4,9 @@ import type { StockFilter } from './storeInventoryTypes';
 type InventoryToolbarProps = {
   resolvedTotalProducts: number;
   isFetching: boolean;
-  searchInput: string;
   categoryFilter: string;
   stockFilter: StockFilter;
   categoryOptions: CategoryOption[];
-  onSearchInputChange: (value: string) => void;
   onCategoryFilterChange: (value: string) => void;
   onStockFilterChange: (value: StockFilter) => void;
 };
@@ -17,11 +15,9 @@ export function InventoryToolbar(props: InventoryToolbarProps) {
   const {
     resolvedTotalProducts,
     isFetching,
-    searchInput,
     categoryFilter,
     stockFilter,
     categoryOptions,
-    onSearchInputChange,
     onCategoryFilterChange,
     onStockFilterChange,
   } = props;
@@ -34,16 +30,6 @@ export function InventoryToolbar(props: InventoryToolbarProps) {
         {isFetching && <span className="text-xs font-medium text-gray-500 font-sans">Updating...</span>}
       </div>
       <div className="flex flex-wrap items-center gap-3">
-        <div className="relative">
-          <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[20px] text-gray-600">search</span>
-          <input
-            className="w-full sm:w-64 rounded-lg border border-gray-200 bg-white pl-10 pr-4 py-2 text-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary font-sans"
-            placeholder="Search products..."
-            type="text"
-            value={searchInput}
-            onChange={(event) => onSearchInputChange(event.target.value)}
-          />
-        </div>
         <select
           className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary font-sans cursor-pointer"
           value={categoryFilter}

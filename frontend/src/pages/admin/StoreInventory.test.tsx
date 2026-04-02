@@ -1,9 +1,11 @@
 import type { ReactNode } from 'react';
-import { describe, expect, it, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { fireEvent, render, screen } from '@testing-library/react';
 import StoreInventory from './StoreInventory';
 
 const refetchMock = vi.fn();
+const navigateMock = vi.fn();
+const showToastMock = vi.fn();
 const inventoryResult: {
   data: {
     products: [];
@@ -12,7 +14,7 @@ const inventoryResult: {
     diagnostics: {
       fetchMs: number;
       fullScan: boolean;
-      source: 'rpc' | 'fallback-live' | 'fallback-cache';
+      source: 'rpc';
       warning: string | null;
     };
   };
@@ -75,14 +77,27 @@ vi.mock('../../hooks/useSessionRefresh', () => ({
 
 vi.mock('../../components/Toast', () => ({
   useToast: () => ({
-    showToast: vi.fn(),
+    showToast: showToastMock,
   }),
 }));
 
 vi.mock('../../components/AdminLayout', () => ({
-  default: ({ children, headerActions }: { children: ReactNode; headerActions?: ReactNode }) => (
+  default: ({
+    children,
+    headerActions,
+    headerSearchValue,
+    headerSearchPlaceholder,
+  }: {
+    children: ReactNode;
+    headerActions?: ReactNode;
+    headerSearchValue?: string;
+    headerSearchPlaceholder?: string;
+  }) => (
     <div>
       <div>{headerActions}</div>
+      {headerSearchPlaceholder ? (
+        <input aria-label="header-search" placeholder={headerSearchPlaceholder} value={headerSearchValue ?? ''} readOnly />
+      ) : null}
       <div>{children}</div>
     </div>
   ),
@@ -106,7 +121,7 @@ vi.mock('react-router-dom', async () => {
   return {
     ...actual,
     useLocation: () => ({ pathname: '/admin/store', search: '?q=glow' }),
-    useNavigate: () => vi.fn(),
+    useNavigate: () => navigateMock,
   };
 });
 
@@ -123,28 +138,35 @@ vi.mock('./store-inventory/useInventoryProductActions', () => ({
 }));
 
 describe('StoreInventory', () => {
+  beforeEach(() => {
+    navigateMock.mockReset();
+    showToastMock.mockReset();
+  });
+
+  it('keeps search in the header only and removes the duplicate toolbar field', () => {
+    render(<StoreInventory />);
+
+    expect(screen.getByPlaceholderText('Search products...')).toHaveValue('glow');
+    expect(screen.getAllByPlaceholderText('Search products...')).toHaveLength(1);
+  });
+
   it('renders empty state and composed product form', () => {
     render(<StoreInventory />);
 
-    expect(screen.getByDisplayValue('glow')).toBeInTheDocument();
     expect(screen.getByText('No Products Found')).toBeInTheDocument();
     expect(screen.getByText('product-form-open')).toBeInTheDocument();
   });
 
-  it('renders inventory fallback warnings when diagnostics report a full scan', () => {
-    inventoryResult.data.diagnostics = {
-      fetchMs: 8,
-      fullScan: true,
-      source: 'fallback-live',
-      warning: 'Stock filter fallback is using a full product scan because the inventory RPC failed.',
-    };
-
+  it('routes pickup verification to product orders instead of using a placeholder alert', () => {
     render(<StoreInventory />);
 
-    expect(
-      screen.getByText('Stock filter fallback is using a full product scan because the inventory RPC failed.')
-    ).toBeInTheDocument();
+    fireEvent.change(screen.getByPlaceholderText('ORD-XXXX-XXXX'), { target: { value: 'prx-123' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Verify' }));
 
-    inventoryResult.data.diagnostics = { fetchMs: 1, fullScan: false, source: 'rpc', warning: null };
+    expect(showToastMock).toHaveBeenCalledWith('info', 'Membuka verifikasi pickup untuk PRX-123.');
+    expect(navigateMock).toHaveBeenCalledWith({
+      pathname: '/admin/product-orders',
+      search: '?pickupCode=PRX-123',
+    });
   });
 });

@@ -7,13 +7,10 @@ type UseStoreInventoryFiltersParams = {
   pathname: string;
   search: string;
   navigate: NavigateFunction;
-  totalProducts: number | null;
-  isFetching: boolean;
-  pageSize: number;
 };
 
 export function useStoreInventoryFilters(params: UseStoreInventoryFiltersParams) {
-  const { pathname, search, navigate, totalProducts, isFetching, pageSize } = params;
+  const { pathname, search, navigate } = params;
   const initialParams = parseSearchParams(search);
   const [searchInput, setSearchInput] = useState(initialParams.searchQuery);
   const [searchQuery, setSearchQuery] = useState(initialParams.searchQuery);
@@ -49,19 +46,6 @@ export function useStoreInventoryFilters(params: UseStoreInventoryFiltersParams)
     if (nextSearch === search) return;
     navigate({ pathname, search: nextSearch }, { replace: true });
   }, [searchQuery, categoryFilter, stockFilter, currentPage, pathname, search, navigate]);
-
-  useEffect(() => {
-    if (isFetching || totalProducts == null) return;
-    const totalPages = Math.max(1, Math.ceil(totalProducts / pageSize));
-    if (totalProducts === 0 && currentPage !== 1) {
-      setCurrentPage(1);
-      return;
-    }
-    if (currentPage > totalPages) {
-      setCurrentPage(totalPages);
-    }
-  }, [currentPage, totalProducts, pageSize, isFetching]);
-
   return {
     searchInput,
     searchQuery,

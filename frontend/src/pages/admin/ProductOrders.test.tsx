@@ -1,7 +1,10 @@
 import type { ReactNode } from 'react';
-import { describe, expect, it, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { render, screen, waitFor } from '@testing-library/react';
 import ProductOrders from './ProductOrders';
+
+const navigateMock = vi.fn();
+let locationSearch = '';
 
 const controllerState = {
   activeTab: 'pending' as const,
@@ -87,7 +90,23 @@ vi.mock('./product-orders/ProductOrderDetailsModal', () => ({
     details ? <div>details:{details.order.pickup_code}</div> : null,
 }));
 
+vi.mock('react-router-dom', async () => {
+  const actual = await vi.importActual('react-router-dom');
+  return {
+    ...actual,
+    useLocation: () => ({ pathname: '/admin/product-orders', search: locationSearch }),
+    useNavigate: () => navigateMock,
+  };
+});
+
 describe('ProductOrders', () => {
+  beforeEach(() => {
+    locationSearch = '';
+    navigateMock.mockReset();
+    controllerState.setLookupCode.mockReset();
+    controllerState.handleSelectOrder.mockReset();
+  });
+
   it('renders modular sections through the controller composition', () => {
     render(<ProductOrders />);
 
@@ -96,5 +115,20 @@ describe('ProductOrders', () => {
     expect(screen.getByText('qr-scanner-open')).toBeInTheDocument();
     expect(screen.getByText('details:PRX-123')).toBeInTheDocument();
     expect(screen.getByText('Scan QR')).toBeInTheDocument();
+  });
+
+  it('hydrates pickup code from the query string into the existing verification flow', async () => {
+    locationSearch = '?pickupCode=prx-999';
+
+    render(<ProductOrders />);
+
+    await waitFor(() => expect(controllerState.setLookupCode).toHaveBeenCalledWith('PRX-999'));
+    expect(controllerState.handleSelectOrder).toHaveBeenCalledWith('PRX-999');
+    expect(navigateMock).toHaveBeenCalledWith(
+      { pathname: '/admin/product-orders', search: '' },
+      { replace: true }
+    );
+
+    locationSearch = '';
   });
 });

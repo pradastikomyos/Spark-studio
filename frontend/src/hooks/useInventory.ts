@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
-import { APIError, createQuerySignal, supabasePaginatedFetcher } from '../lib/fetchers';
+import { APIError, createQuerySignal } from '../lib/fetchers';
 import { queryKeys } from '../lib/queryKeys';
 
 type ProductVariantRow = {
@@ -55,7 +55,7 @@ export type UseInventoryParams = {
 export type InventoryDiagnostics = {
   fetchMs: number;
   fullScan: boolean;
-  source: 'rpc' | 'fallback-live' | 'fallback-cache';
+  source: 'rpc';
   warning: string | null;
 };
 
@@ -79,16 +79,6 @@ type InventoryPageRow = {
   product_id: number | string | null;
   total_count: number | string | null;
 };
-
-type InventoryFallbackCacheEntry = {
-  filteredRows: ProductRow[];
-  totalCount: number;
-  version: number;
-};
-
-const INVENTORY_FULL_SCAN_PAGE_SIZE = 500;
-const INVENTORY_FULL_SCAN_WARNING =
-  'Stock filter fallback is using a full product scan because the inventory RPC failed.';
 
 const getInventorySelect = (categoryFilter: string) => {
   const isFilteringByCategory = categoryFilter.trim() !== '' && categoryFilter.trim() !== 'uncategorized';
@@ -122,12 +112,8 @@ type InventoryListFilters = {
   categoryFilter: string;
 };
 
-const inventoryFallbackCache = new Map<string, InventoryFallbackCacheEntry>();
-let inventoryFallbackVersion = 0;
-
 export const clearInventoryFallbackCache = () => {
-  inventoryFallbackVersion += 1;
-  inventoryFallbackCache.clear();
+  // Stock-filter fallback cache was removed to avoid client-side full scans.
 };
 
 const normalizeSearchTerm = (searchQuery: string) =>
@@ -150,6 +136,7 @@ const applyInventoryFilters = <T>(query: T, filters: InventoryListFilters): T =>
   let next = query as unknown as {
     or: (filters: string) => unknown;
     eq: (column: string, value: string) => unknown;
+    is: (column: string, value: null) => unknown;
   };
 
   const normalizedSearch = normalizeSearchTerm(filters.searchQuery);
@@ -160,38 +147,13 @@ const applyInventoryFilters = <T>(query: T, filters: InventoryListFilters): T =>
   const normalizedCategory = filters.categoryFilter.trim();
   if (normalizedCategory) {
     if (normalizedCategory === 'uncategorized') {
-      next = (next as any).is('category_id', null) as typeof next;
+      next = next.is('category_id', null) as typeof next;
     } else {
       next = next.eq('categories.slug', normalizedCategory) as typeof next;
     }
   }
 
   return next as unknown as T;
-};
-
-const getStockStatus = (row: ProductRow): 'good' | 'ok' | 'low' | 'out' => {
-  const variants = (row.product_variants || []).filter((variant) => variant.is_active !== false);
-  let stockAvailable = 0;
-
-  for (const variant of variants) {
-    const available = Math.max(toNumber(variant.stock, 0) - toNumber(variant.reserved_stock, 0), 0);
-    stockAvailable += available;
-  }
-
-  if (stockAvailable <= 0) return 'out';
-  if (stockAvailable <= 10) return 'low';
-  if (stockAvailable <= 30) return 'ok';
-  return 'good';
-};
-
-const matchesStockFilter = (row: ProductRow, stockFilter: UseInventoryParams['stockFilter']) => {
-  if (!stockFilter) return true;
-  const stockStatus = getStockStatus(row);
-
-  if (stockFilter === 'in') return stockStatus !== 'out';
-  if (stockFilter === 'low') return stockStatus === 'low';
-  if (stockFilter === 'out') return stockStatus === 'out';
-  return true;
 };
 
 const orderProductsByIds = (products: ProductRow[], productIds: number[]) => {
@@ -206,35 +168,6 @@ const orderProductsByIds = (products: ProductRow[], productIds: number[]) => {
     return indexA - indexB;
   });
 };
-
-const getFallbackCacheKey = (
-  filters: InventoryListFilters,
-  stockFilter: UseInventoryParams['stockFilter']
-) => `${normalizeSearchTerm(filters.searchQuery)}::${filters.categoryFilter.trim()}::${stockFilter}`;
-
-async function fetchAllInventoryProducts(
-  signal: AbortSignal,
-  filters: InventoryListFilters
-): Promise<{ data: ProductRow[] | null; error: unknown }> {
-  try {
-    const products = await supabasePaginatedFetcher<ProductRow>((from, to) => {
-      let query = supabase
-        .from('products')
-        .select(getInventorySelect(filters.categoryFilter))
-        .abortSignal(signal)
-        .is('deleted_at', null)
-        .order('name', { ascending: true })
-        .order('id', { ascending: true })
-        .range(from, to);
-      query = applyInventoryFilters(query, filters);
-      return query;
-    }, INVENTORY_FULL_SCAN_PAGE_SIZE);
-
-    return { data: products, error: null };
-  } catch (error) {
-    return { data: null, error };
-  }
-}
 
 async function fetchInventoryPage(
   signal: AbortSignal,
@@ -335,64 +268,25 @@ async function fetchInventoryStockFilteredPage(
       warning: null,
     };
   } catch (error) {
-    const cacheKey = getFallbackCacheKey(filters, stockFilter);
-    const cachedEntry = inventoryFallbackCache.get(cacheKey);
-    if (cachedEntry && cachedEntry.version === inventoryFallbackVersion) {
-      const start = Math.max(0, (safePage - 1) * safePageSize);
-
-      return {
-        data: cachedEntry.filteredRows.slice(start, start + safePageSize),
-        error: null,
-        count: cachedEntry.totalCount,
-        fullScan: true,
-        source: 'fallback-cache',
-        warning: INVENTORY_FULL_SCAN_WARNING,
-      };
+    if (error instanceof Error && error.name === 'AbortError') {
+      throw error;
     }
 
-    console.warn('Inventory stock filter RPC failed, falling back to client-side filtering:', error);
-    const fallbackResult = await fetchAllInventoryProducts(signal, filters);
-    if (fallbackResult.error) {
-      return {
-        data: null,
-        error: fallbackResult.error,
-        count: 0,
-        fullScan: true,
-        source: 'fallback-live',
-        warning: INVENTORY_FULL_SCAN_WARNING,
-      };
-    }
-
-    const filteredByStock = ((fallbackResult.data || []) as ProductRow[]).filter((row) => matchesStockFilter(row, stockFilter));
-    const start = Math.max(0, (safePage - 1) * safePageSize);
-    inventoryFallbackCache.set(cacheKey, {
-      filteredRows: filteredByStock,
-      totalCount: filteredByStock.length,
-      version: inventoryFallbackVersion,
-    });
-
-    return {
-      data: filteredByStock.slice(start, start + safePageSize),
-      error: null,
-      count: filteredByStock.length,
-      fullScan: true,
-      source: 'fallback-live',
-      warning: INVENTORY_FULL_SCAN_WARNING,
-    };
+    console.warn('Inventory stock filter RPC failed:', error);
+    throw new Error('Stock filter is temporarily unavailable. Please retry in a moment.');
   }
 }
 
 export function useInventory(params: UseInventoryParams) {
   const queryClient = useQueryClient();
   const query = useQuery({
-    queryKey: [
-      ...queryKeys.inventory(),
+    queryKey: queryKeys.inventoryList(
       params.page,
       params.pageSize,
       params.searchQuery,
       params.categoryFilter,
-      params.stockFilter,
-    ],
+      params.stockFilter
+    ),
     queryFn: async ({ signal }) => {
       const startedAt = typeof performance !== 'undefined' ? performance.now() : Date.now();
       const timeoutMs = params.stockFilter ? 30000 : 15000;
@@ -460,7 +354,7 @@ export function useInventory(params: UseInventoryParams) {
         cleanup();
       }
     },
-    refetchOnWindowFocus: true,
+    refetchOnWindowFocus: false,
     refetchOnReconnect: true,
     staleTime: 30000,
   });

@@ -5,6 +5,13 @@ export const queryKeys = {
   product: (productId: number | string) => ['product', productId] as const,
   categories: () => ['categories'] as const,
   inventory: () => ['inventory'] as const,
+  inventoryList: (
+    page: number,
+    pageSize: number,
+    searchQuery: string,
+    categoryFilter: string,
+    stockFilter: '' | 'in' | 'low' | 'out'
+  ) => ['inventory', page, pageSize, searchQuery, categoryFilter, stockFilter] as const,
 
   tickets: () => ['tickets'] as const,
   ticket: (slug: string) => ['ticket', slug] as const,

@@ -4,6 +4,7 @@ import { TAB_RETURN_EVENT } from '../constants/browserEvents';
 import { supabase } from '../lib/supabase';
 
 const TAB_IDLE_THRESHOLD_MS = 2 * 60 * 1000;
+const SESSION_REFRESH_BUFFER_MS = 5 * 60 * 1000;
 
 export function useIdleTabSessionRefresh() {
   const hiddenAtRef = useRef<number | null>(null);
@@ -12,6 +13,14 @@ export function useIdleTabSessionRefresh() {
 
   useEffect(() => {
     if (typeof document === 'undefined') return;
+
+    const dispatchTabReturn = (idleDuration: number, didRefreshSession: boolean) => {
+      window.dispatchEvent(
+        new CustomEvent(TAB_RETURN_EVENT, {
+          detail: { idleDuration, didRefreshSession },
+        })
+      );
+    };
 
     const handleIdleReturn = async (hiddenAt: number) => {
       const idleDuration = Date.now() - hiddenAt;
@@ -24,14 +33,17 @@ export function useIdleTabSessionRefresh() {
         const { data } = await supabase.auth.getSession();
         if (!data.session) return;
 
+        const expiresAtMs = (data.session.expires_at ?? 0) * 1000;
+        const shouldRefreshSession = expiresAtMs > 0 && expiresAtMs - Date.now() <= SESSION_REFRESH_BUFFER_MS;
+        if (!shouldRefreshSession) {
+          dispatchTabReturn(idleDuration, false);
+          return;
+        }
+
         const { error } = await supabase.auth.refreshSession();
         if (error) return;
 
-        window.dispatchEvent(
-          new CustomEvent(TAB_RETURN_EVENT, {
-            detail: { idleDuration },
-          })
-        );
+        dispatchTabReturn(idleDuration, true);
       } finally {
         refreshInFlightRef.current = false;
       }

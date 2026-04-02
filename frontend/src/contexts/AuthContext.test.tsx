@@ -7,13 +7,16 @@ import { validateSessionWithRetry } from '../utils/sessionValidation'
 import { isAdmin } from '../utils/auth'
 import { validationResultArb } from '../test/generators'
 
+const mockRoleAbortSignal = vi.fn()
+let authStateChangeHandler: ((event: string, session: any) => void) | null = null
+
 // Mock dependencies
 vi.mock('../lib/supabase', () => ({
     supabase: {
         from: vi.fn(() => ({
             select: vi.fn(() => ({
                 eq: vi.fn(() => ({
-                    abortSignal: vi.fn().mockResolvedValue({ data: [], error: null })
+                    abortSignal: mockRoleAbortSignal
                 }))
             }))
         })),
@@ -22,7 +25,10 @@ vi.mock('../lib/supabase', () => ({
             getUser: vi.fn(),
             refreshSession: vi.fn(),
             signOut: vi.fn(),
-            onAuthStateChange: vi.fn().mockReturnValue({ data: { subscription: { unsubscribe: vi.fn() } } }),
+            onAuthStateChange: vi.fn((callback) => {
+                authStateChangeHandler = callback
+                return { data: { subscription: { unsubscribe: vi.fn() } } }
+            }),
             signInWithPassword: vi.fn(),
             signUp: vi.fn(),
         }
@@ -40,7 +46,9 @@ vi.mock('../utils/auth', () => ({
 describe('AuthContext', () => {
     beforeEach(() => {
         vi.clearAllMocks()
+        authStateChangeHandler = null
         // Default mock implementation
+        mockRoleAbortSignal.mockResolvedValue({ data: [], error: null })
         vi.mocked(supabase.auth.getSession).mockResolvedValue({ data: { session: null }, error: null } as any)
         vi.mocked(supabase.auth.getUser).mockResolvedValue({ data: { user: null }, error: null } as any)
         vi.mocked(supabase.auth.refreshSession).mockResolvedValue({
@@ -166,6 +174,41 @@ describe('AuthContext', () => {
     })
 
     describe('validateSession method', () => {
+        it('should accept TOKEN_REFRESHED for the same user without full revalidation fan-out', async () => {
+            const localSession = {
+                access_token: 'token-1',
+                user: { id: 'user-1' }
+            }
+            const refreshedSession = {
+                access_token: 'token-2',
+                user: { id: 'user-1' }
+            }
+
+            vi.mocked(supabase.auth.getSession).mockResolvedValue({ data: { session: localSession }, error: null } as any)
+            vi.mocked(validateSessionWithRetry).mockResolvedValue({
+                valid: true,
+                user: { id: 'user-1' },
+                session: localSession
+            } as any)
+            mockRoleAbortSignal.mockResolvedValue({ data: [{ role_name: 'admin' }], error: null })
+
+            const { result } = renderHook(() => useAuth(), { wrapper: AuthProvider })
+            await waitFor(() => expect(result.current.initialized).toBe(true))
+            await waitFor(() => expect(result.current.user?.id).toBe('user-1'))
+
+            vi.mocked(validateSessionWithRetry).mockClear()
+            mockRoleAbortSignal.mockClear()
+
+            await act(async () => {
+                authStateChangeHandler?.('TOKEN_REFRESHED', refreshedSession)
+            })
+
+            expect(result.current.session?.access_token).toBe('token-2')
+            expect(result.current.sessionStatus).toBe('ready')
+            expect(validateSessionWithRetry).not.toHaveBeenCalled()
+            expect(mockRoleAbortSignal).not.toHaveBeenCalled()
+        })
+
         it('should update state and return true on success', async () => {
             const localSession = {
                 access_token: 'token-1',

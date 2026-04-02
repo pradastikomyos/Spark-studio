@@ -158,18 +158,5 @@ export function useSessionRefresh() {
     };
   }, [user, session, scheduleNextRefresh, heartbeat, clearTimers]);
 
-  // Handle visibility change - refresh when tab becomes visible
-  useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible' && user && !isRefreshingRef.current) {
-        console.log('[SessionRefresh] Tab visible, checking session');
-        heartbeat();
-      }
-    };
-
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-  }, [user, heartbeat]);
-
   return { refreshSession };
 }

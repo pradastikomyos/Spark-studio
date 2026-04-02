@@ -22,101 +22,112 @@ export async function validateSessionWithRetry(
   maxRetries = 3,
   requestTimeoutMs = 5000
 ): Promise<ValidationResult> {
-  let attempt = 0
-  let backoffMs = 1000 // Start with 1 second
+  try {
+    const { data: { session }, error: sessionError } = await withTimeout(
+      supabase.auth.getSession(),
+      requestTimeoutMs,
+      'Auth getSession timeout'
+    )
 
-  while (attempt < maxRetries) {
-    try {
-      // Validate token with server
-      const { data: { user }, error: userError } = await withTimeout(
-        supabase.auth.getUser(),
-        requestTimeoutMs,
-        'Auth getUser timeout'
-      )
-
-      if (userError || !user) {
-        // Session invalid on server
-        return {
-          valid: false,
-          error: {
-            type: 'expired',
-            message: 'Your session has expired. Please log in again to continue.',
-            retryable: false
-          }
-        }
-      }
-
-      // Verify session has valid expiry
-      const { data: { session }, error: sessionError } = await withTimeout(
-        supabase.auth.getSession(),
-        requestTimeoutMs,
-        'Auth getSession timeout'
-      )
-
-      if (sessionError || !session) {
-        return {
-          valid: false,
-          error: {
-            type: 'invalid',
-            message: 'Your session is invalid. Please log in again.',
-            retryable: false
-          }
-        }
-      }
-
-      if (isSessionExpired(session)) {
-        return {
-          valid: false,
-          error: {
-            type: 'expired',
-            message: 'Your session has expired. Please log in again to continue.',
-            retryable: false
-          }
-        }
-      }
-
-      // Session is valid
+    if (sessionError || !session) {
       return {
-        valid: true,
-        user,
-        session
+        valid: false,
+        error: {
+          type: 'invalid',
+          message: 'Your session is invalid. Please log in again.',
+          retryable: false
+        }
       }
-    } catch (error) {
-      attempt++
+    }
 
-      // Check if this is a network error
-      const isNetworkError = error instanceof Error && (
-        error.message.includes('network') ||
-        error.message.includes('timeout') ||
-        error.message.includes('fetch')
-      )
+    if (isSessionExpired(session)) {
+      return {
+        valid: false,
+        error: {
+          type: 'expired',
+          message: 'Your session has expired. Please log in again to continue.',
+          retryable: false
+        }
+      }
+    }
 
-      if (attempt >= maxRetries) {
-        // All retries failed
+    let attempt = 0
+    let backoffMs = 1000 // Start with 1 second
+
+    while (attempt < maxRetries) {
+      try {
+        const { data: { user }, error: userError } = await withTimeout(
+          supabase.auth.getUser(),
+          requestTimeoutMs,
+          'Auth getUser timeout'
+        )
+
+        if (userError || !user) {
+          return {
+            valid: false,
+            error: {
+              type: 'expired',
+              message: 'Your session has expired. Please log in again to continue.',
+              retryable: false
+            }
+          }
+        }
+
         return {
-          valid: false,
-          error: {
-            type: 'network',
-            message: 'Unable to verify your session. Please check your connection and try again.',
-            retryable: true
+          valid: true,
+          user,
+          session
+        }
+      } catch (error) {
+        attempt++
+
+        const isNetworkError = error instanceof Error && (
+          error.message.includes('network') ||
+          error.message.includes('timeout') ||
+          error.message.includes('fetch')
+        )
+
+        if (attempt >= maxRetries) {
+          return {
+            valid: false,
+            error: {
+              type: 'network',
+              message: 'Unable to verify your session. Please check your connection and try again.',
+              retryable: true
+            }
+          }
+        }
+
+        if (isNetworkError) {
+          await new Promise(resolve => setTimeout(resolve, backoffMs))
+          backoffMs *= 2
+        } else {
+          return {
+            valid: false,
+            error: {
+              type: 'invalid',
+              message: 'Unable to verify your session. Please try again.',
+              retryable: false
+            }
           }
         }
       }
+    }
+  } catch (error) {
+    const isNetworkError = error instanceof Error && (
+      error.message.includes('network') ||
+      error.message.includes('timeout') ||
+      error.message.includes('fetch')
+    )
 
-      if (isNetworkError) {
-        // Wait with exponential backoff before retrying
-        await new Promise(resolve => setTimeout(resolve, backoffMs))
-        backoffMs *= 2
-      } else {
-        // Non-network error, don't retry
-        return {
-          valid: false,
-          error: {
-            type: 'invalid',
-            message: 'Unable to verify your session. Please try again.',
-            retryable: false
-          }
-        }
+    return {
+      valid: false,
+      error: {
+        type: isNetworkError ? 'network' : 'invalid',
+        message: isNetworkError
+          ? 'Unable to verify your session. Please check your connection and try again.'
+          : 'Unable to verify your session. Please try again.',
+        retryable: isNetworkError
       }
     }
   }

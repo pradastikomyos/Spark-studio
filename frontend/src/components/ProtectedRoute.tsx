@@ -19,7 +19,7 @@ const ProtectedRoute = ({ children, adminOnly = false }: ProtectedRouteProps) =>
     return <Navigate to="/login" replace />;
   }
 
-  if (adminOnly && adminStatus === 'checking') {
+  if (adminOnly && adminStatus === 'checking' && !isAdmin) {
     return (
       <div className="flex min-h-[40vh] items-center justify-center px-6 py-12">
         <BrandedLoader text="Restoring admin access..." size="sm" />

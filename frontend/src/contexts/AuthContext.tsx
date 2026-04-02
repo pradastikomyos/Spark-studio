@@ -51,6 +51,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [loggingOut, setLoggingOut] = useState(false);
   const recoveryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const validateSessionRef = useRef<(() => Promise<boolean>) | null>(null);
+  const userIdRef = useRef<string | null>(null);
 
   const errorHandler = useMemo(
     () =>
@@ -133,7 +134,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       return false;
     }
 
-    setAdminStatus('checking');
+    const preserveResolvedAdmin = allowRecovery && isAdmin && adminStatus === 'ready';
+    if (!preserveResolvedAdmin) {
+      setAdminStatus('checking');
+    }
 
     const { signal, cleanup, didTimeout } = createQuerySignal(undefined, ADMIN_ROLE_CHECK_TIMEOUT_MS);
 
@@ -165,7 +169,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     } finally {
       cleanup();
     }
-  }, [isAdmin, scheduleRecovery]);
+  }, [adminStatus, isAdmin, scheduleRecovery]);
 
   const validateSessionInternal = useCallback(
     async function validateSessionInternal(localSession: Session | null, allowRecovery = true, tryRefresh = true): Promise<boolean> {
@@ -236,6 +240,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   useEffect(() => {
     validateSessionRef.current = validateSession;
   }, [validateSession]);
+
+  useEffect(() => {
+    userIdRef.current = user?.id ?? null;
+  }, [user?.id]);
 
   useEffect(() => {
     let isMounted = true;
@@ -349,7 +357,26 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         return;
       }
 
-      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+      if (event === 'TOKEN_REFRESHED') {
+        if (nextSession) {
+          const sameUser = userIdRef.current === nextSession.user.id;
+          if (sameUser) {
+            applyValidatedSession(nextSession, nextSession.user);
+            console.log('[AuthContext] TOKEN_REFRESHED accepted without full revalidation');
+            return;
+          }
+
+          setSession(nextSession);
+          setUser(nextSession.user);
+          setSessionStatus('recovering');
+        }
+        authEventId += 1;
+        const currentEventId = authEventId;
+        void runPostAuthValidation(event, nextSession, currentEventId);
+        return;
+      }
+
+      if (event === 'SIGNED_IN') {
         if (nextSession) {
           setSession(nextSession);
           setUser(nextSession.user);

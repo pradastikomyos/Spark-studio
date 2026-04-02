@@ -41,4 +41,32 @@ describe('ProtectedRoute', () => {
     expect(screen.getByText('Restoring admin access...')).toBeInTheDocument();
     expect(screen.queryByText('admin-content')).not.toBeInTheDocument();
   });
+
+  it('keeps admin content mounted while a previously verified admin is revalidating', () => {
+    vi.mocked(useAuth).mockReturnValue({
+      user: { id: 'user-1' },
+      session: null,
+      initialized: true,
+      sessionStatus: 'recovering',
+      adminStatus: 'checking',
+      isAdmin: true,
+      loggingOut: false,
+      signIn: vi.fn(),
+      signUp: vi.fn(),
+      signOut: vi.fn(),
+      validateSession: vi.fn(),
+      refreshSession: vi.fn(),
+    } as any);
+
+    render(
+      <MemoryRouter>
+        <ProtectedRoute adminOnly={true}>
+          <div>admin-content</div>
+        </ProtectedRoute>
+      </MemoryRouter>
+    );
+
+    expect(screen.getByText('admin-content')).toBeInTheDocument();
+    expect(screen.queryByText('Restoring admin access...')).not.toBeInTheDocument();
+  });
 });

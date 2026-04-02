@@ -1,3 +1,5 @@
+import { useEffect } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import AdminLayout from '../../components/AdminLayout';
 import QRScannerModal from '../../components/admin/QRScannerModal';
 import { useAuth } from '../../contexts/AuthContext';
@@ -12,6 +14,8 @@ import { useProductOrdersController } from './product-orders/useProductOrdersCon
 export default function ProductOrders() {
   const { signOut, session } = useAuth();
   const { showToast } = useToast();
+  const location = useLocation();
+  const navigate = useNavigate();
 
   const { data, error, isLoading, isFetching, refetch } = useProductOrders();
   const orders = data?.orders ?? [];
@@ -47,6 +51,24 @@ export default function ProductOrders() {
     handleCloseDetails,
     handleCompletePickup,
   } = controller;
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const pickupCode = params.get('pickupCode')?.trim().toUpperCase();
+    if (!pickupCode) return;
+
+    setLookupCode(pickupCode);
+    void handleSelectOrder(pickupCode);
+
+    params.delete('pickupCode');
+    navigate(
+      {
+        pathname: location.pathname,
+        search: params.toString() ? `?${params.toString()}` : '',
+      },
+      { replace: true }
+    );
+  }, [handleSelectOrder, location.pathname, location.search, navigate, setLookupCode]);
 
   return (
     <AdminLayout

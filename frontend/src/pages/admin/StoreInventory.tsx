@@ -8,7 +8,7 @@ import TableRowSkeleton from '../../components/skeletons/TableRowSkeleton';
 import { useToast } from '../../components/Toast';
 import { ADMIN_MENU_ITEMS, ADMIN_MENU_SECTIONS } from '../../constants/adminMenu';
 import { useAuth } from '../../contexts/AuthContext';
-import { useInventory, type ProductRow } from '../../hooks/useInventory';
+import { useInventory } from '../../hooks/useInventory';
 import { DeleteProductDialog } from './store-inventory/DeleteProductDialog';
 import { InventoryEmptyState } from './store-inventory/InventoryEmptyState';
 import { InventoryGrid } from './store-inventory/InventoryGrid';
@@ -20,6 +20,8 @@ import { useInventoryProductActions } from './store-inventory/useInventoryProduc
 import { useStoreInventoryFilters } from './store-inventory/useStoreInventoryFilters';
 const INVENTORY_PRODUCTS_PER_PAGE = 24;
 
+const normalizePickupCode = (value: string) => value.trim().toUpperCase();
+
 const StoreInventory = () => {
   const { signOut, session } = useAuth();
   const { showToast } = useToast();
@@ -29,16 +31,11 @@ const StoreInventory = () => {
   const [orderCode, setOrderCode] = useState('');
   const [showScanner, setShowScanner] = useState(false);
   const [showCategoryManager, setShowCategoryManager] = useState(false);
-  const [productsRaw, setProductsRaw] = useState<ProductRow[]>([]);
-  const [totalProducts, setTotalProducts] = useState<number | null>(null);
 
   const filters = useStoreInventoryFilters({
     pathname: location.pathname,
     search: location.search,
     navigate,
-    totalProducts,
-    isFetching: false,
-    pageSize: INVENTORY_PRODUCTS_PER_PAGE,
   });
 
   const { data, error, isLoading, isFetching, refetch } = useInventory({
@@ -48,43 +45,26 @@ const StoreInventory = () => {
     categoryFilter: filters.categoryFilter,
     stockFilter: filters.stockFilter,
   });
+  const resolvedTotalProducts = data?.totalCount ?? 0;
+  const totalPages = Math.max(1, Math.ceil(resolvedTotalProducts / INVENTORY_PRODUCTS_PER_PAGE));
+  const { currentPage, setCurrentPage } = filters;
 
   useEffect(() => {
-    if (data) {
-      setProductsRaw(data.products);
+    if (resolvedTotalProducts === 0 && currentPage !== 1) {
+      setCurrentPage(1);
+      return;
     }
-  }, [data]);
 
-  useEffect(() => {
-    if (typeof data?.totalCount === 'number') {
-      setTotalProducts(data.totalCount);
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
     }
-  }, [data?.totalCount]);
+  }, [currentPage, resolvedTotalProducts, setCurrentPage, totalPages]);
 
   useEffect(() => {
     if (error) {
       showToast('error', error instanceof Error ? error.message : 'Failed to load inventory');
     }
   }, [error, showToast]);
-
-  useEffect(() => {
-    if (!data) return;
-    console.debug('[InventoryPerf]', {
-      metric: 'inventory_list_fetch',
-      fetchMs: Math.round(data.diagnostics.fetchMs),
-      fullScan: data.diagnostics.fullScan,
-      source: data.diagnostics.source,
-      warning: data.diagnostics.warning,
-      page: filters.currentPage,
-      pageSize: INVENTORY_PRODUCTS_PER_PAGE,
-      totalCount: data.totalCount,
-      filters: {
-        search: filters.searchQuery,
-        category: filters.categoryFilter,
-        stock: filters.stockFilter,
-      },
-    });
-  }, [data, filters.currentPage, filters.searchQuery, filters.categoryFilter, filters.stockFilter]);
 
   const inventoryCategories = useMemo(() => data?.categories ?? [], [data?.categories]);
   const categoryOptions = useMemo(
@@ -98,24 +78,28 @@ const StoreInventory = () => {
       })),
     [inventoryCategories]
   );
-  const inventoryProducts = useMemo(() => mapInventoryProducts(productsRaw), [productsRaw]);
-  const resolvedTotalProducts = totalProducts ?? 0;
-  const totalPages = Math.max(1, Math.ceil(resolvedTotalProducts / INVENTORY_PRODUCTS_PER_PAGE));
-  const { thumbFallbackIds, trackImageResult, markThumbFallback } = useInventoryImageMetrics(inventoryProducts, filters.currentPage);
+  const inventoryProducts = useMemo(() => mapInventoryProducts(data?.products ?? []), [data?.products]);
+  const { thumbFallbackIds, trackImageResult, markThumbFallback } = useInventoryImageMetrics(inventoryProducts, currentPage);
   const productActions = useInventoryProductActions({
-    productsRaw,
-    setProductsRaw,
+    products: data?.products ?? [],
     session,
     refetch,
     showToast,
   });
 
   const handleVerify = (code?: string) => {
-    const value = (code ?? orderCode).trim();
-    if (value) {
-      alert(`Verifying order: ${value}`);
-      setOrderCode('');
+    const value = normalizePickupCode(code ?? orderCode);
+    if (!value) {
+      showToast('error', 'Masukkan pickup code terlebih dahulu.');
+      return;
     }
+
+    setOrderCode('');
+    showToast('info', `Membuka verifikasi pickup untuk ${value}.`);
+    navigate({
+      pathname: '/admin/product-orders',
+      search: `?pickupCode=${encodeURIComponent(value)}`,
+    });
   };
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
@@ -187,14 +171,9 @@ const StoreInventory = () => {
         <InventoryToolbar
           resolvedTotalProducts={resolvedTotalProducts}
           isFetching={isFetching}
-          searchInput={filters.searchInput}
           categoryFilter={filters.categoryFilter}
           stockFilter={filters.stockFilter}
           categoryOptions={categoryOptions}
-          onSearchInputChange={(value) => {
-            filters.setSearchInput(value);
-            filters.setCurrentPage(1);
-          }}
           onCategoryFilterChange={(value) => {
             filters.setCategoryFilter(value);
             filters.setCurrentPage(1);
@@ -231,13 +210,13 @@ const StoreInventory = () => {
             {resolvedTotalProducts > 0 && totalPages > 1 && (
               <div className="mt-10 flex flex-col items-center gap-4">
                 <p className="text-sm text-gray-500 font-sans">
-                  Page {filters.currentPage} of {totalPages} ({resolvedTotalProducts} items)
+                  Page {currentPage} of {totalPages} ({resolvedTotalProducts} items)
                 </p>
                 <div className="flex items-center gap-3">
                   <button
                     type="button"
-                    onClick={() => filters.setCurrentPage((prev) => Math.max(1, prev - 1))}
-                    disabled={filters.currentPage <= 1}
+                    onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
+                    disabled={currentPage <= 1}
                     className="inline-flex items-center gap-2 rounded-full border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 transition hover:border-[#ff4b86] hover:text-[#ff4b86] disabled:cursor-not-allowed disabled:opacity-40"
                   >
                     <span className="material-symbols-outlined text-[18px]">chevron_left</span>
@@ -245,8 +224,8 @@ const StoreInventory = () => {
                   </button>
                   <button
                     type="button"
-                    onClick={() => filters.setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
-                    disabled={filters.currentPage >= totalPages}
+                    onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
+                    disabled={currentPage >= totalPages}
                     className="inline-flex items-center gap-2 rounded-full border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 transition hover:border-[#ff4b86] hover:text-[#ff4b86] disabled:cursor-not-allowed disabled:opacity-40"
                   >
                     Next

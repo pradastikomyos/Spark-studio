@@ -25,9 +25,18 @@ export function useProductFormModalController(props: ProductFormModalProps): Pro
   const [isOnline, setIsOnline] = useState(true);
   const initialDraftSnapshotRef = useRef<string>(EMPTY_DRAFT_SNAPSHOT);
   const restoringImagesRef = useRef(false);
+  const initializedFormKeyRef = useRef<string | null>(null);
 
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen) {
+      initializedFormKeyRef.current = null;
+      return;
+    }
+
+    const nextFormKey = initialValue?.id ? `edit:${initialValue.id}` : 'create';
+    if (initializedFormKeyRef.current === nextFormKey) return;
+
+    initializedFormKeyRef.current = nextFormKey;
     const nextDraft = initialValue ? { ...initialValue } : emptyDraft();
     setDraft(nextDraft);
     setImages([]);

@@ -86,5 +86,46 @@ describe('ProductFormModal', () => {
     expect(screen.getByText('Max 8 product images allowed.')).toBeInTheDocument();
     expect(onSave).not.toHaveBeenCalled();
   });
-});
 
+  it('preserves an in-progress edit when the same product props are refreshed', () => {
+    const categories: CategoryOption[] = [{ id: 1, name: 'Cat', slug: 'cat' }];
+    const initialValue: ProductDraft = {
+      id: 123,
+      name: 'Server Product',
+      slug: 'server-product',
+      description: '',
+      category_id: 1,
+      sku: 'SKU-001',
+      is_active: true,
+      variants: [{ id: 1, name: 'Default', sku: 'VAR-001', price: '10000', stock: 1 }],
+    };
+
+    const { rerender } = render(
+      <ProductFormModal
+        isOpen
+        categories={categories}
+        initialValue={initialValue}
+        existingImages={[]}
+        onClose={() => {}}
+        onSave={() => {}}
+      />
+    );
+
+    const nameInput = screen.getByPlaceholderText('Product name') as HTMLInputElement;
+    fireEvent.change(nameInput, { target: { value: 'Draft In Progress' } });
+    expect(nameInput.value).toBe('Draft In Progress');
+
+    rerender(
+      <ProductFormModal
+        isOpen
+        categories={categories}
+        initialValue={{ ...initialValue, name: 'Server Product Updated' }}
+        existingImages={[]}
+        onClose={() => {}}
+        onSave={() => {}}
+      />
+    );
+
+    expect((screen.getByPlaceholderText('Product name') as HTMLInputElement).value).toBe('Draft In Progress');
+  });
+});

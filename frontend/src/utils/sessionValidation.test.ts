@@ -132,6 +132,38 @@ describe('Feature: session-expiry-fix', () => {
       expect(result.error?.type).toBe('network')
       expect(result.error?.retryable).toBe(true)
     })
+
+    it('should read the local session once even when getUser retries', async () => {
+      let userCallCount = 0
+
+      vi.mocked(supabase.auth.getSession).mockResolvedValue({
+        data: {
+          session: {
+            access_token: 'valid-token',
+            expires_at: Math.floor(Date.now() / 1000) + 3600
+          } as Session
+        },
+        error: null
+      } as any)
+
+      vi.mocked(supabase.auth.getUser).mockImplementation(async () => {
+        userCallCount += 1
+        if (userCallCount < 3) {
+          throw new Error('network error')
+        }
+
+        return {
+          data: { user: { id: 'test-user', email: 'test@example.com' } },
+          error: null
+        } as any
+      })
+
+      const result = await validateSessionWithRetry(3)
+
+      expect(result.valid).toBe(true)
+      expect(userCallCount).toBe(3)
+      expect(supabase.auth.getSession).toHaveBeenCalledTimes(1)
+    })
   })
 
   describe('isSessionExpired', () => {
