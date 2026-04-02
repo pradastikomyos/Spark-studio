@@ -49,6 +49,7 @@ For the 2026-03-31 pickup and ticket-scan repair, the expected sanity check is:
 - `20260331113100`
 - `20260331140000`
 - `20260331140100`
+- `20260402112320`
 
 ## Edge Function Deploy After Migration Repair
 

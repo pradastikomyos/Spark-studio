@@ -4,6 +4,8 @@ import { supabase } from '../lib/supabase';
 import { APIError, createQuerySignal } from '../lib/fetchers';
 import { queryKeys } from '../lib/queryKeys';
 
+const ADMIN_TICKETS_STALE_TIME_MS = 30 * 1000;
+
 export type PurchasedTicket = {
   id: string;
   ticket_id: string;
@@ -122,9 +124,9 @@ export function useTicketsManagement() {
         cleanup();
       }
     },
-    refetchOnWindowFocus: true,
+    refetchOnWindowFocus: false,
     refetchOnReconnect: true,
-    staleTime: 0,
+    staleTime: ADMIN_TICKETS_STALE_TIME_MS,
   });
 
   useEffect(() => {

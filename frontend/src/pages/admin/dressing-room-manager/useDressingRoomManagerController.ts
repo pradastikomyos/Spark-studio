@@ -19,6 +19,9 @@ import { useDressingRoomPhotoState } from './useDressingRoomPhotoState';
 
 type ShowToast = (type: 'success' | 'error' | 'warning' | 'info', message: string) => void;
 
+const formatDressingRoomError = (error: unknown, fallback: string) =>
+  error instanceof Error && error.message ? error.message : fallback;
+
 export function useDressingRoomManagerController(showToast: ShowToast) {
   const [view, setView] = useState<DressingRoomView>('list');
   const [collections, setCollections] = useState<DressingRoomCollection[]>([]);
@@ -92,41 +95,78 @@ export function useDressingRoomManagerController(showToast: ShowToast) {
     void fetchCollections();
   }, [fetchCollections]);
 
+  const refreshSelectedLooks = useCallback(async () => {
+    if (!selectedCollection) return;
+    await fetchLooks(selectedCollection.id);
+  }, [fetchLooks, selectedCollection]);
+
+  const resetProductPicker = useCallback(() => {
+    setShowProductPicker(false);
+    setProductSearch('');
+    setProductResults([]);
+  }, []);
+
+  const runControllerTask = useCallback(
+    async <T,>(task: () => Promise<T>, options: {
+      errorMessage: string;
+      successMessage?: string;
+      onSuccess?: (result: T) => Promise<void> | void;
+      onFinally?: () => void;
+    }) => {
+      try {
+        const result = await task();
+        if (options.successMessage) {
+          showToast('success', options.successMessage);
+        }
+        await options.onSuccess?.(result);
+        return result;
+      } catch (error) {
+        showToast('error', formatDressingRoomError(error, options.errorMessage));
+        return null;
+      } finally {
+        options.onFinally?.();
+      }
+    },
+    [showToast]
+  );
+
   const handleCreateCollection = async () => {
     if (!formTitle.trim()) return;
     setSaving(true);
-    try {
-      await createDressingRoomCollection({ title: formTitle, description: formDescription, sortOrder: collections.length });
-      showToast('success', 'Koleksi berhasil dibuat!');
-      setFormTitle('');
-      setFormDescription('');
-      setShowCreateForm(false);
-      void fetchCollections();
-    } catch (error) {
-      showToast('error', `Error: ${error instanceof Error ? error.message : 'Failed to create collection'}`);
-    } finally {
-      setSaving(false);
-    }
+    await runControllerTask(
+      () => createDressingRoomCollection({ title: formTitle, description: formDescription, sortOrder: collections.length }),
+      {
+        successMessage: 'Koleksi berhasil dibuat!',
+        errorMessage: 'Failed to create collection',
+        onSuccess: async () => {
+          setFormTitle('');
+          setFormDescription('');
+          setShowCreateForm(false);
+          await fetchCollections();
+        },
+        onFinally: () => setSaving(false),
+      }
+    );
   };
 
   const handleToggleActive = async (collection: DressingRoomCollection) => {
-    try {
-      await toggleDressingRoomCollection(collection);
-      void fetchCollections();
-    } catch (error) {
-      showToast('error', `Error: ${error instanceof Error ? error.message : 'Failed to toggle collection'}`);
-    }
+    await runControllerTask(() => toggleDressingRoomCollection(collection), {
+      errorMessage: 'Failed to toggle collection',
+      onSuccess: async () => {
+        await fetchCollections();
+      },
+    });
   };
 
   const handleDeleteCollection = async (id: number) => {
     if (!confirm('Hapus koleksi ini? Semua looks akan ikut terhapus.')) return;
-    try {
-      await deleteDressingRoomCollection(id);
-      showToast('success', 'Koleksi dihapus.');
-      void fetchCollections();
-    } catch (error) {
-      showToast('error', `Error: ${error instanceof Error ? error.message : 'Failed to delete collection'}`);
-    }
+    await runControllerTask(() => deleteDressingRoomCollection(id), {
+      successMessage: 'Koleksi dihapus.',
+      errorMessage: 'Failed to delete collection',
+      onSuccess: async () => {
+        await fetchCollections();
+      },
+    });
   };
 
   const openEditor = (collection: DressingRoomCollection) => {
@@ -140,116 +180,126 @@ export function useDressingRoomManagerController(showToast: ShowToast) {
 
   const handleSaveCollectionInfo = async () => {
     if (!selectedCollection || !collectionTitle.trim()) return;
-    try {
-      const newSlug = await saveDressingRoomCollectionInfo({
-        id: selectedCollection.id,
-        title: collectionTitle,
-        description: collectionDesc,
-      });
-      showToast('success', 'Info koleksi diperbarui!');
-      setSelectedCollection({
-        ...selectedCollection,
-        title: collectionTitle.trim(),
-        description: collectionDesc.trim() || null,
-        slug: newSlug,
-      });
-      void fetchCollections();
-    } catch (error) {
-      showToast('error', `Error: ${error instanceof Error ? error.message : 'Failed to save collection info'}`);
-    } finally {
-      setEditingCollectionInfo(false);
-    }
+    await runControllerTask(
+      () =>
+        saveDressingRoomCollectionInfo({
+          id: selectedCollection.id,
+          title: collectionTitle,
+          description: collectionDesc,
+        }),
+      {
+        successMessage: 'Info koleksi diperbarui!',
+        errorMessage: 'Failed to save collection info',
+        onSuccess: async (newSlug) => {
+          setSelectedCollection({
+            ...selectedCollection,
+            title: collectionTitle.trim(),
+            description: collectionDesc.trim() || null,
+            slug: newSlug,
+          });
+          await fetchCollections();
+        },
+        onFinally: () => setEditingCollectionInfo(false),
+      }
+    );
   };
 
   const handleAddLook = async () => {
     if (!selectedCollection) return;
     const nextNumber = looks.length + 1;
-    try {
-      await addDressingRoomLook({ collectionId: selectedCollection.id, nextNumber, sortOrder: looks.length });
-      showToast('success', `Look ${nextNumber} ditambahkan!`);
-      await fetchLooks(selectedCollection.id);
-    } catch (error) {
-      showToast('error', `Error: ${error instanceof Error ? error.message : 'Failed to add look'}`);
-    }
+    await runControllerTask(
+      () => addDressingRoomLook({ collectionId: selectedCollection.id, nextNumber, sortOrder: looks.length }),
+      {
+        successMessage: `Look ${nextNumber} ditambahkan!`,
+        errorMessage: 'Failed to add look',
+        onSuccess: async () => {
+          await refreshSelectedLooks();
+        },
+      }
+    );
   };
 
   const handleAddPhoto = async (lookId: number, file: File) => {
     if (!selectedCollection) return;
     setUploadingLookId(lookId);
-    try {
-      const nextSortOrder = await addDressingRoomPhoto({
-        collectionId: selectedCollection.id,
-        lookId,
-        file,
-        existingLooks: looks,
-      });
-      showToast('success', 'Foto look ditambahkan!');
-      await fetchLooks(selectedCollection.id);
-      setActivePhotoIndexMap((current) => new Map(current).set(lookId, nextSortOrder));
-    } catch (error) {
-      showToast('error', `Upload gagal: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    } finally {
-      setUploadingLookId(null);
-    }
+    await runControllerTask(
+      () =>
+        addDressingRoomPhoto({
+          collectionId: selectedCollection.id,
+          lookId,
+          file,
+          existingLooks: looks,
+        }),
+      {
+        successMessage: 'Foto look ditambahkan!',
+        errorMessage: 'Upload gagal',
+        onSuccess: async (nextSortOrder) => {
+          await refreshSelectedLooks();
+          setActivePhotoIndexMap((current) => new Map(current).set(lookId, nextSortOrder));
+        },
+        onFinally: () => setUploadingLookId(null),
+      }
+    );
   };
 
   const handleReplacePhoto = async (lookId: number, photoId: number, previousUrl: string, file: File) => {
     if (!selectedCollection) return;
     setUploadingLookId(lookId);
-    try {
-      await replaceDressingRoomPhoto({ collectionId: selectedCollection.id, lookId, photoId, previousUrl, file });
-      showToast('success', 'Foto berhasil diganti!');
-      await fetchLooks(selectedCollection.id);
-    } catch (error) {
-      showToast('error', `Upload gagal: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    } finally {
-      setUploadingLookId(null);
-    }
+    await runControllerTask(
+      () => replaceDressingRoomPhoto({ collectionId: selectedCollection.id, lookId, photoId, previousUrl, file }),
+      {
+        successMessage: 'Foto berhasil diganti!',
+        errorMessage: 'Upload gagal',
+        onSuccess: async () => {
+          await refreshSelectedLooks();
+        },
+        onFinally: () => setUploadingLookId(null),
+      }
+    );
   };
 
   const handleDeletePhoto = async (photoId: number, imageUrl: string) => {
     if (!selectedCollection) return;
     if (!confirm('Hapus foto ini?')) return;
-    try {
-      await deleteDressingRoomPhoto({ photoId, imageUrl });
-      showToast('success', 'Foto dihapus.');
-      const look = looks.find((entry) => entry.photos.some((photo) => photo.id === photoId));
-      if (look) {
-        const currentIndex = activePhotoIndexMap.get(look.id) ?? 0;
-        setActivePhotoIndexMap((current) => new Map(current).set(look.id, Math.max(0, currentIndex - 1)));
-      }
-      await fetchLooks(selectedCollection.id);
-    } catch (error) {
-      showToast('error', `Error: ${error instanceof Error ? error.message : 'Failed to delete photo'}`);
-    }
+    await runControllerTask(() => deleteDressingRoomPhoto({ photoId, imageUrl }), {
+      successMessage: 'Foto dihapus.',
+      errorMessage: 'Failed to delete photo',
+      onSuccess: async () => {
+        const look = looks.find((entry) => entry.photos.some((photo) => photo.id === photoId));
+        if (look) {
+          const currentIndex = activePhotoIndexMap.get(look.id) ?? 0;
+          setActivePhotoIndexMap((current) => new Map(current).set(look.id, Math.max(0, currentIndex - 1)));
+        }
+        await refreshSelectedLooks();
+      },
+    });
   };
 
   const handleSaveModelName = async (lookId: number) => {
-    try {
-      await saveDressingRoomModelName({ lookId, modelName: modelNameValue });
-      if (selectedCollection) void fetchLooks(selectedCollection.id);
-    } catch (error) {
-      showToast('error', `Error: ${error instanceof Error ? error.message : 'Failed to save model name'}`);
-    } finally {
-      setEditingModelName(false);
-    }
+    await runControllerTask(() => saveDressingRoomModelName({ lookId, modelName: modelNameValue }), {
+      errorMessage: 'Failed to save model name',
+      onSuccess: async () => {
+        await refreshSelectedLooks();
+      },
+      onFinally: () => setEditingModelName(false),
+    });
   };
 
   const handleDeleteLook = async (lookId: number, imageUrl: string) => {
     if (!selectedCollection) return;
     if (!confirm('Hapus look ini?')) return;
-    try {
-      await deleteDressingRoomLook({ lookId, imageUrl });
-      showToast('success', 'Look dihapus.');
-      setActivePhotoIndexMap((current) => {
-        const next = new Map(current);
-        next.delete(lookId);
-        return next;
-      });
-      void fetchLooks(selectedCollection.id);
-    } catch (error) {
-      showToast('error', `Error: ${error instanceof Error ? error.message : 'Failed to delete look'}`);
-    }
+    await runControllerTask(() => deleteDressingRoomLook({ lookId, imageUrl }), {
+      successMessage: 'Look dihapus.',
+      errorMessage: 'Failed to delete look',
+      onSuccess: async () => {
+        setActivePhotoIndexMap((current) => {
+          const next = new Map(current);
+          next.delete(lookId);
+          return next;
+        });
+        await refreshSelectedLooks();
+      },
+    });
   };
 
   const searchProducts = async (query: string) => {
@@ -270,25 +320,23 @@ export function useDressingRoomManagerController(showToast: ShowToast) {
 
   const handleLinkProduct = async (lookId: number, variantId: number) => {
     const look = looks.find((entry) => entry.id === lookId);
-    try {
-      await linkDressingRoomProduct({ lookId, variantId, sortOrder: look ? look.items.length : 0 });
-      showToast('success', 'Produk ditambahkan!');
-      setShowProductPicker(false);
-      setProductSearch('');
-      setProductResults([]);
-      if (selectedCollection) void fetchLooks(selectedCollection.id);
-    } catch (error) {
-      showToast('error', `Error: ${error instanceof Error ? error.message : 'Failed to link product'}`);
-    }
+    await runControllerTask(() => linkDressingRoomProduct({ lookId, variantId, sortOrder: look ? look.items.length : 0 }), {
+      successMessage: 'Produk ditambahkan!',
+      errorMessage: 'Failed to link product',
+      onSuccess: async () => {
+        resetProductPicker();
+        await refreshSelectedLooks();
+      },
+    });
   };
 
   const handleUnlinkProduct = async (itemId: number) => {
-    try {
-      await unlinkDressingRoomProduct(itemId);
-      if (selectedCollection) void fetchLooks(selectedCollection.id);
-    } catch (error) {
-      showToast('error', `Error: ${error instanceof Error ? error.message : 'Failed to unlink product'}`);
-    }
+    await runControllerTask(() => unlinkDressingRoomProduct(itemId), {
+      errorMessage: 'Failed to unlink product',
+      onSuccess: async () => {
+        await refreshSelectedLooks();
+      },
+    });
   };
 
   return {

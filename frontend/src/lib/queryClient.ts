@@ -1,5 +1,7 @@
 import { QueryClient } from '@tanstack/react-query'
 
+const DEFAULT_QUERY_STALE_TIME_MS = 30 * 1000
+
 export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
@@ -11,7 +13,7 @@ export const queryClient = new QueryClient({
         return failureCount < 3
       },
       retryDelay: (attemptIndex) => 1000 * Math.pow(2, attemptIndex),
-      staleTime: 0,
+      staleTime: DEFAULT_QUERY_STALE_TIME_MS,
       gcTime: 5 * 60 * 1000,
     },
     mutations: {

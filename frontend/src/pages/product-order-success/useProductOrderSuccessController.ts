@@ -3,7 +3,7 @@ import confetti from 'canvas-confetti';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '../../components/Toast';
 import { supabase } from '../../lib/supabase';
-import { incrementMetric, METRIC_KEYS, readMetric } from '../../utils/metrics';
+import { incrementMetric, METRIC_KEYS } from '../../utils/metrics';
 import { getPaymentMethodLabel } from '../product-orders/payment';
 import { fetchProductOrderDetail } from '../product-orders/orderDetailData';
 import { shouldRedirectSuccessToPending } from '../product-orders/status';
@@ -29,6 +29,7 @@ export function useProductOrderSuccessController({
   const { showToast } = useToast();
   const hasShownSuccessToast = useRef(false);
   const confettiTriggeredRef = useRef(false);
+  const backgroundRefreshErrorRef = useRef<string | null>(null);
   const [order, setOrder] = useState<ProductOrderDetail | null>(null);
   const [items, setItems] = useState<ProductOrderItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -43,6 +44,22 @@ export function useProductOrderSuccessController({
     setOrder(result.order);
     setItems(result.items);
   }, [orderNumber]);
+
+  const refreshOrderInBackground = useCallback(
+    async (reason: 'poll' | 'visibility' | 'realtime') => {
+      try {
+        await fetchOrder();
+        backgroundRefreshErrorRef.current = null;
+      } catch (loadError) {
+        const message = loadError instanceof Error ? loadError.message : 'Failed to refresh order';
+        console.warn(`[ProductOrderSuccess] Background refresh failed during ${reason}:`, loadError);
+        if (backgroundRefreshErrorRef.current === message) return;
+        backgroundRefreshErrorRef.current = message;
+        showToast('warning', 'Order status belum bisa diperbarui otomatis. Coba refresh manual sebentar lagi.');
+      }
+    },
+    [fetchOrder, showToast]
+  );
 
   const triggerConfetti = useCallback(() => {
     if (confettiTriggeredRef.current) return;
@@ -243,7 +260,7 @@ export function useProductOrderSuccessController({
           if (!next) return;
           setOrder((prev) => ({ ...(prev || ({} as ProductOrderDetail)), ...next }));
           if (next.payment_status === 'paid' || next.pickup_code) {
-            await fetchOrder();
+            await refreshOrderInBackground('realtime');
           }
         }
       )
@@ -252,7 +269,7 @@ export function useProductOrderSuccessController({
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [fetchOrder, orderNumber]);
+  }, [orderNumber, refreshOrderInBackground]);
 
   const pickupCode = order?.pickup_code ?? null;
 
@@ -281,30 +298,22 @@ export function useProductOrderSuccessController({
     if (String(order.payment_status || '').toLowerCase() !== 'paid' || pickupCode) return;
 
     const intervalId = window.setInterval(() => {
-      void fetchOrder().catch(() => null);
+      void refreshOrderInBackground('poll');
     }, 15000);
 
     return () => clearInterval(intervalId);
-  }, [fetchOrder, order, orderNumber, pickupCode]);
+  }, [order, orderNumber, pickupCode, refreshOrderInBackground]);
 
   useEffect(() => {
     const handleVisibility = () => {
       if (!document.hidden) {
-        void fetchOrder().catch(() => null);
+        void refreshOrderInBackground('visibility');
       }
     };
 
     document.addEventListener('visibilitychange', handleVisibility);
     return () => document.removeEventListener('visibilitychange', handleVisibility);
-  }, [fetchOrder]);
-
-  useEffect(() => {
-    console.info('[Metrics] Snapshot', {
-      manualRefreshClick: readMetric(METRIC_KEYS.manualRefreshClick),
-      autoSyncSuccess: readMetric(METRIC_KEYS.autoSyncSuccess),
-      loadingTimeout: readMetric(METRIC_KEYS.loadingTimeout),
-    });
-  }, []);
+  }, [refreshOrderInBackground]);
 
   const totalItems = useMemo(() => items.reduce((sum, item) => sum + item.quantity, 0), [items]);
   const paymentMethodLabel = useMemo(() => getPaymentMethodLabel(order), [order]);

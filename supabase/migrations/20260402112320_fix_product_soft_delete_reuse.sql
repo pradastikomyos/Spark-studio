@@ -1,3 +1,7 @@
+-- Canonical timestamp restored to match the migration history already recorded
+-- in the linked Supabase project. The same SQL previously existed locally under
+-- 20260402184500, which created migration drift between repo and remote.
+--
 -- Align product soft-delete semantics with active-only uniqueness.
 -- This migration also purges the current backlog of soft-deleted products
 -- after asserting they are not referenced by transactional or editorial tables.

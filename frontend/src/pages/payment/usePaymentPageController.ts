@@ -86,9 +86,7 @@ export function usePaymentPageController({
 
   const handlePayWithMidtrans = async () => {
     if (!user) {
-      alert(
-        "Please log in to complete your payment. We'll save your booking details so you can continue immediately after signing in."
-      );
+      setError("Please log in to complete your payment. We'll save your booking details so you can continue immediately after signing in.");
       navigate('/login', { state: { returnTo: location.pathname, returnState: locationState } });
       return;
     }
@@ -118,9 +116,7 @@ export function usePaymentPageController({
 
       if (sessionError || !session?.access_token) {
         console.error('[PaymentPage] Session validation failed:', sessionError);
-        alert(
-          "Your session has expired. We've saved your booking details—please log in again to complete your payment."
-        );
+        setError("Your session has expired. We've saved your booking details, so please log in again to complete payment.");
         await errorHandler.handleAuthError({ status: 401 }, { returnPath: location.pathname, state: bookingData });
         return;
       }
@@ -194,9 +190,7 @@ export function usePaymentPageController({
     } catch (paymentError) {
       if ((paymentError as { status?: number }).status === 401) {
         console.error('Auth error from edge function:', paymentError);
-        alert(
-          "Your session has timed out for security. Don't worry—your booking details are saved. Please log in again to finish."
-        );
+        setError("Your session timed out for security. Your booking details are still saved, so please log in again to finish.");
         await errorHandler.handleAuthError({ status: 401 }, { returnPath: location.pathname, state: bookingData });
         return;
       }

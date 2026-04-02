@@ -13,6 +13,7 @@ import { completeProductPickup, loadProductOrderDetailsByPickupCode } from './pr
 import type { ProductOrderDetails, ProductOrdersTab, UseProductOrdersControllerParams } from './productOrdersTypes';
 
 const EMPTY_ORDERS: OrderSummaryRow[] = [];
+const PRODUCT_ORDER_DETAIL_STALE_TIME_MS = 30 * 1000;
 
 export function useProductOrdersController({
   orders,
@@ -39,9 +40,9 @@ export function useProductOrdersController({
     enabled: Boolean(selectedPickupCode),
     queryFn: () => loadProductOrderDetailsByPickupCode(String(selectedPickupCode)),
     retry: false,
-    refetchOnWindowFocus: true,
+    refetchOnWindowFocus: false,
     refetchOnReconnect: true,
-    staleTime: 0,
+    staleTime: PRODUCT_ORDER_DETAIL_STALE_TIME_MS,
   });
 
   useEffect(() => {
@@ -59,7 +60,7 @@ export function useProductOrdersController({
       const nextDetails = await queryClient.fetchQuery({
         queryKey: queryKeys.productOrderDetail(normalizedCode),
         queryFn: () => loadProductOrderDetailsByPickupCode(normalizedCode),
-        staleTime: 0,
+        staleTime: PRODUCT_ORDER_DETAIL_STALE_TIME_MS,
       });
       setLookupCode(normalizedCode);
       setSelectedPickupCode(normalizedCode);

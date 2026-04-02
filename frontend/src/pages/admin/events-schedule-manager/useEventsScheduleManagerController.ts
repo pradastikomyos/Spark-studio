@@ -15,6 +15,18 @@ import type { EventsScheduleManagerController } from './eventsScheduleManagerTyp
 
 type ShowToast = (type: 'success' | 'error' | 'warning' | 'info', message: string) => void;
 
+const formatScheduleError = (error: unknown, fallback: string) =>
+  error instanceof Error && error.message ? error.message : fallback;
+
+const validateScheduleForm = (form: ReturnType<typeof buildFormState>) => {
+  if (!form.title.trim()) return 'Title is required';
+  if (!form.description.trim()) return 'Description is required';
+  if (!form.event_date.trim()) return 'Event date is required';
+  if (!form.time_label.trim()) return 'Time label is required';
+  if (!form.category.trim()) return 'Category is required';
+  return null;
+};
+
 export function useEventsScheduleManagerController(showToast: ShowToast): EventsScheduleManagerController {
   const queryClient = useQueryClient();
   const { data: items = [], isLoading, error, refetch } = useEventSchedule({ includeInactive: true });
@@ -43,6 +55,39 @@ export function useEventsScheduleManagerController(showToast: ShowToast): Events
     void queryClient.invalidateQueries({ queryKey: queryKeys.eventSchedule('admin') });
     void queryClient.invalidateQueries({ queryKey: queryKeys.eventSchedule('public') });
   }, [queryClient]);
+
+  const refreshScheduleData = useCallback(async () => {
+    invalidateScheduleQueries();
+    await refetch();
+  }, [invalidateScheduleQueries, refetch]);
+
+  const runScheduleTask = useCallback(
+    async <T,>(task: () => Promise<T>, options: {
+      errorMessage: string;
+      successMessage?: string;
+      refresh?: boolean;
+      onSuccess?: (result: T) => Promise<void> | void;
+      onFinally?: () => void;
+    }) => {
+      try {
+        const result = await task();
+        if (options.successMessage) {
+          showToast('success', options.successMessage);
+        }
+        await options.onSuccess?.(result);
+        if (options.refresh !== false) {
+          await refreshScheduleData();
+        }
+        return result;
+      } catch (error) {
+        showToast('error', formatScheduleError(error, options.errorMessage));
+        return null;
+      } finally {
+        options.onFinally?.();
+      }
+    },
+    [refreshScheduleData, showToast]
+  );
 
   const resetEditor = useCallback(() => {
     setEditingItem(null);
@@ -93,70 +138,48 @@ export function useEventsScheduleManagerController(showToast: ShowToast): Events
   );
 
   const handleSave = useCallback(async () => {
-    if (!form.title.trim()) {
-      showToast('error', 'Title is required');
-      return;
-    }
-    if (!form.description.trim()) {
-      showToast('error', 'Description is required');
-      return;
-    }
-    if (!form.event_date.trim()) {
-      showToast('error', 'Event date is required');
-      return;
-    }
-    if (!form.time_label.trim()) {
-      showToast('error', 'Time label is required');
-      return;
-    }
-    if (!form.category.trim()) {
-      showToast('error', 'Category is required');
+    const validationError = validateScheduleForm(form);
+    if (validationError) {
+      showToast('error', validationError);
       return;
     }
 
-    try {
-      setSaving(true);
+    setSaving(true);
+    const prevBucket = editingItem?.image_bucket ?? SCHEDULE_BUCKET_ID;
+    const prevPath = editingItem?.image_path ?? '';
+    const nextBucket = form.image_bucket || SCHEDULE_BUCKET_ID;
+    const nextPath = form.image_path || '';
 
-      if (editingItem) {
-        const prevBucket = editingItem.image_bucket ?? SCHEDULE_BUCKET_ID;
-        const prevPath = editingItem.image_path ?? '';
-        const nextBucket = form.image_bucket || SCHEDULE_BUCKET_ID;
-        const nextPath = form.image_path || '';
-
-        const { error: updateError } = await withTimeout(
-          supabase
-            .from('events_schedule_items')
-            .update({
-              title: form.title,
-              description: form.description,
-              event_date: form.event_date,
-              time_label: form.time_label,
-              category: form.category,
-              image_url: form.image_url || null,
-              image_path: form.image_path || null,
-              image_bucket: form.image_bucket || SCHEDULE_BUCKET_ID,
-              placeholder_icon: form.placeholder_icon || null,
-              is_coming_soon: form.is_coming_soon,
-              button_text: form.button_text,
-              button_url: form.button_url || null,
-              sort_order: form.sort_order,
-              is_active: form.is_active,
-            })
-            .eq('id', editingItem.id),
-          REQUEST_TIMEOUT_MS,
-          'Request timeout. Please try again.'
-        );
-        if (updateError) throw updateError;
-        showToast('success', 'Schedule item updated');
-
-        if (prevPath && (prevBucket !== nextBucket || prevPath !== nextPath)) {
-          try {
-            await deleteImageIfPresent(prevBucket, prevPath);
-          } catch (cleanupError) {
-            showToast('error', cleanupError instanceof Error ? cleanupError.message : 'Failed to cleanup old image');
-          }
+    await runScheduleTask(
+      async () => {
+        if (editingItem) {
+          const { error: updateError } = await withTimeout(
+            supabase
+              .from('events_schedule_items')
+              .update({
+                title: form.title,
+                description: form.description,
+                event_date: form.event_date,
+                time_label: form.time_label,
+                category: form.category,
+                image_url: form.image_url || null,
+                image_path: form.image_path || null,
+                image_bucket: form.image_bucket || SCHEDULE_BUCKET_ID,
+                placeholder_icon: form.placeholder_icon || null,
+                is_coming_soon: form.is_coming_soon,
+                button_text: form.button_text,
+                button_url: form.button_url || null,
+                sort_order: form.sort_order,
+                is_active: form.is_active,
+              })
+              .eq('id', editingItem.id),
+            REQUEST_TIMEOUT_MS,
+            'Request timeout. Please try again.'
+          );
+          if (updateError) throw updateError;
+          return null;
         }
-      } else {
+
         const { error: insertError, data } = await withTimeout(
           supabase
             .from('events_schedule_items')
@@ -182,67 +205,82 @@ export function useEventsScheduleManagerController(showToast: ShowToast): Events
           'Request timeout. Please try again.'
         );
         if (insertError) throw insertError;
-        if (data) setEditingItem(data as EventScheduleItem);
-        showToast('success', 'Schedule item created');
+        return data as EventScheduleItem | null;
+      },
+      {
+        successMessage: editingItem ? 'Schedule item updated' : 'Schedule item created',
+        errorMessage: 'Failed to save schedule item',
+        onSuccess: async (savedItem) => {
+          if (!editingItem && savedItem) {
+            setEditingItem(savedItem);
+          }
+          if (editingItem && prevPath && (prevBucket !== nextBucket || prevPath !== nextPath)) {
+            try {
+              await deleteImageIfPresent(prevBucket, prevPath);
+            } catch (cleanupError) {
+              showToast('error', formatScheduleError(cleanupError, 'Failed to cleanup old image'));
+            }
+          }
+        },
+        onFinally: () => setSaving(false),
       }
-
-      invalidateScheduleQueries();
-      await refetch();
-    } catch (error) {
-      showToast('error', error instanceof Error ? error.message : 'Failed to save schedule item');
-    } finally {
-      setSaving(false);
-    }
-  }, [deleteImageIfPresent, editingItem, form, invalidateScheduleQueries, refetch, showToast]);
+    );
+  }, [deleteImageIfPresent, editingItem, form, runScheduleTask, showToast]);
 
   const handleDelete = useCallback(
     async (item: EventScheduleItem) => {
       if (!confirm(`Delete "${item.title}"?`)) return;
-      try {
-        setSaving(true);
-        const { error: deleteError } = await withTimeout(
-          supabase.from('events_schedule_items').delete().eq('id', item.id),
-          REQUEST_TIMEOUT_MS,
-          'Request timeout. Please try again.'
-        );
-        if (deleteError) throw deleteError;
-        showToast('success', 'Schedule item deleted');
+      setSaving(true);
+      await runScheduleTask(
+        async () => {
+          const { error: deleteError } = await withTimeout(
+            supabase.from('events_schedule_items').delete().eq('id', item.id),
+            REQUEST_TIMEOUT_MS,
+            'Request timeout. Please try again.'
+          );
+          if (deleteError) throw deleteError;
+          return null;
+        },
+        {
+          successMessage: 'Schedule item deleted',
+          errorMessage: 'Failed to delete schedule item',
+          onSuccess: async () => {
+            if (item.image_path) {
+              try {
+                await deleteImageIfPresent(item.image_bucket, item.image_path);
+              } catch (cleanupError) {
+                showToast('error', formatScheduleError(cleanupError, 'Failed to cleanup image'));
+              }
+            }
 
-        if (item.image_path) {
-          try {
-            await deleteImageIfPresent(item.image_bucket, item.image_path);
-          } catch (cleanupError) {
-            showToast('error', cleanupError instanceof Error ? cleanupError.message : 'Failed to cleanup image');
-          }
+            if (editingItem?.id === item.id) {
+              resetEditor();
+            }
+          },
+          onFinally: () => setSaving(false),
         }
-
-        if (editingItem?.id === item.id) resetEditor();
-        invalidateScheduleQueries();
-        await refetch();
-      } catch (error) {
-        showToast('error', error instanceof Error ? error.message : 'Failed to delete schedule item');
-      } finally {
-        setSaving(false);
-      }
+      );
     },
-    [deleteImageIfPresent, editingItem?.id, invalidateScheduleQueries, refetch, resetEditor, showToast]
+    [deleteImageIfPresent, editingItem?.id, resetEditor, runScheduleTask, showToast]
   );
 
   const handleToggleActive = useCallback(
     async (item: EventScheduleItem) => {
-      try {
-        const { error: toggleError } = await supabase
-          .from('events_schedule_items')
-          .update({ is_active: !item.is_active })
-          .eq('id', item.id);
-        if (toggleError) throw toggleError;
-        invalidateScheduleQueries();
-        await refetch();
-      } catch (error) {
-        showToast('error', error instanceof Error ? error.message : 'Failed to toggle active');
-      }
+      await runScheduleTask(
+        async () => {
+          const { error: toggleError } = await supabase
+            .from('events_schedule_items')
+            .update({ is_active: !item.is_active })
+            .eq('id', item.id);
+          if (toggleError) throw toggleError;
+          return null;
+        },
+        {
+          errorMessage: 'Failed to toggle active',
+        }
+      );
     },
-    [invalidateScheduleQueries, refetch, showToast]
+    [runScheduleTask]
   );
 
   const handleOrderChange = useCallback((orderedIds: number[]) => {
@@ -257,28 +295,30 @@ export function useEventsScheduleManagerController(showToast: ShowToast): Events
 
   const handleApplyOrder = useCallback(async () => {
     if (!hasUnsavedOrder) return;
-    try {
-      setApplyingOrder(true);
-      const updates = orderItems.map((item, index) =>
-        supabase.from('events_schedule_items').update({ sort_order: index }).eq('id', item.id)
-      );
-      const results = await Promise.all(updates);
-      const hadError = results.some((result) => result.error);
-      if (hadError) {
-        const firstError = results.find((result) => result.error)?.error;
-        throw new Error(firstError?.message || 'Failed to update order');
+    setApplyingOrder(true);
+    await runScheduleTask(
+      async () => {
+        const updates = orderItems.map((item, index) =>
+          supabase.from('events_schedule_items').update({ sort_order: index }).eq('id', item.id)
+        );
+        const results = await Promise.all(updates);
+        const hadError = results.some((result) => result.error);
+        if (hadError) {
+          const firstError = results.find((result) => result.error)?.error;
+          throw new Error(firstError?.message || 'Failed to update order');
+        }
+        return null;
+      },
+      {
+        successMessage: 'Order updated',
+        errorMessage: 'Failed to update order',
+        onSuccess: async () => {
+          setHasUnsavedOrder(false);
+        },
+        onFinally: () => setApplyingOrder(false),
       }
-
-      showToast('success', 'Order updated');
-      setHasUnsavedOrder(false);
-      invalidateScheduleQueries();
-      await refetch();
-    } catch (error) {
-      showToast('error', error instanceof Error ? error.message : 'Failed to update order');
-    } finally {
-      setApplyingOrder(false);
-    }
-  }, [hasUnsavedOrder, invalidateScheduleQueries, orderItems, refetch, showToast]);
+    );
+  }, [hasUnsavedOrder, orderItems, runScheduleTask]);
 
   const handleCancelOrder = useCallback(() => {
     setOrderItems(items.slice());

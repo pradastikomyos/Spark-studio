@@ -60,8 +60,7 @@ export class SessionErrorHandler {
       if (this.options.onSessionExpired) {
         this.options.onSessionExpired(context.returnPath, context.state)
       } else {
-        // Fallback alert if no callback provided
-        alert('Your session has expired for security. Please log in again to continue.');
+        console.warn('Session expired without a registered recovery callback.');
       }
     } else if (this.isNetworkError(error)) {
       // Log network error
@@ -71,7 +70,7 @@ export class SessionErrorHandler {
       if (this.options.onNetworkError && error instanceof Error) {
         this.options.onNetworkError(error)
       } else {
-        alert('We\'re having trouble connecting to the server. Please check your internet connection and try again.');
+        console.warn('Network issue detected without a registered recovery callback.');
       }
     }
   }

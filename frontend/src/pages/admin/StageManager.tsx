@@ -5,6 +5,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
 import { queryKeys } from '../../lib/queryKeys';
 import AdminLayout from '../../components/AdminLayout';
+import { useToast } from '../../components/Toast';
 import { ADMIN_MENU_ITEMS, ADMIN_MENU_SECTIONS } from '../../constants/adminMenu';
 import { TAB_RETURN_EVENT } from '../../constants/browserEvents';
 import { toLocalDateString } from '../../utils/formatters';
@@ -15,6 +16,7 @@ import StageReviewsModal from '../../components/admin/StageReviewsModal';
 
 const StageManager = () => {
     const { signOut, isAdmin } = useAuth();
+    const { showToast } = useToast();
     const queryClient = useQueryClient();
     const { data: stages = [], error: stagesError, isLoading, refetch } = useStages({ enabled: isAdmin });
     const createStage = useCreateStage();
@@ -181,7 +183,7 @@ const StageManager = () => {
             setEditingStage(null);
         } catch (error) {
             console.error('Failed to save stage:', error);
-            alert(error instanceof Error ? error.message : 'Failed to save stage');
+            showToast('error', error instanceof Error ? error.message : 'Failed to save stage');
         }
     };
 
@@ -191,7 +193,7 @@ const StageManager = () => {
             await deleteStage.mutateAsync(stage.id);
         } catch (error) {
             console.error('Failed to delete stage:', error);
-            alert(error instanceof Error ? error.message : 'Failed to delete stage');
+            showToast('error', error instanceof Error ? error.message : 'Failed to delete stage');
         }
     };
 

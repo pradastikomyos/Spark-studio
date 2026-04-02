@@ -4,6 +4,8 @@ import { supabase } from '../lib/supabase';
 import { APIError, createQuerySignal } from '../lib/fetchers';
 import { queryKeys } from '../lib/queryKeys';
 
+const ADMIN_PRODUCT_ORDERS_STALE_TIME_MS = 30 * 1000;
+
 export type OrderItemSummary = {
   id: number;
   quantity: number;
@@ -77,9 +79,9 @@ export function useProductOrders() {
         cleanup();
       }
     },
-    refetchOnWindowFocus: true,
+    refetchOnWindowFocus: false,
     refetchOnReconnect: true,
-    staleTime: 0,
+    staleTime: ADMIN_PRODUCT_ORDERS_STALE_TIME_MS,
   });
 
   useEffect(() => {

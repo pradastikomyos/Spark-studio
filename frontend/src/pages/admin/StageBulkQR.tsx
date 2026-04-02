@@ -58,25 +58,38 @@ const StageBulkQR = () => {
             link.click();
             document.body.removeChild(link);
             window.URL.revokeObjectURL(url);
+            return true;
         } catch (error) {
             console.error('Error downloading QR:', error);
             window.open(qrUrl, '_blank');
+            return false;
         }
     };
 
     const handleDownloadAll = async () => {
+        if (stages.length === 0) {
+            showToast('info', 'Belum ada stage untuk diunduh.');
+            return;
+        }
+
         setDownloading(true);
 
         try {
-            // Download each QR code sequentially with a small delay
+            let fallbackCount = 0;
             for (const stage of stages) {
-                await handleDownloadSingle(stage);
-                await new Promise((resolve) => setTimeout(resolve, 500)); // 500ms delay between downloads
+                const downloaded = await handleDownloadSingle(stage);
+                if (!downloaded) {
+                    fallbackCount += 1;
+                }
             }
-            alert(`Successfully initiated download for ${stages.length} QR codes!`);
+            if (fallbackCount === 0) {
+                showToast('success', `Berhasil memulai download ${stages.length} QR code.`);
+            } else {
+                showToast('warning', `${stages.length - fallbackCount} QR code berhasil diunduh. ${fallbackCount} sisanya dibuka di tab baru.`);
+            }
         } catch (error) {
             console.error('Error downloading all QRs:', error);
-            alert('Error downloading QR codes. Please try again.');
+            showToast('error', 'Gagal mengunduh QR codes. Silakan coba lagi.');
         } finally {
             setDownloading(false);
         }
