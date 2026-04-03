@@ -9,23 +9,23 @@
  * - SET status = 'expired'
  */
 
-import { createClient } from 'jsr:@supabase/supabase-js@2';
 import { getCorsHeaders, handleCors } from '../_shared/http.ts';
 import { logWebhookEvent } from '../_shared/payment-effects.ts';
+import { createServiceClient, type ServiceClient } from '../_shared/supabase.ts';
 
 Deno.serve(async (req) => {
   const corsResponse = handleCors(req);
   if (corsResponse) return corsResponse;
   const corsHeaders = getCorsHeaders(req);
 
-  let supabase: ReturnType<typeof createClient> | null = null;
+  let supabase: ServiceClient | null = null;
 
   try {
     // Initialize Supabase client with service role key for admin access
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     
-    supabase = createClient(supabaseUrl, supabaseServiceKey);
+    supabase = createServiceClient(supabaseUrl, supabaseServiceKey);
 
     console.log('[Expire Tickets] Starting auto-expiry process...');
 
@@ -43,10 +43,10 @@ Deno.serve(async (req) => {
     // We compare it with today's date in WIB timezone
     const { data, error, count } = await supabase
       .from('purchased_tickets')
-      .update({ status: 'expired' })
+      .update({ status: 'expired' }, { count: 'exact' })
       .eq('status', 'active')
       .lt('valid_date', todayWIB)
-      .select('id, ticket_code, valid_date', { count: 'exact' });
+      .select('id, ticket_code, valid_date');
 
     if (error) {
       console.error('[Expire Tickets] Error updating tickets:', error);
@@ -67,7 +67,10 @@ Deno.serve(async (req) => {
     console.log(`[Expire Tickets] Successfully expired ${expiredCount} ticket(s)`);
 
     if (data && data.length > 0) {
-      console.log('[Expire Tickets] Expired ticket codes:', data.map(t => t.ticket_code).join(', '));
+      console.log(
+        '[Expire Tickets] Expired ticket codes:',
+        data.map((ticket) => String(ticket.ticket_code ?? '')).filter(Boolean).join(', ')
+      );
     }
 
     await logWebhookEvent(supabase, {

@@ -13,6 +13,7 @@ import {
   logWebhookEvent,
   releaseProductReservedStockIfNeeded,
   releaseTicketCapacityIfNeeded,
+  type TicketOrderItem,
 } from '../_shared/payment-effects.ts'
 import { createServiceClient } from '../_shared/supabase.ts'
 import { mapMidtransStatus } from '../_shared/tickets.ts'
@@ -45,6 +46,10 @@ type ProductOrderRow = {
 type MidtransStatusResult =
   | { ok: true; mappedStatus: string; statusData: unknown }
   | { ok: false; error: string; statusData: unknown }
+
+function isMidtransFailure(result: MidtransStatusResult): result is Extract<MidtransStatusResult, { ok: false }> {
+  return result.ok === false
+}
 
 async function fetchMidtransStatus(params: {
   baseUrl: string
@@ -95,7 +100,7 @@ async function reconcileStaleTicketOrder(params: {
       orderNumber: order.order_number,
     })
 
-    if (!midtransResult.ok) {
+    if (isMidtransFailure(midtransResult)) {
       await logWebhookEvent(supabase, {
         orderNumber: order.order_number,
         eventType: 'reconcile_ticket_status_fetch_failed',
@@ -179,7 +184,7 @@ async function reconcileStaleProductOrder(params: {
       orderNumber: order.order_number,
     })
 
-    if (!midtransResult.ok) {
+    if (isMidtransFailure(midtransResult)) {
       await logWebhookEvent(supabase, {
         orderNumber: order.order_number,
         eventType: 'reconcile_product_status_fetch_failed',
@@ -352,13 +357,7 @@ serve(async (req) => {
             await issueTicketsIfNeeded({
               supabase,
               order,
-              orderItems: orderItems as Array<{
-                id: number
-                ticket_id: number
-                selected_date: string
-                selected_time_slots: unknown
-                quantity: number
-              }>,
+              orderItems: orderItems as TicketOrderItem[],
               nowIso,
             })
             ticketFixCount += 1
@@ -408,13 +407,7 @@ serve(async (req) => {
             await releaseTicketCapacityIfNeeded({
               supabase,
               order,
-              orderItems: orderItems as Array<{
-                id: number
-                ticket_id: number
-                selected_date: string
-                selected_time_slots: unknown
-                quantity: number
-              }>,
+              orderItems: orderItems as TicketOrderItem[],
               nowIso,
             })
             ticketReleaseCount += 1

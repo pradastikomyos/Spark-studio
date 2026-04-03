@@ -1,151 +1,171 @@
-# Laporan Pengerjaan Sesi
+# Audit Status Repo
 
-Tanggal: 3 April 2026 (4/3/2026, WIB)
+Tanggal audit: 3 April 2026 (WIB)
 
 ## Ringkasan
 
-Sesi ini mengeksekusi 6 sektor inti yang sebelumnya masuk ranking urgent repo-wide:
+Batch ini menutup lima task substantif yang sebelumnya masih terbuka:
 
-1. Payment gateway dan finalisasi payment lifecycle
-2. Auth/session timing dan payment return recovery
-3. Admin store dan inventory consistency
-4. QR/pickup verification flow
-5. Route shell dan navigation policy
-6. Entrance booking operational admin
+1. Inventory mutation dipindahkan ke RPC database yang atomic untuk save/delete.
+2. Cashier pickup dipisahkan dari auto-repair payment side effects.
+3. Route shell dipecah dari satu file besar menjadi modul route per domain.
+4. Entrance booking config save dipindahkan ke RPC atomic.
+5. Payment idempotency dinaikkan ke marker database-first melalui `payment_effect_runs`.
 
-Status akhir sesi: ada progress nyata di 5 sektor, tetapi repo belum bisa dinyatakan tuntas karena build masih gagal dan 1 sektor inti belum tersentuh.
+Status hasil akhir:
 
-## Sudah Dikerjakan
+- `npm run build` pass.
+- `deno check` untuk seluruh `supabase/functions/**/*.ts` pass.
+- Test yang relevan untuk route shell, entrance booking, session refresh, dan inventory pass.
 
-### 1. Payment gateway dan finalisasi payment lifecycle
+Klaim lama bahwa Deno belum bisa diverifikasi atau tidak tersedia di environment ini sudah tidak berlaku.
 
-Status: sebagian besar selesai
+## Verifikasi Teknis
 
-Yang sudah:
+Perintah yang diverifikasi:
 
-- Webhook, sync, dan reconciliation ticket/product sekarang diarahkan ke transition processor bersama.
-- Guard ditambahkan agar status Midtrans yang lebih lemah tidak meregresi status lokal yang lebih kuat.
-- Side effect penting seperti ticket issuance, voucher usage, voucher quota release, dan product stock release dibuat lebih defensif.
-- Rollback order/reservasi pada pembuatan Snap token dirapikan ke helper terpisah.
-- Runbook payment diperbarui untuk mencerminkan hardening terbaru.
+- `npm run build`
+- `deno check --config supabase/functions/deno.json` untuk seluruh file TypeScript di `supabase/functions/`
+- `npm run test -- frontend/src/hooks/useSessionRefresh.test.ts frontend/src/hooks/useIdleTabSessionRefresh.test.ts frontend/src/pages/admin/store-inventory/useStoreInventoryFilters.test.ts frontend/src/pages/admin/store-inventory/useInventoryProductActions.test.ts frontend/src/pages/admin/StoreInventory.test.tsx frontend/src/app/routes/routeShell.test.ts frontend/src/pages/admin/entrance-booking/entranceBookingHelpers.test.ts frontend/src/pages/admin/entrance-booking/useEntranceBookingConfigForm.test.ts`
 
-Catatan:
+Hasil:
 
-- Perbaikan ini besar dan valid, tetapi belum diverifikasi lewat check Deno end-to-end.
-- Idempotency yang paling kuat masih idealnya dipindahkan ke marker/transaction database, bukan hanya helper-level guard.
+- build frontend lulus
+- type-check Edge Functions lulus
+- subset test yang menyentuh area perubahan lulus
 
-### 2. Auth/session timing dan payment return recovery
+## Status Per Sektor
 
-Status: sebagian
+### 1. Payment lifecycle
 
-Yang sudah:
+Status: selesai untuk target batch ini
 
-- Ownership refresh lebih terpusat di `AuthContext`.
-- `useSessionRefresh` disederhanakan menjadi scheduler expiry.
-- `useIdleTabSessionRefresh` disederhanakan menjadi observer tab idle/return.
-- Product order success dan pending flow memakai source of truth token dari `AuthContext`.
-- Retry unauthorized di product sync dibuat lebih eksplisit.
+Perubahan utama:
 
-Catatan:
+- Shared payment effects sekarang memakai marker database-first lewat tabel `payment_effect_runs`.
+- Claim, complete, dan fail untuk side effect payment dipindahkan ke RPC database, bukan hanya guard di level helper.
+- `issue_tickets`, `release_ticket_capacity`, `ensure_voucher_usage`, `release_voucher_quota`, `ensure_paid_side_effects`, dan `release_reserved_stock` sekarang memakai claim marker yang konsisten.
 
-- Sektor ini belum tuntas karena masih menimbulkan error compile.
-- Booking success flow masih punya jalur refresh yang belum sepenuhnya konsisten dengan ownership baru.
+File kunci:
 
-### 3. Admin store dan inventory consistency
-
-Status: sebagian
-
-Yang sudah:
-
-- Source of truth filter inventory digeser lebih tegas ke URL state.
-- Debounce search tidak lagi mudah ping-pong antara local state dan query string.
-- Async image load yang stale tidak lagi mudah menimpa modal produk yang sudah ditutup atau ganti konteks.
-- Blob preview URL sekarang direvoke untuk menutup memory leak pada form produk.
+- `supabase/functions/_shared/payment-effects.ts`
+- `supabase/functions/_shared/database.types.ts`
+- `supabase/migrations/20260403173000_add_payment_effect_runs.sql`
 
 Catatan:
 
-- Area berat seperti `useInventory.ts` dan `inventoryProductMutations.ts` belum disentuh.
-- Jadi problem utama soal rule stock yang tersebar dan mutation produk yang belum transaksional masih terbuka.
+- Masih ada coupling operasional lintas project untuk routing order `PRINT-*` di webhook, tetapi itu di luar lima task batch ini.
 
-### 4. QR/pickup verification flow
+### 2. Auth/session recovery
 
-Status: sebagian
+Status: selesai untuk blocker yang relevan
 
-Yang sudah:
+Perubahan utama:
 
-- Lifecycle QR scanner diperketat saat modal menutup, tab hidden, dan auto-resume.
-- Duplicate scan guard dibuat lebih kuat.
-- `complete-product-pickup` sekarang reload order setelah cashier auto-pay side effect, lalu mengecek state terbaru sebelum completion.
+- Flow booking success dan product order sync sudah dirapikan agar kontrak token konsisten `string | null`.
+- Nullability session yang sebelumnya memblokir build sudah ditutup.
+
+File kunci:
+
+- `frontend/src/pages/booking-success/bookingSuccessSync.ts`
+- `frontend/src/pages/booking-success/useBookingSuccessController.ts`
+- `frontend/src/pages/product-orders/syncProductOrderStatus.ts`
+
+### 3. Admin inventory
+
+Status: selesai untuk target transactional consistency batch ini
+
+Perubahan utama:
+
+- Save/delete inventory sekarang berjalan lewat RPC database:
+  - `save_inventory_product`
+  - `delete_inventory_product`
+- Variant, image record, dan soft delete produk sekarang diproses atomically di database, bukan lagi rangkaian update table dari client.
+- Edge Function inventory sekarang menjadi boundary untuk validasi request dan cleanup ImageKit.
+
+File kunci:
+
+- `supabase/migrations/20260403183100_inventory_product_mutation_rpc.sql`
+- `supabase/functions/inventory-product-mutation/index.ts`
+- `frontend/src/pages/admin/store-inventory/inventoryProductMutations.ts`
 
 Catatan:
 
-- Coupling cashier pickup ke payment side effect masih ada.
-- Jadi hardening operasional membaik, tetapi akar arsitekturalnya belum hilang.
+- Upload/delete file ImageKit tetap berada di luar transaksi database karena storage eksternal memang tidak ikut satu transaction boundary. Jalur ini sekarang memakai rollback/cleanup best-effort, sedangkan mutasi database inti sudah atomic.
 
-### 5. Entrance booking operational admin
+### 4. QR/pickup verification
 
-Status: sebagian besar selesai
+Status: selesai untuk target decoupling cashier pickup
 
-Yang sudah:
+Perubahan utama:
 
-- Hydration form config lebih stabil saat refetch.
-- Dirty state dan reset state lebih jelas.
-- Override create/update/delete tidak lagi terlalu bergantung pada reload penuh.
-- Action summary dibersihkan saat range berubah.
+- `complete-product-pickup` tidak lagi memanggil `ensureProductPaidSideEffects(...)` untuk order cashier yang belum paid.
+- Completion sekarang memilih RPC atomic yang sesuai:
+  - `complete_product_pickup_atomic` untuk order yang memang sudah paid
+  - `complete_cashier_product_pickup_atomic` untuk order cashier unpaid
 
-Catatan:
+File kunci:
 
-- Save config masih multi-step client-side, jadi smell transactional partial save belum sepenuhnya hilang.
+- `supabase/functions/complete-product-pickup/index.ts`
+- `supabase/migrations/20260403193000_add_cashier_product_pickup_atomic.sql`
 
-## Belum Dikerjakan
+### 5. Route shell dan navigation policy
 
-### 6. Route shell dan navigation policy
+Status: selesai untuk target modularisasi batch ini
 
-Status: belum dikerjakan
+Perubahan utama:
 
-Yang belum:
+- Route map besar dipecah menjadi modul route per domain.
+- Redirect policy legacy dipisahkan dari surface route utama.
+- `AppRoutes.tsx` sekarang menjadi composer tipis, bukan pusat seluruh detail lazy routes.
 
-- Tidak ada perubahan di `frontend/src/App.tsx`
-- Tidak ada perubahan di `frontend/src/app/AppRoutes.tsx`
+File kunci:
 
-Artinya sektor route shell yang sebelumnya masuk daftar urgent/menengah masih terbuka penuh.
+- `frontend/src/app/AppRoutes.tsx`
+- `frontend/src/app/routes/adminRoutes.ts`
+- `frontend/src/app/routes/publicRoutes.ts`
+- `frontend/src/app/routes/protectedPublicRoutes.ts`
+- `frontend/src/app/routes/standaloneRoutes.ts`
+- `frontend/src/app/routes/legacyRoutes.tsx`
+- `frontend/src/app/routes/routeShell.tsx`
+- `frontend/src/app/routes/routeShell.test.ts`
 
-## Belum Selesai / Blocker Aktif
+### 6. Entrance booking admin
 
-Hal-hal yang masih menahan repo untuk dinyatakan selesai:
+Status: selesai untuk target atomic save batch ini
 
-- `npm run build` masih gagal.
-- Error TypeScript aktif ada di:
-  - `frontend/src/pages/booking-success/bookingSuccessSync.ts`
-  - `frontend/src/pages/booking-success/useBookingSuccessController.ts`
-  - `frontend/src/pages/product-orders/syncProductOrderStatus.ts`
-- Flow booking success belum sepenuhnya selaras dengan ownership refresh yang baru.
-- Admin inventory core belum tuntas karena area fetch/mutation paling berat belum di-refactor.
-- Route shell belum disentuh sama sekali.
+Perubahan utama:
 
-## Verifikasi Sesi
+- Save config tidak lagi memakai update `tickets` lalu upsert `ticket_booking_settings` secara terpisah dari client.
+- Flow save sekarang memakai RPC tunggal `save_entrance_booking_config`.
 
-Yang berhasil:
+File kunci:
 
-- Beberapa subset test frontend baru dan test targeted payment lulus.
-- ESLint untuk file-file hasil perubahan utama lulus.
+- `frontend/src/pages/admin/entrance-booking/useEntranceBookingConfigForm.ts`
+- `frontend/src/pages/admin/entrance-booking/useEntranceBookingConfigForm.test.ts`
+- `supabase/migrations/20260403183000_atomic_entrance_booking_config.sql`
 
-Yang belum berhasil:
+## Ringkasan Perubahan Kode
 
-- `npm run build` gagal karena 3 error TypeScript di sektor auth/payment return.
-- `deno check` tidak bisa dijalankan di environment ini karena binary Deno tidak tersedia.
+Frontend:
 
-## Penilaian Akhir
+- booking success sync dirapikan agar build bersih
+- route shell dimodularisasi
+- entrance booking config save dibuat atomic dari sisi boundary data
 
-Jika dihitung terhadap 6 task core inti:
+Supabase / Edge Functions:
 
-- Selesai penuh: 0/6
-- Sebagian besar selesai: 2/6
-- Sebagian: 3/6
-- Belum dikerjakan: 1/6
+- shared database types diperluas untuk RPC baru
+- payment idempotency dipindahkan ke marker database-first
+- cashier pickup completion dipisahkan dari payment side effect repair
+- inventory mutation dipindahkan ke RPC atomic
 
-Kesimpulan:
+## Kesimpulan
 
-- Sesi ini menghasilkan progress substansial.
-- Repo belum dalam kondisi "tuntas" atau "siap merge aman" karena blocker compile masih ada.
-- Prioritas pertama setelah sesi ini adalah menutup blocker TypeScript di booking/product return flow.
+Status repo setelah batch ini:
+
+- lima task yang sebelumnya masih tersisa sudah ditutup untuk scope implementasi yang diminta
+- toolchain utama hijau
+- laporan lama yang menyebut Deno belum diverifikasi sudah obsolete
+
+Sisa kerja repo sekarang bukan lagi lima task tersebut, melainkan backlog baru di luar scope batch ini jika nanti ingin lanjut ke hardening tambahan atau simplifikasi arsitektur berikutnya.

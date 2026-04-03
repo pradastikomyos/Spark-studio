@@ -174,8 +174,8 @@ export function useBookingSuccessController(params: UseBookingSuccessControllerP
     return () => clearTimeout(timeout);
   }, [showSkeleton]);
 
-  const getValidAccessToken = useCallback(async () => {
-    return getBookingSuccessAccessToken({ session, validateSession });
+  const getValidAccessToken = useCallback(async (): Promise<string | null> => {
+    return (await getBookingSuccessAccessToken({ session, validateSession })) ?? null;
   }, [session, validateSession]);
 
   const handleSyncStatus = useCallback(

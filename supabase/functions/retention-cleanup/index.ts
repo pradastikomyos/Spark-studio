@@ -1,5 +1,5 @@
-import { createClient } from 'jsr:@supabase/supabase-js@2'
 import { getCorsHeaders, handleCors } from '../_shared/http.ts'
+import { createServiceClient } from '../_shared/supabase.ts'
 
 function getEnvNumber(key: string, fallback: number) {
   const raw = Deno.env.get(key)
@@ -31,7 +31,7 @@ Deno.serve(async (req) => {
   const staleReservationRetentionDays = getEnvNumber('RETENTION_RESERVATIONS_STALE_DAYS', 30)
   const stockReservationRetentionDays = getEnvNumber('RETENTION_STOCK_RESERVATIONS_DAYS', 7)
 
-  const supabase = createClient(supabaseUrl, supabaseServiceKey)
+  const supabase = createServiceClient(supabaseUrl, supabaseServiceKey)
 
   const nowIso = new Date().toISOString()
   const webhookCutoff = daysAgoIso(webhookRetentionDays)
@@ -51,9 +51,9 @@ Deno.serve(async (req) => {
 
   const webhookDelete = await supabase
     .from('webhook_logs')
-    .delete()
+    .delete({ count: 'exact' })
     .lt('processed_at', webhookCutoff)
-    .select('id', { count: 'exact' })
+    .select('id')
 
   results.webhook_logs = {
     deleted: webhookDelete.count ?? 0,
@@ -62,17 +62,17 @@ Deno.serve(async (req) => {
 
   const reservationsPendingDelete = await supabase
     .from('reservations')
-    .delete()
+    .delete({ count: 'exact' })
     .eq('status', 'pending')
     .lt('expires_at', pendingReservationCutoff)
-    .select('id', { count: 'exact' })
+    .select('id')
 
   const reservationsStaleDelete = await supabase
     .from('reservations')
-    .delete()
+    .delete({ count: 'exact' })
     .in('status', ['expired', 'cancelled'])
     .lt('updated_at', staleReservationCutoff)
-    .select('id', { count: 'exact' })
+    .select('id')
 
   results.reservations = {
     deleted_pending: reservationsPendingDelete.count ?? 0,
@@ -92,9 +92,9 @@ Deno.serve(async (req) => {
 
   const stockReservationsDelete = await supabase
     .from('stock_reservations')
-    .delete()
+    .delete({ count: 'exact' })
     .lt('reserved_until', stockReservationCutoff)
-    .select('id', { count: 'exact' })
+    .select('id')
 
   results.stock_reservations = {
     deleted: stockReservationsDelete.count ?? 0,

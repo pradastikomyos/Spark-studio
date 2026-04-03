@@ -130,10 +130,13 @@ export function useInventoryProductActions(params: UseInventoryProductActionsPar
     setSaveError(null);
 
     try {
-      await deleteInventoryProductMutation({ deletingProduct, session });
+      const result = (await deleteInventoryProductMutation({ deletingProduct, session })) ?? null;
       setDeletingProduct(null);
       clearInventoryFallbackCache();
       await refetch();
+      if (result?.cleanupWarnings?.length) {
+        showToast('info', `Product deleted. ${result.cleanupWarnings.join(' ')}`);
+      }
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to delete product';
       setSaveError(message);
@@ -153,14 +156,12 @@ export function useInventoryProductActions(params: UseInventoryProductActionsPar
     setSaveError(null);
 
     try {
-      await saveInventoryProductMutation({
+      const result = (await saveInventoryProductMutation({
         draft,
         newImages,
         removedImageUrls,
-        existingImages,
-        currentProducts: products,
         session,
-      });
+      })) ?? null;
       invalidateImageLoad();
       setShowProductForm(false);
       setEditingDraft(null);
@@ -169,6 +170,9 @@ export function useInventoryProductActions(params: UseInventoryProductActionsPar
       if (typeof window !== 'undefined') sessionStorage.removeItem(ADMIN_PRODUCT_DRAFT_KEY);
       clearInventoryFallbackCache();
       await refetch();
+      if (result?.cleanupWarnings?.length) {
+        showToast('info', `Product saved. ${result.cleanupWarnings.join(' ')}`);
+      }
     } catch (error) {
       const message = formatInventoryProductMutationError(error);
       if (

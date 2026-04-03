@@ -1,11 +1,14 @@
-import { createClient } from './deps.ts'
+import { createClient, type SupabaseClient } from './deps.ts'
+import type { Database } from './database.types.ts'
 
-export function createServiceClient(url: string, serviceRoleKey: string) {
-  return createClient(url, serviceRoleKey)
+export type ServiceClient = SupabaseClient<Database>
+
+export function createServiceClient(url: string, serviceRoleKey: string): ServiceClient {
+  return createClient<Database>(url, serviceRoleKey)
 }
 
-export function createAuthClient(url: string, anonKey: string, authHeader: string) {
-  return createClient(url, anonKey, {
+export function createAuthClient(url: string, anonKey: string, authHeader: string): ServiceClient {
+  return createClient<Database>(url, anonKey, {
     global: {
       headers: { Authorization: authHeader },
     },

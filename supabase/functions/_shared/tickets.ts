@@ -49,11 +49,19 @@ export function normalizeTicketTimeSlots(value: unknown): string[] {
   return []
 }
 
-type PostgrestQueryBuilder = {
-  select: (columns: string) => PostgrestQueryBuilder
-  update: (values: Record<string, unknown>) => PostgrestQueryBuilder
-  eq: (column: string, value: unknown) => PostgrestQueryBuilder
+type PostgrestSelectBuilder = {
+  eq: (column: string, value: unknown) => PostgrestSelectBuilder
   single: () => Promise<{ data: unknown; error: unknown }>
+}
+
+type PostgrestUpdateBuilder = {
+  eq: (column: string, value: unknown) => PostgrestUpdateBuilder
+  select: (columns?: string) => Promise<{ data: unknown[] | null; error: unknown }>
+}
+
+type PostgrestQueryBuilder = {
+  select: (columns: string) => PostgrestSelectBuilder
+  update: (values: Record<string, unknown>) => PostgrestUpdateBuilder
 }
 
 type SupabaseLikeClient = {

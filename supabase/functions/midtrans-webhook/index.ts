@@ -8,7 +8,7 @@ import {
   processProductOrderTransition,
   processTicketOrderTransition,
 } from '../_shared/payment-processors.ts'
-import { logWebhookEvent } from '../_shared/payment-effects.ts'
+import { logWebhookEvent, type TicketOrderItem } from '../_shared/payment-effects.ts'
 
 serve(async (req) => {
   const corsResponse = handleCors(req, { allowAllOrigins: true })
@@ -277,15 +277,7 @@ serve(async (req) => {
       },
       nextStatus: newStatus,
       paymentData: notification,
-      orderItems: Array.isArray(orderItemsRows)
-        ? (orderItemsRows as Array<{
-            id: number
-            ticket_id: number
-            selected_date: string
-            selected_time_slots: unknown
-            quantity: number
-          }>)
-        : undefined,
+      orderItems: Array.isArray(orderItemsRows) ? (orderItemsRows as TicketOrderItem[]) : undefined,
       nowIso,
     })
 

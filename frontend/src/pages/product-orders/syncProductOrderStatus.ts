@@ -43,8 +43,10 @@ export async function getProductOrderAccessToken(params: {
   session: SessionLike;
   validateSession: () => Promise<boolean>;
 }) {
-  if (hasFreshAccessToken(params.session)) {
-    return params.session.access_token;
+  const currentSession = params.session;
+
+  if (hasFreshAccessToken(currentSession)) {
+    return currentSession?.access_token ?? null;
   }
 
   const isValid = await params.validateSession();
