@@ -21,6 +21,50 @@ type CreateTokenRequest = {
   voucherCode?: string  // NEW: Optional voucher code for discount
 }
 
+type ReservedProductAdjustment = {
+  variantId: number
+  quantity: number
+}
+
+async function releaseReservedProductResources(params: {
+  supabase: ReturnType<typeof createServiceClient>
+  voucherId: string | null
+  reservedAdjustments: ReservedProductAdjustment[]
+}) {
+  if (params.voucherId) {
+    const { error } = await params.supabase.rpc('release_voucher_quota', { p_voucher_id: params.voucherId })
+    if (error) {
+      console.error('[create-midtrans-product-token] Failed to release voucher quota:', error)
+    }
+  }
+
+  for (const adjustment of params.reservedAdjustments) {
+    const { error } = await params.supabase.rpc('release_product_stock', {
+      p_variant_id: adjustment.variantId,
+      p_quantity: adjustment.quantity,
+    })
+
+    if (error) {
+      console.error('[create-midtrans-product-token] Failed to release reserved stock:', error)
+    }
+  }
+}
+
+async function rollbackCreatedProductOrder(params: {
+  supabase: ReturnType<typeof createServiceClient>
+  orderId: number
+  voucherId: string | null
+  reservedAdjustments: ReservedProductAdjustment[]
+}) {
+  await params.supabase.from('order_product_items').delete().eq('order_product_id', params.orderId)
+  await params.supabase.from('order_products').delete().eq('id', params.orderId)
+  await releaseReservedProductResources({
+    supabase: params.supabase,
+    voucherId: params.voucherId,
+    reservedAdjustments: params.reservedAdjustments,
+  })
+}
+
 serve(async (req) => {
   const corsResponse = handleCors(req)
   if (corsResponse) return corsResponse
@@ -107,6 +151,10 @@ serve(async (req) => {
 
     const totalAmount = resolvedItems.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0)
     const orderNumber = `PRD-${Date.now()}-${Math.random().toString(36).substring(2, 7).toUpperCase()}`
+    const appUrl = getPublicAppUrl() ?? req.headers.get('origin') ?? ''
+    if (!appUrl) {
+      return jsonError(req, 500, 'Missing app url')
+    }
 
     const now = new Date()
 
@@ -210,7 +258,7 @@ serve(async (req) => {
 
     const paymentExpiredAt = new Date(now.getTime() + paymentExpiryMinutes * 60 * 1000)
 
-    const reservedAdjustments: { variantId: number; quantity: number }[] = []
+    const reservedAdjustments: ReservedProductAdjustment[] = []
 
     for (const item of resolvedItems) {
       const row = variantMap.get(item.productVariantId)
@@ -230,18 +278,11 @@ serve(async (req) => {
       })
 
       if (reserveError || reserved !== true) {
-        // Rollback voucher quota if it was reserved
-        if (voucherId) {
-          await supabase.rpc('release_voucher_quota', { p_voucher_id: voucherId })
-        }
-        
-        // Rollback previously reserved items
-        for (const previous of reservedAdjustments) {
-          await supabase.rpc('release_product_stock', {
-            p_variant_id: previous.variantId,
-            p_quantity: previous.quantity,
-          })
-        }
+        await releaseReservedProductResources({
+          supabase,
+          voucherId,
+          reservedAdjustments,
+        })
         return jsonError(req, 409, `Out of stock for ${item.name}`)
       }
 
@@ -273,17 +314,11 @@ serve(async (req) => {
       .single()
 
     if (orderError || !order) {
-      // Rollback voucher quota if it was reserved
-      if (voucherId) {
-        await supabase.rpc('release_voucher_quota', { p_voucher_id: voucherId })
-      }
-      
-      for (const a of reservedAdjustments) {
-        await supabase.rpc('release_product_stock', {
-          p_variant_id: a.variantId,
-          p_quantity: a.quantity,
-        })
-      }
+      await releaseReservedProductResources({
+        supabase,
+        voucherId,
+        reservedAdjustments,
+      })
 
       return jsonError(req, 500, { error: 'Failed to create order', details: orderError?.message })
     }
@@ -304,19 +339,12 @@ serve(async (req) => {
 
     const { error: itemsError } = await supabase.from('order_product_items').insert(orderItems)
     if (itemsError) {
-      await supabase.from('order_products').delete().eq('id', orderId)
-      
-      // Rollback voucher quota if it was reserved
-      if (voucherId) {
-        await supabase.rpc('release_voucher_quota', { p_voucher_id: voucherId })
-      }
-      
-      for (const a of reservedAdjustments) {
-        await supabase.rpc('release_product_stock', {
-          p_variant_id: a.variantId,
-          p_quantity: a.quantity,
-        })
-      }
+      await rollbackCreatedProductOrder({
+        supabase,
+        orderId,
+        voucherId,
+        reservedAdjustments,
+      })
 
       return jsonError(req, 500, { error: 'Failed to create order items', details: itemsError.message })
     }
@@ -330,24 +358,6 @@ serve(async (req) => {
       quantity: item.quantity,
       name: item.name,
     }))
-
-    const appUrl = getPublicAppUrl() ?? req.headers.get('origin') ?? ''
-    if (!appUrl) {
-      // Rollback voucher quota if it was reserved
-      if (voucherId) {
-        await supabase.rpc('release_voucher_quota', { p_voucher_id: voucherId })
-      }
-
-      // Rollback reserved stock
-      for (const a of reservedAdjustments) {
-        await supabase.rpc('release_product_stock', {
-          p_variant_id: a.variantId,
-          p_quantity: a.quantity,
-        })
-      }
-
-      return jsonError(req, 500, 'Missing app url')
-    }
 
     const midtransPayload = {
       transaction_details: {
@@ -380,20 +390,12 @@ serve(async (req) => {
 
     const midtransData = await midtransResponse.json()
     if (!midtransResponse.ok) {
-      await supabase.from('order_product_items').delete().eq('order_product_id', orderId)
-      await supabase.from('order_products').delete().eq('id', orderId)
-      
-      // Rollback voucher quota if it was reserved
-      if (voucherId) {
-        await supabase.rpc('release_voucher_quota', { p_voucher_id: voucherId })
-      }
-      
-      for (const a of reservedAdjustments) {
-        await supabase.rpc('release_product_stock', {
-          p_variant_id: a.variantId,
-          p_quantity: a.quantity,
-        })
-      }
+      await rollbackCreatedProductOrder({
+        supabase,
+        orderId,
+        voucherId,
+        reservedAdjustments,
+      })
 
       return jsonError(req, 500, { error: 'Failed to create payment token', details: midtransData })
     }

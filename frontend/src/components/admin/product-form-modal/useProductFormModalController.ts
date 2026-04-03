@@ -11,7 +11,14 @@ import {
   getSaveTimeoutMs,
   validateProductDraft,
 } from './productFormModalHelpers';
-import { clearStoredImages, readStoredImages, restoreImagePreviews, serializeImagePreviews, writeStoredImages } from './productFormModalStorage';
+import {
+  clearStoredImages,
+  readStoredImages,
+  restoreImagePreviews,
+  revokeImagePreviewUrls,
+  serializeImagePreviews,
+  writeStoredImages,
+} from './productFormModalStorage';
 import type { ProductFormModalController, ProductFormModalProps } from './productFormModalTypes';
 
 export function useProductFormModalController(props: ProductFormModalProps): ProductFormModalController {
@@ -26,6 +33,7 @@ export function useProductFormModalController(props: ProductFormModalProps): Pro
   const initialDraftSnapshotRef = useRef<string>(EMPTY_DRAFT_SNAPSHOT);
   const restoringImagesRef = useRef(false);
   const initializedFormKeyRef = useRef<string | null>(null);
+  const imagesRef = useRef<ImagePreview[]>([]);
 
   useEffect(() => {
     if (!isOpen) {
@@ -130,6 +138,28 @@ export function useProductFormModalController(props: ProductFormModalProps): Pro
   }, [images, initialValue?.id, isOpen]);
 
   useEffect(() => {
+    const previousImages = imagesRef.current;
+    imagesRef.current = images;
+
+    if (previousImages.length === 0) return;
+
+    const activePreviews = new Set(images.map((image) => image.preview));
+    revokeImagePreviewUrls(previousImages.filter((image) => !activePreviews.has(image.preview)));
+  }, [images]);
+
+  useEffect(() => {
+    if (isOpen || images.length === 0) return;
+    setImages([]);
+  }, [images.length, isOpen]);
+
+  useEffect(() => {
+    return () => {
+      revokeImagePreviewUrls(imagesRef.current);
+      imagesRef.current = [];
+    };
+  }, []);
+
+  useEffect(() => {
     if (typeof window === 'undefined') return;
     setIsOnline(window.navigator.onLine);
     const handleOnline = () => setIsOnline(true);
@@ -222,7 +252,7 @@ export function useProductFormModalController(props: ProductFormModalProps): Pro
   }, [initialValue?.id, isDirty, onClose, saving]);
 
   const handleRemoveExisting = useCallback((url: string) => {
-    setRemovedImageUrls((current) => [...current, url]);
+    setRemovedImageUrls((current) => (current.includes(url) ? current : [...current, url]));
   }, []);
 
   const activeExistingImages = useMemo(

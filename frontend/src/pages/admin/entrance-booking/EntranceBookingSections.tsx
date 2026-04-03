@@ -134,11 +134,15 @@ export function OperationalRulesSection({
   settingsForm,
   setSettingsForm,
   savingConfig,
+  hasConfigChanges,
+  onResetConfig,
   onSaveConfig,
 }: {
   settingsForm: SettingsFormState;
   setSettingsForm: Dispatch<SetStateAction<SettingsFormState | null>>;
   savingConfig: boolean;
+  hasConfigChanges: boolean;
+  onResetConfig: () => void;
   onSaveConfig: () => void;
 }) {
   return (
@@ -200,11 +204,22 @@ export function OperationalRulesSection({
         </label>
       </div>
 
-      <div className="flex justify-end">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="text-xs text-gray-500">
+          {hasConfigChanges ? 'Unsaved changes include the commercial section above.' : 'No unsaved config changes.'}
+        </p>
+        <button
+          type="button"
+          onClick={onResetConfig}
+          disabled={savingConfig || !hasConfigChanges}
+          className="rounded-xl border border-gray-200 px-5 py-3 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          Reset changes
+        </button>
         <button
           type="button"
           onClick={onSaveConfig}
-          disabled={savingConfig}
+          disabled={savingConfig || !hasConfigChanges}
           className="inline-flex items-center gap-2 rounded-xl border border-main-700 bg-main-600 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-main-600/25 transition hover:bg-main-700 disabled:cursor-not-allowed disabled:opacity-60"
         >
           <span className="material-symbols-outlined text-[18px]">save</span>

@@ -1,11 +1,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '../../components/Toast';
+import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
 import { buildInstructionSteps, getCountdownParts, getProductOrderPaymentInfo, getRemainingMs } from '../product-orders/payment';
 import { fetchProductOrderDetail } from '../product-orders/orderDetailData';
 import { shouldAutoSyncProductOrder, shouldRedirectPendingToSuccess } from '../product-orders/status';
-import { syncProductOrderStatus } from '../product-orders/syncProductOrderStatus';
+import {
+  getProductOrderAccessToken,
+  readCurrentProductOrderAccessToken,
+  syncProductOrderStatus,
+} from '../product-orders/syncProductOrderStatus';
 import type { ProductOrderDetail, ProductOrderItem } from '../product-orders/types';
 
 type UseProductOrderPendingControllerParams = {
@@ -17,18 +22,18 @@ type UseProductOrderPendingControllerParams = {
 export function useProductOrderPendingController({
   orderNumber,
   locationState,
-  sessionToken,
 }: UseProductOrderPendingControllerParams) {
   const navigate = useNavigate();
   const { showToast } = useToast();
+  const { initialized, session, validateSession, refreshSession } = useAuth();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [order, setOrder] = useState<ProductOrderDetail | null>(null);
   const [items, setItems] = useState<ProductOrderItem[]>([]);
   const [now, setNow] = useState(() => Date.now());
-  const hasAutoSynced = useRef(false);
-  const autoSyncAttemptsRef = useRef(0);
+  const hasOrder = order !== null;
+  const syncInFlightRef = useRef(false);
 
   const fetchOrder = useCallback(async () => {
     if (!orderNumber) return;
@@ -37,20 +42,39 @@ export function useProductOrderPendingController({
     setItems(result.items);
   }, [orderNumber]);
 
+  const getValidAccessToken = useCallback(async () => {
+    return getProductOrderAccessToken({
+      session,
+      validateSession,
+    });
+  }, [session, validateSession]);
+
+  const retryWithFreshToken = useCallback(async () => {
+    await refreshSession();
+    return readCurrentProductOrderAccessToken();
+  }, [refreshSession]);
+
   const handleSyncStatus = useCallback(
     async (silent = false) => {
       if (!orderNumber) return;
+      if (syncInFlightRef.current) return;
 
+      syncInFlightRef.current = true;
       setRefreshing(true);
       setError(null);
 
       try {
-        if (!sessionToken) {
-          setError('Not authenticated');
+        const token = await getValidAccessToken();
+        if (!token) {
+          if (!silent) {
+            setError('Not authenticated');
+          }
           return;
         }
 
-        await syncProductOrderStatus(orderNumber, sessionToken);
+        await syncProductOrderStatus(orderNumber, token, {
+          retryWithFreshToken,
+        });
         if (!silent) {
           showToast('success', 'Status refreshed.');
         }
@@ -58,10 +82,11 @@ export function useProductOrderPendingController({
       } catch (syncError) {
         setError(syncError instanceof Error ? syncError.message : 'Failed to sync status');
       } finally {
+        syncInFlightRef.current = false;
         setRefreshing(false);
       }
     },
-    [fetchOrder, orderNumber, sessionToken, showToast]
+    [fetchOrder, getValidAccessToken, orderNumber, retryWithFreshToken, showToast]
   );
 
   useEffect(() => {
@@ -123,57 +148,48 @@ export function useProductOrderPendingController({
     navigate(`/order/product/success/${orderNumber}`, { replace: true, state: locationState });
   }, [locationState, navigate, order, orderNumber]);
 
+  const shouldAutoSyncCurrentOrder = useMemo(() => {
+    if (!hasOrder || order?.payment_data) return false;
+    return shouldAutoSyncProductOrder({
+      channel: order?.channel,
+      payment_status: order?.payment_status,
+      status: order?.status,
+    });
+  }, [hasOrder, order?.channel, order?.payment_data, order?.payment_status, order?.status]);
+
   useEffect(() => {
-    if (!order || hasAutoSynced.current) return;
-    if (order.payment_data) return;
-    if (!shouldAutoSyncProductOrder(order)) return;
+    if (!initialized || !orderNumber || !hasOrder) return;
+    if (!shouldAutoSyncCurrentOrder) return;
 
-    hasAutoSynced.current = true;
-    void handleSyncStatus(true);
-  }, [handleSyncStatus, order]);
-
-  useEffect(() => {
-    if (!order) return;
-    if (order.payment_data) return;
-    if (!shouldAutoSyncProductOrder(order)) return;
-
-    let cancelled = false;
-    const timeouts: number[] = [];
-    const delaysMs = [15000, 30000, 60000, 90000, 120000];
-
-    const runAttempt = () => {
-      if (cancelled) return;
-      const attempt = autoSyncAttemptsRef.current;
-      if (attempt >= delaysMs.length) return;
-      autoSyncAttemptsRef.current += 1;
-
-      const timeoutId = window.setTimeout(async () => {
-        if (cancelled) return;
-        await handleSyncStatus(true);
-        runAttempt();
-      }, delaysMs[attempt]);
-
-      timeouts.push(timeoutId);
-    };
-
-    runAttempt();
+    const delaysMs = [0, 15000, 30000, 60000, 90000, 120000];
+    const timeouts = delaysMs.map((delayMs) =>
+      window.setTimeout(() => {
+        void handleSyncStatus(true);
+      }, delayMs)
+    );
 
     return () => {
-      cancelled = true;
       timeouts.forEach((timeoutId) => window.clearTimeout(timeoutId));
     };
-  }, [handleSyncStatus, order]);
+  }, [handleSyncStatus, hasOrder, initialized, orderNumber, shouldAutoSyncCurrentOrder]);
 
   useEffect(() => {
     const handleVisibility = () => {
-      if (!document.hidden) {
-        void fetchOrder().catch(() => null);
+      if (document.hidden || !hasOrder) {
+        return;
       }
+
+      if (shouldAutoSyncCurrentOrder) {
+        void handleSyncStatus(true);
+        return;
+      }
+
+      void fetchOrder().catch(() => null);
     };
 
     document.addEventListener('visibilitychange', handleVisibility);
     return () => document.removeEventListener('visibilitychange', handleVisibility);
-  }, [fetchOrder]);
+  }, [fetchOrder, handleSyncStatus, hasOrder, shouldAutoSyncCurrentOrder]);
 
   const paymentInfo = useMemo(() => getProductOrderPaymentInfo(order), [order]);
   const instructionSteps = useMemo(

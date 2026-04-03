@@ -62,6 +62,17 @@ export async function clearStoredImages(key: string): Promise<void> {
   });
 }
 
+export function revokeImagePreviewUrls(images: Array<Pick<ImagePreview, 'preview'>>) {
+  images.forEach((image) => {
+    if (!image.preview.startsWith('blob:')) return;
+    try {
+      URL.revokeObjectURL(image.preview);
+    } catch {
+      return;
+    }
+  });
+}
+
 export function restoreImagePreviews(stored: StoredImage[]): ImagePreview[] {
   return stored
     .slice()

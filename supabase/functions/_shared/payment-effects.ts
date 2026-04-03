@@ -153,6 +153,27 @@ export async function logWebhookEvent(
   }
 }
 
+export async function hasSuccessfulWebhookEvent(params: {
+  supabase: SupabaseClient<ExtendedDatabase>
+  orderNumber: string
+  eventType: string
+}) {
+  const { supabase, orderNumber, eventType } = params
+  const { data, error } = await supabase
+    .from('webhook_logs')
+    .select('id')
+    .eq('order_number', orderNumber)
+    .eq('event_type', eventType)
+    .eq('success', true)
+    .limit(1)
+
+  if (error) {
+    throw new Error(`Failed to check webhook log state: ${error.message}`)
+  }
+
+  return Array.isArray(data) && data.length > 0
+}
+
 export async function issueTicketsIfNeeded(params: {
   supabase: SupabaseClient<ExtendedDatabase>
   order: TicketOrder
@@ -162,12 +183,19 @@ export async function issueTicketsIfNeeded(params: {
   const { supabase, order, nowIso } = params
   if (order.tickets_issued_at) return { issued: 0, skipped: true }
 
-  const orderItems =
-    params.orderItems ??
-    ((await supabase
-      .from('order_items')
-      .select('id, ticket_id, selected_date, selected_time_slots, quantity')
-      .eq('order_id', order.id)) as { data?: TicketOrderItem[] }).data
+  const orderItemsResult =
+    params.orderItems == null
+      ? await supabase
+          .from('order_items')
+          .select('id, ticket_id, selected_date, selected_time_slots, quantity')
+          .eq('order_id', order.id)
+      : null
+
+  const orderItems = params.orderItems ?? orderItemsResult?.data
+
+  if (orderItemsResult?.error) {
+    throw new Error(`Failed to load ticket order items: ${orderItemsResult.error.message}`)
+  }
 
   if (!Array.isArray(orderItems) || orderItems.length === 0) {
     return { issued: 0, skipped: true }
@@ -175,9 +203,13 @@ export async function issueTicketsIfNeeded(params: {
 
   const now = new Date()
   const itemIds = orderItems.map((row) => Number(row.id)).filter((id) => id > 0)
-  const { data: existingTicketRows } = itemIds.length
+  const { data: existingTicketRows, error: existingTicketsError } = itemIds.length
     ? await supabase.from('purchased_tickets').select('order_item_id').in('order_item_id', itemIds)
-    : { data: [] as unknown[] }
+    : { data: [] as unknown[], error: null }
+
+  if (existingTicketsError) {
+    throw new Error(`Failed to inspect existing purchased tickets: ${existingTicketsError.message}`)
+  }
 
   const existingByOrderItemId = new Map<number, number>()
   if (Array.isArray(existingTicketRows)) {
@@ -271,24 +303,35 @@ export async function issueTicketsIfNeeded(params: {
         errorMessage: insertError.message,
         processedAt: nowIso,
       })
-      return { issued: 0, skipped: false }
+      throw new Error(`Failed to insert purchased tickets: ${insertError.message}`)
     }
   }
 
   for (const update of capacityUpdates.values()) {
-    await supabase.rpc('finalize_ticket_capacity', {
+    const { data: finalized, error: finalizeError } = await supabase.rpc('finalize_ticket_capacity', {
       p_ticket_id: update.ticketId,
       p_date: update.selectedDate,
       p_time_slot: update.timeSlot,
       p_quantity: update.qty,
     })
+
+    if (finalizeError || finalized !== true) {
+      throw new Error(
+        finalizeError?.message ??
+          `Failed to finalize ticket capacity for ${update.ticketId} on ${update.selectedDate}`
+      )
+    }
   }
 
   if (!order.tickets_issued_at && (totalNeeded > 0 || ticketsToInsert.length === 0)) {
-    await supabase
+    const { error: markIssuedError } = await supabase
       .from('orders')
       .update({ tickets_issued_at: nowIso, updated_at: nowIso })
       .eq('id', order.id)
+
+    if (markIssuedError) {
+      throw new Error(`Failed to mark tickets as issued: ${markIssuedError.message}`)
+    }
   }
 
   return { issued: totalNeeded, skipped: false }
@@ -303,12 +346,19 @@ export async function releaseTicketCapacityIfNeeded(params: {
   const { supabase, order, nowIso } = params
   if (order.capacity_released_at) return { released: false }
 
-  const orderItems =
-    params.orderItems ??
-    ((await supabase
-      .from('order_items')
-      .select('id, ticket_id, selected_date, selected_time_slots, quantity')
-      .eq('order_id', order.id)) as { data?: TicketOrderItem[] }).data
+  const orderItemsResult =
+    params.orderItems == null
+      ? await supabase
+          .from('order_items')
+          .select('id, ticket_id, selected_date, selected_time_slots, quantity')
+          .eq('order_id', order.id)
+      : null
+
+  const orderItems = params.orderItems ?? orderItemsResult?.data
+
+  if (orderItemsResult?.error) {
+    throw new Error(`Failed to load ticket order items for capacity release: ${orderItemsResult.error.message}`)
+  }
 
   if (!Array.isArray(orderItems) || orderItems.length === 0) {
     return { released: false }
@@ -336,20 +386,119 @@ export async function releaseTicketCapacityIfNeeded(params: {
   }
 
   for (const release of releases.values()) {
-    await supabase.rpc('release_ticket_capacity', {
+    const { data: released, error: releaseError } = await supabase.rpc('release_ticket_capacity', {
       p_ticket_id: release.ticketId,
       p_date: release.selectedDate,
       p_time_slot: release.timeSlot,
       p_quantity: release.qty,
     })
+
+    if (releaseError || released !== true) {
+      throw new Error(
+        releaseError?.message ??
+          `Failed to release ticket capacity for ${release.ticketId} on ${release.selectedDate}`
+      )
+    }
   }
 
-  await supabase
+  const { error: markReleasedError } = await supabase
     .from('orders')
     .update({ capacity_released_at: nowIso, updated_at: nowIso })
     .eq('id', order.id)
 
+  if (markReleasedError) {
+    throw new Error(`Failed to mark ticket capacity as released: ${markReleasedError.message}`)
+  }
+
   return { released: true }
+}
+
+export async function ensureVoucherUsageIfNeeded(params: {
+  supabase: SupabaseClient<ExtendedDatabase>
+  orderNumber: string
+  voucherId: string | null
+  voucherCode?: string | null
+  userId: string | null
+  orderProductId: number
+  discountAmount: unknown
+  nowIso: string
+}) {
+  const { supabase, orderNumber, voucherId, voucherCode, userId, orderProductId, discountAmount, nowIso } = params
+  if (!voucherId || !userId) return { ensured: false }
+
+  const { error } = await supabase
+    .from('voucher_usage')
+    .upsert(
+      {
+        voucher_id: voucherId,
+        user_id: userId,
+        order_product_id: orderProductId,
+        discount_amount: toNumber(discountAmount, 0),
+        used_at: nowIso,
+      },
+      { onConflict: 'order_product_id' }
+    )
+
+  if (error) {
+    await logWebhookEvent(supabase, {
+      orderNumber,
+      eventType: 'voucher_usage_create_failed',
+      payload: { voucher_id: voucherId, voucher_code: voucherCode ?? null, error: error.message },
+      success: false,
+      errorMessage: error.message,
+      processedAt: nowIso,
+    })
+    throw new Error(`Failed to record voucher usage: ${error.message}`)
+  }
+
+  return { ensured: true }
+}
+
+export async function releaseVoucherQuotaIfNeeded(params: {
+  supabase: SupabaseClient<ExtendedDatabase>
+  orderNumber: string
+  voucherId: string | null
+  voucherCode?: string | null
+  nextStatus: string
+  nowIso: string
+}) {
+  const { supabase, orderNumber, voucherId, voucherCode, nextStatus, nowIso } = params
+  if (!voucherId) return { released: false, skipped: true }
+
+  const alreadyReleased = await hasSuccessfulWebhookEvent({
+    supabase,
+    orderNumber,
+    eventType: 'voucher_quota_released',
+  })
+
+  if (alreadyReleased) {
+    return { released: false, skipped: true }
+  }
+
+  const { data: released, error: releaseError } = await supabase.rpc('release_voucher_quota', {
+    p_voucher_id: voucherId,
+  })
+
+  await logWebhookEvent(supabase, {
+    orderNumber,
+    eventType: 'voucher_quota_released',
+    payload: {
+      voucher_id: voucherId,
+      voucher_code: voucherCode ?? null,
+      result: released,
+      status: nextStatus,
+      error: releaseError?.message,
+    },
+    success: !releaseError && released === true,
+    errorMessage: releaseError?.message ?? (released === true ? null : 'Voucher quota release returned false'),
+    processedAt: nowIso,
+  })
+
+  if (releaseError || released !== true) {
+    throw new Error(releaseError?.message ?? 'Failed to release voucher quota')
+  }
+
+  return { released: true, skipped: false }
 }
 
 export async function ensureProductPaidSideEffects(params: {
@@ -362,10 +511,14 @@ export async function ensureProductPaidSideEffects(params: {
 }) {
   const { supabase, order, nowIso } = params
 
-  const { data: orderItems } = await supabase
+  const { data: orderItems, error: orderItemsError } = await supabase
     .from('order_product_items')
     .select('product_variant_id, quantity')
     .eq('order_product_id', order.id)
+
+  if (orderItemsError) {
+    throw new Error(`Failed to load product order items: ${orderItemsError.message}`)
+  }
 
   let stockValidationFailed = false
   const stockIssues: string[] = []
@@ -376,11 +529,15 @@ export async function ensureProductPaidSideEffects(params: {
         orderItems
           .map((row) => Number((row as { product_variant_id: number | string }).product_variant_id))
           .filter((id) => id > 0)
-      )
+        )
     )
-    const { data: variantRows } = variantIds.length
+    const { data: variantRows, error: variantRowsError } = variantIds.length
       ? await supabase.from('product_variants').select('id, stock, reserved_stock').in('id', variantIds)
-      : { data: [] as unknown[] }
+      : { data: [] as unknown[], error: null }
+
+    if (variantRowsError) {
+      throw new Error(`Failed to load product variants for payment validation: ${variantRowsError.message}`)
+    }
 
     const variantsById = new Map<number, { stock: number; reserved_stock: number }>()
     if (Array.isArray(variantRows)) {
@@ -454,8 +611,14 @@ export async function ensureProductPaidSideEffects(params: {
 
   let pickupCode = order.pickup_code || ''
   if (!pickupCode) {
-    const { data: pickupCodeRow } = await supabase.rpc('generate_pickup_code', {})
+    const { data: pickupCodeRow, error: pickupCodeError } = await supabase.rpc('generate_pickup_code', {})
+    if (pickupCodeError) {
+      throw new Error(`Failed to generate pickup code: ${pickupCodeError.message}`)
+    }
     pickupCode = String(pickupCodeRow || '')
+    if (!pickupCode) {
+      throw new Error('Failed to generate pickup code')
+    }
   }
 
   const updateFields: Record<string, unknown> = {
@@ -476,7 +639,10 @@ export async function ensureProductPaidSideEffects(params: {
     updateFields.paid_at = nowIso
   }
 
-  await supabase.from('order_products').update(updateFields).eq('id', order.id)
+  const { error: updateError } = await supabase.from('order_products').update(updateFields).eq('id', order.id)
+  if (updateError) {
+    throw new Error(`Failed to finalize paid product side effects: ${updateError.message}`)
+  }
 
   return { pickupCode, finalStatus }
 }
@@ -489,10 +655,14 @@ export async function releaseProductReservedStockIfNeeded(params: {
   const { supabase, order, nowIso } = params
   if (order.stock_released_at) return { released: false }
 
-  const { data: orderItems } = await supabase
+  const { data: orderItems, error: orderItemsError } = await supabase
     .from('order_product_items')
     .select('product_variant_id, quantity')
     .eq('order_product_id', order.id)
+
+  if (orderItemsError) {
+    throw new Error(`Failed to load product order items for stock release: ${orderItemsError.message}`)
+  }
 
   if (!Array.isArray(orderItems) || orderItems.length === 0) {
     return { released: false }
@@ -506,17 +676,46 @@ export async function releaseProductReservedStockIfNeeded(params: {
     qtyByVariantId.set(variantId, (qtyByVariantId.get(variantId) ?? 0) + qty)
   }
 
-  for (const [variantId, qty] of qtyByVariantId.entries()) {
-    await supabase.rpc('release_product_stock', {
-      p_variant_id: variantId,
-      p_quantity: qty,
-    })
+  const variantIds = Array.from(qtyByVariantId.keys())
+  const { data: variantRows, error: variantRowsError } = variantIds.length
+    ? await supabase.from('product_variants').select('id, reserved_stock').in('id', variantIds)
+    : { data: [] as unknown[], error: null }
+
+  if (variantRowsError) {
+    throw new Error(`Failed to load product variants for stock release: ${variantRowsError.message}`)
   }
 
-  await supabase
+  const reservedByVariantId = new Map<number, number>()
+  if (Array.isArray(variantRows)) {
+    for (const row of variantRows) {
+      const variantId = Number((row as { id?: unknown }).id ?? 0)
+      if (!variantId) continue
+      reservedByVariantId.set(variantId, Math.max(0, Math.floor(Number((row as { reserved_stock?: unknown }).reserved_stock ?? 0))))
+    }
+  }
+
+  for (const [variantId, qty] of qtyByVariantId.entries()) {
+    const releasableQty = Math.min(qty, reservedByVariantId.get(variantId) ?? 0)
+    if (releasableQty <= 0) continue
+
+    const { data: released, error: releaseError } = await supabase.rpc('release_product_stock', {
+      p_variant_id: variantId,
+      p_quantity: releasableQty,
+    })
+
+    if (releaseError || released !== true) {
+      throw new Error(releaseError?.message ?? `Failed to release stock for variant ${variantId}`)
+    }
+  }
+
+  const { error: markReleasedError } = await supabase
     .from('order_products')
     .update({ stock_released_at: nowIso, updated_at: nowIso })
     .eq('id', order.id)
+
+  if (markReleasedError) {
+    throw new Error(`Failed to mark product stock as released: ${markReleasedError.message}`)
+  }
 
   return { released: true }
 }

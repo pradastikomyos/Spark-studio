@@ -21,10 +21,10 @@ export function useQrScannerController({
   const qrRef = useRef<Html5Qrcode | null>(null);
   const isOpenRef = useRef(false);
   const processingRef = useRef(false);
-  const lastScannedRef = useRef('');
-  const lastScannedTimeRef = useRef(0);
   const closingRef = useRef(false);
   const timersRef = useRef<number[]>([]);
+  const scannerLifecycleIdRef = useRef(0);
+  const recentScansRef = useRef<Map<string, number>>(new Map());
 
   const [status, setStatus] = useState<QrScannerStatus>('idle');
   const [errorMessage, setErrorMessage] = useState('');
@@ -42,6 +42,38 @@ export function useQrScannerController({
     timersRef.current.forEach((timer) => window.clearTimeout(timer));
     timersRef.current = [];
   }, []);
+
+  const invalidateScannerLifecycle = useCallback(() => {
+    scannerLifecycleIdRef.current += 1;
+  }, []);
+
+  const isScannerLifecycleActive = useCallback(
+    (lifecycleId: number) =>
+      isOpenRef.current && !closingRef.current && scannerLifecycleIdRef.current === lifecycleId,
+    []
+  );
+
+  const rememberRecentScan = useCallback(
+    (decodedText: string, now: number) => {
+      const duplicateWindowMs = Math.max(SCAN_DEBOUNCE_MS, autoResumeAfterMs + 1000);
+      const cutoff = now - duplicateWindowMs;
+
+      recentScansRef.current.forEach((scannedAt, code) => {
+        if (scannedAt < cutoff) {
+          recentScansRef.current.delete(code);
+        }
+      });
+
+      const previousScanAt = recentScansRef.current.get(decodedText);
+      if (previousScanAt != null && now - previousScanAt < duplicateWindowMs) {
+        return false;
+      }
+
+      recentScansRef.current.set(decodedText, now);
+      return true;
+    },
+    [autoResumeAfterMs]
+  );
 
   const clearReaderDom = useCallback(() => {
     try {
@@ -90,6 +122,9 @@ export function useQrScannerController({
     closingRef.current = true;
     setIsClosing(true);
     clearTimers();
+    invalidateScannerLifecycle();
+    processingRef.current = false;
+    void stopScanner();
     trackTimer(
       window.setTimeout(() => {
         onClose();
@@ -98,13 +133,15 @@ export function useQrScannerController({
         setManualCode('');
       }, 300)
     );
-  }, [clearTimers, onClose, trackTimer]);
+  }, [clearTimers, invalidateScannerLifecycle, onClose, stopScanner, trackTimer]);
 
   const handleManualCodeChange = useCallback((value: string) => {
     setManualCode(value.toUpperCase());
   }, []);
 
   const startScanner = useCallback(async () => {
+    const lifecycleId = scannerLifecycleIdRef.current + 1;
+    scannerLifecycleIdRef.current = lifecycleId;
     clearTimers();
     setErrorMessage('');
     setErrorDetails('');
@@ -122,8 +159,12 @@ export function useQrScannerController({
     }
 
     const { Html5Qrcode } = await import('html5-qrcode');
-    qrRef.current = new Html5Qrcode(readerId);
-    const qr = qrRef.current;
+    if (!isScannerLifecycleActive(lifecycleId)) {
+      return;
+    }
+
+    const qr = new Html5Qrcode(readerId);
+    qrRef.current = qr;
 
     const container = document.getElementById(readerId);
     const containerWidth = container?.clientWidth || 280;
@@ -136,7 +177,7 @@ export function useQrScannerController({
     const scheduleResume = (onError = false) => {
       trackTimer(
         window.setTimeout(() => {
-          if (!isOpenRef.current) return;
+          if (!isScannerLifecycleActive(lifecycleId)) return;
           processingRef.current = false;
           void startScanner().catch((error) => {
             console.error('Failed to restart scanner:', error);
@@ -149,17 +190,13 @@ export function useQrScannerController({
     };
 
     const onScanSuccessHandler = async (decodedText: string) => {
+      const normalizedText = decodedText.trim();
       const now = Date.now();
-      if (
-        processingRef.current ||
-        (decodedText === lastScannedRef.current && now - lastScannedTimeRef.current < SCAN_DEBOUNCE_MS)
-      ) {
+      if (processingRef.current || !normalizedText || !rememberRecentScan(normalizedText, now)) {
         return;
       }
 
       processingRef.current = true;
-      lastScannedRef.current = decodedText;
-      lastScannedTimeRef.current = now;
       setStatus('processing');
 
       try {
@@ -172,12 +209,14 @@ export function useQrScannerController({
 
       let scanSucceeded = false;
       try {
-        await onScan?.(decodedText);
+        await onScan?.(normalizedText);
+        if (!isScannerLifecycleActive(lifecycleId)) return;
         setStatus('success');
         setErrorMessage('');
         setErrorDetails('');
         scanSucceeded = true;
       } catch (error) {
+        if (!isScannerLifecycleActive(lifecycleId)) return;
         console.error('Scan processing error:', error);
         setStatus('error');
         const nextError = error instanceof Error ? error : new Error('Gagal memproses');
@@ -232,6 +271,15 @@ export function useQrScannerController({
 
     try {
       const cameraId = await pickBackCameraId();
+      if (!isScannerLifecycleActive(lifecycleId)) {
+        try {
+          await qr.clear();
+        } catch {
+          return;
+        }
+        qrRef.current = null;
+        return;
+      }
 
       if (cameraId) {
         await qr.start(cameraId, config, onScanSuccessHandler, onScanFailure);
@@ -240,10 +288,18 @@ export function useQrScannerController({
       } else {
         await qr.start({ facingMode: { exact: 'environment' } }, config, onScanSuccessHandler, onScanFailure);
       }
+      if (!isScannerLifecycleActive(lifecycleId)) {
+        await stopScanner();
+        return;
+      }
       setStatus('scanning');
     } catch (primaryError) {
       try {
         await qr.start({ facingMode: 'environment' }, config, onScanSuccessHandler, onScanFailure);
+        if (!isScannerLifecycleActive(lifecycleId)) {
+          await stopScanner();
+          return;
+        }
         setStatus('scanning');
       } catch (fallbackError) {
         try {
@@ -268,8 +324,10 @@ export function useQrScannerController({
     closeOnErrorDelayMs,
     closeOnSuccess,
     handleClose,
+    isScannerLifecycleActive,
     onScan,
     readerId,
+    rememberRecentScan,
     stopScanner,
     trackTimer,
   ]);
@@ -282,11 +340,11 @@ export function useQrScannerController({
     async (event: FormEvent) => {
       event.preventDefault();
       const code = manualCode.trim();
-      if (!code || manualSubmitting || processingRef.current) return;
+    if (!code || manualSubmitting || processingRef.current) return;
 
-      clearTimers();
-      setManualSubmitting(true);
-      processingRef.current = true;
+    clearTimers();
+    setManualSubmitting(true);
+    processingRef.current = true;
       setStatus('processing');
 
       try {
@@ -357,8 +415,7 @@ export function useQrScannerController({
 
     setIsClosing(false);
     closingRef.current = false;
-    lastScannedRef.current = '';
-    lastScannedTimeRef.current = 0;
+    recentScansRef.current.clear();
     trackTimer(
       window.setTimeout(() => {
         void startScanner().catch((error) => {
@@ -378,17 +435,20 @@ export function useQrScannerController({
   useEffect(() => {
     if (isOpen) return;
     clearTimers();
+    invalidateScannerLifecycle();
+    recentScansRef.current.clear();
     processingRef.current = false;
     closingRef.current = false;
     void stopScanner();
     setStatus('idle');
-  }, [clearTimers, isOpen, stopScanner]);
+  }, [clearTimers, invalidateScannerLifecycle, isOpen, stopScanner]);
 
   useEffect(() => {
     if (!isOpen) return;
 
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'hidden') {
+        invalidateScannerLifecycle();
         void stopScanner();
         setStatus('idle');
         return;
@@ -398,7 +458,7 @@ export function useQrScannerController({
         const delay = isIOS() ? 500 : 200;
         trackTimer(
           window.setTimeout(() => {
-            if (!isOpenRef.current || processingRef.current) return;
+            if (!isOpenRef.current || closingRef.current || processingRef.current) return;
             void startScanner().catch((error) => {
               console.error('[QRScanner] Failed to restart scanner after visibility change:', error);
               setStatus('error');
@@ -415,6 +475,7 @@ export function useQrScannerController({
     };
 
     const handlePageHide = () => {
+      invalidateScannerLifecycle();
       void stopScanner();
     };
 
@@ -425,16 +486,19 @@ export function useQrScannerController({
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('pagehide', handlePageHide);
     };
-  }, [isOpen, startScanner, stopScanner, trackTimer]);
+  }, [invalidateScannerLifecycle, isOpen, startScanner, stopScanner, trackTimer]);
 
   useEffect(() => {
+    const recentScans = recentScansRef.current;
     return () => {
       clearTimers();
+      invalidateScannerLifecycle();
+      recentScans.clear();
       processingRef.current = false;
       closingRef.current = false;
       void stopScanner();
     };
-  }, [clearTimers, stopScanner]);
+  }, [clearTimers, invalidateScannerLifecycle, stopScanner]);
 
   return {
     readerId,

@@ -4,7 +4,8 @@ import { getMidtransEnv } from '../_shared/env.ts'
 import { createServiceClient } from '../_shared/supabase.ts'
 import { getMidtransBasicAuthHeader, getStatusBaseUrl } from '../_shared/midtrans.ts'
 import { mapMidtransStatus } from '../_shared/tickets.ts'
-import { ensureProductPaidSideEffects, releaseProductReservedStockIfNeeded, toNumber } from '../_shared/payment-effects.ts'
+import { logWebhookEvent } from '../_shared/payment-effects.ts'
+import { processProductOrderTransition } from '../_shared/payment-processors.ts'
 import { requireAuthenticatedRequest } from '../_shared/auth.ts'
 
 /**
@@ -54,8 +55,6 @@ serve(async (req) => {
       return jsonError(req, 403, 'Forbidden')
     }
 
-    const previousPaymentStatus = String(order.payment_status || '').toLowerCase()
-
     // 3. Active Sync: Query Midtrans API directly
     const baseUrl = getStatusBaseUrl(midtransIsProduction)
     const authString = getMidtransBasicAuthHeader(midtransServerKey)
@@ -73,117 +72,55 @@ serve(async (req) => {
       return jsonError(req, 502, { error: 'Failed to fetch Midtrans status', details: statusData })
     }
 
-        // 4. Map Midtrans status to our internal status
+    // 4. Map Midtrans status to our internal status
     const midtransStatus = mapMidtransStatus(statusData?.transaction_status, statusData?.fraud_status)
     const nowIso = new Date().toISOString()
 
-        // 5. Prepare update fields
-    const paymentStatus =
-      midtransStatus === 'paid'
-        ? 'paid'
-        : midtransStatus === 'refunded'
-          ? 'refunded'
-          : midtransStatus === 'failed' || midtransStatus === 'expired'
-            ? 'failed'
-            : 'unpaid'
+    const result = await processProductOrderTransition({
+      supabase,
+      order: order as {
+        id: number
+        user_id?: string | null
+        order_number: string
+        status?: string | null
+        payment_status?: string | null
+        pickup_code?: string | null
+        pickup_status?: string | null
+        pickup_expires_at?: string | null
+        total?: unknown
+        stock_released_at?: string | null
+        voucher_id?: string | null
+        voucher_code?: string | null
+        discount_amount?: unknown
+      },
+      nextStatus: midtransStatus,
+      paymentData: statusData,
+      grossAmount: statusData?.gross_amount,
+      nowIso,
+      shouldSetPaidAt: true,
+    })
 
-    const orderStatus =
-      midtransStatus === 'paid'
-        ? 'processing'
-        : midtransStatus === 'expired'
-          ? 'expired'
-          : midtransStatus === 'failed'
-            ? 'cancelled'
-            : order.status || 'awaiting_payment'
+    await logWebhookEvent(supabase, {
+      orderNumber,
+      eventType: 'product_sync_processed',
+      payload: {
+        next_status: midtransStatus,
+        applied: result.applied,
+        skipped_reason: result.skippedReason,
+      },
+      success: !result.updateError && !result.effectError,
+      errorMessage: result.updateError ?? result.effectError,
+      processedAt: nowIso,
+    })
 
-    const updateFields: Record<string, unknown> = {
-      status: orderStatus,
-      payment_status: paymentStatus,
-      payment_data: statusData,
-      updated_at: nowIso,
-    }
-
-    if (midtransStatus === 'expired') {
-      updateFields.expired_at = nowIso
-    }
-
-    const { data: updatedOrder, error: updateError } = await supabase
-      .from('order_products')
-      .update(updateFields)
-      .eq('id', order.id)
-      .select('id, order_number, status, payment_status, pickup_code, pickup_status, pickup_expires_at, paid_at, total, stock_released_at, voucher_id, voucher_code, discount_amount')
-      .single()
-
-    if (updateError || !updatedOrder) {
-      return jsonError(req, 500, 'Failed to update order')
-    }
-
-    if (midtransStatus === 'paid' && (previousPaymentStatus !== 'paid' || !updatedOrder.pickup_code)) {
-      await ensureProductPaidSideEffects({
-        supabase,
-        order: updatedOrder as unknown as {
-          id: number
-          order_number: string
-          status?: string | null
-          payment_status?: string | null
-          total?: unknown
-          pickup_code?: string | null
-          pickup_status?: string | null
-          pickup_expires_at?: string | null
-          stock_released_at?: string | null
-        },
-        nowIso,
-        grossAmount: statusData?.gross_amount,
-        defaultStatus: orderStatus,
-        shouldSetPaidAt: true,
+    if (result.updateError || result.effectError) {
+      return jsonError(req, 500, {
+        error: 'Failed to sync product payment status',
+        details: result.updateError ?? result.effectError,
       })
     }
 
-    const voucherId = (updatedOrder as { voucher_id?: string | null }).voucher_id ?? null
-    const voucherUserId = order.user_id ?? null
-    const voucherDiscountAmount = toNumber((updatedOrder as { discount_amount?: unknown }).discount_amount, 0)
-
-    if (midtransStatus === 'paid' && voucherId && voucherUserId) {
-      await supabase
-        .from('voucher_usage')
-        .upsert(
-          {
-            voucher_id: voucherId,
-            user_id: voucherUserId,
-            order_product_id: updatedOrder.id,
-            discount_amount: voucherDiscountAmount,
-            used_at: nowIso,
-          },
-          { onConflict: 'order_product_id' }
-        )
-    }
-
-    const shouldReleaseVoucherQuota =
-      (midtransStatus === 'expired' || midtransStatus === 'failed') && previousPaymentStatus !== 'paid'
-
-    if (shouldReleaseVoucherQuota && voucherId) {
-      await supabase.rpc('release_voucher_quota', { p_voucher_id: voucherId })
-    }
-
-    if (midtransStatus === 'expired' || midtransStatus === 'failed' || midtransStatus === 'refunded') {
-      await releaseProductReservedStockIfNeeded({
-        supabase,
-        order: updatedOrder as unknown as {
-          id: number
-          order_number: string
-          status?: string | null
-          payment_status?: string | null
-          total?: unknown
-          pickup_code?: string | null
-          pickup_status?: string | null
-          pickup_expires_at?: string | null
-          stock_released_at?: string | null
-        },
-        nowIso,
-      })
-    }
-
-    return json(req, { status: 'ok', order: updatedOrder })
+    return json(req, { status: 'ok', order: result.order })
   } catch {
     return jsonError(req, 500, 'Internal server error')
   }

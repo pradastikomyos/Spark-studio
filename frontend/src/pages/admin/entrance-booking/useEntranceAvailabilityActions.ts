@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState, type SetStateAction } from 'react';
 import { supabase } from '../../../lib/supabase';
 import type { AvailabilityActionMode } from './entranceBookingTypes';
 
@@ -8,13 +8,34 @@ type UseEntranceAvailabilityActionsArgs = {
 };
 
 export function useEntranceAvailabilityActions({ ticketId, showToast }: UseEntranceAvailabilityActionsArgs) {
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
+  const [startDate, setStartDateState] = useState('');
+  const [endDate, setEndDateState] = useState('');
   const [runningAction, setRunningAction] = useState<AvailabilityActionMode | null>(null);
   const [actionSummary, setActionSummary] = useState<string | null>(null);
 
+  useEffect(() => {
+    if (!ticketId) {
+      setRunningAction(null);
+    }
+    setActionSummary(null);
+  }, [ticketId]);
+
+  const setStartDate = useCallback((value: SetStateAction<string>) => {
+    setActionSummary(null);
+    setStartDateState((current) => (typeof value === 'function' ? value(current) : value));
+  }, []);
+
+  const setEndDate = useCallback((value: SetStateAction<string>) => {
+    setActionSummary(null);
+    setEndDateState((current) => (typeof value === 'function' ? value(current) : value));
+  }, []);
+
   const handleAvailabilityAction = useCallback(async (mode: AvailabilityActionMode) => {
-    if (!ticketId) return;
+    if (!ticketId) {
+      showToast('error', 'Entrance ticket is unavailable');
+      return;
+    }
+    if (runningAction) return;
     if (!startDate || !endDate) {
       showToast('error', 'Select a start and end date first');
       return;
@@ -67,7 +88,7 @@ export function useEntranceAvailabilityActions({ ticketId, showToast }: UseEntra
     } finally {
       setRunningAction(null);
     }
-  }, [endDate, showToast, startDate, ticketId]);
+  }, [endDate, runningAction, showToast, startDate, ticketId]);
 
   return {
     startDate,

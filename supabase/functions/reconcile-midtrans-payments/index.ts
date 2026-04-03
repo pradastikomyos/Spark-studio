@@ -142,7 +142,7 @@ async function reconcileStaleTicketOrder(params: {
     await logWebhookEvent(supabase, {
       orderNumber: order.order_number,
       eventType: 'reconcile_ticket_pending_finalized',
-      payload: { status: nextStatus },
+      payload: { status: nextStatus, applied: result.applied, skipped_reason: result.skippedReason },
       success: !result.effectError,
       errorMessage: result.effectError,
       processedAt: nowIso,
@@ -228,7 +228,7 @@ async function reconcileStaleProductOrder(params: {
     await logWebhookEvent(supabase, {
       orderNumber: order.order_number,
       eventType: 'reconcile_product_pending_finalized',
-      payload: { status: nextStatus },
+      payload: { status: nextStatus, applied: result.applied, skipped_reason: result.skippedReason },
       success: !result.effectError,
       errorMessage: result.effectError,
       processedAt: nowIso,
@@ -330,25 +330,49 @@ serve(async (req) => {
     if (Array.isArray(paidTicketOrders)) {
       for (const order of paidTicketOrders as TicketOrderRow[]) {
         if (finalizedTicketOrderIds.has(order.id) || order.tickets_issued_at) continue
-        const { data: orderItems } = await supabase
+        const { data: orderItems, error: orderItemsError } = await supabase
           .from('order_items')
           .select('id, ticket_id, selected_date, selected_time_slots, quantity')
           .eq('order_id', order.id)
 
-        if (Array.isArray(orderItems) && orderItems.length > 0) {
-          await issueTicketsIfNeeded({
-            supabase,
-            order,
-            orderItems: orderItems as Array<{
-              id: number
-              ticket_id: number
-              selected_date: string
-              selected_time_slots: unknown
-              quantity: number
-            }>,
-            nowIso,
+        if (orderItemsError) {
+          await logWebhookEvent(supabase, {
+            orderNumber: order.order_number,
+            eventType: 'reconcile_ticket_issue_repair_failed',
+            payload: { error: orderItemsError.message, phase: 'load_items' },
+            success: false,
+            errorMessage: orderItemsError.message,
+            processedAt: nowIso,
           })
-          ticketFixCount += 1
+          continue
+        }
+
+        if (Array.isArray(orderItems) && orderItems.length > 0) {
+          try {
+            await issueTicketsIfNeeded({
+              supabase,
+              order,
+              orderItems: orderItems as Array<{
+                id: number
+                ticket_id: number
+                selected_date: string
+                selected_time_slots: unknown
+                quantity: number
+              }>,
+              nowIso,
+            })
+            ticketFixCount += 1
+          } catch (error) {
+            const message = error instanceof Error ? error.message : 'Unknown error'
+            await logWebhookEvent(supabase, {
+              orderNumber: order.order_number,
+              eventType: 'reconcile_ticket_issue_repair_failed',
+              payload: { error: message },
+              success: false,
+              errorMessage: message,
+              processedAt: nowIso,
+            })
+          }
         }
       }
     }
@@ -362,25 +386,49 @@ serve(async (req) => {
     if (Array.isArray(failedTicketOrders)) {
       for (const order of failedTicketOrders as TicketOrderRow[]) {
         if (finalizedTicketOrderIds.has(order.id) || order.capacity_released_at) continue
-        const { data: orderItems } = await supabase
+        const { data: orderItems, error: orderItemsError } = await supabase
           .from('order_items')
           .select('id, ticket_id, selected_date, selected_time_slots, quantity')
           .eq('order_id', order.id)
 
-        if (Array.isArray(orderItems) && orderItems.length > 0) {
-          await releaseTicketCapacityIfNeeded({
-            supabase,
-            order,
-            orderItems: orderItems as Array<{
-              id: number
-              ticket_id: number
-              selected_date: string
-              selected_time_slots: unknown
-              quantity: number
-            }>,
-            nowIso,
+        if (orderItemsError) {
+          await logWebhookEvent(supabase, {
+            orderNumber: order.order_number,
+            eventType: 'reconcile_ticket_release_repair_failed',
+            payload: { error: orderItemsError.message, phase: 'load_items' },
+            success: false,
+            errorMessage: orderItemsError.message,
+            processedAt: nowIso,
           })
-          ticketReleaseCount += 1
+          continue
+        }
+
+        if (Array.isArray(orderItems) && orderItems.length > 0) {
+          try {
+            await releaseTicketCapacityIfNeeded({
+              supabase,
+              order,
+              orderItems: orderItems as Array<{
+                id: number
+                ticket_id: number
+                selected_date: string
+                selected_time_slots: unknown
+                quantity: number
+              }>,
+              nowIso,
+            })
+            ticketReleaseCount += 1
+          } catch (error) {
+            const message = error instanceof Error ? error.message : 'Unknown error'
+            await logWebhookEvent(supabase, {
+              orderNumber: order.order_number,
+              eventType: 'reconcile_ticket_release_repair_failed',
+              payload: { error: message },
+              success: false,
+              errorMessage: message,
+              processedAt: nowIso,
+            })
+          }
         }
       }
     }
@@ -394,14 +442,26 @@ serve(async (req) => {
     if (Array.isArray(paidProductOrders)) {
       for (const order of paidProductOrders as ProductOrderRow[]) {
         if (finalizedProductOrderIds.has(order.id) || order.pickup_code) continue
-        await ensureProductPaidSideEffects({
-          supabase,
-          order,
-          nowIso,
-          defaultStatus: String(order.status || 'processing'),
-          shouldSetPaidAt: false,
-        })
-        productFixCount += 1
+        try {
+          await ensureProductPaidSideEffects({
+            supabase,
+            order,
+            nowIso,
+            defaultStatus: String(order.status || 'processing'),
+            shouldSetPaidAt: false,
+          })
+          productFixCount += 1
+        } catch (error) {
+          const message = error instanceof Error ? error.message : 'Unknown error'
+          await logWebhookEvent(supabase, {
+            orderNumber: order.order_number,
+            eventType: 'reconcile_product_paid_repair_failed',
+            payload: { error: message },
+            success: false,
+            errorMessage: message,
+            processedAt: nowIso,
+          })
+        }
       }
     }
 
@@ -415,12 +475,24 @@ serve(async (req) => {
     if (Array.isArray(failedProductOrders)) {
       for (const order of failedProductOrders as ProductOrderRow[]) {
         if (finalizedProductOrderIds.has(order.id) || order.stock_released_at) continue
-        await releaseProductReservedStockIfNeeded({
-          supabase,
-          order,
-          nowIso,
-        })
-        productReleaseCount += 1
+        try {
+          await releaseProductReservedStockIfNeeded({
+            supabase,
+            order,
+            nowIso,
+          })
+          productReleaseCount += 1
+        } catch (error) {
+          const message = error instanceof Error ? error.message : 'Unknown error'
+          await logWebhookEvent(supabase, {
+            orderNumber: order.order_number,
+            eventType: 'reconcile_product_release_repair_failed',
+            payload: { error: message },
+            success: false,
+            errorMessage: message,
+            processedAt: nowIso,
+          })
+        }
       }
     }
 

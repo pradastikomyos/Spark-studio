@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import { clearInventoryFallbackCache } from '../../../hooks/useInventory';
 import type { ProductRow } from '../../../hooks/useInventory';
@@ -57,6 +57,11 @@ export function useInventoryProductActions(params: UseInventoryProductActionsPar
   const [deletingProduct, setDeletingProduct] = useState<DeletingProduct | null>(null);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const imageLoadRequestIdRef = useRef(0);
+
+  const invalidateImageLoad = useCallback(() => {
+    imageLoadRequestIdRef.current += 1;
+  }, []);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -74,7 +79,14 @@ export function useInventoryProductActions(params: UseInventoryProductActionsPar
     }
   }, []);
 
+  useEffect(() => {
+    return () => {
+      invalidateImageLoad();
+    };
+  }, [invalidateImageLoad]);
+
   const handleOpenCreate = () => {
+    invalidateImageLoad();
     setSaveError(null);
     setEditingDraft(null);
     setExistingImages([]);
@@ -89,6 +101,8 @@ export function useInventoryProductActions(params: UseInventoryProductActionsPar
       return;
     }
 
+    const requestId = imageLoadRequestIdRef.current + 1;
+    imageLoadRequestIdRef.current = requestId;
     setSaveError(null);
     setEditingDraft(mapProductRowToDraft(row));
     setExistingImages([]);
@@ -96,12 +110,17 @@ export function useInventoryProductActions(params: UseInventoryProductActionsPar
     setShowProductForm(true);
 
     try {
-      setExistingImages(await loadInventoryProductImages(productId));
+      const loadedImages = await loadInventoryProductImages(productId);
+      if (imageLoadRequestIdRef.current !== requestId) return;
+      setExistingImages(loadedImages);
     } catch (error) {
+      if (imageLoadRequestIdRef.current !== requestId) return;
       const message = error instanceof Error ? error.message : 'Failed to load product images';
       showToast('error', message);
     } finally {
-      setExistingImagesLoading(false);
+      if (imageLoadRequestIdRef.current === requestId) {
+        setExistingImagesLoading(false);
+      }
     }
   };
 
@@ -142,6 +161,7 @@ export function useInventoryProductActions(params: UseInventoryProductActionsPar
         currentProducts: products,
         session,
       });
+      invalidateImageLoad();
       setShowProductForm(false);
       setEditingDraft(null);
       setExistingImages([]);
@@ -170,6 +190,7 @@ export function useInventoryProductActions(params: UseInventoryProductActionsPar
 
   const closeProductForm = () => {
     if (saving) return;
+    invalidateImageLoad();
     setShowProductForm(false);
     setEditingDraft(null);
     setExistingImages([]);

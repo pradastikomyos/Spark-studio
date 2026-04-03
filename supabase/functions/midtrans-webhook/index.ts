@@ -204,7 +204,12 @@ serve(async (req) => {
       await logWebhookEvent(supabase, {
         orderNumber: orderId,
         eventType: 'product_order_processed',
-        payload: notification,
+        payload: {
+          notification,
+          next_status: newStatus,
+          applied: result.applied,
+          skipped_reason: result.skippedReason,
+        },
         success: !result.updateError && !result.effectError,
         errorMessage: result.updateError ?? result.effectError,
         processedAt: nowIso,
@@ -218,6 +223,19 @@ serve(async (req) => {
         errorMessage: result.updateError ?? result.effectError,
         processedAt: nowIso,
       })
+
+      if (result.updateError || result.effectError) {
+        return new Response(
+          JSON.stringify({
+            error: 'Failed to process product payment webhook',
+            details: result.updateError ?? result.effectError,
+          }),
+          {
+            status: 500,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          }
+        )
+      }
 
       return new Response(JSON.stringify({ status: 'ok' }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -274,7 +292,12 @@ serve(async (req) => {
     await logWebhookEvent(supabase, {
       orderNumber: orderId,
       eventType: 'ticket_order_processed',
-      payload: notification,
+      payload: {
+        notification,
+        next_status: newStatus,
+        applied: result.applied,
+        skipped_reason: result.skippedReason,
+      },
       success: !result.updateError && !result.effectError,
       errorMessage: result.updateError ?? result.effectError,
       processedAt: nowIso,
@@ -288,6 +311,19 @@ serve(async (req) => {
       errorMessage: result.updateError ?? result.effectError,
       processedAt: nowIso,
     })
+
+    if (result.updateError || result.effectError) {
+      return new Response(
+        JSON.stringify({
+          error: 'Failed to process ticket payment webhook',
+          details: result.updateError ?? result.effectError,
+        }),
+        {
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        }
+      )
+    }
 
     return new Response(JSON.stringify({ status: 'ok' }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },

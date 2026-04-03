@@ -2,12 +2,17 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import confetti from 'canvas-confetti';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '../../components/Toast';
+import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
 import { incrementMetric, METRIC_KEYS } from '../../utils/metrics';
 import { getPaymentMethodLabel } from '../product-orders/payment';
 import { fetchProductOrderDetail } from '../product-orders/orderDetailData';
 import { shouldRedirectSuccessToPending } from '../product-orders/status';
-import { syncProductOrderStatus } from '../product-orders/syncProductOrderStatus';
+import {
+  getProductOrderAccessToken,
+  readCurrentProductOrderAccessToken,
+  syncProductOrderStatus,
+} from '../product-orders/syncProductOrderStatus';
 import type { ProductOrderDetail, ProductOrderItem } from '../product-orders/types';
 
 type UseProductOrderSuccessControllerParams = {
@@ -23,13 +28,14 @@ export function useProductOrderSuccessController({
   orderNumber,
   initialized,
   locationState,
-  sessionToken,
 }: UseProductOrderSuccessControllerParams) {
   const navigate = useNavigate();
   const { showToast } = useToast();
+  const { session, validateSession, refreshSession } = useAuth();
   const hasShownSuccessToast = useRef(false);
   const confettiTriggeredRef = useRef(false);
   const backgroundRefreshErrorRef = useRef<string | null>(null);
+  const syncInFlightRef = useRef(false);
   const [order, setOrder] = useState<ProductOrderDetail | null>(null);
   const [items, setItems] = useState<ProductOrderItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -98,24 +104,23 @@ export function useProductOrderSuccessController({
   }, []);
 
   const getValidAccessToken = useCallback(async () => {
-    try {
-      const { data, error: refreshError } = await supabase.auth.refreshSession();
-      if (!refreshError && data.session?.access_token) {
-        return data.session.access_token;
-      }
+    return getProductOrderAccessToken({
+      session,
+      validateSession,
+    });
+  }, [session, validateSession]);
 
-      const { data: existing } = await supabase.auth.getSession();
-      return existing.session?.access_token ?? sessionToken ?? null;
-    } catch {
-      return sessionToken ?? null;
-    }
-  }, [sessionToken]);
+  const retryWithFreshToken = useCallback(async () => {
+    await refreshSession();
+    return readCurrentProductOrderAccessToken();
+  }, [refreshSession]);
 
   const handleSyncStatus = useCallback(
     async (isAutoSync = false, retryCount = 0) => {
       if (!orderNumber) return;
-      if (isAutoSync && autoSyncInProgress) return;
+      if (syncInFlightRef.current) return;
 
+      syncInFlightRef.current = true;
       if (isAutoSync) {
         setAutoSyncInProgress(true);
       } else {
@@ -126,7 +131,7 @@ export function useProductOrderSuccessController({
       setError(null);
 
       try {
-        let token = await getValidAccessToken();
+        const token = await getValidAccessToken();
         if (!token) {
           if (!isAutoSync) {
             setError('Not authenticated');
@@ -135,10 +140,13 @@ export function useProductOrderSuccessController({
         }
 
         try {
-          const data = await syncProductOrderStatus(orderNumber, token);
+          const data = await syncProductOrderStatus(orderNumber, token, {
+            retryWithFreshToken,
+          });
           if (data?.order) {
             setOrder((prev) => ({ ...(prev || ({} as ProductOrderDetail)), ...(data.order as ProductOrderDetail) }));
-            if ((data.order as { payment_status?: string }).payment_status === 'paid') {
+            const syncedOrder = data.order as { payment_status?: string; pickup_code?: string | null };
+            if (syncedOrder.payment_status === 'paid' || syncedOrder.pickup_code) {
               if (isAutoSync) {
                 incrementMetric(METRIC_KEYS.autoSyncSuccess);
               }
@@ -147,9 +155,16 @@ export function useProductOrderSuccessController({
           }
         } catch (syncError) {
           if (syncError instanceof Error && syncError.message === 'Failed to sync status' && retryCount < 1) {
-            token = await getValidAccessToken();
-            if (token) {
-              await syncProductOrderStatus(orderNumber, token);
+            const retriedToken = await retryWithFreshToken();
+            if (retriedToken) {
+              const retriedData = await syncProductOrderStatus(orderNumber, retriedToken);
+              if (retriedData?.order) {
+                setOrder((prev) => ({ ...(prev || ({} as ProductOrderDetail)), ...(retriedData.order as ProductOrderDetail) }));
+                const retriedOrder = retriedData.order as { payment_status?: string; pickup_code?: string | null };
+                if (retriedOrder.payment_status === 'paid' || retriedOrder.pickup_code) {
+                  await fetchOrder();
+                }
+              }
             }
           } else {
             throw syncError;
@@ -161,6 +176,7 @@ export function useProductOrderSuccessController({
           setError(message);
         }
       } finally {
+        syncInFlightRef.current = false;
         if (isAutoSync) {
           setAutoSyncInProgress(false);
         } else {
@@ -168,7 +184,7 @@ export function useProductOrderSuccessController({
         }
       }
     },
-    [autoSyncInProgress, fetchOrder, getValidAccessToken, orderNumber]
+    [fetchOrder, getValidAccessToken, orderNumber, retryWithFreshToken]
   );
 
   useEffect(() => {
@@ -297,23 +313,37 @@ export function useProductOrderSuccessController({
     if (!orderNumber || !order) return;
     if (String(order.payment_status || '').toLowerCase() !== 'paid' || pickupCode) return;
 
-    const intervalId = window.setInterval(() => {
-      void refreshOrderInBackground('poll');
-    }, 15000);
+    const delaysMs = [5000, 15000, 30000, 60000];
+    const timeouts = delaysMs.map((delayMs) =>
+      window.setTimeout(() => {
+        void refreshOrderInBackground('poll');
+      }, delayMs)
+    );
 
-    return () => clearInterval(intervalId);
+    return () => {
+      timeouts.forEach((timeoutId) => window.clearTimeout(timeoutId));
+    };
   }, [order, orderNumber, pickupCode, refreshOrderInBackground]);
 
   useEffect(() => {
     const handleVisibility = () => {
-      if (!document.hidden) {
+      if (document.hidden || !orderNumber) {
+        return;
+      }
+
+      if (!order || shouldRedirectSuccessToPending(order)) {
+        void handleSyncStatus(true);
+        return;
+      }
+
+      if (!pickupCode) {
         void refreshOrderInBackground('visibility');
       }
     };
 
     document.addEventListener('visibilitychange', handleVisibility);
     return () => document.removeEventListener('visibilitychange', handleVisibility);
-  }, [refreshOrderInBackground]);
+  }, [handleSyncStatus, order, orderNumber, pickupCode, refreshOrderInBackground]);
 
   const totalItems = useMemo(() => items.reduce((sum, item) => sum + item.quantity, 0), [items]);
   const paymentMethodLabel = useMemo(() => getPaymentMethodLabel(order), [order]);

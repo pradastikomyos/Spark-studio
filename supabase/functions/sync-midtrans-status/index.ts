@@ -4,7 +4,8 @@ import { getMidtransEnv } from '../_shared/env.ts'
 import { createServiceClient } from '../_shared/supabase.ts'
 import { getMidtransBasicAuthHeader, getStatusBaseUrl } from '../_shared/midtrans.ts'
 import { mapMidtransStatus } from '../_shared/tickets.ts'
-import { issueTicketsIfNeeded, releaseTicketCapacityIfNeeded } from '../_shared/payment-effects.ts'
+import { logWebhookEvent } from '../_shared/payment-effects.ts'
+import { processTicketOrderTransition } from '../_shared/payment-processors.ts'
 import { requireAuthenticatedRequest } from '../_shared/auth.ts'
 
 serve(async (req) => {
@@ -60,68 +61,42 @@ serve(async (req) => {
     const newStatus = mapMidtransStatus(statusData?.transaction_status, statusData?.fraud_status)
     const nowIso = new Date().toISOString()
 
-    const { data: updatedOrder, error: updateError } = await supabase
-      .from('orders')
-      .update({
-        status: newStatus,
-        payment_data: statusData,
-        updated_at: nowIso,
+    const result = await processTicketOrderTransition({
+      supabase,
+      order: order as {
+        id: number
+        order_number: string
+        user_id: string | null
+        status?: string | null
+        tickets_issued_at?: string | null
+        capacity_released_at?: string | null
+      },
+      nextStatus: newStatus,
+      paymentData: statusData,
+      nowIso,
+    })
+
+    await logWebhookEvent(supabase, {
+      orderNumber,
+      eventType: 'ticket_sync_processed',
+      payload: {
+        next_status: newStatus,
+        applied: result.applied,
+        skipped_reason: result.skippedReason,
+      },
+      success: !result.updateError && !result.effectError,
+      errorMessage: result.updateError ?? result.effectError,
+      processedAt: nowIso,
+    })
+
+    if (result.updateError || result.effectError) {
+      return jsonError(req, 500, {
+        error: 'Failed to sync ticket payment status',
+        details: result.updateError ?? result.effectError,
       })
-      .eq('id', order.id)
-      .select('id, user_id, order_number, status, expires_at, updated_at, tickets_issued_at, capacity_released_at')
-      .single()
-
-    if (updateError || !updatedOrder) {
-      return jsonError(req, 500, 'Failed to update order')
     }
 
-    if (newStatus === 'paid') {
-      const { data: orderItems } = await supabase
-        .from('order_items')
-        .select('id, ticket_id, selected_date, selected_time_slots, quantity')
-        .eq('order_id', order.id)
-
-      if (Array.isArray(orderItems)) {
-        await issueTicketsIfNeeded({
-          supabase,
-          order: updatedOrder as unknown as {
-            id: number
-            order_number: string
-            user_id: string | null
-            status?: string | null
-            tickets_issued_at?: string | null
-            capacity_released_at?: string | null
-          },
-          orderItems: orderItems as Array<{ id: number; ticket_id: number; selected_date: string; selected_time_slots: unknown; quantity: number }>,
-          nowIso,
-        })
-      }
-    }
-
-    if (newStatus === 'expired' || newStatus === 'failed' || newStatus === 'refunded') {
-      const { data: orderItems } = await supabase
-        .from('order_items')
-        .select('id, ticket_id, selected_date, selected_time_slots, quantity')
-        .eq('order_id', order.id)
-
-      if (Array.isArray(orderItems)) {
-        await releaseTicketCapacityIfNeeded({
-          supabase,
-          order: updatedOrder as unknown as {
-            id: number
-            order_number: string
-            user_id: string | null
-            status?: string | null
-            tickets_issued_at?: string | null
-            capacity_released_at?: string | null
-          },
-          orderItems: orderItems as Array<{ id: number; ticket_id: number; selected_date: string; selected_time_slots: unknown; quantity: number }>,
-          nowIso,
-        })
-      }
-    }
-
-    return json(req, { status: 'ok', order: updatedOrder })
+    return json(req, { status: 'ok', order: result.order })
   } catch {
     return jsonError(req, 500, 'Internal server error')
   }

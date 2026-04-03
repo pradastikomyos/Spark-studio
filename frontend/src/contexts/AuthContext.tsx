@@ -29,6 +29,12 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 const AUTH_RECOVERY_DELAY_MS = 30 * 1000;
 const ADMIN_ROLE_CHECK_TIMEOUT_MS = 10000;
 const ADMIN_ROLES = new Set(['admin', 'super_admin', 'super-admin']);
+const FATAL_REFRESH_ERROR_MARKERS = [
+  'refresh token not found',
+  'invalid refresh token',
+  'refresh token expired',
+  'invalid_grant',
+];
 
 const isNetworkIssue = (error: unknown) => {
   if (error && typeof error === 'object' && 'type' in error) {
@@ -50,6 +56,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [isAdmin, setIsAdmin] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
   const recoveryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const refreshPromiseRef = useRef<Promise<void> | null>(null);
   const validateSessionRef = useRef<(() => Promise<boolean>) | null>(null);
   const userIdRef = useRef<string | null>(null);
 
@@ -105,25 +112,13 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     setSessionStatus('ready');
   }, [clearRecoveryTimer]);
 
-  // NEW: Manual session refresh
-  const refreshSession = useCallback(async () => {
-    console.log('[AuthContext] Manual session refresh triggered');
-    try {
-      const { data, error } = await supabase.auth.refreshSession();
-      if (error) {
-        console.error('[AuthContext] Refresh failed:', error);
-        throw error;
-      }
-      if (data.session) {
-        setSession(data.session);
-        setUser(data.session.user);
-        setSessionStatus('ready');
-        console.log('[AuthContext] Session refreshed successfully');
-      }
-    } catch (error) {
-      console.error('[AuthContext] Refresh error:', error);
-      throw error;
+  const isFatalRefreshError = useCallback((error: unknown) => {
+    if (!(error instanceof Error) && (!error || typeof error !== 'object' || !('message' in error))) {
+      return false;
     }
+
+    const message = String((error as { message?: unknown }).message ?? '').toLowerCase();
+    return FATAL_REFRESH_ERROR_MARKERS.some((marker) => message.includes(marker));
   }, []);
 
   // Memoized admin check to avoid re-creating function
@@ -170,6 +165,61 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       cleanup();
     }
   }, [adminStatus, isAdmin, scheduleRecovery]);
+
+  // AuthContext owns the actual refresh call; other hooks only schedule/observe.
+  const refreshSession = useCallback(async () => {
+    if (refreshPromiseRef.current) {
+      return refreshPromiseRef.current;
+    }
+
+    const refreshTask = (async () => {
+      console.log('[AuthContext] Manual session refresh triggered');
+
+      const localSession = session;
+
+      try {
+        const { data, error } = await supabase.auth.refreshSession();
+        if (error) {
+          console.error('[AuthContext] Refresh failed:', error);
+
+          if (isNetworkIssue(error) && localSession) {
+            markSessionRecovering(localSession);
+            if (localSession.user?.id) {
+              void checkAdminStatus(localSession.user.id, true);
+            }
+            scheduleRecovery();
+          } else if (isFatalRefreshError(error)) {
+            await supabase.auth.signOut();
+            resetAuthState();
+          }
+
+          throw error;
+        }
+
+        if (!data.session) {
+          const emptySessionError = new Error('Session refresh returned no session');
+          console.error('[AuthContext] Refresh failed:', emptySessionError);
+          resetAuthState();
+          throw emptySessionError;
+        }
+
+        applyValidatedSession(data.session, data.session.user);
+        if (userIdRef.current !== data.session.user.id) {
+          await checkAdminStatus(data.session.user.id, true);
+        }
+
+        console.log('[AuthContext] Session refreshed successfully');
+      } catch (error) {
+        console.error('[AuthContext] Refresh error:', error);
+        throw error;
+      } finally {
+        refreshPromiseRef.current = null;
+      }
+    })();
+
+    refreshPromiseRef.current = refreshTask;
+    return refreshTask;
+  }, [applyValidatedSession, checkAdminStatus, isFatalRefreshError, markSessionRecovering, resetAuthState, scheduleRecovery, session]);
 
   const validateSessionInternal = useCallback(
     async function validateSessionInternal(localSession: Session | null, allowRecovery = true, tryRefresh = true): Promise<boolean> {

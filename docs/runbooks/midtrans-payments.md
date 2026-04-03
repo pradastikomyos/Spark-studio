@@ -56,7 +56,9 @@ This runbook covers ticket payments, product payments, webhook handling, manual 
 ## Reliability Rules
 
 - Webhook, sync, and reconciliation must reuse the same side-effects logic.
+- Webhook, sync, and reconciliation must route ticket and product status changes through the shared transition processors.
 - Ticket issuance, capacity release, pickup generation, and stock release must be idempotent.
+- Lower-priority Midtrans states must not overwrite a stronger local terminal state. In practice this means `pending` cannot regress `paid`, and `failed` or `expired` cannot overwrite a settled order.
 - Final status in DB is the source of truth for frontend UI.
 - Midtrans online payment finality stays webhook-first, with cron-backed reconciliation as the fallback.
 - App-owned expiry windows such as cashier QR and pickup QR are enforced by a frequent cron sweep, not a daily batch.
@@ -64,9 +66,12 @@ This runbook covers ticket payments, product payments, webhook handling, manual 
 ## Current Hardening Status
 
 - Signature verification is normalized for stable comparisons.
-- Shared side-effects are used across webhook and sync flows.
+- Shared transition processors are used across webhook, sync, and reconciliation finalization paths.
 - Reconciliation exists for mismatch repair.
 - Idempotency markers are used for ticket issuance and release flows.
+- Product voucher quota release is guarded so duplicate failed or expired callbacks do not decrement quota repeatedly.
+- Product stock release clamps to remaining reserved stock before releasing, so repeated recovery paths do not over-release.
+- Snap-token creators validate app callback URLs before reserving inventory and roll back created rows on token creation failures.
 - Success pages use realtime plus polling fallback instead of assuming a single happy path.
 - Cashier QR expiry and pickup QR expiry are enforced by `expire-product-orders`.
 - Stale online Midtrans orders are re-checked by `reconcile-midtrans-payments`.

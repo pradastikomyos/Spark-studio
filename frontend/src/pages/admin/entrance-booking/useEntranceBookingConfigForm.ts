@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from '../../../lib/supabase';
 import type { EntranceTicket } from '../../../hooks/useEntranceTicket';
 import type { TicketBookingSettings } from '../../../hooks/useTicketBookingSettings';
@@ -23,19 +23,74 @@ export function useEntranceBookingConfigForm({
   const [ticketForm, setTicketForm] = useState<TicketFormState | null>(null);
   const [settingsForm, setSettingsForm] = useState<SettingsFormState | null>(null);
   const [savingConfig, setSavingConfig] = useState(false);
+  const hydratedTicketIdRef = useRef<number | null>(null);
+  const hydratedTicketSnapshotRef = useRef<string | null>(null);
+  const hydratedSettingsTicketIdRef = useRef<number | null>(null);
+  const hydratedSettingsSnapshotRef = useRef<string | null>(null);
 
   useEffect(() => {
-    if (!ticket) return;
-    setTicketForm(createTicketFormState(ticket));
+    if (!ticket) {
+      hydratedTicketIdRef.current = null;
+      hydratedTicketSnapshotRef.current = null;
+      setTicketForm(null);
+      return;
+    }
+
+    const nextForm = createTicketFormState(ticket);
+    const nextSnapshot = JSON.stringify(nextForm);
+    const previousTicketId = hydratedTicketIdRef.current;
+    const previousSnapshot = hydratedTicketSnapshotRef.current;
+
+    hydratedTicketIdRef.current = ticket.id;
+    hydratedTicketSnapshotRef.current = nextSnapshot;
+    setTicketForm((current) => {
+      const shouldHydrate =
+        previousTicketId !== ticket.id || current == null || JSON.stringify(current) === previousSnapshot;
+      return shouldHydrate ? nextForm : current;
+    });
   }, [ticket]);
 
   useEffect(() => {
-    if (!bookingSettings) return;
-    setSettingsForm(createSettingsFormState(bookingSettings));
+    if (!bookingSettings) {
+      hydratedSettingsTicketIdRef.current = null;
+      hydratedSettingsSnapshotRef.current = null;
+      setSettingsForm(null);
+      return;
+    }
+
+    const nextForm = createSettingsFormState(bookingSettings);
+    const nextSnapshot = JSON.stringify(nextForm);
+    const previousTicketId = hydratedSettingsTicketIdRef.current;
+    const previousSnapshot = hydratedSettingsSnapshotRef.current;
+
+    hydratedSettingsTicketIdRef.current = bookingSettings.ticket_id;
+    hydratedSettingsSnapshotRef.current = nextSnapshot;
+    setSettingsForm((current) => {
+      const shouldHydrate =
+        previousTicketId !== bookingSettings.ticket_id || current == null || JSON.stringify(current) === previousSnapshot;
+      return shouldHydrate ? nextForm : current;
+    });
   }, [bookingSettings]);
 
+  const hasConfigChanges = useMemo(() => {
+    if (!ticketForm || !settingsForm) return false;
+    return (
+      JSON.stringify(ticketForm) !== hydratedTicketSnapshotRef.current ||
+      JSON.stringify(settingsForm) !== hydratedSettingsSnapshotRef.current
+    );
+  }, [settingsForm, ticketForm]);
+
+  const resetConfigForms = useCallback(() => {
+    if (ticket) {
+      setTicketForm(createTicketFormState(ticket));
+    }
+    if (bookingSettings) {
+      setSettingsForm(createSettingsFormState(bookingSettings));
+    }
+  }, [bookingSettings, ticket]);
+
   const handleSaveConfig = useCallback(async () => {
-    if (!ticket || !ticketForm || !settingsForm) return;
+    if (!ticket || !ticketForm || !settingsForm || savingConfig) return;
 
     try {
       const validated = validateConfigForms(ticketForm, settingsForm);
@@ -74,7 +129,7 @@ export function useEntranceBookingConfigForm({
     } finally {
       setSavingConfig(false);
     }
-  }, [refetchSettings, refetchTicket, settingsForm, showToast, ticket, ticketForm]);
+  }, [refetchSettings, refetchTicket, savingConfig, settingsForm, showToast, ticket, ticketForm]);
 
   return {
     ticketForm,
@@ -82,6 +137,8 @@ export function useEntranceBookingConfigForm({
     settingsForm,
     setSettingsForm,
     savingConfig,
+    hasConfigChanges,
+    resetConfigForms,
     handleSaveConfig,
   };
 }

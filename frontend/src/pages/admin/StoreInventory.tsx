@@ -145,10 +145,7 @@ const StoreInventory = () => {
       }
       headerSearchValue={filters.searchInput}
       headerSearchPlaceholder="Search products..."
-      onHeaderSearchChange={(value) => {
-        filters.setSearchInput(value);
-        filters.setCurrentPage(1);
-      }}
+      onHeaderSearchChange={filters.setSearchInput}
       onHeaderSearchSubmit={filters.commitSearchInput}
       onLogout={signOut}
       mainClassName="relative"
@@ -174,14 +171,8 @@ const StoreInventory = () => {
           categoryFilter={filters.categoryFilter}
           stockFilter={filters.stockFilter}
           categoryOptions={categoryOptions}
-          onCategoryFilterChange={(value) => {
-            filters.setCategoryFilter(value);
-            filters.setCurrentPage(1);
-          }}
-          onStockFilterChange={(value) => {
-            filters.setStockFilter(value);
-            filters.setCurrentPage(1);
-          }}
+          onCategoryFilterChange={filters.setCategoryFilter}
+          onStockFilterChange={filters.setStockFilter}
         />
 
         {isLoading ? (
@@ -276,7 +267,7 @@ const StoreInventory = () => {
         onClose={() => setShowScanner(false)}
         title="Scan Pickup Code"
         onScan={(decodedText) => {
-          const normalized = decodedText.toUpperCase();
+          const normalized = normalizePickupCode(decodedText);
           setOrderCode(normalized);
           handleVerify(normalized);
           setShowScanner(false);

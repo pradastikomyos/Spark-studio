@@ -37,6 +37,8 @@ export default function EntranceBookingManager() {
     settingsForm,
     setSettingsForm,
     savingConfig,
+    hasConfigChanges,
+    resetConfigForms,
     handleSaveConfig,
   } = useEntranceBookingConfigForm({
     ticket,
@@ -124,6 +126,8 @@ export default function EntranceBookingManager() {
           settingsForm={settingsForm}
           setSettingsForm={setSettingsForm}
           savingConfig={savingConfig}
+          hasConfigChanges={hasConfigChanges}
+          onResetConfig={resetConfigForms}
           onSaveConfig={() => void handleSaveConfig()}
         />
         <AvailabilityActionsSection

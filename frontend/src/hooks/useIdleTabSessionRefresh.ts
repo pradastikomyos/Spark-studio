@@ -1,12 +1,13 @@
 import { useEffect, useRef } from 'react';
 
 import { TAB_RETURN_EVENT } from '../constants/browserEvents';
-import { supabase } from '../lib/supabase';
+import { useAuth } from '../contexts/AuthContext';
 
 const TAB_IDLE_THRESHOLD_MS = 2 * 60 * 1000;
 const SESSION_REFRESH_BUFFER_MS = 5 * 60 * 1000;
 
 export function useIdleTabSessionRefresh() {
+  const { initialized, session, refreshSession } = useAuth();
   const hiddenAtRef = useRef<number | null>(null);
   const refreshInFlightRef = useRef(false);
   const lastActiveAtRef = useRef(Date.now());
@@ -25,27 +26,26 @@ export function useIdleTabSessionRefresh() {
     const handleIdleReturn = async (hiddenAt: number) => {
       const idleDuration = Date.now() - hiddenAt;
       if (idleDuration < TAB_IDLE_THRESHOLD_MS) return;
+      if (!initialized || !session) return;
       if (refreshInFlightRef.current) return;
 
       refreshInFlightRef.current = true;
+      let didRefreshSession = false;
 
       try {
-        const { data } = await supabase.auth.getSession();
-        if (!data.session) return;
-
-        const expiresAtMs = (data.session.expires_at ?? 0) * 1000;
+        const expiresAtMs = (session.expires_at ?? 0) * 1000;
         const shouldRefreshSession = expiresAtMs > 0 && expiresAtMs - Date.now() <= SESSION_REFRESH_BUFFER_MS;
         if (!shouldRefreshSession) {
-          dispatchTabReturn(idleDuration, false);
           return;
         }
 
-        const { error } = await supabase.auth.refreshSession();
-        if (error) return;
-
-        dispatchTabReturn(idleDuration, true);
+        await refreshSession();
+        didRefreshSession = true;
+      } catch (error) {
+        console.warn('[IdleTabSessionRefresh] Failed to refresh on tab return:', error);
       } finally {
         refreshInFlightRef.current = false;
+        dispatchTabReturn(idleDuration, didRefreshSession);
       }
     };
 
@@ -79,5 +79,5 @@ export function useIdleTabSessionRefresh() {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('focus', handleFocus);
     };
-  }, []);
+  }, [initialized, refreshSession, session]);
 }

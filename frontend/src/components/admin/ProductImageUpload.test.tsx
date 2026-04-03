@@ -3,11 +3,20 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import ProductImageUpload, { type ImagePreview } from './ProductImageUpload';
 import ProductFormModal, { type CategoryOption, type ProductDraft, type ExistingImage } from './ProductFormModal';
 
+const createObjectURLMock = vi.fn(() => 'blob:mock');
+const revokeObjectURLMock = vi.fn();
+
 beforeEach(() => {
   Object.defineProperty(URL, 'createObjectURL', {
     configurable: true,
-    value: vi.fn(() => 'blob:mock'),
+    value: createObjectURLMock,
   });
+  Object.defineProperty(URL, 'revokeObjectURL', {
+    configurable: true,
+    value: revokeObjectURLMock,
+  });
+  createObjectURLMock.mockClear();
+  revokeObjectURLMock.mockClear();
 });
 
 describe('ProductImageUpload', () => {
@@ -127,5 +136,53 @@ describe('ProductFormModal', () => {
     );
 
     expect((screen.getByPlaceholderText('Product name') as HTMLInputElement).value).toBe('Draft In Progress');
+  });
+
+  it('revokes generated preview URLs when the modal closes', () => {
+    const categories: CategoryOption[] = [{ id: 1, name: 'Cat', slug: 'cat' }];
+    const initialValue: ProductDraft = {
+      name: 'Preview Product',
+      slug: 'preview-product',
+      description: '',
+      category_id: 1,
+      sku: 'SKU-001',
+      is_active: true,
+      variants: [{ name: 'Default', sku: 'VAR-001', price: '10000', stock: 1 }],
+    };
+
+    const { container, rerender } = render(
+      <ProductFormModal
+        isOpen
+        categories={categories}
+        initialValue={initialValue}
+        existingImages={[]}
+        onClose={() => {}}
+        onSave={() => {}}
+      />
+    );
+
+    const input = container.querySelector('input[type="file"]') as HTMLInputElement | null;
+    expect(input).not.toBeNull();
+
+    fireEvent.change(input as HTMLInputElement, {
+      target: {
+        files: [new File(['preview'], 'preview.png', { type: 'image/png' })],
+      },
+    });
+
+    expect(createObjectURLMock).toHaveBeenCalled();
+
+    rerender(
+      <ProductFormModal
+        isOpen={false}
+        categories={categories}
+        initialValue={initialValue}
+        existingImages={[]}
+        onClose={() => {}}
+        onSave={() => {}}
+      />
+    );
+
+    expect(revokeObjectURLMock).toHaveBeenCalledWith('blob:mock');
   });
 });

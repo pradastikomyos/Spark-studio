@@ -23,6 +23,13 @@ interface CreateTokenRequest {
   customerPhone?: string
 }
 
+type ReservedTicketHold = {
+  ticketId: number
+  date: string
+  timeSlot: string | null
+  quantity: number
+}
+
 const DEFAULT_MAX_TICKETS_PER_BOOKING = 5
 const DEFAULT_BOOKING_WINDOW_DAYS = 30
 
@@ -48,6 +55,34 @@ function addDaysWib(dateString: string, days: number): string {
   const date = new Date(`${dateString}T00:00:00+07:00`)
   date.setUTCDate(date.getUTCDate() + days)
   return formatWibDate(date)
+}
+
+async function releaseReservedTicketHolds(params: {
+  supabase: ReturnType<typeof createServiceClient>
+  holds: ReservedTicketHold[]
+}) {
+  for (const hold of params.holds) {
+    const { error } = await params.supabase.rpc('release_ticket_capacity', {
+      p_ticket_id: hold.ticketId,
+      p_date: hold.date,
+      p_time_slot: hold.timeSlot,
+      p_quantity: hold.quantity,
+    })
+
+    if (error) {
+      console.error('[create-midtrans-token] Failed to release reserved hold:', error)
+    }
+  }
+}
+
+async function rollbackCreatedTicketOrder(params: {
+  supabase: ReturnType<typeof createServiceClient>
+  orderId: number
+  holds: ReservedTicketHold[]
+}) {
+  await params.supabase.from('order_items').delete().eq('order_id', params.orderId)
+  await params.supabase.from('orders').delete().eq('id', params.orderId)
+  await releaseReservedTicketHolds({ supabase: params.supabase, holds: params.holds })
 }
 
 serve(async (req) => {
@@ -260,6 +295,11 @@ serve(async (req) => {
       }
     }
 
+    const appUrl = getPublicAppUrl() ?? req.headers.get('origin') ?? ''
+    if (!appUrl) {
+      return jsonError(req, 500, 'Missing app url')
+    }
+
     const totalAmount = resolvedItems.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0)
 
     const holdsBySlot = new Map<string, { ticketId: number; date: string; timeSlot: string | null; quantity: number }>()
@@ -274,7 +314,7 @@ serve(async (req) => {
       }
     }
 
-    const reservedHolds: Array<{ ticketId: number; date: string; timeSlot: string | null; quantity: number }> = []
+    const reservedHolds: ReservedTicketHold[] = []
     for (const hold of holdsBySlot.values()) {
       const { data: reserved, error: reserveError } = await supabase.rpc('reserve_ticket_capacity', {
         p_ticket_id: hold.ticketId,
@@ -284,14 +324,7 @@ serve(async (req) => {
       })
 
       if (reserveError) {
-        for (const previous of reservedHolds) {
-          await supabase.rpc('release_ticket_capacity', {
-            p_ticket_id: previous.ticketId,
-            p_date: previous.date,
-            p_time_slot: previous.timeSlot,
-            p_quantity: previous.quantity,
-          })
-        }
+        await releaseReservedTicketHolds({ supabase, holds: reservedHolds })
 
         console.error('Ticket capacity reservation error:', reserveError)
         return jsonError(req, 500, {
@@ -301,14 +334,7 @@ serve(async (req) => {
       }
 
       if (reserved !== true) {
-        for (const previous of reservedHolds) {
-          await supabase.rpc('release_ticket_capacity', {
-            p_ticket_id: previous.ticketId,
-            p_date: previous.date,
-            p_time_slot: previous.timeSlot,
-            p_quantity: previous.quantity,
-          })
-        }
+        await releaseReservedTicketHolds({ supabase, holds: reservedHolds })
 
         return jsonError(req, 409, 'Slot sold out')
       }
@@ -338,14 +364,7 @@ serve(async (req) => {
 
     if (orderError || !order) {
       console.error('Order creation error:', orderError)
-      for (const hold of reservedHolds) {
-        await supabase.rpc('release_ticket_capacity', {
-          p_ticket_id: hold.ticketId,
-          p_date: hold.date,
-          p_time_slot: hold.timeSlot,
-          p_quantity: hold.quantity,
-        })
-      }
+      await releaseReservedTicketHolds({ supabase, holds: reservedHolds })
       return jsonError(req, 500, 'Failed to create order')
     }
 
@@ -368,16 +387,7 @@ serve(async (req) => {
 
     if (itemsError) {
       console.error('Order items creation error:', itemsError)
-      // Rollback order
-      await supabase.from('orders').delete().eq('id', order.id)
-      for (const hold of reservedHolds) {
-        await supabase.rpc('release_ticket_capacity', {
-          p_ticket_id: hold.ticketId,
-          p_date: hold.date,
-          p_time_slot: hold.timeSlot,
-          p_quantity: hold.quantity,
-        })
-      }
+      await rollbackCreatedTicketOrder({ supabase, orderId: order.id, holds: reservedHolds })
       return jsonError(req, 500, 'Failed to create order items')
     }
 
@@ -391,11 +401,6 @@ serve(async (req) => {
       quantity: item.quantity,
       name: item.ticketName.substring(0, 50),
     }))
-
-    const appUrl = getPublicAppUrl() ?? req.headers.get('origin') ?? ''
-    if (!appUrl) {
-      return jsonError(req, 500, 'Missing app url')
-    }
 
     const midtransPayload = {
       transaction_details: {
@@ -430,17 +435,7 @@ serve(async (req) => {
 
     if (!midtransResponse.ok) {
       console.error('Midtrans error:', midtransData)
-      // Rollback
-      await supabase.from('order_items').delete().eq('order_id', order.id)
-      await supabase.from('orders').delete().eq('id', order.id)
-      for (const hold of reservedHolds) {
-        await supabase.rpc('release_ticket_capacity', {
-          p_ticket_id: hold.ticketId,
-          p_date: hold.date,
-          p_time_slot: hold.timeSlot,
-          p_quantity: hold.quantity,
-        })
-      }
+      await rollbackCreatedTicketOrder({ supabase, orderId: order.id, holds: reservedHolds })
       return jsonError(req, 500, { error: 'Failed to create payment token', details: midtransData })
     }
 

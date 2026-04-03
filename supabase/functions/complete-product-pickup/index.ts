@@ -16,6 +16,20 @@ type CompletePickupResult = {
   pickupStatus?: string
 }
 
+type OrderPickupRow = {
+  id: number
+  order_number: string
+  channel?: string | null
+  status?: string | null
+  payment_status?: string | null
+  total?: unknown
+  pickup_code?: string | null
+  pickup_status?: string | null
+  pickup_expires_at?: string | null
+}
+
+type AdminSupabaseService = NonNullable<Awaited<ReturnType<typeof requireAdminContext>>['context']>['supabaseService']
+
 function mapPickupErrorStatus(code: string | undefined): number {
   if (!code) return 500
   if (code === 'order_not_found') return 404
@@ -33,6 +47,24 @@ function mapPickupErrorStatus(code: string | undefined): number {
     return 409
   }
   return 500
+}
+
+async function loadOrderByPickupCode(
+  supabaseService: AdminSupabaseService,
+  pickupCode: string,
+): Promise<OrderPickupRow | null> {
+  const { data, error } = await supabaseService
+    .from('order_products')
+    .select('id, order_number, channel, status, payment_status, total, pickup_code, pickup_status, pickup_expires_at')
+    .eq('pickup_code', pickupCode)
+    .maybeSingle()
+
+  if (error) {
+    console.error('[complete-product-pickup] Failed to load order:', error)
+    throw error
+  }
+
+  return (data as OrderPickupRow | null) ?? null
 }
 
 serve(async (req) => {
@@ -53,19 +85,13 @@ serve(async (req) => {
     }
 
     const pickedUpBy = admin.user.id
-
-    const { data: order, error: orderError } = await admin.supabaseService
-      .from('order_products')
-      .select('id, order_number, channel, status, payment_status, total, pickup_code, pickup_status, pickup_expires_at')
-      .eq('pickup_code', pickupCode)
-      .single()
-
-    if (orderError || !order) {
+    let order = await loadOrderByPickupCode(admin.supabaseService, pickupCode)
+    if (!order) {
       return jsonError(req, 404, 'Order not found')
     }
 
-    const paymentStatus = String((order as { payment_status?: string }).payment_status || '').toLowerCase()
-    const channel = String((order as { channel?: string }).channel || '').toLowerCase()
+    const paymentStatus = String(order.payment_status || '').toLowerCase()
+    const channel = String(order.channel || '').toLowerCase()
     if (paymentStatus !== 'paid') {
       if (channel !== 'cashier') {
         return jsonError(req, 409, 'Order not paid')
@@ -74,33 +100,36 @@ serve(async (req) => {
       const nowIso = new Date().toISOString()
       await ensureProductPaidSideEffects({
         supabase: admin.supabaseService,
-        order: order as unknown as {
-          id: number
-          order_number: string
-          status?: string | null
-          payment_status?: string | null
-          total?: unknown
-          pickup_code?: string | null
-          pickup_status?: string | null
-          pickup_expires_at?: string | null
-        },
+        order,
         nowIso,
-        grossAmount: (order as { total?: unknown }).total,
-        defaultStatus: String((order as { status?: unknown }).status || 'processing'),
+        grossAmount: order.total,
+        defaultStatus: String(order.status || 'processing'),
         shouldSetPaidAt: true,
       })
+
+      order = await loadOrderByPickupCode(admin.supabaseService, pickupCode)
+      if (!order) {
+        return jsonError(req, 404, 'Order not found')
+      }
     }
 
-    if (String((order as { pickup_status?: string }).pickup_status || '').toLowerCase() === 'completed') {
+    const pickupStatus = String(order.pickup_status || '').toLowerCase()
+    if (pickupStatus === 'completed') {
       return jsonError(req, 409, 'Order already completed')
     }
+    if (pickupStatus === 'cancelled') {
+      return jsonError(req, 409, 'Pickup cancelled')
+    }
 
-    const expiresAt = (order as { pickup_expires_at?: string | null }).pickup_expires_at
+    const expiresAt = order.pickup_expires_at
     if (expiresAt && Date.now() > new Date(expiresAt).getTime()) {
-      await admin.supabaseService
+      const { error: expireError } = await admin.supabaseService
         .from('order_products')
         .update({ pickup_status: 'expired', updated_at: new Date().toISOString() })
-        .eq('id', (order as { id: number }).id)
+        .eq('id', order.id)
+      if (expireError) {
+        console.error('[complete-product-pickup] Failed to mark pickup as expired:', expireError)
+      }
       return jsonError(req, 409, 'Pickup code expired')
     }
 
