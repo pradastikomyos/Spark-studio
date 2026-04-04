@@ -1,7 +1,13 @@
-import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import Logo from '../components/Logo';
+import {
+  clearPostAuthRedirect,
+  consumePostAuthRedirect,
+  persistPostAuthRedirect,
+  sanitizePostAuthRedirect,
+} from '../auth/postAuthRedirect';
 import { useAuth } from '../contexts/AuthContext';
 import { isAdmin } from '../utils/auth';
 import { supabase } from '../lib/supabase';
@@ -16,9 +22,14 @@ const SignUp = () => {
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const { t } = useTranslation();
-  
+  const location = useLocation();
   const { signUp } = useAuth();
   const navigate = useNavigate();
+  const postAuthRedirect = sanitizePostAuthRedirect(location.state);
+
+  useEffect(() => {
+    persistPostAuthRedirect(postAuthRedirect);
+  }, [postAuthRedirect]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -57,9 +68,11 @@ const SignUp = () => {
         
         setTimeout(() => {
           if (adminStatus) {
+            clearPostAuthRedirect();
             navigate('/admin/dashboard');
           } else {
-            navigate('/');
+            const redirect = postAuthRedirect ?? consumePostAuthRedirect();
+            navigate(redirect?.returnTo ?? '/', redirect?.returnState ? { state: redirect.returnState } : undefined);
           }
         }, 1500);
       } catch (err) {
@@ -72,6 +85,7 @@ const SignUp = () => {
   const handleGoogleSignUp = async () => {
     setError('');
     setLoading(true);
+    persistPostAuthRedirect(postAuthRedirect);
 
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
@@ -255,7 +269,11 @@ const SignUp = () => {
           {/* Sign In Link */}
           <p className="text-center mt-8 text-sm text-subtext-light">
             {t('auth.signup.haveAccount')}{' '}
-            <Link to="/login" className="text-primary hover:text-primary-dark font-medium transition-colors">
+            <Link
+              to="/login"
+              state={postAuthRedirect ?? undefined}
+              className="text-primary hover:text-primary-dark font-medium transition-colors"
+            >
               {t('auth.signup.signInLink')}
             </Link>
           </p>

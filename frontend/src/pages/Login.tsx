@@ -1,7 +1,13 @@
 import { useState, useEffect } from 'react';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import Logo from '../components/Logo';
+import {
+  clearPostAuthRedirect,
+  consumePostAuthRedirect,
+  persistPostAuthRedirect,
+  sanitizePostAuthRedirect,
+} from '../auth/postAuthRedirect';
 import { useAuth } from '../contexts/AuthContext';
 import { isAdmin } from '../utils/auth';
 import { supabase } from '../lib/supabase';
@@ -16,9 +22,10 @@ const Login = () => {
   const [showPassword, setShowPassword] = useState(false);
   const { t } = useTranslation();
   const [searchParams] = useSearchParams();
-  
+  const location = useLocation();
   const { signIn } = useAuth();
   const navigate = useNavigate();
+  const postAuthRedirect = sanitizePostAuthRedirect(location.state);
 
   // Show session expiry message if redirected from auto-logout
   useEffect(() => {
@@ -27,6 +34,10 @@ const Login = () => {
       setError('Sesi login Anda telah kadaluarsa. Silakan login kembali.');
     }
   }, [searchParams]);
+
+  useEffect(() => {
+    persistPostAuthRedirect(postAuthRedirect);
+  }, [postAuthRedirect]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -49,9 +60,11 @@ const Login = () => {
         const adminStatus = userId ? await isAdmin(userId) : false;
         
         if (adminStatus) {
+          clearPostAuthRedirect();
           navigate('/admin/dashboard');
         } else {
-          navigate('/');
+          const redirect = postAuthRedirect ?? consumePostAuthRedirect();
+          navigate(redirect?.returnTo ?? '/', redirect?.returnState ? { state: redirect.returnState } : undefined);
         }
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to validate session');
@@ -63,6 +76,7 @@ const Login = () => {
   const handleGoogleLogin = async () => {
     setError('');
     setLoading(true);
+    persistPostAuthRedirect(postAuthRedirect);
 
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
@@ -241,7 +255,11 @@ const Login = () => {
           {/* Sign Up Link */}
           <p className="text-center mt-8 text-sm text-subtext-light">
             {t('auth.login.noAccount')}{' '}
-            <Link to="/signup" className="text-primary hover:text-primary-dark font-medium transition-colors">
+            <Link
+              to="/signup"
+              state={postAuthRedirect ?? undefined}
+              className="text-primary hover:text-primary-dark font-medium transition-colors"
+            >
               {t('auth.login.signUpLink')}
             </Link>
           </p>

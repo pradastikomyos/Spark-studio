@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { clearPostAuthRedirect, consumePostAuthRedirect } from '../auth/postAuthRedirect';
 import { supabase } from '../lib/supabase';
 import { isAdmin } from '../utils/auth';
 import { withTimeout } from '../utils/queryHelpers';
@@ -29,9 +30,11 @@ const AuthCallback = () => {
           
           // Redirect based on role
           if (adminStatus) {
+            clearPostAuthRedirect();
             navigate('/admin/dashboard');
           } else {
-            navigate('/');
+            const redirect = consumePostAuthRedirect();
+            navigate(redirect?.returnTo ?? '/', redirect?.returnState ? { state: redirect.returnState } : undefined);
           }
         } else {
           navigate('/login');

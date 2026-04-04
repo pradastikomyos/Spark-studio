@@ -8,7 +8,6 @@ const SparkClub = lazy(() => import('../../pages/SparkClub'));
 const CharmBar = lazy(() => import('../../pages/CharmBar'));
 const News = lazy(() => import('../../pages/News'));
 const JourneySelectionPage = lazy(() => import('../../pages/JourneySelectionPage'));
-const CartPage = lazy(() => import('../../pages/CartPage'));
 const ProductDetailPage = lazy(() => import('../../pages/ProductDetailPage'));
 const DressingRoomLandingPage = lazy(() => import('../../pages/DressingRoomLandingPage'));
 const DressingRoomLookPage = lazy(() => import('../../pages/DressingRoomLookPage'));
@@ -27,5 +26,4 @@ export const publicRouteConfigs: AppRouteConfig[] = [
   { path: 'charm-bar', Page: CharmBar },
   { path: 'news', Page: News },
   { path: 'journey', Page: JourneySelectionPage },
-  { path: 'cart', Page: CartPage },
 ];

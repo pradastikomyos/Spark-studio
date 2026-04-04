@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import ProtectedRoute from './ProtectedRoute';
 
 vi.mock('../contexts/AuthContext', () => ({
@@ -13,7 +13,48 @@ vi.mock('./BrandedLoader', () => ({
 
 import { useAuth } from '../contexts/AuthContext';
 
+function LoginStateProbe() {
+  const location = useLocation();
+  const state = location.state as { returnTo?: string } | null;
+  return <div>{`${location.pathname}|${state?.returnTo ?? ''}`}</div>;
+}
+
 describe('ProtectedRoute', () => {
+  it('redirects unauthenticated users to login with the current path as returnTo', () => {
+    vi.mocked(useAuth).mockReturnValue({
+      user: null,
+      session: null,
+      initialized: true,
+      sessionStatus: 'expired',
+      adminStatus: 'denied',
+      isAdmin: false,
+      loggingOut: false,
+      signIn: vi.fn(),
+      signUp: vi.fn(),
+      signOut: vi.fn(),
+      validateSession: vi.fn(),
+      refreshSession: vi.fn(),
+    } as any);
+
+    render(
+      <MemoryRouter initialEntries={['/cart?tab=bag']}>
+        <Routes>
+          <Route
+            path="/cart"
+            element={
+              <ProtectedRoute>
+                <div>cart</div>
+              </ProtectedRoute>
+            }
+          />
+          <Route path="/login" element={<LoginStateProbe />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    expect(screen.getByText('/login|/cart?tab=bag')).toBeInTheDocument();
+  });
+
   it('shows a recovery loader while admin access is still being restored', () => {
     vi.mocked(useAuth).mockReturnValue({
       user: { id: 'user-1' },
