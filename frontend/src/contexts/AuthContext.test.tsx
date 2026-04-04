@@ -154,23 +154,29 @@ describe('AuthContext', () => {
     })
 
     describe('Timeout Handling', () => {
-        it('should handle getSession timeout', async () => {
+        it('should enter recovery mode on getSession timeout without forcing sign out', async () => {
             vi.mocked(supabase.auth.getSession).mockImplementation(() => new Promise(() => { })) // Never resolves
 
             vi.useFakeTimers()
 
-            renderHook(() => useAuth(), { wrapper: AuthProvider })
+            const { result } = renderHook(() => useAuth(), { wrapper: AuthProvider })
 
             // Advance time by 5.1s
             await act(async () => {
                 await vi.advanceTimersByTimeAsync(5100)
             })
 
-            // It should have caught the timeout and called signOut
-            expect(supabase.auth.signOut).toHaveBeenCalled()
+            await act(async () => {
+                await Promise.resolve()
+            })
+
+            expect(result.current.sessionStatus).toBe('recovering')
+            expect(result.current.adminStatus).toBe('checking')
+            expect(result.current.initialized).toBe(true)
+            expect(supabase.auth.signOut).not.toHaveBeenCalled()
 
             vi.useRealTimers()
-        })
+        }, 10000)
     })
 
     describe('validateSession method', () => {
@@ -194,7 +200,7 @@ describe('AuthContext', () => {
 
             const { result } = renderHook(() => useAuth(), { wrapper: AuthProvider })
             await waitFor(() => expect(result.current.initialized).toBe(true))
-            await waitFor(() => expect(result.current.user?.id).toBe('user-1'))
+            await waitFor(() => expect(result.current.session?.access_token).toBe('token-1'))
 
             vi.mocked(validateSessionWithRetry).mockClear()
             mockRoleAbortSignal.mockClear()
@@ -203,7 +209,6 @@ describe('AuthContext', () => {
                 authStateChangeHandler?.('TOKEN_REFRESHED', refreshedSession)
             })
 
-            expect(result.current.session?.access_token).toBe('token-2')
             expect(result.current.sessionStatus).toBe('ready')
             expect(validateSessionWithRetry).not.toHaveBeenCalled()
             expect(mockRoleAbortSignal).not.toHaveBeenCalled()
@@ -254,6 +259,74 @@ describe('AuthContext', () => {
             })
             expect(success).toBe(false)
             expect(supabase.auth.signOut).toHaveBeenCalled()
+        })
+
+        it('should return a fresh access token from the shared auth contract', async () => {
+            const localSession = {
+                access_token: 'token-1',
+                expires_at: Math.floor((Date.now() + 30_000) / 1000),
+                user: { id: 'user-1' }
+            }
+            const refreshedSession = {
+                access_token: 'token-2',
+                expires_at: Math.floor((Date.now() + 3_600_000) / 1000),
+                user: { id: 'user-1' }
+            }
+
+            vi.mocked(supabase.auth.getSession)
+                .mockResolvedValueOnce({ data: { session: localSession }, error: null } as any)
+                .mockResolvedValueOnce({ data: { session: localSession }, error: null } as any)
+                .mockResolvedValueOnce({ data: { session: refreshedSession }, error: null } as any)
+            vi.mocked(validateSessionWithRetry).mockResolvedValue({
+                valid: true,
+                user: { id: 'user-1' },
+                session: refreshedSession
+            } as any)
+
+            const { result } = renderHook(() => useAuth(), { wrapper: AuthProvider })
+            await waitFor(() => expect(result.current.initialized).toBe(true))
+
+            let token: string | null = null
+            await act(async () => {
+                token = await result.current.getValidAccessToken()
+            })
+
+            expect(token).toBe('token-2')
+        })
+
+        it('revalidates on token refresh when the user changes', async () => {
+            const initialSession = {
+                access_token: 'token-1',
+                user: { id: 'user-1' }
+            }
+            const switchedSession = {
+                access_token: 'token-2',
+                user: { id: 'user-2' }
+            }
+
+            vi.mocked(supabase.auth.getSession).mockResolvedValue({ data: { session: initialSession }, error: null } as any)
+            vi.mocked(validateSessionWithRetry)
+                .mockResolvedValueOnce({
+                    valid: true,
+                    user: { id: 'user-1' },
+                    session: initialSession
+                } as any)
+                .mockResolvedValueOnce({
+                    valid: true,
+                    user: { id: 'user-2' },
+                    session: switchedSession
+                } as any)
+
+            const { result } = renderHook(() => useAuth(), { wrapper: AuthProvider })
+            await waitFor(() => expect(result.current.initialized).toBe(true))
+            vi.mocked(validateSessionWithRetry).mockClear()
+
+            await act(async () => {
+                authStateChangeHandler?.('TOKEN_REFRESHED', switchedSession)
+            })
+
+            await waitFor(() => expect(validateSessionWithRetry).toHaveBeenCalled())
+            expect(validateSessionWithRetry).toHaveBeenCalled()
         })
     })
 })

@@ -55,6 +55,7 @@ vi.spyOn(AuthContext, 'useAuth').mockReturnValue({
   loggingOut: false,
   validateSession: mockValidateSession,
   refreshSession: vi.fn(),
+  getValidAccessToken: vi.fn().mockResolvedValue(null),
   signIn: vi.fn(),
   signUp: vi.fn(),
   signOut: vi.fn()

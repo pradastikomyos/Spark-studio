@@ -15,7 +15,7 @@ export default function ProductCheckoutPage() {
   const location = useLocation();
   const queryClient = useQueryClient();
   const { t } = useTranslation();
-  const { user, session, initialized } = useAuth();
+  const { user, session, initialized, getValidAccessToken, refreshSession } = useAuth();
   const { items: allItems, removeItem } = useCart();
   const { showToast } = useToast();
   const cashierCheckoutEnabled = String(import.meta.env.VITE_ENABLE_CASHIER_CHECKOUT || '').toLowerCase() !== 'false';
@@ -47,6 +47,8 @@ export default function ProductCheckoutPage() {
     user,
     sessionToken: session?.access_token,
     initialized,
+    getValidAccessToken,
+    refreshSession,
     t,
     navigate,
     queryClient,

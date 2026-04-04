@@ -8,7 +8,6 @@ import { fetchProductOrderDetail } from '../product-orders/orderDetailData';
 import { shouldAutoSyncProductOrder, shouldRedirectPendingToSuccess } from '../product-orders/status';
 import {
   getProductOrderAccessToken,
-  readCurrentProductOrderAccessToken,
   syncProductOrderStatus,
 } from '../product-orders/syncProductOrderStatus';
 import type { ProductOrderDetail, ProductOrderItem } from '../product-orders/types';
@@ -25,7 +24,7 @@ export function useProductOrderPendingController({
 }: UseProductOrderPendingControllerParams) {
   const navigate = useNavigate();
   const { showToast } = useToast();
-  const { initialized, session, validateSession, refreshSession } = useAuth();
+  const { initialized, session, validateSession, refreshSession, getValidAccessToken } = useAuth();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -42,17 +41,17 @@ export function useProductOrderPendingController({
     setItems(result.items);
   }, [orderNumber]);
 
-  const getValidAccessToken = useCallback(async () => {
-    return getProductOrderAccessToken({
+  const resolveAccessToken = useCallback(async () => {
+    return (await getProductOrderAccessToken({
       session,
       validateSession,
-    });
-  }, [session, validateSession]);
+    })) ?? (await getValidAccessToken());
+  }, [getValidAccessToken, session, validateSession]);
 
   const retryWithFreshToken = useCallback(async () => {
     await refreshSession();
-    return readCurrentProductOrderAccessToken();
-  }, [refreshSession]);
+    return getValidAccessToken();
+  }, [getValidAccessToken, refreshSession]);
 
   const handleSyncStatus = useCallback(
     async (silent = false) => {
@@ -64,7 +63,7 @@ export function useProductOrderPendingController({
       setError(null);
 
       try {
-        const token = await getValidAccessToken();
+        const token = await resolveAccessToken();
         if (!token) {
           if (!silent) {
             setError('Not authenticated');
@@ -86,7 +85,7 @@ export function useProductOrderPendingController({
         setRefreshing(false);
       }
     },
-    [fetchOrder, getValidAccessToken, orderNumber, retryWithFreshToken, showToast]
+    [fetchOrder, orderNumber, resolveAccessToken, retryWithFreshToken, showToast]
   );
 
   useEffect(() => {

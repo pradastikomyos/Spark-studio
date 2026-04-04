@@ -13,6 +13,8 @@ vi.mock('../contexts/AuthContext', () => ({
   useAuth: () => ({
     user: { id: 'user-1' },
     session: { access_token: 'token' },
+    getValidAccessToken: vi.fn().mockResolvedValue('token'),
+    refreshSession: vi.fn(),
   }),
 }));
 

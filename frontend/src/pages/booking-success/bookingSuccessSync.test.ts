@@ -7,7 +7,6 @@ vi.mock('../../lib/supabase', () => ({
   supabase: {
     auth: {
       getSession: vi.fn(),
-      refreshSession: vi.fn(),
     },
     functions: {
       invoke: vi.fn(),
@@ -44,6 +43,7 @@ describe('bookingSuccessSync', () => {
 
   it('retries unauthorized syncs with a refreshed session token', async () => {
     const getValidAccessToken = vi.fn().mockResolvedValue('token-1');
+    const retryWithFreshToken = vi.fn().mockResolvedValue('token-2');
 
     vi.mocked(supabase.functions.invoke)
       .mockResolvedValueOnce({
@@ -62,21 +62,13 @@ describe('bookingSuccessSync', () => {
         error: null,
       } as any);
 
-    vi.mocked(supabase.auth.refreshSession).mockResolvedValue({
-      data: {
-        session: {
-          access_token: 'token-2',
-        },
-      },
-      error: null,
-    } as any);
-
     const result = await syncBookingSuccessStatus({
       orderNumber: 'ORDER-1',
       getValidAccessToken,
+      retryWithFreshToken,
     });
 
-    expect(supabase.auth.refreshSession).toHaveBeenCalledTimes(1);
+    expect(retryWithFreshToken).toHaveBeenCalledTimes(1);
     expect(vi.mocked(supabase.functions.invoke).mock.calls[0]?.[1]).toMatchObject({
       headers: { Authorization: 'Bearer token-1' },
     });

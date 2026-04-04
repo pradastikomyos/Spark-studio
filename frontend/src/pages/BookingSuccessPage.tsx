@@ -14,7 +14,7 @@ export default function BookingSuccessPage() {
   const location = useLocation();
   const [searchParams] = useSearchParams();
   const state = location.state as BookingSuccessLocationState;
-  const { initialized, session, validateSession } = useAuth();
+  const { initialized, session, validateSession, getValidAccessToken, refreshSession } = useAuth();
 
   // Get order number from state or URL params
   const orderNumber = state?.orderNumber || searchParams.get('order_id') || '';
@@ -39,6 +39,8 @@ export default function BookingSuccessPage() {
     initialized,
     session,
     validateSession,
+    getValidAccessToken,
+    refreshSession,
   });
 
   const handlePrint = () => {

@@ -10,7 +10,6 @@ import { fetchProductOrderDetail } from '../product-orders/orderDetailData';
 import { shouldRedirectSuccessToPending } from '../product-orders/status';
 import {
   getProductOrderAccessToken,
-  readCurrentProductOrderAccessToken,
   syncProductOrderStatus,
 } from '../product-orders/syncProductOrderStatus';
 import type { ProductOrderDetail, ProductOrderItem } from '../product-orders/types';
@@ -31,7 +30,7 @@ export function useProductOrderSuccessController({
 }: UseProductOrderSuccessControllerParams) {
   const navigate = useNavigate();
   const { showToast } = useToast();
-  const { session, validateSession, refreshSession } = useAuth();
+  const { session, validateSession, refreshSession, getValidAccessToken } = useAuth();
   const hasShownSuccessToast = useRef(false);
   const confettiTriggeredRef = useRef(false);
   const backgroundRefreshErrorRef = useRef<string | null>(null);
@@ -103,17 +102,17 @@ export function useProductOrderSuccessController({
     }, 250);
   }, []);
 
-  const getValidAccessToken = useCallback(async () => {
-    return getProductOrderAccessToken({
+  const resolveAccessToken = useCallback(async () => {
+    return (await getProductOrderAccessToken({
       session,
       validateSession,
-    });
-  }, [session, validateSession]);
+    })) ?? (await getValidAccessToken());
+  }, [getValidAccessToken, session, validateSession]);
 
   const retryWithFreshToken = useCallback(async () => {
     await refreshSession();
-    return readCurrentProductOrderAccessToken();
-  }, [refreshSession]);
+    return getValidAccessToken();
+  }, [getValidAccessToken, refreshSession]);
 
   const handleSyncStatus = useCallback(
     async (isAutoSync = false, retryCount = 0) => {
@@ -131,7 +130,7 @@ export function useProductOrderSuccessController({
       setError(null);
 
       try {
-        const token = await getValidAccessToken();
+        const token = await resolveAccessToken();
         if (!token) {
           if (!isAutoSync) {
             setError('Not authenticated');
@@ -184,7 +183,7 @@ export function useProductOrderSuccessController({
         }
       }
     },
-    [fetchOrder, getValidAccessToken, orderNumber, retryWithFreshToken]
+    [fetchOrder, orderNumber, resolveAccessToken, retryWithFreshToken]
   );
 
   useEffect(() => {

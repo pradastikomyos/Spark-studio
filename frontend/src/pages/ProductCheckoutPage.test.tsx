@@ -14,6 +14,8 @@ vi.mock('../contexts/AuthContext', () => ({
     user: { id: 'user-1', email: 'spark@example.com' },
     session: { access_token: 'token' },
     initialized: true,
+    getValidAccessToken: vi.fn().mockResolvedValue('token'),
+    refreshSession: vi.fn(),
   }),
 }));
 

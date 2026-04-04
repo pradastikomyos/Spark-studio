@@ -11,7 +11,7 @@ import { useMyProductOrdersView } from './my-product-orders/useMyProductOrdersVi
 
 export default function MyProductOrdersPage() {
   const navigate = useNavigate();
-  const { user, session } = useAuth();
+  const { user, session, getValidAccessToken, refreshSession } = useAuth();
   const { showToast } = useToast();
   const { t } = useTranslation();
   const {
@@ -35,6 +35,8 @@ export default function MyProductOrdersPage() {
   } = useMyProductOrdersView({
     userId: user?.id,
     sessionToken: session?.access_token,
+    getValidAccessToken,
+    refreshSession,
     showToast,
     t,
   });

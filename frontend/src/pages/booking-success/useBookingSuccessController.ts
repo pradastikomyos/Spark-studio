@@ -18,10 +18,21 @@ type UseBookingSuccessControllerParams = {
   initialized: boolean;
   session: { access_token?: string | null } | null;
   validateSession: () => Promise<boolean>;
+  getValidAccessToken: () => Promise<string | null>;
+  refreshSession: () => Promise<void>;
 };
 
 export function useBookingSuccessController(params: UseBookingSuccessControllerParams) {
-  const { orderNumber, ticketCode, initialIsPending, initialized, session, validateSession } = params;
+  const {
+    orderNumber,
+    ticketCode,
+    initialIsPending,
+    initialized,
+    session,
+    validateSession,
+    getValidAccessToken,
+    refreshSession,
+  } = params;
   const [loading, setLoading] = useState(true);
   const [tickets, setTickets] = useState<PurchasedTicket[]>([]);
   const [orderData, setOrderData] = useState<OrderState | null>(null);
@@ -174,9 +185,14 @@ export function useBookingSuccessController(params: UseBookingSuccessControllerP
     return () => clearTimeout(timeout);
   }, [showSkeleton]);
 
-  const getValidAccessToken = useCallback(async (): Promise<string | null> => {
-    return (await getBookingSuccessAccessToken({ session, validateSession })) ?? null;
-  }, [session, validateSession]);
+  const resolveAccessToken = useCallback(async (): Promise<string | null> => {
+    return (await getBookingSuccessAccessToken({ session, validateSession })) ?? (await getValidAccessToken());
+  }, [getValidAccessToken, session, validateSession]);
+
+  const retryWithFreshToken = useCallback(async (): Promise<string | null> => {
+    await refreshSession();
+    return getValidAccessToken();
+  }, [getValidAccessToken, refreshSession]);
 
   const handleSyncStatus = useCallback(
     async (isAutoSync = false, retryCount = 0) => {
@@ -202,7 +218,8 @@ export function useBookingSuccessController(params: UseBookingSuccessControllerP
         console.info('[BookingSuccess] Sync start', { orderNumber, isAutoSync, retryCount });
         const response = await syncBookingSuccessStatus({
           orderNumber,
-          getValidAccessToken,
+          getValidAccessToken: resolveAccessToken,
+          retryWithFreshToken,
           retryCount,
         });
         if (response.order) {
@@ -238,7 +255,7 @@ export function useBookingSuccessController(params: UseBookingSuccessControllerP
         }
       }
     },
-    [orderNumber, autoSyncInProgress, getValidAccessToken]
+    [orderNumber, autoSyncInProgress, resolveAccessToken, retryWithFreshToken]
   );
 
   const handleRetryLoad = useCallback(() => {

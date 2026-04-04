@@ -1,3 +1,5 @@
+import { isNetworkIssue } from '../auth/sessionErrors'
+import { readCurrentSessionSnapshot } from '../auth/sessionAccess'
 import { supabase } from '@/lib/supabase'
 import { withTimeout } from './queryHelpers'
 import type { Session, User } from '@supabase/supabase-js'
@@ -23,11 +25,8 @@ export async function validateSessionWithRetry(
   requestTimeoutMs = 5000
 ): Promise<ValidationResult> {
   try {
-    const { data: { session }, error: sessionError } = await withTimeout(
-      supabase.auth.getSession(),
-      requestTimeoutMs,
-      'Auth getSession timeout'
-    )
+    const session = await readCurrentSessionSnapshot(requestTimeoutMs, 'Auth getSession timeout')
+    const sessionError = null
 
     if (sessionError || !session) {
       return {
@@ -80,12 +79,7 @@ export async function validateSessionWithRetry(
         }
       } catch (error) {
         attempt++
-
-        const isNetworkError = error instanceof Error && (
-          error.message.includes('network') ||
-          error.message.includes('timeout') ||
-          error.message.includes('fetch')
-        )
+        const isNetworkError = isNetworkIssue(error)
 
         if (attempt >= maxRetries) {
           return {
@@ -114,11 +108,7 @@ export async function validateSessionWithRetry(
       }
     }
   } catch (error) {
-    const isNetworkError = error instanceof Error && (
-      error.message.includes('network') ||
-      error.message.includes('timeout') ||
-      error.message.includes('fetch')
-    )
+    const isNetworkError = isNetworkIssue(error)
 
     return {
       valid: false,

@@ -1,4 +1,4 @@
-import { supabase } from '../../lib/supabase';
+import { getValidatedAccessToken, readCurrentAccessToken } from '../../auth/sessionAccess';
 import { withTimeout } from '../../utils/queryHelpers';
 
 type SessionLike = { access_token?: string | null; expires_at?: number | null } | null;
@@ -6,8 +6,6 @@ type SessionLike = { access_token?: string | null; expires_at?: number | null } 
 type SyncProductOrderStatusOptions = {
   retryWithFreshToken?: () => Promise<string | null>;
 };
-
-const ACCESS_TOKEN_BUFFER_MS = 60 * 1000;
 
 class ProductOrderSyncError extends Error {
   status?: number;
@@ -19,42 +17,20 @@ class ProductOrderSyncError extends Error {
   }
 }
 
-function hasFreshAccessToken(session: SessionLike) {
-  if (!session?.access_token) {
-    return false;
-  }
-
-  if (!session.expires_at) {
-    return true;
-  }
-
-  return session.expires_at * 1000 - Date.now() > ACCESS_TOKEN_BUFFER_MS;
-}
-
 export async function readCurrentProductOrderAccessToken() {
-  const {
-    data: { session },
-  } = await withTimeout(supabase.auth.getSession(), 8000, 'Session fetch timeout. Please try again.');
-
-  return session?.access_token ?? null;
+  return readCurrentAccessToken(8000, 'Session fetch timeout. Please try again.');
 }
 
 export async function getProductOrderAccessToken(params: {
   session: SessionLike;
   validateSession: () => Promise<boolean>;
 }) {
-  const currentSession = params.session;
-
-  if (hasFreshAccessToken(currentSession)) {
-    return currentSession?.access_token ?? null;
-  }
-
-  const isValid = await params.validateSession();
-  if (!isValid) {
-    return null;
-  }
-
-  return readCurrentProductOrderAccessToken();
+  return getValidatedAccessToken({
+    session: params.session,
+    validateSession: params.validateSession,
+    timeoutMs: 8000,
+    timeoutMessage: 'Session fetch timeout. Please try again.',
+  });
 }
 
 async function requestProductOrderSync(orderNumber: string, accessToken: string) {

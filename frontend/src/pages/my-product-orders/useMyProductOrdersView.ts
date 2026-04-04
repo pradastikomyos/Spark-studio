@@ -2,8 +2,6 @@ import { useMutation } from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { TFunction } from 'i18next';
 import { useMyOrders } from '../../hooks/useMyOrders';
-import { supabase } from '../../lib/supabase';
-import { ensureFreshToken } from '../../utils/auth';
 import { classifyProductOrder, isPickupReady, shouldAutoSyncProductOrder } from '../product-orders/status';
 import { syncProductOrderStatus } from '../product-orders/syncProductOrderStatus';
 import type { ProductOrderListItem } from '../product-orders/types';
@@ -11,6 +9,8 @@ import type { ProductOrderListItem } from '../product-orders/types';
 type UseMyProductOrdersViewParams = {
   userId: string | null | undefined;
   sessionToken: string | null | undefined;
+  getValidAccessToken: () => Promise<string | null>;
+  refreshSession: () => Promise<void>;
   showToast: (type: 'success' | 'error' | 'info' | 'warning', message: string) => void;
   t: TFunction;
 };
@@ -18,6 +18,8 @@ type UseMyProductOrdersViewParams = {
 export function useMyProductOrdersView({
   userId,
   sessionToken,
+  getValidAccessToken,
+  refreshSession,
   showToast,
   t,
 }: UseMyProductOrdersViewParams) {
@@ -69,14 +71,15 @@ export function useMyProductOrdersView({
 
   const { mutate: autoSyncMidtransProductStatus } = useMutation({
     mutationFn: async ({ orderNumber }: { orderNumber: string }) => {
-      const {
-        data: { session: current },
-      } = await supabase.auth.getSession();
-
-      const token = (await ensureFreshToken(current ?? null)) ?? current?.access_token ?? sessionToken ?? null;
+      const token = (await getValidAccessToken()) ?? sessionToken ?? null;
       if (!token) return;
 
-      await syncProductOrderStatus(orderNumber, token);
+      await syncProductOrderStatus(orderNumber, token, {
+        retryWithFreshToken: async () => {
+          await refreshSession();
+          return getValidAccessToken();
+        },
+      });
     },
     retry: 0,
   });
@@ -115,7 +118,12 @@ export function useMyProductOrdersView({
 
       setSyncingOrderId(order.id);
       try {
-        await syncProductOrderStatus(order.order_number, sessionToken);
+        await syncProductOrderStatus(order.order_number, sessionToken, {
+          retryWithFreshToken: async () => {
+            await refreshSession();
+            return getValidAccessToken();
+          },
+        });
         showToast('success', t('myOrders.toast.syncSuccess'));
       } catch (syncError) {
         showToast(
@@ -126,7 +134,7 @@ export function useMyProductOrdersView({
         setSyncingOrderId(null);
       }
     },
-    [sessionToken, showToast, t]
+    [getValidAccessToken, refreshSession, sessionToken, showToast, t]
   );
 
   const handleCancelOrder = useCallback(

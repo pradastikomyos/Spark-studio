@@ -1,6 +1,7 @@
-import { supabase } from '../lib/supabase';
-import { createQuerySignal } from '../lib/fetchers';
 import type { Session } from '@supabase/supabase-js';
+import { lookupAdminRole } from '../auth/adminRole';
+import { readCurrentAccessToken } from '../auth/sessionAccess';
+import { supabase } from '../lib/supabase';
 
 // Token refresh threshold: refresh if token expires within 5 minutes
 const TOKEN_REFRESH_THRESHOLD_MS = 5 * 60 * 1000;
@@ -12,7 +13,10 @@ const TOKEN_REFRESH_THRESHOLD_MS = 5 * 60 * 1000;
  * @param currentSession - Current Supabase session
  * @returns Fresh access token or null if refresh failed
  */
-export const ensureFreshToken = async (currentSession: Session | null): Promise<string | null> => {
+export const ensureFreshToken = async (
+  currentSession: Session | null,
+  options?: { refreshSession?: () => Promise<void> }
+): Promise<string | null> => {
   if (!currentSession?.access_token) {
     return null;
   }
@@ -31,6 +35,11 @@ export const ensureFreshToken = async (currentSession: Session | null): Promise<
   // If token expires within threshold, refresh it
   if (timeUntilExpiry < TOKEN_REFRESH_THRESHOLD_MS) {
     try {
+      if (typeof options?.refreshSession === 'function') {
+        await options.refreshSession();
+        return readCurrentAccessToken(8000, 'Session fetch timeout');
+      }
+
       const { data, error } = await supabase.auth.refreshSession();
 
       if (error || !data.session?.access_token) {
@@ -51,38 +60,10 @@ export const ensureFreshToken = async (currentSession: Session | null): Promise<
 
 // Check if user has admin role from database
 export const isAdmin = async (userId: string | undefined): Promise<boolean> => {
-  if (!userId) return false;
-
   try {
-    const { signal, cleanup, didTimeout } = createQuerySignal(undefined, 10000);
-    // Query role assignments table to check if user has admin role
-    // Using single role check to avoid .in() query issues with RLS
-    try {
-      const { data, error } = await supabase
-        .from('user_role_assignments')
-        .select('role_name')
-        .eq('user_id', userId)
-        .abortSignal(signal);
-
-      if (error) {
-        if (import.meta.env.DEV) {
-          console.debug('Admin check: user is not admin or RLS blocked query');
-        }
-        return false;
-      }
-
-      const adminRoles = ['super_admin', 'super-admin', 'admin'];
-      return data?.some(row => adminRoles.includes(row.role_name)) ?? false;
-    } catch {
-      if (didTimeout()) {
-        return false;
-      }
-      return false;
-    } finally {
-      cleanup();
-    }
+    const result = await lookupAdminRole(userId);
+    return result.ok ? result.isAdmin : false;
   } catch {
-    // Silently fail - user is not admin
     return false;
   }
 };

@@ -5,7 +5,6 @@ import type { QueryClient } from '@tanstack/react-query';
 import type { CartItem } from '../../contexts/cartStore';
 import { supabase } from '../../lib/supabase';
 import { queryKeys } from '../../lib/queryKeys';
-import { ensureFreshToken } from '../../utils/auth';
 import { withTimeout } from '../../utils/queryHelpers';
 import { loadSnapScript, type SnapResult } from '../../utils/midtransSnap';
 import { calculateFinalTotal, calculateSubtotal, mapCheckoutOrderItems, selectCheckoutItems } from './checkoutPricing';
@@ -30,6 +29,8 @@ type UseProductCheckoutControllerParams = {
   user: UserLike;
   sessionToken: string | null | undefined;
   initialized: boolean;
+  getValidAccessToken: () => Promise<string | null>;
+  refreshSession: () => Promise<void>;
   t: TFunction;
   navigate: NavigateFunction;
   queryClient: QueryClient;
@@ -61,6 +62,8 @@ export function useProductCheckoutController({
   user,
   sessionToken,
   initialized,
+  getValidAccessToken,
+  refreshSession,
   t,
   navigate,
   queryClient,
@@ -162,23 +165,6 @@ export function useProductCheckoutController({
     return message || t('voucher.errors.generic');
   };
 
-  const getValidatedAccessToken = async () => {
-    try {
-      const { data: userData, error: userError } = await withTimeout(supabase.auth.getUser(), 8000, 'Session validation timeout');
-      if (userError || !userData.user) return null;
-
-      const {
-        data: { session: latestSession },
-        error: sessionError,
-      } = await withTimeout(supabase.auth.getSession(), 8000, 'Session fetch timeout');
-
-      if (sessionError || !latestSession?.access_token) return null;
-      return latestSession.access_token;
-    } catch {
-      return null;
-    }
-  };
-
   const completeSuccessfulOrder = (orderNumber: string, nextState: Record<string, unknown>) => {
     skipEmptyCartRedirectRef.current = true;
     orderItems.map((item) => item.product_variant_id).forEach((id) => removeItem(id));
@@ -206,10 +192,7 @@ export function useProductCheckoutController({
     setVoucherError(null);
 
     try {
-      const {
-        data: { session: currentSession },
-      } = await supabase.auth.getSession();
-      const token = await ensureFreshToken(currentSession ?? null);
+      const token = await getValidAccessToken();
       if (!token) {
         setVoucherError('Sesi login kadaluarsa. Silakan login ulang.');
         return;
@@ -278,7 +261,7 @@ export function useProductCheckoutController({
       throw new Error('Missing account email');
     }
 
-    let token = await getValidatedAccessToken();
+    let token = await getValidAccessToken();
     if (!token) {
       setError('Sesi login kadaluarsa. Silakan login ulang.');
       navigate('/login');
@@ -309,8 +292,8 @@ export function useProductCheckoutController({
     let { data, error: invokeError } = await invoke(token);
     const status = invokeError ? getInvokeStatus(invokeError) : undefined;
     if (invokeError && status === 401) {
-      await supabase.auth.refreshSession();
-      token = await getValidatedAccessToken();
+      await refreshSession();
+      token = await getValidAccessToken();
       if (!token) {
         setError('Sesi login kadaluarsa. Silakan login ulang.');
         navigate('/login');

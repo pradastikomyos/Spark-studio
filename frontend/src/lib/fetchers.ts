@@ -1,3 +1,4 @@
+import { readCurrentAccessToken } from '../auth/sessionAccess';
 import { supabase } from './supabase';
 
 /**
@@ -207,9 +208,9 @@ export async function supabaseAuthFetcher<T>(
   queryFn: (signal?: AbortSignal) => Promise<{ data: T[] | null; error: unknown }>,
   signal?: AbortSignal
 ): Promise<T[]> {
-  const { data: { session } } = await supabase.auth.getSession();
-  
-  if (!session) {
+  const accessToken = await readCurrentAccessToken();
+
+  if (!accessToken) {
     const err = new Error('Unauthorized') as APIError;
     err.status = 401;
     throw err;
@@ -227,9 +228,9 @@ export async function supabaseAuthPaginatedFetcher<T>(
   signal?: AbortSignal,
   pageSize: number = 1000
 ): Promise<T[]> {
-  const { data: { session } } = await supabase.auth.getSession();
+  const accessToken = await readCurrentAccessToken();
 
-  if (!session) {
+  if (!accessToken) {
     const err = new Error('Unauthorized') as APIError;
     err.status = 401;
     throw err;

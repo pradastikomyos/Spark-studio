@@ -42,6 +42,7 @@ vi.mock('../utils/midtransSnap', () => ({
 // Mock useAuth hook
 const mockValidateSession = vi.fn()
 const mockRefreshSession = vi.fn()
+const mockGetValidAccessToken = vi.fn()
 vi.spyOn(AuthContext, 'useAuth').mockReturnValue({
     user: { id: 'user-1', email: 'test@example.com', user_metadata: {}, app_metadata: {}, aud: 'authenticated', created_at: new Date().toISOString() },
     session: { access_token: 'token', refresh_token: 'refresh', expires_in: 3600, token_type: 'bearer', user: null as any },
@@ -52,6 +53,7 @@ vi.spyOn(AuthContext, 'useAuth').mockReturnValue({
     loggingOut: false,
     validateSession: mockValidateSession,
     refreshSession: mockRefreshSession,
+    getValidAccessToken: mockGetValidAccessToken,
     signIn: vi.fn(),
     signUp: vi.fn(),
     signOut: vi.fn()
@@ -73,6 +75,7 @@ describe('Full Integration Flow: Session Expiry & Recovery', () => {
         vi.clearAllMocks()
         window.alert = vi.fn()
         mockValidateSession.mockResolvedValue(true)
+        mockGetValidAccessToken.mockResolvedValue('token')
     })
 
     it.skip('should handle the full flow: 401 Error -> Alert -> Redirect -> State Restoration', async () => {

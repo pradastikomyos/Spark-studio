@@ -325,7 +325,7 @@ describe('Fetcher Functions', () => {
 
       vi.mocked(supabase.auth.getSession).mockResolvedValue({
         data: {
-          session: { user: { id: 'user-123' } } as any,
+          session: { access_token: 'token-123', user: { id: 'user-123' } } as any,
         },
         error: null,
       });
@@ -369,7 +369,7 @@ describe('Fetcher Functions', () => {
 
       vi.mocked(supabase.auth.getSession).mockResolvedValue({
         data: {
-          session: { user: { id: 'user-123' } } as any,
+          session: { access_token: 'token-123', user: { id: 'user-123' } } as any,
         },
         error: null,
       });

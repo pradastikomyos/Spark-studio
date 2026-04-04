@@ -1,54 +1,29 @@
 import { supabase } from '../../lib/supabase';
+import { getValidatedAccessToken } from '../../auth/sessionAccess';
 import { withTimeout } from '../../utils/queryHelpers';
 import type { OrderState } from './bookingSuccessTypes';
 
 type SessionLike = { access_token?: string | null; expires_at?: number | null } | null;
-const ACCESS_TOKEN_BUFFER_MS = 60 * 1000;
-
-function hasFreshAccessToken(session: SessionLike) {
-  if (!session?.access_token) {
-    return false;
-  }
-
-  if (!session.expires_at) {
-    return true;
-  }
-
-  return session.expires_at * 1000 - Date.now() > ACCESS_TOKEN_BUFFER_MS;
-}
-
-async function readCurrentAccessToken() {
-  const {
-    data: { session: currentSession },
-  } = await withTimeout(supabase.auth.getSession(), 8000, 'Session fetch timeout');
-
-  return currentSession?.access_token ?? null;
-}
 
 export async function getBookingSuccessAccessToken(params: {
   session: SessionLike;
   validateSession: () => Promise<boolean>;
 }) {
-  const currentSession = params.session;
-
-  if (hasFreshAccessToken(currentSession)) {
-    return currentSession?.access_token ?? null;
-  }
-
-  const isValid = await params.validateSession();
-  if (!isValid) {
-    return null;
-  }
-
-  return readCurrentAccessToken();
+  return getValidatedAccessToken({
+    session: params.session,
+    validateSession: params.validateSession,
+    timeoutMs: 8000,
+    timeoutMessage: 'Session fetch timeout',
+  });
 }
 
 export async function syncBookingSuccessStatus(params: {
   orderNumber: string;
   getValidAccessToken: () => Promise<string | null>;
+  retryWithFreshToken?: () => Promise<string | null>;
   retryCount?: number;
 }): Promise<{ order: OrderState | null }> {
-  const { orderNumber, getValidAccessToken, retryCount = 0 } = params;
+  const { orderNumber, getValidAccessToken, retryWithFreshToken, retryCount = 0 } = params;
   const token = await withTimeout(getValidAccessToken(), 10000, 'Session validation timeout');
   if (!token) {
     throw new Error('Not authenticated');
@@ -65,16 +40,13 @@ export async function syncBookingSuccessStatus(params: {
 
   if (invokeError) {
     const errorStatus = (invokeError as { context?: { status?: number } }).context?.status;
-    if (errorStatus === 401 && retryCount < 1) {
-      const { data: refreshed, error: refreshError } = await withTimeout(
-        supabase.auth.refreshSession(),
-        10000,
-        'Session refresh timeout'
-      );
-      if (!refreshError && refreshed.session?.access_token) {
+    if (errorStatus === 401 && retryCount < 1 && typeof retryWithFreshToken === 'function') {
+      const refreshedToken = await retryWithFreshToken();
+      if (refreshedToken) {
         return syncBookingSuccessStatus({
           orderNumber,
-          getValidAccessToken: async () => refreshed.session?.access_token ?? null,
+          getValidAccessToken: async () => refreshedToken,
+          retryWithFreshToken,
           retryCount: retryCount + 1,
         });
       }
@@ -83,6 +55,7 @@ export async function syncBookingSuccessStatus(params: {
       return syncBookingSuccessStatus({
         orderNumber,
         getValidAccessToken,
+        retryWithFreshToken,
         retryCount: retryCount + 1,
       });
     }
