@@ -277,6 +277,7 @@ describe('AuthContext', () => {
                 .mockResolvedValueOnce({ data: { session: localSession }, error: null } as any)
                 .mockResolvedValueOnce({ data: { session: localSession }, error: null } as any)
                 .mockResolvedValueOnce({ data: { session: refreshedSession }, error: null } as any)
+                .mockResolvedValueOnce({ data: { session: refreshedSession }, error: null } as any)
             vi.mocked(validateSessionWithRetry).mockResolvedValue({
                 valid: true,
                 user: { id: 'user-1' },
@@ -292,6 +293,41 @@ describe('AuthContext', () => {
             })
 
             expect(token).toBe('token-2')
+        })
+
+        it('prefers the latest session snapshot even when the in-memory token still looks fresh', async () => {
+            const localSession = {
+                access_token: 'token-1',
+                expires_at: Math.floor((Date.now() + 3_600_000) / 1000),
+                user: { id: 'user-1' }
+            }
+            const refreshedSession = {
+                access_token: 'token-2',
+                expires_at: Math.floor((Date.now() + 3_600_000) / 1000),
+                user: { id: 'user-1' }
+            }
+
+            vi.mocked(supabase.auth.getSession)
+                .mockResolvedValueOnce({ data: { session: localSession }, error: null } as any)
+                .mockResolvedValueOnce({ data: { session: refreshedSession }, error: null } as any)
+            vi.mocked(validateSessionWithRetry).mockResolvedValue({
+                valid: true,
+                user: { id: 'user-1' },
+                session: localSession
+            } as any)
+
+            const { result } = renderHook(() => useAuth(), { wrapper: AuthProvider })
+            await waitFor(() => expect(result.current.initialized).toBe(true))
+
+            vi.mocked(validateSessionWithRetry).mockClear()
+
+            let token: string | null = null
+            await act(async () => {
+                token = await result.current.getValidAccessToken()
+            })
+
+            expect(token).toBe('token-2')
+            expect(validateSessionWithRetry).not.toHaveBeenCalled()
         })
 
         it('revalidates on token refresh when the user changes', async () => {

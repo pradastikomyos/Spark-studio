@@ -50,9 +50,12 @@ export async function getValidatedAccessToken(params: {
   timeoutMessage?: string;
 }) {
   const { session, validateSession, timeoutMs, timeoutMessage } = params;
+  const latestSession = await readCurrentSessionSnapshot(timeoutMs, timeoutMessage).catch(() => null);
+  const sessionToUse =
+    latestSession?.access_token && latestSession.access_token !== session?.access_token ? latestSession : session;
 
-  if (hasFreshAccessToken(session)) {
-    return session?.access_token ?? null;
+  if (hasFreshAccessToken(sessionToUse)) {
+    return sessionToUse?.access_token ?? null;
   }
 
   const isValid = await validateSession();

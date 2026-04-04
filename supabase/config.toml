@@ -71,6 +71,9 @@ verify_jwt = false
 [functions.imagekit-delete]
 verify_jwt = false
 
+[functions.inventory-product-mutation]
+verify_jwt = false
+
 [functions.expire-product-orders]
 verify_jwt = false
 
