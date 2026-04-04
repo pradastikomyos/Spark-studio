@@ -1,15 +1,16 @@
 import type { Session } from '@supabase/supabase-js';
 
 import type { ExistingImage, ProductDraft } from '../../../components/admin/ProductFormModal';
-import {
-  MAX_PRODUCT_IMAGE_SIZE_MB,
-  PRODUCT_IMAGE_UPLOAD_TIMEOUT_MS,
-} from '../../../constants/productImages';
-import { supabase } from '../../../lib/supabase';
 import type { ProductImageRecordInput } from '../../../lib/imagekit';
+import { supabase } from '../../../lib/supabase';
 import { ensureFreshToken } from '../../../utils/auth';
 import { withTimeout } from '../../../utils/queryHelpers';
-import { uploadProductImage } from '../../../utils/uploadProductImage';
+import {
+  extractImageKitFileIds,
+  extractInventoryMutationErrorMessage,
+  formatInventoryCleanupWarningSuffix,
+  uploadInventoryImagesWithRollback,
+} from './inventoryProductImageLifecycle';
 import type { DeletingProduct } from './storeInventoryTypes';
 
 const REQUEST_TIMEOUT_MS = 60000;
@@ -60,32 +61,10 @@ const toValidVariantId = (value: unknown): number | null => {
   return Number.isFinite(numberValue) && numberValue > 0 ? numberValue : null;
 };
 
-const extractErrorMessage = (error: unknown, fallback: string) => {
-  if (error instanceof Error && error.message) return error.message;
-  if (typeof error === 'string' && error.trim()) return error;
-  if (error && typeof error === 'object') {
-    const maybe = error as { message?: unknown; details?: unknown; hint?: unknown; code?: unknown };
-    const parts = [maybe.message, maybe.details, maybe.hint]
-      .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
-      .slice(0, 2);
-    if (parts.length > 0) return parts.join(' • ');
-    if (typeof maybe.code === 'string' && maybe.code.trim().length > 0) return `Error code: ${maybe.code}`;
-  }
-  return fallback;
-};
-
-const formatCleanupWarningSuffix = (warnings: string[]) =>
-  warnings.length > 0 ? `; cleanup warnings: ${warnings.join(' | ')}` : '';
-
-const extractImageKitFileIds = (images: ProductImageRecordInput[]) =>
-  [...new Set(
-    images
-      .filter((image) => image.image_provider === 'imagekit' && typeof image.provider_file_id === 'string')
-      .map((image) => image.provider_file_id?.trim() ?? '')
-      .filter((fileId) => fileId.length > 0)
-  )];
-
-async function invokeInventoryMutation<TResponse>(accessToken: string, body: Record<string, unknown>): Promise<TResponse> {
+async function invokeInventoryMutation<TResponse>(
+  accessToken: string,
+  body: Record<string, unknown>
+): Promise<TResponse> {
   const { data, error } = await withTimeout(
     supabase.functions.invoke(INVENTORY_MUTATION_FUNCTION, {
       body,
@@ -102,7 +81,10 @@ async function invokeInventoryMutation<TResponse>(accessToken: string, body: Rec
   return data as TResponse;
 }
 
-async function cleanupImageKitFiles(accessToken: string, images: ProductImageRecordInput[]): Promise<InventoryCleanupMutationResponse> {
+async function cleanupImageKitFiles(
+  accessToken: string,
+  images: ProductImageRecordInput[]
+): Promise<InventoryCleanupMutationResponse> {
   const fileIds = extractImageKitFileIds(images);
   if (fileIds.length === 0) {
     return { ok: true, cleanedCount: 0, cleanupWarnings: [] };
@@ -118,38 +100,6 @@ async function cleanupImageKitFiles(accessToken: string, images: ProductImageRec
     cleanedCount: response.cleanedCount ?? 0,
     cleanupWarnings: response.cleanupWarnings ?? [],
   };
-}
-
-async function uploadInventoryImagesWithRollback(params: {
-  files: File[];
-  productId: number;
-  accessToken: string;
-}): Promise<ProductImageRecordInput[]> {
-  const { files, productId, accessToken } = params;
-  const uploadedImages: ProductImageRecordInput[] = [];
-
-  try {
-    for (const file of files) {
-      const image = await uploadProductImage(file, String(productId), {
-        accessToken,
-        maxSizeMb: MAX_PRODUCT_IMAGE_SIZE_MB,
-        timeoutMs: PRODUCT_IMAGE_UPLOAD_TIMEOUT_MS,
-      });
-      uploadedImages.push(image);
-    }
-    return uploadedImages;
-  } catch (error) {
-    const cleanup = await cleanupImageKitFiles(accessToken, uploadedImages).catch((cleanupError) => ({
-      ok: true as const,
-      cleanedCount: 0,
-      cleanupWarnings: [extractErrorMessage(cleanupError, 'Failed to clean up uploaded images')],
-    }));
-
-    const cleanupSuffix = cleanup.cleanedCount > 0 ? `; rolled back ${cleanup.cleanedCount} uploaded image(s)` : '';
-    const warningSuffix = formatCleanupWarningSuffix(cleanup.cleanupWarnings ?? []);
-    const message = extractErrorMessage(error, 'Failed to upload product image');
-    throw new Error(`${message}${cleanupSuffix}${warningSuffix}`);
-  }
 }
 
 async function saveInventoryProductOnServer(params: {
@@ -303,6 +253,13 @@ export async function saveInventoryProductMutation(params: {
       files: newImages,
       productId: normalizedDraft.id,
       accessToken,
+      cleanupImages: async (images) => {
+        const result = await cleanupImageKitFiles(accessToken, images);
+        return {
+          cleanedCount: result.cleanedCount,
+          cleanupWarnings: result.cleanupWarnings ?? [],
+        };
+      },
     });
 
     try {
@@ -317,12 +274,12 @@ export async function saveInventoryProductMutation(params: {
       const cleanup = await cleanupImageKitFiles(accessToken, uploadedImages).catch((cleanupError) => ({
         ok: true as const,
         cleanedCount: 0,
-        cleanupWarnings: [extractErrorMessage(cleanupError, 'Failed to clean up uploaded images')],
+        cleanupWarnings: [extractInventoryMutationErrorMessage(cleanupError, 'Failed to clean up uploaded images')],
       }));
 
       const cleanupSuffix = cleanup.cleanedCount > 0 ? `; rolled back ${cleanup.cleanedCount} uploaded image(s)` : '';
-      const warningSuffix = formatCleanupWarningSuffix(cleanup.cleanupWarnings ?? []);
-      const message = extractErrorMessage(error, 'Failed to save product');
+      const warningSuffix = formatInventoryCleanupWarningSuffix(cleanup.cleanupWarnings ?? []);
+      const message = extractInventoryMutationErrorMessage(error, 'Failed to save product');
       throw new Error(`${message}${cleanupSuffix}${warningSuffix}`);
     }
   }
@@ -345,6 +302,13 @@ export async function saveInventoryProductMutation(params: {
       files: newImages,
       productId: createResponse.productId,
       accessToken,
+      cleanupImages: async (images) => {
+        const result = await cleanupImageKitFiles(accessToken, images);
+        return {
+          cleanedCount: result.cleanedCount,
+          cleanupWarnings: result.cleanupWarnings ?? [],
+        };
+      },
     });
   } catch (error) {
     const rollbackError = await invokeInventoryMutation<InventoryDeleteMutationResponse>(accessToken, {
@@ -352,7 +316,9 @@ export async function saveInventoryProductMutation(params: {
       productId: createResponse.productId,
     }).catch((rollbackFailure) => rollbackFailure);
     if (rollbackError instanceof Error) {
-      throw new Error(`${extractErrorMessage(error, 'Failed to upload product image')}; failed to rollback created product: ${rollbackError.message}`);
+      throw new Error(
+        `${extractInventoryMutationErrorMessage(error, 'Failed to upload product image')}; failed to rollback created product: ${rollbackError.message}`
+      );
     }
     throw error;
   }
@@ -374,7 +340,7 @@ export async function saveInventoryProductMutation(params: {
     const cleanup = await cleanupImageKitFiles(accessToken, uploadedImages).catch((cleanupError) => ({
       ok: true as const,
       cleanedCount: 0,
-      cleanupWarnings: [extractErrorMessage(cleanupError, 'Failed to clean up uploaded images')],
+      cleanupWarnings: [extractInventoryMutationErrorMessage(cleanupError, 'Failed to clean up uploaded images')],
     }));
 
     const rollbackError = await invokeInventoryMutation<InventoryDeleteMutationResponse>(accessToken, {
@@ -383,8 +349,8 @@ export async function saveInventoryProductMutation(params: {
     }).catch((rollbackFailure) => rollbackFailure);
 
     const cleanupSuffix = cleanup.cleanedCount > 0 ? `; rolled back ${cleanup.cleanedCount} uploaded image(s)` : '';
-    const warningSuffix = formatCleanupWarningSuffix(cleanup.cleanupWarnings ?? []);
-    const message = extractErrorMessage(error, 'Failed to save product');
+    const warningSuffix = formatInventoryCleanupWarningSuffix(cleanup.cleanupWarnings ?? []);
+    const message = extractInventoryMutationErrorMessage(error, 'Failed to save product');
     if (rollbackError instanceof Error) {
       throw new Error(`${message}${cleanupSuffix}${warningSuffix}; failed to rollback created product: ${rollbackError.message}`);
     }

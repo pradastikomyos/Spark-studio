@@ -14,7 +14,7 @@ const inventoryResult: {
     diagnostics: {
       fetchMs: number;
       fullScan: boolean;
-      source: 'rpc';
+      source: 'rpc' | 'rpc-fallback';
       warning: string | null;
     };
   };
@@ -168,5 +168,22 @@ describe('StoreInventory', () => {
       pathname: '/admin/product-orders',
       search: '?pickupCode=PRX-123',
     });
+  });
+
+  it('shows inventory diagnostics warning when fallback data is rendered', () => {
+    inventoryResult.data.diagnostics = {
+      fetchMs: 12,
+      fullScan: false,
+      source: 'rpc-fallback',
+      warning: 'Stock filter is temporarily unavailable. Showing unfiltered inventory while RPC recovers.',
+    };
+
+    render(<StoreInventory />);
+
+    expect(
+      screen.getByText('Stock filter is temporarily unavailable. Showing unfiltered inventory while RPC recovers.')
+    ).toBeInTheDocument();
+
+    inventoryResult.data.diagnostics = { fetchMs: 1, fullScan: false, source: 'rpc', warning: null };
   });
 });

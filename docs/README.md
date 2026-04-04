@@ -20,6 +20,12 @@ This folder is intentionally compact. Long-lived docs only.
 - ImageKit migration: `docs/runbooks/imagekit-migration.md`
 - Admin product entry: `docs/runbooks/admin-product-entry.md`
 
+## Tech Debt
+
+- Auth dan session: `docs/tech debt karena tekanan ship fast/auth dan session/backlog.md`
+- Payment dan checkout: `docs/tech debt karena tekanan ship fast/payment dan checkout/backlog.md`
+- Admin inventory: `docs/tech debt karena tekanan ship fast/admin inventory/backlog.md`
+
 ## Cleanup Notes
 
 - Historical plan docs were absorbed into the active docs above.

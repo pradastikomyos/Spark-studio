@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import { clearInventoryFallbackCache } from '../../../hooks/useInventory';
-import type { ProductRow } from '../../../hooks/useInventory';
+import type { ProductRow } from '../../../hooks/inventory/inventoryTypes';
 import type { ExistingImage, ProductDraft } from '../../../components/admin/ProductFormModal';
 import { toNumber } from './inventoryProducts';
 import type { DeletingProduct } from './storeInventoryTypes';

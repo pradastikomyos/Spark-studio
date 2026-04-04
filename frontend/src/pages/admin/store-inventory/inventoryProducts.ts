@@ -1,4 +1,4 @@
-import type { ProductRow } from '../../../hooks/useInventory';
+import type { ProductRow } from '../../../hooks/inventory/inventoryTypes';
 import { toInventoryThumbUrl } from '../../../utils/inventoryImage';
 import type { InventoryProduct } from './storeInventoryTypes';
 
