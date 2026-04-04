@@ -1,4 +1,4 @@
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query';
 import { fetchInventoryQueryData, getInventoryQueryKey } from './inventory/inventoryData';
 import type {
   CategoryRow,
@@ -20,6 +20,7 @@ export function useInventory(params: UseInventoryParams) {
   return useQuery({
     queryKey: getInventoryQueryKey(params),
     queryFn: ({ signal }) => fetchInventoryQueryData(params, signal),
+    placeholderData: keepPreviousData,
     refetchOnWindowFocus: false,
     refetchOnReconnect: true,
     staleTime: 30000,

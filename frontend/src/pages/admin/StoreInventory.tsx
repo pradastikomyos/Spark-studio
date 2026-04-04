@@ -50,6 +50,10 @@ const StoreInventory = () => {
   const { currentPage, setCurrentPage } = filters;
 
   useEffect(() => {
+    if (!data) {
+      return;
+    }
+
     if (resolvedTotalProducts === 0 && currentPage !== 1) {
       setCurrentPage(1);
       return;
@@ -58,7 +62,7 @@ const StoreInventory = () => {
     if (currentPage > totalPages) {
       setCurrentPage(totalPages);
     }
-  }, [currentPage, resolvedTotalProducts, setCurrentPage, totalPages]);
+  }, [currentPage, data, resolvedTotalProducts, setCurrentPage, totalPages]);
 
   useEffect(() => {
     if (error) {

@@ -7,17 +7,19 @@ const refetchMock = vi.fn();
 const navigateMock = vi.fn();
 const showToastMock = vi.fn();
 const inventoryResult: {
-  data: {
-    products: [];
-    categories: [];
-    totalCount: number;
-    diagnostics: {
-      fetchMs: number;
-      fullScan: boolean;
-      source: 'rpc' | 'rpc-fallback';
-      warning: string | null;
-    };
-  };
+  data:
+    | {
+        products: [];
+        categories: [];
+        totalCount: number;
+        diagnostics: {
+          fetchMs: number;
+          fullScan: boolean;
+          source: 'rpc' | 'rpc-fallback';
+          warning: string | null;
+        };
+      }
+    | undefined;
   error: null;
   isLoading: boolean;
   isFetching: boolean;
@@ -141,6 +143,14 @@ describe('StoreInventory', () => {
   beforeEach(() => {
     navigateMock.mockReset();
     showToastMock.mockReset();
+    filterResult.setCurrentPage.mockReset();
+    filterResult.currentPage = 1;
+    inventoryResult.data = {
+      products: [],
+      categories: [],
+      totalCount: 0,
+      diagnostics: { fetchMs: 1, fullScan: false, source: 'rpc', warning: null },
+    };
   });
 
   it('keeps search in the header only and removes the duplicate toolbar field', () => {
@@ -171,7 +181,7 @@ describe('StoreInventory', () => {
   });
 
   it('shows inventory diagnostics warning when fallback data is rendered', () => {
-    inventoryResult.data.diagnostics = {
+    inventoryResult.data!.diagnostics = {
       fetchMs: 12,
       fullScan: false,
       source: 'rpc-fallback',
@@ -184,6 +194,18 @@ describe('StoreInventory', () => {
       screen.getByText('Stock filter is temporarily unavailable. Showing unfiltered inventory while RPC recovers.')
     ).toBeInTheDocument();
 
-    inventoryResult.data.diagnostics = { fetchMs: 1, fullScan: false, source: 'rpc', warning: null };
+    inventoryResult.data!.diagnostics = { fetchMs: 1, fullScan: false, source: 'rpc', warning: null };
+  });
+
+  it('does not reset pagination while the next inventory page is still loading', () => {
+    filterResult.currentPage = 2;
+    inventoryResult.data = undefined;
+    inventoryResult.isLoading = true;
+
+    render(<StoreInventory />);
+
+    expect(filterResult.setCurrentPage).not.toHaveBeenCalled();
+
+    inventoryResult.isLoading = false;
   });
 });
