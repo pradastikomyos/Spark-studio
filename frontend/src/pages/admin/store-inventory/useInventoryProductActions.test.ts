@@ -59,6 +59,8 @@ describe('useInventoryProductActions', () => {
           },
         ],
         session: null,
+        getValidAccessToken: vi.fn(async () => 'token-1'),
+        refreshSession: vi.fn(async () => undefined),
         refetch,
         showToast,
       })

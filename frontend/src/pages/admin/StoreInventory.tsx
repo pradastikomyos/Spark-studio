@@ -23,7 +23,7 @@ const INVENTORY_PRODUCTS_PER_PAGE = 24;
 const normalizePickupCode = (value: string) => value.trim().toUpperCase();
 
 const StoreInventory = () => {
-  const { signOut, session } = useAuth();
+  const { signOut, session, getValidAccessToken, refreshSession } = useAuth();
   const { showToast } = useToast();
   const location = useLocation();
   const navigate = useNavigate();
@@ -87,6 +87,8 @@ const StoreInventory = () => {
   const productActions = useInventoryProductActions({
     products: data?.products ?? [],
     session,
+    getValidAccessToken,
+    refreshSession,
     refetch,
     showToast,
   });

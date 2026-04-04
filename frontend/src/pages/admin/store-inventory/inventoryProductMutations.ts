@@ -41,6 +41,24 @@ type InventoryCleanupMutationResponse = InventoryMutationResponse & {
   cleanedCount: number;
 };
 
+type InventoryMutationAuth = {
+  session: Session | null;
+  getValidAccessToken?: () => Promise<string | null>;
+  refreshSession?: () => Promise<void>;
+};
+
+type FunctionInvokeError = {
+  message?: string;
+  status?: number;
+  context?: {
+    error?: unknown;
+    code?: unknown;
+    message?: unknown;
+  };
+};
+
+const SESSION_EXPIRED_MESSAGE = 'Sesi login kadaluarsa. Silakan login ulang.';
+
 const normalizeSku = (value: string) =>
   value
     .replace(/\u00a0/g, ' ')
@@ -75,14 +93,59 @@ async function invokeInventoryMutation<TResponse>(
   );
 
   if (error) {
-    throw new Error(error.message || 'Failed to mutate inventory product');
+    const status = (error as FunctionInvokeError).status;
+    if (status === 401) {
+      throw new Error(SESSION_EXPIRED_MESSAGE);
+    }
+
+    const contextError = (error as FunctionInvokeError).context;
+    const contextMessage =
+      typeof contextError?.message === 'string'
+        ? contextError.message
+        : typeof contextError?.error === 'string'
+          ? contextError.error
+          : null;
+
+    throw new Error(contextMessage || error.message || 'Failed to mutate inventory product');
   }
 
   return data as TResponse;
 }
 
+async function resolveInventoryAccessToken(auth: InventoryMutationAuth): Promise<string | null> {
+  if (typeof auth.getValidAccessToken === 'function') {
+    const validatedToken = await auth.getValidAccessToken();
+    if (validatedToken) return validatedToken;
+  }
+
+  return ensureFreshToken(
+    auth.session,
+    typeof auth.refreshSession === 'function' ? { refreshSession: auth.refreshSession } : undefined
+  );
+}
+
+async function invokeInventoryMutationWithRetry<TResponse>(
+  auth: InventoryMutationAuth,
+  body: Record<string, unknown>
+): Promise<TResponse> {
+  let accessToken = await resolveInventoryAccessToken(auth);
+  if (!accessToken) throw new Error(SESSION_EXPIRED_MESSAGE);
+
+  try {
+    return await invokeInventoryMutation<TResponse>(accessToken, body);
+  } catch (error) {
+    const isUnauthorized = error instanceof Error && error.message === SESSION_EXPIRED_MESSAGE;
+    if (!isUnauthorized || typeof auth.refreshSession !== 'function') throw error;
+
+    await auth.refreshSession();
+    accessToken = await resolveInventoryAccessToken(auth);
+    if (!accessToken) throw new Error(SESSION_EXPIRED_MESSAGE);
+    return invokeInventoryMutation<TResponse>(accessToken, body);
+  }
+}
+
 async function cleanupImageKitFiles(
-  accessToken: string,
+  auth: InventoryMutationAuth,
   images: ProductImageRecordInput[]
 ): Promise<InventoryCleanupMutationResponse> {
   const fileIds = extractImageKitFileIds(images);
@@ -90,7 +153,7 @@ async function cleanupImageKitFiles(
     return { ok: true, cleanedCount: 0, cleanupWarnings: [] };
   }
 
-  const response = await invokeInventoryMutation<InventoryCleanupMutationResponse>(accessToken, {
+  const response = await invokeInventoryMutationWithRetry<InventoryCleanupMutationResponse>(auth, {
     action: 'cleanup',
     fileIds,
   });
@@ -106,15 +169,12 @@ async function saveInventoryProductOnServer(params: {
   draft: ProductDraft;
   newImages: ProductImageRecordInput[];
   removedImageUrls: string[];
-  session: Session | null;
+  auth: InventoryMutationAuth;
   syncVariants: boolean;
 }): Promise<InventorySaveMutationResponse> {
-  const { draft, newImages, removedImageUrls, session, syncVariants } = params;
-  const accessToken = await ensureFreshToken(session);
-  if (!accessToken) throw new Error('Session expired. Please refresh and log in again.');
-
+  const { draft, newImages, removedImageUrls, auth, syncVariants } = params;
   const normalizedDraft = normalizeInventoryProductDraft(draft);
-  const response = await invokeInventoryMutation<InventorySaveMutationResponse>(accessToken, {
+  const response = await invokeInventoryMutationWithRetry<InventorySaveMutationResponse>(auth, {
     action: 'save',
     productId: normalizedDraft.id ?? null,
     name: normalizedDraft.name,
@@ -218,13 +278,10 @@ export async function loadInventoryProductImages(productId: number): Promise<Exi
 
 export async function deleteInventoryProductMutation(params: {
   deletingProduct: DeletingProduct;
-  session: Session | null;
+  auth: InventoryMutationAuth;
 }): Promise<InventoryDeleteMutationResponse> {
-  const { deletingProduct, session } = params;
-  const accessToken = await ensureFreshToken(session);
-  if (!accessToken) throw new Error('Session expired. Please refresh and log in again.');
-
-  const response = await invokeInventoryMutation<InventoryDeleteMutationResponse>(accessToken, {
+  const { deletingProduct, auth } = params;
+  const response = await invokeInventoryMutationWithRetry<InventoryDeleteMutationResponse>(auth, {
     action: 'delete',
     productId: deletingProduct.id,
   });
@@ -241,11 +298,11 @@ export async function saveInventoryProductMutation(params: {
   draft: ProductDraft;
   newImages: File[];
   removedImageUrls: string[];
-  session: Session | null;
+  auth: InventoryMutationAuth;
 }): Promise<InventorySaveMutationResponse> {
-  const { draft, newImages, removedImageUrls, session } = params;
-  const accessToken = await ensureFreshToken(session);
-  if (!accessToken) throw new Error('Session expired. Please refresh and log in again.');
+  const { draft, newImages, removedImageUrls, auth } = params;
+  const accessToken = await resolveInventoryAccessToken(auth);
+  if (!accessToken) throw new Error(SESSION_EXPIRED_MESSAGE);
 
   const normalizedDraft = normalizeInventoryProductDraft(draft);
   if (normalizedDraft.id != null) {
@@ -254,7 +311,7 @@ export async function saveInventoryProductMutation(params: {
       productId: normalizedDraft.id,
       accessToken,
       cleanupImages: async (images) => {
-        const result = await cleanupImageKitFiles(accessToken, images);
+        const result = await cleanupImageKitFiles(auth, images);
         return {
           cleanedCount: result.cleanedCount,
           cleanupWarnings: result.cleanupWarnings ?? [],
@@ -267,11 +324,11 @@ export async function saveInventoryProductMutation(params: {
         draft: normalizedDraft,
         newImages: uploadedImages,
         removedImageUrls,
-        session,
+        auth,
         syncVariants: true,
       });
     } catch (error) {
-      const cleanup = await cleanupImageKitFiles(accessToken, uploadedImages).catch((cleanupError) => ({
+      const cleanup = await cleanupImageKitFiles(auth, uploadedImages).catch((cleanupError) => ({
         ok: true as const,
         cleanedCount: 0,
         cleanupWarnings: [extractInventoryMutationErrorMessage(cleanupError, 'Failed to clean up uploaded images')],
@@ -288,7 +345,7 @@ export async function saveInventoryProductMutation(params: {
     draft: normalizedDraft,
     newImages: [],
     removedImageUrls: [],
-    session,
+    auth,
     syncVariants: true,
   });
 
@@ -303,7 +360,7 @@ export async function saveInventoryProductMutation(params: {
       productId: createResponse.productId,
       accessToken,
       cleanupImages: async (images) => {
-        const result = await cleanupImageKitFiles(accessToken, images);
+        const result = await cleanupImageKitFiles(auth, images);
         return {
           cleanedCount: result.cleanedCount,
           cleanupWarnings: result.cleanupWarnings ?? [],
@@ -328,7 +385,7 @@ export async function saveInventoryProductMutation(params: {
       draft: { ...normalizedDraft, id: createResponse.productId },
       newImages: uploadedImages,
       removedImageUrls: [],
-      session,
+      auth,
       syncVariants: false,
     });
     return {
@@ -337,7 +394,7 @@ export async function saveInventoryProductMutation(params: {
       cleanupWarnings: [...(createResponse.cleanupWarnings ?? []), ...(attachResponse.cleanupWarnings ?? [])],
     };
   } catch (error) {
-    const cleanup = await cleanupImageKitFiles(accessToken, uploadedImages).catch((cleanupError) => ({
+    const cleanup = await cleanupImageKitFiles(auth, uploadedImages).catch((cleanupError) => ({
       ok: true as const,
       cleanedCount: 0,
       cleanupWarnings: [extractInventoryMutationErrorMessage(cleanupError, 'Failed to clean up uploaded images')],

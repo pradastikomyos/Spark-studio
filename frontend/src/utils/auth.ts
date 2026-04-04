@@ -1,6 +1,6 @@
 import type { Session } from '@supabase/supabase-js';
 import { lookupAdminRole } from '../auth/adminRole';
-import { readCurrentAccessToken } from '../auth/sessionAccess';
+import { readCurrentAccessToken, readCurrentSessionSnapshot } from '../auth/sessionAccess';
 import { supabase } from '../lib/supabase';
 
 // Token refresh threshold: refresh if token expires within 5 minutes
@@ -17,15 +17,19 @@ export const ensureFreshToken = async (
   currentSession: Session | null,
   options?: { refreshSession?: () => Promise<void> }
 ): Promise<string | null> => {
-  if (!currentSession?.access_token) {
+  const latestSession = await readCurrentSessionSnapshot(8000, 'Session fetch timeout').catch(() => null);
+  const sessionToUse =
+    latestSession?.access_token && latestSession.access_token !== currentSession?.access_token ? latestSession : currentSession;
+
+  if (!sessionToUse?.access_token) {
     return null;
   }
 
   // Check if token is close to expiring
-  const expiresAt = currentSession.expires_at;
+  const expiresAt = sessionToUse.expires_at;
   if (!expiresAt) {
     // No expiry info, assume token is valid
-    return currentSession.access_token;
+    return sessionToUse.access_token;
   }
 
   const expiresAtMs = expiresAt * 1000; // Convert to milliseconds
@@ -55,7 +59,7 @@ export const ensureFreshToken = async (
   }
 
   // Token is still fresh
-  return currentSession.access_token;
+  return sessionToUse.access_token;
 };
 
 // Check if user has admin role from database

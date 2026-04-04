@@ -17,6 +17,8 @@ const ADMIN_PRODUCT_DRAFT_KEY = 'admin-product-form:draft:v1';
 type UseInventoryProductActionsParams = {
   products: ProductRow[];
   session: Session | null;
+  getValidAccessToken: () => Promise<string | null>;
+  refreshSession: () => Promise<void>;
   refetch: () => Promise<unknown>;
   showToast: (type: 'success' | 'error' | 'info', message: string) => void;
 };
@@ -49,7 +51,7 @@ const mapProductRowToDraft = (row: ProductRow): ProductDraft => {
 };
 
 export function useInventoryProductActions(params: UseInventoryProductActionsParams) {
-  const { products, session, refetch, showToast } = params;
+  const { products, session, getValidAccessToken, refreshSession, refetch, showToast } = params;
   const [showProductForm, setShowProductForm] = useState(false);
   const [editingDraft, setEditingDraft] = useState<ProductDraft | null>(null);
   const [existingImages, setExistingImages] = useState<ExistingImage[]>([]);
@@ -130,7 +132,10 @@ export function useInventoryProductActions(params: UseInventoryProductActionsPar
     setSaveError(null);
 
     try {
-      const result = (await deleteInventoryProductMutation({ deletingProduct, session })) ?? null;
+      const result = (await deleteInventoryProductMutation({
+        deletingProduct,
+        auth: { session, getValidAccessToken, refreshSession },
+      })) ?? null;
       setDeletingProduct(null);
       clearInventoryFallbackCache();
       await refetch();
@@ -160,7 +165,7 @@ export function useInventoryProductActions(params: UseInventoryProductActionsPar
         draft,
         newImages,
         removedImageUrls,
-        session,
+        auth: { session, getValidAccessToken, refreshSession },
       })) ?? null;
       invalidateImageLoad();
       setShowProductForm(false);

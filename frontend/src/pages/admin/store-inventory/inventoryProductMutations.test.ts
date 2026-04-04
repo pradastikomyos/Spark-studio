@@ -51,6 +51,12 @@ describe('saveInventoryProductMutation', () => {
     ensureFreshTokenMock.mockResolvedValue('access-token');
   });
 
+  const auth = {
+    session: null,
+    getValidAccessToken: vi.fn().mockResolvedValue('access-token'),
+    refreshSession: vi.fn().mockResolvedValue(undefined),
+  };
+
   it('updates an existing product by uploading images first and then syncing once', async () => {
     const file = new File(['image'], 'product.jpg', { type: 'image/jpeg' });
     uploadProductImageMock.mockResolvedValue({
@@ -78,7 +84,7 @@ describe('saveInventoryProductMutation', () => {
       draft: createDraft({ id: 7 }),
       newImages: [file],
       removedImageUrls: ['https://example.com/old.jpg'],
-      session: null,
+      auth,
     });
 
     expect(uploadProductImageMock).toHaveBeenCalledWith(
@@ -145,7 +151,7 @@ describe('saveInventoryProductMutation', () => {
       draft: createDraft(),
       newImages: [file],
       removedImageUrls: [],
-      session: null,
+      auth,
     });
 
     expect(invokeMock).toHaveBeenCalledTimes(2);
@@ -167,5 +173,28 @@ describe('saveInventoryProductMutation', () => {
         },
       ],
     });
+  });
+
+  it('surfaces session expiry when the inventory function returns 401', async () => {
+    invokeMock.mockResolvedValue({
+      data: null,
+      error: {
+        status: 401,
+        message: 'Edge Function returned a non-2xx status code',
+        context: {
+          error: 'Unauthorized',
+          code: 'INVALID_TOKEN',
+        },
+      },
+    });
+
+    await expect(
+      saveInventoryProductMutation({
+        draft: createDraft({ id: 7 }),
+        newImages: [],
+        removedImageUrls: [],
+        auth,
+      })
+    ).rejects.toThrow('Sesi login kadaluarsa. Silakan login ulang.');
   });
 });
