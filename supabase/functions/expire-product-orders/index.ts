@@ -11,11 +11,6 @@ import { handleCors, json, jsonError } from '../_shared/http.ts'
 import { logWebhookEvent } from '../_shared/payment-effects.ts'
 import { createServiceClient } from '../_shared/supabase.ts'
 
-interface OrderItem {
-  product_variant_id: number
-  quantity: number
-}
-
 interface ExpirableOrder {
   id: number
   order_number: string
@@ -27,58 +22,14 @@ interface ExpirableOrder {
   stock_released_at?: string | null
 }
 
-async function releaseStock(params: {
-  supabase: ReturnType<typeof createServiceClient>
-  order: ExpirableOrder
-  nowIso: string
-}) {
-  const { supabase, order, nowIso } = params
-  if (order.stock_released_at) return { ok: true }
-
-  const { data: orderItems, error: itemsError } = await supabase
-    .from('order_product_items')
-    .select('product_variant_id, quantity')
-    .eq('order_product_id', order.id)
-
-  if (itemsError) {
-    console.error(`[Expire Product Orders] Error fetching items for order ${order.order_number}:`, itemsError)
-    await logWebhookEvent(supabase, {
-      orderNumber: order.order_number,
-      eventType: 'expire_product_items_fetch_failed',
-      payload: { error: itemsError.message },
-      success: false,
-      errorMessage: itemsError.message,
-      processedAt: nowIso,
-    })
-    return { ok: false }
-  }
-
-  if (Array.isArray(orderItems) && orderItems.length > 0) {
-    for (const item of orderItems as OrderItem[]) {
-      const { error: releaseError } = await supabase.rpc('release_product_stock', {
-        p_variant_id: item.product_variant_id,
-        p_quantity: item.quantity,
-      })
-
-      if (releaseError) {
-        console.error(
-          `[Expire Product Orders] Error releasing stock for variant ${item.product_variant_id}:`,
-          releaseError
-        )
-        await logWebhookEvent(supabase, {
-          orderNumber: order.order_number,
-          eventType: 'expire_product_stock_release_failed',
-          payload: { variant_id: item.product_variant_id, error: releaseError.message },
-          success: false,
-          errorMessage: releaseError.message,
-          processedAt: nowIso,
-        })
-        return { ok: false }
-      }
-    }
-  }
-
-  return { ok: true }
+type ExpireProductOrderResult = {
+  ok?: boolean
+  code?: string
+  message?: string
+  result?: string
+  reason?: string
+  order_number?: string
+  order_id?: number
 }
 
 Deno.serve(async (req) => {
@@ -150,55 +101,64 @@ Deno.serve(async (req) => {
 
     for (const order of expiredOrders) {
       try {
-        const stockResult = await releaseStock({
-          supabase,
-          order,
-          nowIso,
+        const trace = {
+          action: 'expire_product_order',
+          order_id: order.id,
+          order_number: order.order_number,
+          channel: order.channel ?? null,
+          payment_status: order.payment_status ?? null,
+        }
+        console.log('[Expire Product Orders] start', trace)
+
+        const { data: resultData, error: rpcError } = await supabase.rpc('expire_product_order_atomic', {
+          p_order_id: order.id,
+          p_now: nowIso,
         })
 
-        if (!stockResult.ok) {
+        if (rpcError) {
+          console.error('[Expire Product Orders] rpc_error', {
+            ...trace,
+            error: rpcError.message,
+          })
+          await logWebhookEvent(supabase, {
+            orderNumber: order.order_number,
+            eventType: 'expire_product_order_failed',
+            payload: { error: rpcError.message },
+            success: false,
+            errorMessage: rpcError.message,
+            processedAt: nowIso,
+          })
           failedOrders.push(order.order_number)
           continue
         }
 
-        const isCashierPendingOrder =
-          String(order.channel || '').toLowerCase() === 'cashier' &&
-          ['unpaid', 'pending'].includes(String(order.payment_status || '').toLowerCase())
+        const result =
+          resultData && typeof resultData === 'object'
+            ? (resultData as ExpireProductOrderResult)
+            : ({ ok: false } satisfies ExpireProductOrderResult)
 
-        if (isCashierPendingOrder && order.voucher_id) {
-          const { error: voucherReleaseError } = await supabase.rpc('release_voucher_quota', {
-            p_voucher_id: order.voucher_id,
+        console.log('[Expire Product Orders] end', {
+          ...trace,
+          ok: Boolean(result.ok),
+          result: result.result ?? null,
+          reason: result.reason ?? null,
+          code: result.code ?? null,
+        })
+
+        if (!result.ok) {
+          await logWebhookEvent(supabase, {
+            orderNumber: order.order_number,
+            eventType: 'expire_product_order_failed',
+            payload: { code: result.code ?? null, message: result.message ?? null },
+            success: false,
+            errorMessage: result.message ?? 'Expire RPC returned non-ok result',
+            processedAt: nowIso,
           })
-
-          if (voucherReleaseError) {
-            console.error(`[Expire Product Orders] Error releasing voucher ${order.voucher_id}:`, voucherReleaseError)
-            await logWebhookEvent(supabase, {
-              orderNumber: order.order_number,
-              eventType: 'expire_voucher_release_failed',
-              payload: { voucher_id: order.voucher_id, error: voucherReleaseError.message },
-              success: false,
-              errorMessage: voucherReleaseError.message,
-              processedAt: nowIso,
-            })
-            failedOrders.push(order.order_number)
-            continue
-          }
+          failedOrders.push(order.order_number)
+          continue
         }
 
-        const { error: updateError } = await supabase
-          .from('order_products')
-          .update({
-            pickup_status: 'expired',
-            status: 'expired',
-            expired_at: nowIso,
-            stock_released_at: nowIso,
-            updated_at: nowIso,
-          })
-          .eq('id', order.id)
-
-        if (updateError) {
-          console.error(`[Expire Product Orders] Error updating order ${order.order_number}:`, updateError)
-          failedOrders.push(order.order_number)
+        if (result.result === 'noop') {
           continue
         }
 

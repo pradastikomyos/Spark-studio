@@ -3,6 +3,16 @@ import { handleCors, json, jsonError } from '../_shared/http.ts'
 import { createServiceClient } from '../_shared/supabase.ts'
 import { requireAuthenticatedRequest } from '../_shared/auth.ts'
 
+type CancelProductOrderResult = {
+  ok?: boolean
+  code?: string
+  message?: string
+  result?: string
+  reason?: string
+  order_number?: string
+  order_id?: number
+}
+
 serve(async (req) => {
   const corsResponse = handleCors(req)
   if (corsResponse) return corsResponse
@@ -16,93 +26,74 @@ serve(async (req) => {
     if (authResult.response) return authResult.response
 
     const auth = authResult.context!
-
     const body = await req.json().catch(() => ({}))
     const orderNumber = String(body?.order_number || '').trim()
-    if (!orderNumber) return json(req, { error: 'Missing order_number' }, { status: 400 })
+    if (!orderNumber) {
+      return json(req, { error: 'Missing order_number' }, { status: 400 })
+    }
+
+    const trace = {
+      action: 'cancel_product_order',
+      order_number: orderNumber,
+      user_id: auth.user.id,
+    }
+    console.log('[cancel-product-order] start', trace)
 
     const supabase = createServiceClient(auth.supabaseEnv.url, auth.supabaseEnv.serviceRoleKey)
+    const { data, error } = await supabase.rpc('cancel_product_order_atomic', {
+      p_order_number: orderNumber,
+      p_user_id: auth.user.id,
+    })
 
-    const { data: order, error: orderError } = await supabase
-      .from('order_products')
-      .select('id, user_id, order_number, status, payment_status, voucher_id')
-      .eq('order_number', orderNumber)
-      .single()
-
-    if (orderError || !order) return json(req, { error: 'Order not found' }, { status: 404 })
-    if (String(order.user_id) !== auth.user.id) return json(req, { error: 'Forbidden' }, { status: 403 })
-
-    const currentStatus = String((order as { status?: unknown }).status || '').toLowerCase()
-    const currentPaymentStatus = String((order as { payment_status?: unknown }).payment_status || '').toLowerCase()
-
-    if (currentPaymentStatus === 'paid') {
-      return json(req, { status: 'ok', result: 'noop', reason: 'already_paid', order: { order_number: orderNumber } })
+    if (error) {
+      console.error('[cancel-product-order] rpc_error', {
+        ...trace,
+        error: error.message,
+      })
+      return jsonError(req, 500, { error: 'Failed to cancel order', details: error.message })
     }
 
-    if (currentStatus === 'cancelled' || currentStatus === 'expired') {
-      return json(req, { status: 'ok', result: 'noop', reason: 'already_final', order: { order_number: orderNumber } })
+    const result =
+      data && typeof data === 'object' ? (data as CancelProductOrderResult) : ({ ok: false } satisfies CancelProductOrderResult)
+
+    console.log('[cancel-product-order] end', {
+      ...trace,
+      ok: Boolean(result.ok),
+      result: result.result ?? null,
+      reason: result.reason ?? null,
+      code: result.code ?? null,
+      order_id: result.order_id ?? null,
+    })
+
+    if (result.ok) {
+      return json(
+        req,
+        {
+          status: 'ok',
+          result: result.result ?? 'noop',
+          reason: result.reason ?? null,
+          order: {
+            order_number: result.order_number ?? orderNumber,
+            order_id: result.order_id ?? null,
+          },
+        },
+        { status: 200 },
+      )
     }
 
-    const nowIso = new Date().toISOString()
-    const { data: updated, error: updateError } = await supabase
-      .from('order_products')
-      .update({ status: 'cancelled', updated_at: nowIso })
-      .eq('id', (order as { id: number }).id)
-      .not('status', 'in', '(cancelled,expired)')
-      .select('id, order_number, status, payment_status, updated_at')
-      .maybeSingle()
-
-    if (updateError) {
-      return jsonError(req, 500, { error: 'Failed to cancel order', details: updateError.message })
+    if (result.code === 'missing_order_number' || result.code === 'missing_user_id') {
+      return jsonError(req, 400, result.message || 'Invalid request')
     }
 
-    if (!updated) {
-      return json(req, { status: 'ok', result: 'noop', reason: 'already_final', order: { order_number: orderNumber } })
+    if (result.code === 'forbidden') {
+      return jsonError(req, 403, result.message || 'Forbidden')
     }
 
-    const { data: orderItems } = await supabase
-      .from('order_product_items')
-      .select('product_variant_id, quantity')
-      .eq('order_product_id', (order as { id: number }).id)
-
-    if (Array.isArray(orderItems)) {
-      const qtyByVariantId = new Map<number, number>()
-      for (const row of orderItems) {
-        const variantId = Number((row as { product_variant_id: number | string }).product_variant_id)
-        const qty = Math.max(1, Math.floor(Number((row as { quantity: number | string }).quantity)))
-        if (!variantId || qty <= 0) continue
-        qtyByVariantId.set(variantId, (qtyByVariantId.get(variantId) ?? 0) + qty)
-      }
-
-      const variantIds = Array.from(qtyByVariantId.keys())
-      const { data: variantRows } = variantIds.length
-        ? await supabase.from('product_variants').select('id, reserved_stock').in('id', variantIds)
-        : { data: [] as unknown[] }
-
-      const reservedById = new Map<number, number>()
-      if (Array.isArray(variantRows)) {
-        for (const v of variantRows) {
-          const id = Number((v as { id?: number | string }).id ?? 0)
-          if (!id) continue
-          reservedById.set(id, Number((v as { reserved_stock?: unknown }).reserved_stock ?? 0))
-        }
-      }
-
-      for (const [variantId, qty] of qtyByVariantId.entries()) {
-        const currentReserved = reservedById.get(variantId) ?? 0
-        await supabase
-          .from('product_variants')
-          .update({ reserved_stock: Math.max(0, currentReserved - qty), updated_at: nowIso })
-          .eq('id', variantId)
-      }
+    if (result.code === 'order_not_found') {
+      return jsonError(req, 404, result.message || 'Order not found')
     }
 
-    const voucherId = (order as { voucher_id?: string | null }).voucher_id ?? null
-    if (voucherId) {
-      await supabase.rpc('release_voucher_quota', { p_voucher_id: voucherId })
-    }
-
-    return json(req, { status: 'ok', result: 'cancelled', order: updated })
+    return jsonError(req, 409, result.message || 'Failed to cancel order')
   } catch (e) {
     return jsonError(req, 500, { error: 'Internal server error', details: e instanceof Error ? e.message : String(e) })
   }
