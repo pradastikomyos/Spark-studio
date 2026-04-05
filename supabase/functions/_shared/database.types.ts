@@ -123,7 +123,7 @@ type ProductVariantsRow = {
   stock?: number | null
   reserved_stock?: number | null
   is_active?: boolean | null
-  attributes?: Json | null
+  attributes?: Json
   created_at?: string | null
   updated_at?: string | null
 }

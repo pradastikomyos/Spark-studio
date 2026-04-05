@@ -1,4 +1,5 @@
 import { supabase } from '../../lib/supabase';
+import { createSupabaseFunctionError, getSupabaseFunctionStatus } from '../../lib/supabaseFunctionError';
 import { getValidatedAccessToken } from '../../auth/sessionAccess';
 import { withTimeout } from '../../utils/queryHelpers';
 import type { OrderState } from './bookingSuccessTypes';
@@ -29,7 +30,7 @@ export async function syncBookingSuccessStatus(params: {
     throw new Error('Not authenticated');
   }
 
-  const { data, error: invokeError } = await withTimeout(
+  const { data, error: invokeError, response } = await withTimeout(
     supabase.functions.invoke('sync-midtrans-status', {
       body: { order_number: orderNumber },
       headers: { Authorization: `Bearer ${token}` },
@@ -39,7 +40,7 @@ export async function syncBookingSuccessStatus(params: {
   );
 
   if (invokeError) {
-    const errorStatus = (invokeError as { context?: { status?: number } }).context?.status;
+    const errorStatus = getSupabaseFunctionStatus(invokeError, response);
     if (errorStatus === 401 && retryCount < 1 && typeof retryWithFreshToken === 'function') {
       const refreshedToken = await retryWithFreshToken();
       if (refreshedToken) {
@@ -60,11 +61,11 @@ export async function syncBookingSuccessStatus(params: {
       });
     }
 
-    const errorMsg =
-      (invokeError as { context?: { error?: string } }).context?.error ||
-      invokeError.message ||
-      'Failed to sync status';
-    throw new Error(errorMsg);
+    throw await createSupabaseFunctionError({
+      error: invokeError,
+      response,
+      fallbackMessage: 'Failed to sync status',
+    });
   }
 
   const responseData = data as { order?: OrderState } | null;

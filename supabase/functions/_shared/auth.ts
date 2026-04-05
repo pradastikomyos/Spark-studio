@@ -14,15 +14,21 @@ type AuthOptions = {
   requireEmail?: boolean
 }
 
+function getAuthErrorMessage(authError: unknown): string | null {
+  if (!authError || typeof authError !== 'object') return null
+  const message = (authError as { message?: unknown }).message
+  return typeof message === 'string' && message.trim().length > 0 ? message.trim() : null
+}
+
 function buildUnauthorizedResponse(
   req: Request,
-  authError?: { message?: string | null },
+  authError?: unknown,
   options?: AuthOptions
 ) {
   const fallbackMessage = options?.requireEmail
     ? 'Authenticated user is missing required email claim'
     : 'Invalid or expired session'
-  const message = authError?.message || fallbackMessage
+  const message = getAuthErrorMessage(authError) ?? fallbackMessage
   const isExpired = message.toLowerCase().includes('expired')
 
   return json(

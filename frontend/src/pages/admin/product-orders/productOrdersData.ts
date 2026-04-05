@@ -1,3 +1,4 @@
+import { createSupabaseFunctionError } from '../../../lib/supabaseFunctionError';
 import { supabase } from '../../../lib/supabase';
 import { ensureFreshToken } from '../../../utils/auth';
 import type { ProductOrderDetails } from './productOrdersTypes';
@@ -85,20 +86,21 @@ export async function completeProductPickup(params: {
   if (!token) {
     throw new Error('Sesi login tidak valid. Silakan login ulang.');
   }
-  const { error: invokeError } = await supabase.functions.invoke('complete-product-pickup', {
+  const { error: invokeError, response } = await supabase.functions.invoke('complete-product-pickup', {
     body: { pickupCode: params.pickupCode.trim().toUpperCase() },
     headers: { Authorization: `Bearer ${token}` },
   });
 
   if (invokeError) {
-    const status = (invokeError as { status?: number }).status;
+    const parsedError = await createSupabaseFunctionError({
+      error: invokeError,
+      response,
+      fallbackMessage: 'Gagal memverifikasi barang',
+    });
+    const status = parsedError.status;
     if (status === 401) {
       throw new Error('Sesi login kadaluarsa. Silakan login ulang.');
     }
-    const contextError =
-      typeof (invokeError as { context?: { error?: unknown } }).context?.error === 'string'
-        ? String((invokeError as { context?: { error?: unknown } }).context?.error)
-        : null;
-    throw new Error(contextError || invokeError.message || 'Gagal memverifikasi barang');
+    throw parsedError;
   }
 }

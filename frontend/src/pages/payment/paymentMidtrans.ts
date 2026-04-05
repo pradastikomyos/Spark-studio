@@ -1,73 +1,11 @@
 import { supabase } from '../../lib/supabase';
+import {
+  createSupabaseFunctionError,
+  getSupabaseFunctionStatus,
+} from '../../lib/supabaseFunctionError';
 import { ensureFreshToken } from '../../utils/auth';
 import { withTimeout } from '../../utils/queryHelpers';
 import type { MidtransTokenResponse, PaymentBookingDetails } from './paymentTypes';
-
-type InvokeErrorWithContext = {
-  message?: string;
-  status?: number;
-  context?: {
-    status?: number;
-    statusCode?: number;
-    response?: Response;
-    error?: unknown;
-  };
-};
-
-const getInvokeResponse = (invokeError: unknown): Response | null => {
-  const error = invokeError as InvokeErrorWithContext | null | undefined;
-  const context = error?.context as unknown;
-
-  if (context instanceof Response) {
-    return context;
-  }
-
-  if (context && typeof context === 'object' && 'response' in context) {
-    const response = (context as { response?: unknown }).response;
-    return response instanceof Response ? response : null;
-  }
-
-  return null;
-};
-
-const getInvokeStatus = (invokeError: unknown) => {
-  const error = invokeError as InvokeErrorWithContext | null | undefined;
-  return error?.status ?? error?.context?.status ?? error?.context?.statusCode ?? error?.context?.response?.status;
-};
-
-const getInvokeErrorMessage = async (invokeError: unknown) => {
-  const error = invokeError as InvokeErrorWithContext | null | undefined;
-  const rawContext = error?.context?.error;
-
-  if (typeof rawContext === 'string' && rawContext.trim()) {
-    return rawContext;
-  }
-
-  if (rawContext && typeof rawContext === 'object') {
-    const contextError = rawContext as { error?: string; message?: string };
-    if (contextError.error?.trim()) return contextError.error;
-    if (contextError.message?.trim()) return contextError.message;
-  }
-
-  const response = getInvokeResponse(invokeError);
-  if (response) {
-    try {
-      const responseData = (await response.clone().json()) as { error?: string; message?: string; details?: string };
-      if (responseData.details?.trim()) return responseData.details;
-      if (responseData.error?.trim()) return responseData.error;
-      if (responseData.message?.trim()) return responseData.message;
-    } catch {
-      try {
-        const responseText = await response.clone().text();
-        if (responseText.trim()) return responseText.trim();
-      } catch {
-        // Ignore response parsing failures and fall back to the generic error message.
-      }
-    }
-  }
-
-  return error?.message || null;
-};
 
 export async function validatePaymentSession() {
   const { data: userData, error: userError } = await withTimeout(
@@ -136,9 +74,9 @@ export async function createMidtransToken(params: {
     );
 
   let accessToken = params.token;
-  let { data, error } = await invoke(accessToken);
+  let { data, error, response } = await invoke(accessToken);
 
-  if (error && getInvokeStatus(error) === 401) {
+  if (error && getSupabaseFunctionStatus(error, response) === 401) {
     const { data: refreshData, error: refreshError } = await withTimeout(
       supabase.auth.refreshSession(),
       5000,
@@ -152,15 +90,17 @@ export async function createMidtransToken(params: {
         const retry = await invoke(accessToken);
         data = retry.data;
         error = retry.error ?? null;
+        response = retry.response;
       }
     }
   }
 
   if (error) {
-    const invokeError = new Error((await getInvokeErrorMessage(error)) || 'Failed to create payment') as Error & {
-      status?: number;
-    };
-    invokeError.status = getInvokeStatus(error);
+    const invokeError = await createSupabaseFunctionError({
+      error,
+      response,
+      fallbackMessage: 'Failed to create payment',
+    });
     throw invokeError;
   }
 

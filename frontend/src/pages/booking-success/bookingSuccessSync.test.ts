@@ -19,7 +19,7 @@ describe('bookingSuccessSync', () => {
     vi.clearAllMocks();
   });
 
-  it('refreshes the access token source when the current session token is about to expire', async () => {
+  it('prefers a fresher session snapshot before forcing validation', async () => {
     const validateSession = vi.fn().mockResolvedValue(true);
     vi.mocked(supabase.auth.getSession).mockResolvedValue({
       data: {
@@ -37,7 +37,7 @@ describe('bookingSuccessSync', () => {
       validateSession,
     });
 
-    expect(validateSession).toHaveBeenCalledTimes(1);
+    expect(validateSession).not.toHaveBeenCalled();
     expect(token).toBe('fresh-token');
   });
 

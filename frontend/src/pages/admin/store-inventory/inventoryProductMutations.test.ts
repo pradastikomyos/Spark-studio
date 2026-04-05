@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { saveInventoryProductMutation } from './inventoryProductMutations';
+import { formatInventoryProductMutationError, saveInventoryProductMutation } from './inventoryProductMutations';
 
 const invokeMock = vi.fn();
 const ensureFreshTokenMock = vi.fn();
@@ -196,5 +196,56 @@ describe('saveInventoryProductMutation', () => {
         auth,
       })
     ).rejects.toThrow('Sesi login kadaluarsa. Silakan login ulang.');
+  });
+
+  it('surfaces the error payload returned by the inventory function response body', async () => {
+    invokeMock.mockResolvedValue({
+      data: null,
+      error: {
+        status: 500,
+        message: 'Edge Function returned a non-2xx status code',
+      },
+      response: new Response(
+        JSON.stringify({
+          error: 'null value in column "attributes" of relation "product_variants" violates not-null constraint',
+          code: '23502',
+        }),
+        {
+          status: 500,
+          headers: { 'Content-Type': 'application/json' },
+        }
+      ),
+    });
+
+    await expect(
+      saveInventoryProductMutation({
+        draft: createDraft({ id: 7 }),
+        newImages: [],
+        removedImageUrls: [],
+        auth,
+      })
+    ).rejects.toMatchObject({
+      message: 'null value in column "attributes" of relation "product_variants" violates not-null constraint',
+      code: '23502',
+    });
+  });
+});
+
+describe('formatInventoryProductMutationError', () => {
+  it('maps duplicate SKU errors to an admin-friendly message', () => {
+    const message = formatInventoryProductMutationError({
+      code: '23505',
+      message: 'duplicate key value violates unique constraint on sku',
+    });
+
+    expect(message).toBe(
+      'Variant SKU sudah dipakai variant aktif lain. Gunakan SKU lain atau nonaktifkan produk lama terlebih dahulu.'
+    );
+  });
+
+  it('maps max image constraint errors to a clear message', () => {
+    const message = formatInventoryProductMutationError('Max 8 images per product exceeded (product_id=1588 count=9)');
+
+    expect(message).toBe('Maksimal 8 gambar per produk. Hapus beberapa gambar lalu coba simpan lagi.');
   });
 });

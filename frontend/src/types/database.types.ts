@@ -118,7 +118,7 @@ export type Database = {
       }
       product_variants: {
         Row: {
-          attributes: Json | null
+          attributes: Json
           created_at: string | null
           id: number
           is_active: boolean
@@ -131,7 +131,7 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
-          attributes?: Json | null
+          attributes?: Json
           created_at?: string | null
           id?: number
           is_active?: boolean
@@ -144,7 +144,7 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
-          attributes?: Json | null
+          attributes?: Json
           created_at?: string | null
           id?: number
           is_active?: boolean

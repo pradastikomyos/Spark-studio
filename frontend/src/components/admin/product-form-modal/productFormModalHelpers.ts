@@ -87,11 +87,18 @@ export function validateProductDraft(params: {
   if (totalImages === 0) return 'At least one product image is required.';
   if (totalImages > MAX_PRODUCT_IMAGES) return `Max ${MAX_PRODUCT_IMAGES} product images allowed.`;
 
+  const seenSkus = new Set<string>();
   for (const variant of draft.variants) {
     if (!variant.name.trim()) return 'Variant name is required.';
     if (!variant.sku.trim()) return 'Variant SKU is required.';
+    const normalizedSku = variant.sku.trim().toUpperCase();
+    if (seenSkus.has(normalizedSku)) return 'Each variant SKU must be unique.';
+    seenSkus.add(normalizedSku);
     if (!variant.price || variant.price.trim() === '' || Number(variant.price) <= 0) {
       return `Variant "${variant.name || 'unnamed'}" must have a valid price greater than 0.`;
+    }
+    if (!Number.isInteger(variant.stock) || variant.stock < 0) {
+      return `Variant "${variant.name || 'unnamed'}" must have stock 0 or greater.`;
     }
   }
 

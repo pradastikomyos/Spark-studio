@@ -1,4 +1,5 @@
 import { ensureFreshToken } from '../../../utils/auth';
+import { createSupabaseFunctionError } from '../../../lib/supabaseFunctionError';
 import { supabase } from '../../../lib/supabase';
 
 export type EntranceValidationSuccess = {
@@ -18,23 +19,22 @@ export async function validateEntranceTicket(params: {
   }
 
   const normalizedTicketCode = params.ticketCode.trim().toUpperCase();
-  const { data, error } = await supabase.functions.invoke('validate-entrance-ticket', {
+  const { data, error, response } = await supabase.functions.invoke('validate-entrance-ticket', {
     body: { ticketCode: normalizedTicketCode },
     headers: { Authorization: `Bearer ${token}` },
   });
 
   if (error) {
-    const status = (error as { status?: number }).status;
+    const parsedError = await createSupabaseFunctionError({
+      error,
+      response,
+      fallbackMessage: 'Gagal memvalidasi tiket',
+    });
+    const status = parsedError.status;
     if (status === 401) {
       throw new Error('Sesi login kadaluarsa. Silakan login ulang.');
     }
-
-    const contextError =
-      typeof (error as { context?: { error?: unknown } }).context?.error === 'string'
-        ? String((error as { context?: { error?: unknown } }).context?.error)
-        : null;
-
-    throw new Error(contextError || error.message || 'Gagal memvalidasi tiket');
+    throw parsedError;
   }
 
   const ticket = (data as { ticket?: EntranceValidationSuccess } | null)?.ticket;

@@ -11,6 +11,7 @@
     "imagekit:migrate:dry": "node scripts/imagekit-migrate-product-images.mjs --env-file .env.imagekit-migration --dry-run --batch-size 25 --limit 25",
     "imagekit:migration:status": "node scripts/imagekit-migration-status.mjs --env-file .env.imagekit-migration",
     "test": "vitest run",
+    "test:backend": "vitest run --config vitest.backend.config.ts",
     "preview": "vite preview",
     "supabase:db:push": "supabase db push",
     "supabase:db:reset": "supabase db reset",

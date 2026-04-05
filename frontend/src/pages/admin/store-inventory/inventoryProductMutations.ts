@@ -2,6 +2,7 @@ import type { Session } from '@supabase/supabase-js';
 
 import type { ExistingImage, ProductDraft } from '../../../components/admin/ProductFormModal';
 import type { ProductImageRecordInput } from '../../../lib/imagekit';
+import { createSupabaseFunctionError } from '../../../lib/supabaseFunctionError';
 import { supabase } from '../../../lib/supabase';
 import { ensureFreshToken } from '../../../utils/auth';
 import { withTimeout } from '../../../utils/queryHelpers';
@@ -48,13 +49,14 @@ type InventoryMutationAuth = {
 };
 
 type FunctionInvokeError = {
-  message?: string;
   status?: number;
-  context?: {
-    error?: unknown;
-    code?: unknown;
-    message?: unknown;
-  };
+};
+
+type InventoryMutationErrorMetadata = Error & {
+  status?: number;
+  code?: string;
+  details?: string | null;
+  hint?: string | null;
 };
 
 const SESSION_EXPIRED_MESSAGE = 'Sesi login kadaluarsa. Silakan login ulang.';
@@ -79,11 +81,28 @@ const toValidVariantId = (value: unknown): number | null => {
   return Number.isFinite(numberValue) && numberValue > 0 ? numberValue : null;
 };
 
+const withInventoryMutationErrorMetadata = (message: string, source: unknown): InventoryMutationErrorMetadata => {
+  const nextError = new Error(message) as InventoryMutationErrorMetadata;
+  if (source && typeof source === 'object') {
+    const maybe = source as {
+      status?: unknown;
+      code?: unknown;
+      details?: unknown;
+      hint?: unknown;
+    };
+    if (typeof maybe.status === 'number') nextError.status = maybe.status;
+    if (typeof maybe.code === 'string' && maybe.code.trim().length > 0) nextError.code = maybe.code;
+    if (typeof maybe.details === 'string' && maybe.details.trim().length > 0) nextError.details = maybe.details;
+    if (typeof maybe.hint === 'string' && maybe.hint.trim().length > 0) nextError.hint = maybe.hint;
+  }
+  return nextError;
+};
+
 async function invokeInventoryMutation<TResponse>(
   accessToken: string,
   body: Record<string, unknown>
 ): Promise<TResponse> {
-  const { data, error } = await withTimeout(
+  const { data, error, response } = await withTimeout(
     supabase.functions.invoke(INVENTORY_MUTATION_FUNCTION, {
       body,
       headers: { Authorization: `Bearer ${accessToken}` },
@@ -98,15 +117,11 @@ async function invokeInventoryMutation<TResponse>(
       throw new Error(SESSION_EXPIRED_MESSAGE);
     }
 
-    const contextError = (error as FunctionInvokeError).context;
-    const contextMessage =
-      typeof contextError?.message === 'string'
-        ? contextError.message
-        : typeof contextError?.error === 'string'
-          ? contextError.error
-          : null;
-
-    throw new Error(contextMessage || error.message || 'Failed to mutate inventory product');
+    throw await createSupabaseFunctionError({
+      error,
+      response,
+      fallbackMessage: 'Failed to mutate inventory product',
+    });
   }
 
   return data as TResponse;
@@ -223,25 +238,53 @@ export const normalizeInventoryProductDraft = (draft: ProductDraft): ProductDraf
 });
 
 export const formatInventoryProductMutationError = (err: unknown): string => {
-  if (err instanceof Error && err.message) return err.message;
-  if (typeof err === 'string' && err.trim()) return err;
-  if (err && typeof err === 'object') {
-    const maybe = err as { message?: unknown; details?: unknown; hint?: unknown; code?: unknown };
-    if (maybe.code === '23505') {
-      const message = typeof maybe.message === 'string' ? maybe.message.toLowerCase() : '';
-      if (message.includes('sku')) {
-        return 'Variant SKU already exists on an active variant. Please use a different SKU or delete the old product first.';
-      }
-      if (message.includes('slug')) {
-        return 'Product slug is already taken. Please use a different slug.';
-      }
-      return 'Duplicate data detected. Please check SKU and slug uniqueness.';
+  const maybeError =
+    err && typeof err === 'object' ? (err as { message?: unknown; details?: unknown; hint?: unknown; code?: unknown }) : null;
+  const message =
+    err instanceof Error && err.message
+      ? err.message
+      : typeof err === 'string' && err.trim()
+        ? err
+        : typeof maybeError?.message === 'string'
+          ? maybeError.message
+          : '';
+  const normalizedMessage = message.toLowerCase();
+  const code = typeof maybeError?.code === 'string' && maybeError.code.trim().length > 0 ? maybeError.code.trim() : null;
+
+  if (code === '23505') {
+    if (normalizedMessage.includes('sku')) {
+      return 'Variant SKU sudah dipakai variant aktif lain. Gunakan SKU lain atau nonaktifkan produk lama terlebih dahulu.';
     }
-    const parts = [maybe.message, maybe.details, maybe.hint]
+    if (normalizedMessage.includes('slug')) {
+      return 'Slug produk sudah dipakai. Gunakan slug lain.';
+    }
+    return 'Ada data duplikat. Periksa kembali SKU variant dan slug produk.';
+  }
+
+  if (normalizedMessage.includes('variant') && normalizedMessage.includes('not found for product')) {
+    return 'Salah satu variant produk sudah berubah di server. Refresh halaman lalu coba simpan lagi.';
+  }
+
+  if (normalizedMessage.includes('product') && normalizedMessage.includes('not found')) {
+    return 'Produk yang sedang diedit tidak ditemukan lagi. Refresh halaman lalu coba lagi.';
+  }
+
+  if (normalizedMessage.includes('max 8 images per product exceeded')) {
+    return 'Maksimal 8 gambar per produk. Hapus beberapa gambar lalu coba simpan lagi.';
+  }
+
+  if (normalizedMessage.includes('null value in column') && normalizedMessage.includes('attributes')) {
+    return 'Variant gagal disimpan karena atribut variant kosong tidak diterima server.';
+  }
+
+  if (message) return message;
+  if (err && typeof err === 'object') {
+    const fallback = err as { message?: unknown; details?: unknown; hint?: unknown; code?: unknown };
+    const parts = [fallback.message, fallback.details, fallback.hint]
       .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
       .slice(0, 2);
-    if (parts.length > 0) return parts.join(' • ');
-    if (typeof maybe.code === 'string' && maybe.code.trim().length > 0) return `Error code: ${maybe.code}`;
+    if (parts.length > 0) return parts.join(' | ');
+    if (typeof fallback.code === 'string' && fallback.code.trim().length > 0) return `Error code: ${fallback.code}`;
   }
   return 'Failed to save product';
 };
@@ -337,7 +380,7 @@ export async function saveInventoryProductMutation(params: {
       const cleanupSuffix = cleanup.cleanedCount > 0 ? `; rolled back ${cleanup.cleanedCount} uploaded image(s)` : '';
       const warningSuffix = formatInventoryCleanupWarningSuffix(cleanup.cleanupWarnings ?? []);
       const message = extractInventoryMutationErrorMessage(error, 'Failed to save product');
-      throw new Error(`${message}${cleanupSuffix}${warningSuffix}`);
+      throw withInventoryMutationErrorMetadata(`${message}${cleanupSuffix}${warningSuffix}`, error);
     }
   }
 
@@ -409,8 +452,11 @@ export async function saveInventoryProductMutation(params: {
     const warningSuffix = formatInventoryCleanupWarningSuffix(cleanup.cleanupWarnings ?? []);
     const message = extractInventoryMutationErrorMessage(error, 'Failed to save product');
     if (rollbackError instanceof Error) {
-      throw new Error(`${message}${cleanupSuffix}${warningSuffix}; failed to rollback created product: ${rollbackError.message}`);
+      throw withInventoryMutationErrorMetadata(
+        `${message}${cleanupSuffix}${warningSuffix}; failed to rollback created product: ${rollbackError.message}`,
+        error
+      );
     }
-    throw new Error(`${message}${cleanupSuffix}${warningSuffix}`);
+    throw withInventoryMutationErrorMetadata(`${message}${cleanupSuffix}${warningSuffix}`, error);
   }
 }

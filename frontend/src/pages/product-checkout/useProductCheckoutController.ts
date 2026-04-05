@@ -3,6 +3,10 @@ import type { NavigateFunction } from 'react-router-dom';
 import type { TFunction } from 'i18next';
 import type { QueryClient } from '@tanstack/react-query';
 import type { CartItem } from '../../contexts/cartStore';
+import {
+  createSupabaseFunctionError,
+  getSupabaseFunctionStatus,
+} from '../../lib/supabaseFunctionError';
 import { supabase } from '../../lib/supabase';
 import { queryKeys } from '../../lib/queryKeys';
 import { withTimeout } from '../../utils/queryHelpers';
@@ -13,7 +17,6 @@ import type {
   CheckoutOrderItem,
   CreateCashierOrderResponse,
   CreateProductTokenResponse,
-  InvokeErrorWithContext,
   ValidateVoucherResult,
 } from './checkoutTypes';
 
@@ -37,11 +40,6 @@ type UseProductCheckoutControllerParams = {
   removeItem: (variantId: number) => void;
   showToast: (type: 'success' | 'error' | 'info' | 'warning', message: string) => void;
   cashierCheckoutEnabled: boolean;
-};
-
-const getInvokeStatus = (invokeError: unknown) => {
-  const error = invokeError as InvokeErrorWithContext | null | undefined;
-  return error?.status ?? error?.context?.status ?? error?.context?.statusCode ?? error?.context?.response?.status;
 };
 
 const mapVoucherErrorCode = (message?: string | null, code?: string | null) => {
@@ -289,8 +287,8 @@ export function useProductCheckoutController({
         'Request timeout. Please try again.'
       );
 
-    let { data, error: invokeError } = await invoke(token);
-    const status = invokeError ? getInvokeStatus(invokeError) : undefined;
+    let { data, error: invokeError, response } = await invoke(token);
+    const status = invokeError ? getSupabaseFunctionStatus(invokeError, response) : undefined;
     if (invokeError && status === 401) {
       await refreshSession();
       token = await getValidAccessToken();
@@ -302,28 +300,23 @@ export function useProductCheckoutController({
       const retry = await invoke(token);
       data = retry.data;
       invokeError = retry.error ?? null;
+      response = retry.response;
     }
 
     if (invokeError) {
-      const rawContext = (invokeError as { context?: { error?: unknown } }).context?.error;
-      const contextError =
-        typeof rawContext === 'string'
-          ? rawContext
-          : rawContext && typeof rawContext === 'object'
-            ? String((rawContext as { error?: string }).error || (rawContext as { message?: string }).message || '')
-            : null;
-      const contextCode =
-        rawContext && typeof rawContext === 'object' ? (rawContext as { code?: string }).code : null;
+      const functionError = await createSupabaseFunctionError({
+        error: invokeError,
+        response,
+        fallbackMessage: `Failed to create ${functionName.includes('cashier') ? 'cashier order' : 'payment'}`,
+      });
 
-      if (contextCode?.startsWith('VOUCHER_') || String(contextError || '').toLowerCase().includes('voucher')) {
-        setVoucherError(resolveVoucherErrorMessage(contextError, contextCode));
+      if (functionError.code?.startsWith('VOUCHER_') || functionError.message.toLowerCase().includes('voucher')) {
+        setVoucherError(resolveVoucherErrorMessage(functionError.message, functionError.code));
         setAppliedVoucher(null);
         return null;
       }
 
-      throw new Error(
-        contextError || invokeError.message || `Failed to create ${functionName.includes('cashier') ? 'cashier order' : 'payment'}`
-      );
+      throw functionError;
     }
 
     return data;
