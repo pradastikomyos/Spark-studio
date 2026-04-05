@@ -1,8 +1,21 @@
 import { describe, expect, it } from 'vitest';
-import { emptyDraft, validateProductDraft } from './productFormModalHelpers';
+import { emptyDraft, formatCurrency, parseCurrency, validateProductDraft } from './productFormModalHelpers';
 import type { ExistingImage, ProductDraft } from './productFormModalTypes';
 
 describe('productFormModalHelpers', () => {
+  it('formats numeric database values without inflating the nominal', () => {
+    expect(formatCurrency('30000.00')).toBe('30.000');
+    expect(parseCurrency('30.000')).toBe('30000');
+    expect(parseCurrency('Rp 30.000')).toBe('30000');
+  });
+
+  it('rejects decimal-like or ambiguous grouped currency input', () => {
+    expect(parseCurrency('30.000,50')).toBe('');
+    expect(parseCurrency('30,000.50')).toBe('');
+    expect(parseCurrency('30000.50')).toBe('');
+    expect(parseCurrency('30.0a0')).toBe('');
+  });
+
   it('requires at least one image when saving', () => {
     const draft: ProductDraft = {
       ...emptyDraft(),

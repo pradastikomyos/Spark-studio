@@ -1,5 +1,6 @@
 import type { EntranceTicket } from '../../../hooks/useEntranceTicket';
 import type { TicketBookingSettings } from '../../../hooks/useTicketBookingSettings';
+import { parseRupiahInputValue } from '../../../utils/rupiahInput';
 import type {
   OverrideFormState,
   SettingsFormState,
@@ -29,7 +30,7 @@ export function normalizeTimeSlotsInput(value: string): string[] {
 export function createTicketFormState(ticket: EntranceTicket): TicketFormState {
   return {
     is_active: ticket.is_active,
-    price: ticket.price,
+    price: parseRupiahInputValue(ticket.price),
     available_from: extractDateOnly(ticket.available_from),
     available_until: extractDateOnly(ticket.available_until),
     time_slots: ticket.time_slots.join(', '),
@@ -69,9 +70,10 @@ export function validateConfigForms(
   }
 
   const normalizedTimeSlots = normalizeTimeSlotsInput(ticketForm.time_slots);
-  const price = Number(ticketForm.price);
+  const normalizedPrice = parseRupiahInputValue(ticketForm.price);
+  const price = Number(normalizedPrice);
 
-  if (!Number.isFinite(price) || price < 0) {
+  if (!normalizedPrice || !Number.isFinite(price) || price < 0) {
     throw new Error('Price must be a valid non-negative number');
   }
 

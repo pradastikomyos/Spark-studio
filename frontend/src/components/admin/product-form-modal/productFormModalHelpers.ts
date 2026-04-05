@@ -1,8 +1,8 @@
 import { MAX_PRODUCT_IMAGES, PRODUCT_IMAGE_UPLOAD_CONCURRENCY, PRODUCT_IMAGE_UPLOAD_TIMEOUT_MS } from '../../../constants/productImages';
 import {
-  normalizeNumberLikeString,
   normalizeSku,
 } from '../../../lib/inventoryProductContract';
+import { formatRupiahInputValue, parseRupiahInputValue } from '../../../utils/rupiahInput';
 import type { CategoryOption, ExistingImage, ProductDraft, ProductVariantDraft } from './productFormModalTypes';
 
 export const ADMIN_PRODUCT_DRAFT_KEY = 'admin-product-form:draft:v1';
@@ -10,13 +10,11 @@ export const ADMIN_PRODUCT_IMAGE_KEY = 'admin-product-form:images:v1';
 export const EMPTY_DRAFT_SNAPSHOT = JSON.stringify(emptyDraft());
 
 export function formatCurrency(value: string | number): string {
-  const numValue = typeof value === 'string' ? value.replace(/\D/g, '') : String(value);
-  if (!numValue) return '';
-  return Number(numValue).toLocaleString('id-ID');
+  return formatRupiahInputValue(value);
 }
 
 export function parseCurrency(formatted: string): string {
-  return formatted.replace(/\D/g, '');
+  return parseRupiahInputValue(formatted);
 }
 
 export function createEmptyVariant(): ProductVariantDraft {
@@ -99,7 +97,7 @@ export function validateProductDraft(params: {
     if (seenSkus.has(normalizedSku)) return 'Each variant SKU must be unique.';
     seenSkus.add(normalizedSku);
 
-    const normalizedPrice = normalizeNumberLikeString(variant.price);
+    const normalizedPrice = parseRupiahInputValue(variant.price);
     if (!normalizedPrice || Number(normalizedPrice) <= 0) {
       return `Variant "${variant.name || 'unnamed'}" must have a valid price greater than 0.`;
     }

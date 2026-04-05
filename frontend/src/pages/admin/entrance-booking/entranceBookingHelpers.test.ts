@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
   createEmptyOverrideForm,
+  createTicketFormState,
   normalizeTimeSlotsInput,
   validateConfigForms,
   validateOverrideForm,
 } from './entranceBookingHelpers';
+import { parseRupiahInputValue } from '../../../utils/rupiahInput';
 
 describe('entranceBookingHelpers', () => {
   it('normalizes valid time slots and rejects invalid ones', () => {
@@ -17,7 +19,7 @@ describe('entranceBookingHelpers', () => {
       validateConfigForms(
         {
           is_active: true,
-          price: '75000',
+          price: '75.000',
           available_from: '2026-03-01',
           available_until: '2026-03-31',
           time_slots: '09:00, 12:00',
@@ -39,6 +41,23 @@ describe('entranceBookingHelpers', () => {
     });
   });
 
+  it('normalizes decimal-looking database price strings into whole rupiah input state', () => {
+    expect(
+      createTicketFormState({
+        id: 7,
+        type: 'entrance',
+        name: 'Weekend Pass',
+        slug: 'weekend-pass',
+        description: null,
+        price: '30000.00',
+        available_from: '2026-03-01 00:00:00',
+        available_until: '2026-03-31 00:00:00',
+        time_slots: ['09:00'],
+        is_active: true,
+      }).price
+    ).toBe('30000');
+  });
+
   it('validates override forms and keeps whole-date overrides slotless', () => {
     const form = createEmptyOverrideForm();
     form.date = '2026-03-30';
@@ -53,5 +72,12 @@ describe('entranceBookingHelpers', () => {
       capacity_override: 40,
       reason: 'Private event',
     });
+  });
+
+  it('rejects ambiguous rupiah separators or decimal-like values', () => {
+    expect(parseRupiahInputValue('30.000,50')).toBe('');
+    expect(parseRupiahInputValue('30,000.50')).toBe('');
+    expect(parseRupiahInputValue('30000.50')).toBe('');
+    expect(parseRupiahInputValue('30.0a0')).toBe('');
   });
 });

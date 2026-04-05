@@ -15,6 +15,7 @@ export function ProductVariantsSection({ draft, saving, setDraft }: ProductVaria
         <div>
           <p className="text-sm font-bold">Variants</p>
           <p className="text-xs text-gray-600">Each variant must have a unique SKU.</p>
+          <p className="text-xs text-gray-600">Price must be whole rupiah (e.g. 30000 or 30.000).</p>
         </div>
         <button
           type="button"

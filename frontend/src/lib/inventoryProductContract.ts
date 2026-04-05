@@ -206,11 +206,11 @@ export function validateInventorySavePayload(
     }
 
     const priceNumber = variant.price == null ? null : Number(variant.price)
-    if (priceNumber == null || !Number.isFinite(priceNumber) || priceNumber <= 0) {
+    if (priceNumber == null || !Number.isFinite(priceNumber) || !Number.isInteger(priceNumber) || priceNumber <= 0) {
       return {
         message: `Harga variant "${variant.name}" harus lebih besar dari 0.`,
         code: 'INVENTORY_VARIANT_PRICE_INVALID',
-        hint: 'Gunakan angka harga tanpa karakter lain, misalnya 30000 atau 30.000.',
+        hint: 'Gunakan harga rupiah bulat tanpa desimal, misalnya 30000 atau 30.000.',
       }
     }
 

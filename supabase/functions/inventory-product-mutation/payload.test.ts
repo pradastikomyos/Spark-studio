@@ -90,6 +90,20 @@ describe('inventory-product-mutation payload', () => {
     })
   })
 
+  it('rejects decimal-like price even when numeric', () => {
+    const payload = normalizeInventorySavePayload({
+      name: 'Test Product',
+      slug: 'test-product',
+      categoryId: 1,
+      sku: 'SKU-001',
+      variants: [{ name: 'Default', sku: 'VAR-001', price: '30000.50', stock: '9' }],
+    })
+
+    expect(validateInventorySavePayload(payload)).toMatchObject({
+      code: 'INVENTORY_VARIANT_PRICE_INVALID',
+    })
+  })
+
   it('rejects invalid stock instead of silently coercing it to zero', () => {
     const payload = normalizeInventorySavePayload({
       name: 'Test Product',
