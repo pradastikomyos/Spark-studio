@@ -219,6 +219,11 @@ export const normalizeInventoryProductDraft = (draft: ProductDraft): ProductDraf
   })),
 });
 
+const extractDuplicateKeyValue = (text: string): string | null => {
+  const match = text.match(/key\s*\([^)]+\)\s*=\s*\(([^)]+)\)\s*already exists/i);
+  return match?.[1]?.trim() || null;
+};
+
 export const formatInventoryProductMutationError = (err: unknown): string => {
   const maybeError =
     err && typeof err === 'object' ? (err as { message?: unknown; details?: unknown; hint?: unknown; code?: unknown }) : null;
@@ -230,14 +235,32 @@ export const formatInventoryProductMutationError = (err: unknown): string => {
         : typeof maybeError?.message === 'string'
           ? maybeError.message
           : '';
+  const details = typeof maybeError?.details === 'string' ? maybeError.details : '';
+  const hint = typeof maybeError?.hint === 'string' ? maybeError.hint : '';
   const normalizedMessage = message.toLowerCase();
+  const searchText = [message, details, hint].filter((value) => value.trim().length > 0).join(' | ');
+  const normalizedSearchText = searchText.toLowerCase();
+  const duplicateValue = extractDuplicateKeyValue(searchText);
   const code = typeof maybeError?.code === 'string' && maybeError.code.trim().length > 0 ? maybeError.code.trim() : null;
 
   if (code === '23505') {
-    if (normalizedMessage.includes('sku')) {
-      return 'Variant SKU sudah dipakai variant aktif lain. Gunakan SKU lain atau nonaktifkan produk lama terlebih dahulu.';
+    if (
+      normalizedSearchText.includes('product_variants_sku_active_unique') ||
+      (normalizedSearchText.includes('product_variants') && normalizedSearchText.includes('sku'))
+    ) {
+      return duplicateValue
+        ? `SKU variant "${duplicateValue}" sudah dipakai variant aktif lain. Gunakan SKU lain atau nonaktifkan/hapus variant lama terlebih dahulu.`
+        : 'Variant SKU sudah dipakai variant aktif lain. Gunakan SKU lain atau nonaktifkan/hapus variant lama terlebih dahulu.';
     }
-    if (normalizedMessage.includes('slug')) {
+    if (
+      normalizedSearchText.includes('products_sku_active_unique') ||
+      (normalizedSearchText.includes('products') && normalizedSearchText.includes('sku'))
+    ) {
+      return duplicateValue
+        ? `SKU produk "${duplicateValue}" sudah dipakai produk aktif lain. Gunakan SKU lain.`
+        : 'SKU produk sudah dipakai produk aktif lain. Gunakan SKU lain.';
+    }
+    if (normalizedSearchText.includes('slug')) {
       return 'Slug produk sudah dipakai. Gunakan slug lain.';
     }
     return 'Ada data duplikat. Periksa kembali SKU variant dan slug produk.';

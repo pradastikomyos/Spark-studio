@@ -235,12 +235,23 @@ describe('formatInventoryProductMutationError', () => {
   it('maps duplicate SKU errors to an admin-friendly message', () => {
     const message = formatInventoryProductMutationError({
       code: '23505',
-      message: 'duplicate key value violates unique constraint on sku',
+      message: 'duplicate key value violates unique constraint "product_variants_sku_active_unique"',
+      details: 'Key (sku)=(ICJ1839) already exists.',
     });
 
     expect(message).toBe(
-      'Variant SKU sudah dipakai variant aktif lain. Gunakan SKU lain atau nonaktifkan produk lama terlebih dahulu.'
+      'SKU variant "ICJ1839" sudah dipakai variant aktif lain. Gunakan SKU lain atau nonaktifkan/hapus variant lama terlebih dahulu.'
     );
+  });
+
+  it('maps duplicate product SKU errors separately from variant SKU errors', () => {
+    const message = formatInventoryProductMutationError({
+      code: '23505',
+      message: 'duplicate key value violates unique constraint "products_sku_active_unique"',
+      details: 'Key (sku)=(ICJ1839) already exists.',
+    });
+
+    expect(message).toBe('SKU produk "ICJ1839" sudah dipakai produk aktif lain. Gunakan SKU lain.');
   });
 
   it('maps max image constraint errors to a clear message', () => {

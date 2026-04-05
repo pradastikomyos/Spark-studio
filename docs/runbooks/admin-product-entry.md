@@ -49,6 +49,8 @@ Use this guide for `Admin -> Store & Inventory -> Add Product`.
 
 - "SKU already exists":
   - check whether another active product or active variant is already using that SKU
+- inventory search by SKU:
+  - the admin inventory search matches product name, product SKU, and active variant SKU
 - deleted product recreated with the same slug or product SKU:
   - this is supported; a completed delete should release the previous identifiers for reuse
 - save fails with a backend validation code such as `INVENTORY_VARIANT_PRICE_INVALID`:

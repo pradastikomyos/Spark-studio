@@ -23,7 +23,72 @@ const STOCK_FILTER_TIMEOUT_MS = 30000;
 export const STOCK_FILTER_FALLBACK_WARNING =
   'Stock filter is temporarily unavailable. Showing unfiltered inventory while RPC recovers.';
 
-async function fetchInventoryPage(
+async function fetchInventoryProductDetails(
+  signal: AbortSignal,
+  productIds: number[],
+  categoryFilter: string
+): Promise<ProductRow[]> {
+  if (productIds.length === 0) {
+    return [];
+  }
+
+  const { data: detailData, error: detailError } = await supabase
+    .from('products')
+    .select(getInventorySelect(categoryFilter))
+    .abortSignal(signal)
+    .is('deleted_at', null)
+    .in('id', productIds);
+
+  if (detailError) {
+    throw detailError;
+  }
+
+  return orderProductsByIds((detailData || []) as unknown as ProductRow[], productIds);
+}
+
+async function fetchInventoryPageByRpc(
+  signal: AbortSignal,
+  page: number,
+  pageSize: number,
+  filters: { searchQuery: string; categoryFilter: string },
+  stockFilter: UseInventoryParams['stockFilter']
+): Promise<InventoryProductFetchResult> {
+  const safePage = Math.max(1, page);
+  const safePageSize = Math.max(1, pageSize);
+  const normalizedSearch = normalizeSearchTerm(filters.searchQuery);
+  const normalizedCategory = filters.categoryFilter.trim();
+
+  const { data, error } = await supabase
+    .rpc('list_inventory_product_page', {
+      p_search_query: normalizedSearch,
+      p_category_slug: normalizedCategory,
+      p_stock_filter: stockFilter,
+      p_page: safePage,
+      p_page_size: safePageSize,
+    })
+    .abortSignal(signal);
+
+  if (error) {
+    throw error;
+  }
+
+  const pageRows = (data || []) as InventoryPageRow[];
+  const productIds = pageRows
+    .map((row) => toNumber(row.product_id, 0))
+    .filter((productId) => productId > 0);
+  const totalCount = pageRows.length > 0 ? toNumber(pageRows[0].total_count, 0) : 0;
+
+  return {
+    data: await fetchInventoryProductDetails(signal, productIds, filters.categoryFilter),
+    error: null,
+    count: totalCount,
+    fullScan: false,
+    source: 'rpc',
+    warning: null,
+  };
+}
+
+async function fetchInventoryPageDirect(
   signal: AbortSignal,
   page: number,
   pageSize: number,
@@ -56,6 +121,32 @@ async function fetchInventoryPage(
   };
 }
 
+async function fetchInventoryPage(
+  signal: AbortSignal,
+  page: number,
+  pageSize: number,
+  filters: { searchQuery: string; categoryFilter: string }
+): Promise<InventoryProductFetchResult> {
+  const normalizedSearch = normalizeSearchTerm(filters.searchQuery);
+  if (!normalizedSearch) {
+    return fetchInventoryPageDirect(signal, page, pageSize, filters);
+  }
+
+  try {
+    return await fetchInventoryPageByRpc(signal, page, pageSize, filters, '');
+  } catch (error) {
+    if (error instanceof Error && error.name === 'AbortError') {
+      throw error;
+    }
+
+    console.warn('Inventory search RPC failed, falling back to product-only search:', error);
+    return {
+      ...(await fetchInventoryPageDirect(signal, page, pageSize, filters)),
+      source: 'rpc-fallback',
+    };
+  }
+}
+
 async function fetchInventoryStockFilteredPage(
   signal: AbortSignal,
   page: number,
@@ -63,69 +154,15 @@ async function fetchInventoryStockFilteredPage(
   filters: { searchQuery: string; categoryFilter: string },
   stockFilter: UseInventoryParams['stockFilter']
 ): Promise<InventoryProductFetchResult> {
-  const safePage = Math.max(1, page);
-  const safePageSize = Math.max(1, pageSize);
-  const normalizedSearch = normalizeSearchTerm(filters.searchQuery);
-  const normalizedCategory = filters.categoryFilter.trim();
-
   try {
-    const { data, error } = await supabase
-      .rpc('list_inventory_product_page', {
-        p_search_query: normalizedSearch,
-        p_category_slug: normalizedCategory,
-        p_stock_filter: stockFilter,
-        p_page: safePage,
-        p_page_size: safePageSize,
-      })
-      .abortSignal(signal);
-
-    if (error) {
-      throw error;
-    }
-
-    const pageRows = (data || []) as InventoryPageRow[];
-    const productIds = pageRows
-      .map((row) => toNumber(row.product_id, 0))
-      .filter((productId) => productId > 0);
-    const totalCount = pageRows.length > 0 ? toNumber(pageRows[0].total_count, 0) : 0;
-
-    if (productIds.length === 0) {
-      return {
-        data: [],
-        error: null,
-        count: totalCount,
-        fullScan: false,
-        source: 'rpc',
-        warning: null,
-      };
-    }
-
-    const { data: detailData, error: detailError } = await supabase
-      .from('products')
-      .select(getInventorySelect(filters.categoryFilter))
-      .abortSignal(signal)
-      .is('deleted_at', null)
-      .in('id', productIds);
-
-    if (detailError) {
-      throw detailError;
-    }
-
-    return {
-      data: orderProductsByIds((detailData || []) as unknown as ProductRow[], productIds),
-      error: null,
-      count: totalCount,
-      fullScan: false,
-      source: 'rpc',
-      warning: null,
-    };
+    return await fetchInventoryPageByRpc(signal, page, pageSize, filters, stockFilter);
   } catch (error) {
     if (error instanceof Error && error.name === 'AbortError') {
       throw error;
     }
 
     console.warn('Inventory stock filter RPC failed:', error);
-    const fallback = await fetchInventoryPage(signal, page, pageSize, filters);
+    const fallback = await fetchInventoryPageDirect(signal, page, pageSize, filters);
     return {
       ...fallback,
       source: 'rpc-fallback',

@@ -144,4 +144,75 @@ describe('fetchInventoryQueryData', () => {
     expect(result.diagnostics.warning).toBeNull();
     expect(result.diagnostics.fetchMs).toBeGreaterThanOrEqual(0);
   });
+
+  it('uses inventory RPC for searches so active variant sku matches can surface in results', async () => {
+    const categoriesBuilder = createBuilder({
+      data: [{ id: 4, name: 'Charm', slug: 'charm', is_active: true, parent_id: null }],
+      error: null,
+    });
+    const detailProductsBuilder = createBuilder({
+      data: [
+        {
+          id: 1094,
+          name: 'Sweet Slice Welded Charm',
+          slug: 'sweet-slice-welded-charm',
+          description: null,
+          category_id: 4,
+          sku: 'ICJ1838',
+          is_active: true,
+          deleted_at: null,
+          categories: { id: 4, name: 'Charm', slug: 'charm', is_active: true },
+          product_variants: [
+            {
+              id: 1178,
+              product_id: 1094,
+              name: 'Pink Mangosteen',
+              sku: 'ICJ1839',
+              price: '30000',
+              stock: 8,
+              reserved_stock: 0,
+              attributes: {},
+              is_active: true,
+            },
+          ],
+          product_images: [],
+        },
+      ],
+      error: null,
+      count: 1,
+    });
+
+    fromMock.mockImplementation((table: string) => {
+      if (table === 'categories') return categoriesBuilder;
+      if (table === 'products') return detailProductsBuilder;
+      throw new Error(`Unexpected table: ${table}`);
+    });
+    rpcMock.mockReturnValue(
+      createBuilder({
+        data: [{ product_id: 1094, total_count: 1 }],
+        error: null,
+      })
+    );
+
+    const result = await fetchInventoryQueryData(
+      {
+        page: 1,
+        pageSize: 24,
+        searchQuery: 'ICJ1839',
+        categoryFilter: '',
+        stockFilter: '',
+      } satisfies UseInventoryParams,
+      new AbortController().signal
+    );
+
+    expect(rpcMock).toHaveBeenCalledWith('list_inventory_product_page', {
+      p_search_query: 'ICJ1839',
+      p_category_slug: '',
+      p_stock_filter: '',
+      p_page: 1,
+      p_page_size: 24,
+    });
+    expect(result.products).toHaveLength(1);
+    expect(result.products[0]?.sku).toBe('ICJ1838');
+  });
 });
