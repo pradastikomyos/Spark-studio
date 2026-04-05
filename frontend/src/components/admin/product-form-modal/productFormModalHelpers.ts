@@ -1,4 +1,8 @@
 import { MAX_PRODUCT_IMAGES, PRODUCT_IMAGE_UPLOAD_CONCURRENCY, PRODUCT_IMAGE_UPLOAD_TIMEOUT_MS } from '../../../constants/productImages';
+import {
+  normalizeNumberLikeString,
+  normalizeSku,
+} from '../../../lib/inventoryProductContract';
 import type { CategoryOption, ExistingImage, ProductDraft, ProductVariantDraft } from './productFormModalTypes';
 
 export const ADMIN_PRODUCT_DRAFT_KEY = 'admin-product-form:draft:v1';
@@ -91,12 +95,15 @@ export function validateProductDraft(params: {
   for (const variant of draft.variants) {
     if (!variant.name.trim()) return 'Variant name is required.';
     if (!variant.sku.trim()) return 'Variant SKU is required.';
-    const normalizedSku = variant.sku.trim().toUpperCase();
+    const normalizedSku = normalizeSku(variant.sku);
     if (seenSkus.has(normalizedSku)) return 'Each variant SKU must be unique.';
     seenSkus.add(normalizedSku);
-    if (!variant.price || variant.price.trim() === '' || Number(variant.price) <= 0) {
+
+    const normalizedPrice = normalizeNumberLikeString(variant.price);
+    if (!normalizedPrice || Number(normalizedPrice) <= 0) {
       return `Variant "${variant.name || 'unnamed'}" must have a valid price greater than 0.`;
     }
+
     if (!Number.isInteger(variant.stock) || variant.stock < 0) {
       return `Variant "${variant.name || 'unnamed'}" must have stock 0 or greater.`;
     }
