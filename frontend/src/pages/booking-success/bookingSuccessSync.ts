@@ -1,5 +1,5 @@
-import { supabase } from '../../lib/supabase';
-import { createSupabaseFunctionError, getSupabaseFunctionStatus } from '../../lib/supabaseFunctionError';
+import { getSupabaseFunctionStatus } from '../../lib/supabaseFunctionError';
+import { invokeSupabaseFunction } from '../../lib/supabaseFunctionInvoke';
 import { getValidatedAccessToken } from '../../auth/sessionAccess';
 import { withTimeout } from '../../utils/queryHelpers';
 import type { OrderState } from './bookingSuccessTypes';
@@ -30,17 +30,21 @@ export async function syncBookingSuccessStatus(params: {
     throw new Error('Not authenticated');
   }
 
-  const { data, error: invokeError, response } = await withTimeout(
-    supabase.functions.invoke('sync-midtrans-status', {
-      body: { order_number: orderNumber },
-      headers: { Authorization: `Bearer ${token}` },
-    }),
-    12000,
-    'Request timeout'
-  );
+  try {
+    const data = await withTimeout(
+      invokeSupabaseFunction<{ order?: OrderState }>({
+        functionName: 'sync-midtrans-status',
+        body: { order_number: orderNumber },
+        headers: { Authorization: `Bearer ${token}` },
+        fallbackMessage: 'Failed to sync status',
+      }),
+      12000,
+      'Request timeout'
+    );
 
-  if (invokeError) {
-    const errorStatus = getSupabaseFunctionStatus(invokeError, response);
+    return { order: (data as { order?: OrderState } | null)?.order ?? null };
+  } catch (error) {
+    const errorStatus = getSupabaseFunctionStatus(error);
     if (errorStatus === 401 && retryCount < 1 && typeof retryWithFreshToken === 'function') {
       const refreshedToken = await retryWithFreshToken();
       if (refreshedToken) {
@@ -61,13 +65,6 @@ export async function syncBookingSuccessStatus(params: {
       });
     }
 
-    throw await createSupabaseFunctionError({
-      error: invokeError,
-      response,
-      fallbackMessage: 'Failed to sync status',
-    });
+    throw error;
   }
-
-  const responseData = data as { order?: OrderState } | null;
-  return { order: responseData?.order ?? null };
 }

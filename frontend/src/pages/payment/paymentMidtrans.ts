@@ -1,8 +1,6 @@
 import { supabase } from '../../lib/supabase';
-import {
-  createSupabaseFunctionError,
-  getSupabaseFunctionStatus,
-} from '../../lib/supabaseFunctionError';
+import { getSupabaseFunctionStatus } from '../../lib/supabaseFunctionError';
+import { invokeSupabaseFunction } from '../../lib/supabaseFunctionInvoke';
 import { ensureFreshToken } from '../../utils/auth';
 import { withTimeout } from '../../utils/queryHelpers';
 import type { MidtransTokenResponse, PaymentBookingDetails } from './paymentTypes';
@@ -49,7 +47,8 @@ export async function createMidtransToken(params: {
 }) {
   const invoke = (accessToken: string) =>
     withTimeout(
-      supabase.functions.invoke('create-midtrans-token', {
+      invokeSupabaseFunction<MidtransTokenResponse>({
+        functionName: 'create-midtrans-token',
         body: {
           items: [
             {
@@ -68,40 +67,39 @@ export async function createMidtransToken(params: {
         headers: {
           Authorization: `Bearer ${accessToken}`,
         },
+        fallbackMessage: 'Failed to create payment',
       }),
       15000,
       'Request timeout. Please try again.'
     );
 
   let accessToken = params.token;
-  let { data, error, response } = await invoke(accessToken);
+  let data: MidtransTokenResponse | null = null;
 
-  if (error && getSupabaseFunctionStatus(error, response) === 401) {
-    const { data: refreshData, error: refreshError } = await withTimeout(
-      supabase.auth.refreshSession(),
-      5000,
-      'Session refresh timeout. Please try again.'
-    );
+  try {
+    data = await invoke(accessToken);
+  } catch (error) {
+    if (getSupabaseFunctionStatus(error) === 401) {
+      const { data: refreshData, error: refreshError } = await withTimeout(
+        supabase.auth.refreshSession(),
+        5000,
+        'Session refresh timeout. Please try again.'
+      );
 
-    if (!refreshError) {
-      const refreshedToken = await ensureFreshToken(refreshData.session ?? null);
-      if (refreshedToken) {
-        accessToken = refreshedToken;
-        const retry = await invoke(accessToken);
-        data = retry.data;
-        error = retry.error ?? null;
-        response = retry.response;
+      if (!refreshError) {
+        const refreshedToken = await ensureFreshToken(refreshData.session ?? null);
+        if (refreshedToken) {
+          accessToken = refreshedToken;
+          data = await invoke(accessToken);
+        } else {
+          throw error;
+        }
+      } else {
+        throw error;
       }
+    } else {
+      throw error;
     }
-  }
-
-  if (error) {
-    const invokeError = await createSupabaseFunctionError({
-      error,
-      response,
-      fallbackMessage: 'Failed to create payment',
-    });
-    throw invokeError;
   }
 
   if (!data?.token || !data?.order_number) {

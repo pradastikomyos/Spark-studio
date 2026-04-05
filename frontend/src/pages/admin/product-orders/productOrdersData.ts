@@ -1,4 +1,5 @@
-import { createSupabaseFunctionError } from '../../../lib/supabaseFunctionError';
+import { getSupabaseFunctionStatus } from '../../../lib/supabaseFunctionError';
+import { invokeSupabaseFunction } from '../../../lib/supabaseFunctionInvoke';
 import { supabase } from '../../../lib/supabase';
 import { ensureFreshToken } from '../../../utils/auth';
 import type { ProductOrderDetails } from './productOrdersTypes';
@@ -40,16 +41,34 @@ export async function loadProductOrderDetailsByPickupCode(pickupCode: string): P
 
   if (itemsError) throw itemsError;
 
-  const items = (itemRows || []).map((row) => {
-    const variant = (row as { product_variants?: { name?: string; products?: { name?: string } | null } | null })
-      .product_variants;
+  const typedItemRows = (itemRows || []) as Array<{
+    id: number | string;
+    quantity: number | string;
+    price: number | string;
+    subtotal: number | string;
+    product_variants?:
+      | {
+          name?: string;
+          products?: { name?: string } | { name?: string }[] | null;
+        }
+      | {
+          name?: string;
+          products?: { name?: string } | { name?: string }[] | null;
+        }[]
+      | null;
+  }>;
+
+  const items = typedItemRows.map((row) => {
+    const variantRelation = row.product_variants;
+    const variant = Array.isArray(variantRelation) ? (variantRelation[0] ?? null) : variantRelation;
+    const productRelation = Array.isArray(variant?.products) ? (variant?.products[0] ?? null) : variant?.products;
     return {
-      id: Number((row as { id: number | string }).id),
-      quantity: Number((row as { quantity: number | string }).quantity),
-      price: Number((row as { price: number | string }).price),
-      subtotal: Number((row as { subtotal: number | string }).subtotal),
+      id: Number(row.id),
+      quantity: Number(row.quantity),
+      price: Number(row.price),
+      subtotal: Number(row.subtotal),
       variantName: String(variant?.name ?? 'Variant'),
-      productName: String(variant?.products?.name ?? 'Product'),
+      productName: String(productRelation?.name ?? 'Product'),
     };
   });
 
@@ -86,21 +105,18 @@ export async function completeProductPickup(params: {
   if (!token) {
     throw new Error('Sesi login tidak valid. Silakan login ulang.');
   }
-  const { error: invokeError, response } = await supabase.functions.invoke('complete-product-pickup', {
-    body: { pickupCode: params.pickupCode.trim().toUpperCase() },
-    headers: { Authorization: `Bearer ${token}` },
-  });
 
-  if (invokeError) {
-    const parsedError = await createSupabaseFunctionError({
-      error: invokeError,
-      response,
+  try {
+    await invokeSupabaseFunction({
+      functionName: 'complete-product-pickup',
+      body: { pickupCode: params.pickupCode.trim().toUpperCase() },
+      headers: { Authorization: `Bearer ${token}` },
       fallbackMessage: 'Gagal memverifikasi barang',
     });
-    const status = parsedError.status;
-    if (status === 401) {
+  } catch (error) {
+    if (getSupabaseFunctionStatus(error) === 401) {
       throw new Error('Sesi login kadaluarsa. Silakan login ulang.');
     }
-    throw parsedError;
+    throw error;
   }
 }

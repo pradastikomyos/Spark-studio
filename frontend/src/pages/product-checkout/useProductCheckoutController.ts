@@ -3,10 +3,8 @@ import type { NavigateFunction } from 'react-router-dom';
 import type { TFunction } from 'i18next';
 import type { QueryClient } from '@tanstack/react-query';
 import type { CartItem } from '../../contexts/cartStore';
-import {
-  createSupabaseFunctionError,
-  getSupabaseFunctionStatus,
-} from '../../lib/supabaseFunctionError';
+import { getSupabaseFunctionStatus } from '../../lib/supabaseFunctionError';
+import { invokeSupabaseFunction } from '../../lib/supabaseFunctionInvoke';
 import { supabase } from '../../lib/supabase';
 import { queryKeys } from '../../lib/queryKeys';
 import { withTimeout } from '../../utils/queryHelpers';
@@ -268,7 +266,8 @@ export function useProductCheckoutController({
 
     const invoke = async (accessToken: string) =>
       withTimeout(
-        supabase.functions.invoke(functionName, {
+        invokeSupabaseFunction<CreateProductTokenResponse | CreateCashierOrderResponse>({
+          functionName,
           body: {
             items: orderItems.map((item) => ({
               productVariantId: item.product_variant_id,
@@ -282,44 +281,49 @@ export function useProductCheckoutController({
             voucherCode: appliedVoucher?.code || undefined,
           },
           headers: { Authorization: `Bearer ${accessToken}` },
+          fallbackMessage: `Failed to create ${functionName.includes('cashier') ? 'cashier order' : 'payment'}`,
         }),
         15000,
         'Request timeout. Please try again.'
       );
 
-    let { data, error: invokeError, response } = await invoke(token);
-    const status = invokeError ? getSupabaseFunctionStatus(invokeError, response) : undefined;
-    if (invokeError && status === 401) {
-      await refreshSession();
-      token = await getValidAccessToken();
-      if (!token) {
-        setError('Sesi login kadaluarsa. Silakan login ulang.');
-        navigate('/login');
-        return null;
+    try {
+      return await invoke(token);
+    } catch (error) {
+      if (getSupabaseFunctionStatus(error) === 401) {
+        await refreshSession();
+        token = await getValidAccessToken();
+        if (!token) {
+          setError('Sesi login kadaluarsa. Silakan login ulang.');
+          navigate('/login');
+          return null;
+        }
+
+        try {
+          return await invoke(token);
+        } catch (retryError) {
+          const retryMessage = retryError instanceof Error ? retryError.message.toLowerCase() : '';
+          const retryCode = retryError && typeof retryError === 'object' ? (retryError as { code?: string }).code : undefined;
+          if (retryCode?.startsWith('VOUCHER_') || retryMessage.includes('voucher')) {
+            setVoucherError(resolveVoucherErrorMessage(retryError instanceof Error ? retryError.message : null, retryCode));
+            setAppliedVoucher(null);
+            return null;
+          }
+          throw retryError;
+        }
       }
-      const retry = await invoke(token);
-      data = retry.data;
-      invokeError = retry.error ?? null;
-      response = retry.response;
-    }
 
-    if (invokeError) {
-      const functionError = await createSupabaseFunctionError({
-        error: invokeError,
-        response,
-        fallbackMessage: `Failed to create ${functionName.includes('cashier') ? 'cashier order' : 'payment'}`,
-      });
+      const functionError = error instanceof Error ? error : new Error('Failed to create order');
+      const retryCode = error && typeof error === 'object' ? (error as { code?: string }).code : undefined;
 
-      if (functionError.code?.startsWith('VOUCHER_') || functionError.message.toLowerCase().includes('voucher')) {
-        setVoucherError(resolveVoucherErrorMessage(functionError.message, functionError.code));
+      if (retryCode?.startsWith('VOUCHER_') || functionError.message.toLowerCase().includes('voucher')) {
+        setVoucherError(resolveVoucherErrorMessage(functionError.message, retryCode));
         setAppliedVoucher(null);
         return null;
       }
 
       throw functionError;
     }
-
-    return data;
   };
 
   const handlePay = async () => {

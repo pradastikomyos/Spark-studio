@@ -1,7 +1,6 @@
 import { buildSrc, upload } from '@imagekit/javascript';
 import type { UploadResponse } from '@imagekit/javascript';
-import { createSupabaseFunctionError } from './supabaseFunctionError';
-import { supabase } from './supabase';
+import { invokeSupabaseFunction } from './supabaseFunctionInvoke';
 
 export type ProductImageProvider = 'supabase' | 'imagekit';
 
@@ -59,18 +58,12 @@ export function buildImageKitThumbUrl(imageUrl: string, options?: { width?: numb
 }
 
 async function getImageKitUploadAuth(accessToken: string, productId: number | string): Promise<ImageKitUploadAuthResponse> {
-  const { data, error, response } = await supabase.functions.invoke('imagekit-auth', {
+  const data = await invokeSupabaseFunction<ImageKitUploadAuthResponse>({
+    functionName: 'imagekit-auth',
     body: { productId },
     headers: { Authorization: `Bearer ${accessToken}` },
+    fallbackMessage: 'Failed to fetch ImageKit upload auth',
   });
-
-  if (error) {
-    throw await createSupabaseFunctionError({
-      error,
-      response,
-      fallbackMessage: 'Failed to fetch ImageKit upload auth',
-    });
-  }
 
   const payload = data as Partial<ImageKitUploadAuthResponse> | null;
   if (
@@ -120,16 +113,10 @@ export async function uploadFileToImageKit(params: UploadFileToImageKitParams): 
 }
 
 export async function deleteImageKitFile(params: DeleteImageKitFileParams): Promise<void> {
-  const { error, response } = await supabase.functions.invoke('imagekit-delete', {
+  await invokeSupabaseFunction({
+    functionName: 'imagekit-delete',
     body: { fileId: params.fileId, productImageId: params.productImageId ?? null },
     headers: { Authorization: `Bearer ${params.accessToken}` },
+    fallbackMessage: 'Failed to delete ImageKit file',
   });
-
-  if (error) {
-    throw await createSupabaseFunctionError({
-      error,
-      response,
-      fallbackMessage: 'Failed to delete ImageKit file',
-    });
-  }
 }

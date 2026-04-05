@@ -2,7 +2,14 @@ import type { Session } from '@supabase/supabase-js';
 
 import type { ExistingImage, ProductDraft } from '../../../components/admin/ProductFormModal';
 import type { ProductImageRecordInput } from '../../../lib/imagekit';
-import { createSupabaseFunctionError } from '../../../lib/supabaseFunctionError';
+import {
+  normalizePlaceholderAttribute,
+  normalizeSlug,
+  normalizeSku,
+  toValidNumber,
+} from '../../../lib/inventoryProductContract';
+import { getSupabaseFunctionStatus } from '../../../lib/supabaseFunctionError';
+import { invokeSupabaseFunction } from '../../../lib/supabaseFunctionInvoke';
 import { supabase } from '../../../lib/supabase';
 import { ensureFreshToken } from '../../../utils/auth';
 import { withTimeout } from '../../../utils/queryHelpers';
@@ -48,10 +55,6 @@ type InventoryMutationAuth = {
   refreshSession?: () => Promise<void>;
 };
 
-type FunctionInvokeError = {
-  status?: number;
-};
-
 type InventoryMutationErrorMetadata = Error & {
   status?: number;
   code?: string;
@@ -61,24 +64,9 @@ type InventoryMutationErrorMetadata = Error & {
 
 const SESSION_EXPIRED_MESSAGE = 'Sesi login kadaluarsa. Silakan login ulang.';
 
-const normalizeSku = (value: string) =>
-  value
-    .replace(/\u00a0/g, ' ')
-    .replace(/[\u200b-\u200d\uFEFF]/g, '')
-    .replace(/[\u2010-\u2015\u2212]/g, '-')
-    .trim()
-    .toUpperCase();
-
-const normalizeSlug = (value: string) =>
-  value
-    .replace(/\u00a0/g, ' ')
-    .replace(/[\u200b-\u200d\uFEFF]/g, '')
-    .trim()
-    .toLowerCase();
-
 const toValidVariantId = (value: unknown): number | null => {
-  const numberValue = typeof value === 'number' ? value : typeof value === 'string' ? Number(value) : Number.NaN;
-  return Number.isFinite(numberValue) && numberValue > 0 ? numberValue : null;
+  const numberValue = toValidNumber(value);
+  return numberValue != null && numberValue > 0 ? numberValue : null;
 };
 
 const withInventoryMutationErrorMetadata = (message: string, source: unknown): InventoryMutationErrorMetadata => {
@@ -102,29 +90,23 @@ async function invokeInventoryMutation<TResponse>(
   accessToken: string,
   body: Record<string, unknown>
 ): Promise<TResponse> {
-  const { data, error, response } = await withTimeout(
-    supabase.functions.invoke(INVENTORY_MUTATION_FUNCTION, {
-      body,
-      headers: { Authorization: `Bearer ${accessToken}` },
-    }),
-    REQUEST_TIMEOUT_MS,
-    'Request timeout. Please try again.'
-  );
-
-  if (error) {
-    const status = (error as FunctionInvokeError).status;
-    if (status === 401) {
+  try {
+    return await withTimeout(
+      invokeSupabaseFunction<TResponse>({
+        functionName: INVENTORY_MUTATION_FUNCTION,
+        body,
+        headers: { Authorization: `Bearer ${accessToken}` },
+        fallbackMessage: 'Failed to mutate inventory product',
+      }),
+      REQUEST_TIMEOUT_MS,
+      'Request timeout. Please try again.'
+    );
+  } catch (error) {
+    if (getSupabaseFunctionStatus(error) === 401) {
       throw new Error(SESSION_EXPIRED_MESSAGE);
     }
-
-    throw await createSupabaseFunctionError({
-      error,
-      response,
-      fallbackMessage: 'Failed to mutate inventory product',
-    });
+    throw error;
   }
-
-  return data as TResponse;
 }
 
 async function resolveInventoryAccessToken(auth: InventoryMutationAuth): Promise<string | null> {
@@ -149,7 +131,7 @@ async function invokeInventoryMutationWithRetry<TResponse>(
   try {
     return await invokeInventoryMutation<TResponse>(accessToken, body);
   } catch (error) {
-    const isUnauthorized = error instanceof Error && error.message === SESSION_EXPIRED_MESSAGE;
+    const isUnauthorized = getSupabaseFunctionStatus(error) === 401;
     if (!isUnauthorized || typeof auth.refreshSession !== 'function') throw error;
 
     await auth.refreshSession();
@@ -205,8 +187,8 @@ async function saveInventoryProductOnServer(params: {
       sku: variant.sku,
       price: variant.price,
       stock: variant.stock,
-      size: variant.size || null,
-      color: variant.color || null,
+      size: normalizePlaceholderAttribute(variant.size),
+      color: normalizePlaceholderAttribute(variant.color),
     })),
     newImages,
     removedImageUrls,
