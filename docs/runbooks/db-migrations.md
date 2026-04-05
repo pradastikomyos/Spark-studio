@@ -34,13 +34,11 @@ Source of truth for schema, RPC, and RLS is `supabase/migrations/`.
 
 Use this after `supabase migration repair`, dashboard SQL, or MCP-driven migration fixes.
 
-1. Confirm the repo is linked to the expected project:
-   - `supabase status`
-2. Run:
+1. Run:
    - `supabase migration list`
-3. Verify Local and Remote are identical for every repaired timestamp before doing any new deploy.
-4. If a timestamp exists remotely but not locally, fetch or restore the matching file in `supabase/migrations/`.
-5. If a timestamp exists locally but not remotely, stop and resolve the history mismatch before `supabase db push`.
+2. Verify Local and Remote are identical for every repaired timestamp before doing any new deploy.
+3. If a timestamp exists remotely but not locally, fetch or restore the matching file in `supabase/migrations/`.
+4. If a timestamp exists locally but not remotely, stop and resolve the history mismatch before `supabase db push`.
 
 For the 2026-03-31 pickup and ticket-scan repair, the expected sanity check is:
 
@@ -50,6 +48,20 @@ For the 2026-03-31 pickup and ticket-scan repair, the expected sanity check is:
 - `20260331140000`
 - `20260331140100`
 - `20260402112320`
+
+## Type Sync
+
+The committed DB type files are part of the release contract.
+
+1. Regenerate the canonical frontend types after a schema change:
+   - `supabase gen types --linked --schema public > frontend/src/types/database.types.ts`
+2. Update `supabase/functions/_shared/database.types.ts` when Edge Function-facing RPC or table shapes change.
+3. Verify the committed files still satisfy the inventory-critical contract:
+   - `npm run supabase:types:check`
+4. If the project is authenticated and the linked database is reachable, run the stronger generation gate:
+   - `npm run supabase:types:check:linked`
+
+`npm run supabase:types:check` validates the committed type files locally against the inventory contract. `npm run supabase:types:check:linked` adds a live `supabase gen types --linked --schema public` run when your machine can reach the linked project.
 
 ## Edge Function Deploy After Migration Repair
 
@@ -63,10 +75,21 @@ If a migration changed RPC, RLS, or function-facing database behavior, redeploy 
 
 ## Before Deploy
 
+- `npm run supabase:release:check` passes
 - `supabase migration list` has no unexplained mismatch
 - `npm run build` passes
 - critical RLS and RPC changes have a reviewed migration file
 - function config in `supabase/config.toml` matches the intended runtime auth mode
+
+## Release Gate
+
+Use this when shipping schema or RPC work:
+
+1. `npm run supabase:release:check`
+2. `npm run build`
+3. `npm run supabase:db:push`
+4. `npm run supabase:db:list` and confirm Local and Remote match
+5. Deploy dependent Edge Functions if the migration changed RPC or RLS
 
 ## Notes
 
