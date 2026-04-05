@@ -1,6 +1,6 @@
 import type { Dispatch, ReactNode, SetStateAction } from 'react';
 import type { EntranceTicket } from '../../../hooks/useEntranceTicket';
-import { formatRupiahInputValue, parseRupiahInputValue } from '../../../utils/rupiahInput';
+import { RupiahPriceInput } from '../../../components/RupiahPriceInput';
 import type {
   AvailabilityActionMode,
   OverrideFormState,
@@ -82,12 +82,10 @@ export function CommercialStatusSection({
 
         <label className="space-y-2">
           <span className="block text-xs font-bold uppercase tracking-widest text-gray-500">Price</span>
-          <input
-            type="text"
-            inputMode="numeric"
-            value={formatRupiahInputValue(ticketForm.price)}
-            onChange={(event) =>
-              setTicketForm((current) => (current ? { ...current, price: parseRupiahInputValue(event.target.value) } : current))
+          <RupiahPriceInput
+            value={ticketForm.price}
+            onChange={(raw) =>
+              setTicketForm((current) => (current ? { ...current, price: raw } : current))
             }
             placeholder="50.000"
             className="w-full rounded-xl border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"

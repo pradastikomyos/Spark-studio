@@ -1,5 +1,6 @@
 import type { Dispatch, SetStateAction } from 'react';
-import { createEmptyVariant, formatCurrency, parseCurrency } from './productFormModalHelpers';
+import { RupiahPriceInput } from '../../RupiahPriceInput';
+import { createEmptyVariant } from './productFormModalHelpers';
 import type { ProductDraft } from './productFormModalTypes';
 
 type ProductVariantsSectionProps = {
@@ -7,6 +8,7 @@ type ProductVariantsSectionProps = {
   saving: boolean;
   setDraft: Dispatch<SetStateAction<ProductDraft>>;
 };
+
 
 export function ProductVariantsSection({ draft, saving, setDraft }: ProductVariantsSectionProps) {
   return (
@@ -69,20 +71,16 @@ export function ProductVariantsSection({ draft, saving, setDraft }: ProductVaria
                   />
                 </td>
                 <td className="py-2 pr-3">
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    value={formatCurrency(variant.price)}
-                    onChange={(event) => {
-                      const rawValue = parseCurrency(event.target.value);
+                  <RupiahPriceInput
+                    value={variant.price}
+                    className="w-28 rounded border border-gray-200 bg-gray-50 px-2 py-1 outline-none focus:border-primary"
+                    onChange={(raw) => {
                       setDraft((current) => {
                         const next = current.variants.slice();
-                        next[index] = { ...next[index], price: rawValue };
+                        next[index] = { ...next[index], price: raw };
                         return { ...current, variants: next };
                       });
                     }}
-                    className="w-28 rounded border border-gray-200 bg-gray-50 px-2 py-1 outline-none focus:border-primary"
-                    placeholder="50.000"
                   />
                 </td>
                 <td className="py-2 pr-3">
