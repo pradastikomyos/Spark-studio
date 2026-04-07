@@ -167,7 +167,7 @@ function serializeError(error: unknown, fallbackMessage: string): SerializableEr
   }
 }
 
-serve(async (req) => {
+serve(async (req: Request) => {
   const corsResponse = handleCors(req)
   if (corsResponse) return corsResponse
 
