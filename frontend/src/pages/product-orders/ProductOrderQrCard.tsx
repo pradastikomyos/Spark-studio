@@ -31,7 +31,7 @@ export function ProductOrderQrCard({
         </div>
         <p className="mt-3 text-sm text-gray-500">
           {String(channel || '').toLowerCase() === 'cashier'
-            ? 'Tunjukkan QR ini ke kasir. Pembayaran cash dilakukan setelah QR discan admin.'
+            ? 'Tunjukkan QR ini ke kasir untuk pembayaran. Reservasi akan kadaluarsa jika belum dibayar.'
             : 'Show this QR code to admin when picking up your items.'}
         </p>
       </div>

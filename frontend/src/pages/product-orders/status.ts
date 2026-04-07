@@ -13,6 +13,10 @@ export function isPendingPayment(order: Pick<ProductOrderBase, 'payment_status' 
   return paymentStatus === 'unpaid' || paymentStatus === 'pending';
 }
 
+export function isCashierOrder(order: Pick<ProductOrderBase, 'channel'>) {
+  return normalize(order.channel) === 'cashier';
+}
+
 export function isActivePickup(
   order: Pick<ProductOrderBase, 'payment_status' | 'pickup_status' | 'status'>
 ) {

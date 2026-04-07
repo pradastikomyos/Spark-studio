@@ -82,8 +82,17 @@ export function MyOrderCard({
               className="md:items-center"
             />
             <div className="text-center md:text-left mt-3 text-sm text-gray-600">
-              {isCashier ? t('myOrders.pickup.instructions.cashier') : pickupInstruction}
-              {isCashier && <p className="text-xs text-gray-500 mt-2">{t('myOrders.pickup.cashierNote')}</p>}
+              {isCashier
+                ? t(
+                    'myOrders.pickup.instructions.cashier',
+                    'Show this QR to the cashier to complete payment. Reservation expires if unpaid.'
+                  )
+                : pickupInstruction}
+              {isCashier && (
+                <p className="text-xs text-gray-500 mt-2">
+                  {t('myOrders.pickup.cashierNote', 'Payment is completed after the cashier scans the QR.')}
+                </p>
+              )}
             </div>
           </div>
         )}

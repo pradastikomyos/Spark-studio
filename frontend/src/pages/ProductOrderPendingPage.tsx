@@ -73,6 +73,29 @@ export default function ProductOrderPendingPage() {
                     instructionSteps={instructionSteps}
                     onCopyCode={copyToClipboard}
                   />
+                ) : statusView.kind === 'pending' ? (
+                  <div className="mt-12 border-t border-gray-50 pt-8">
+                    <h3 className="text-sm font-bold uppercase tracking-wider mb-6 text-gray-400">Next Steps</h3>
+                    <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 text-sm text-gray-700">
+                      <p>{statusView.description}</p>
+                      <div className="mt-4 flex flex-col sm:flex-row gap-3">
+                        <Link
+                          to={`/order/product/success/${orderNumber}`}
+                          className="w-full sm:w-auto bg-primary hover:bg-primary-dark text-white font-bold py-3 px-6 rounded-xl transition-colors flex items-center justify-center gap-2"
+                        >
+                          <span className="material-symbols-outlined text-base">qr_code</span>
+                          <span className="text-xs tracking-widest uppercase">View Cashier QR</span>
+                        </Link>
+                        <Link
+                          to="/my-orders"
+                          className="w-full sm:w-auto bg-white border border-gray-200 hover:border-primary/30 text-gray-700 font-bold py-3 px-6 rounded-xl transition-colors flex items-center justify-center gap-2"
+                        >
+                          <span className="material-symbols-outlined text-base">receipt_long</span>
+                          <span className="text-xs tracking-widest uppercase">View My Orders</span>
+                        </Link>
+                      </div>
+                    </div>
+                  </div>
                 ) : (
                   <div className="mt-12 border-t border-gray-50 pt-8">
                     <h3 className="text-sm font-bold uppercase tracking-wider mb-6 text-gray-400">Next Steps</h3>

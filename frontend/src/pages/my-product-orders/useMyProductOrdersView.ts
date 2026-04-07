@@ -2,7 +2,7 @@ import { useMutation } from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { TFunction } from 'i18next';
 import { useMyOrders } from '../../hooks/useMyOrders';
-import { classifyProductOrder, isPickupReady, shouldAutoSyncProductOrder } from '../product-orders/status';
+import { classifyProductOrder, isCashierOrder, isPickupReady, shouldAutoSyncProductOrder } from '../product-orders/status';
 import { syncProductOrderStatus } from '../product-orders/syncProductOrderStatus';
 import type { ProductOrderListItem } from '../product-orders/types';
 
@@ -191,6 +191,13 @@ export function useMyProductOrdersView({
   const getStatusBadge = useCallback(
     (order: ProductOrderListItem) => {
       if (String(order.payment_status || '').toLowerCase() !== 'paid') {
+        if (isCashierOrder(order)) {
+          const orderStatus = String(order.status || '').toLowerCase();
+          if (orderStatus === 'expired') {
+            return { label: t('myOrders.status.cashierExpired', 'Cashier reservation expired'), tone: 'gray' as const };
+          }
+          return { label: t('myOrders.status.cashierPending', 'Awaiting cashier payment'), tone: 'amber' as const };
+        }
         return { label: t('myOrders.status.pendingPayment'), tone: 'yellow' as const };
       }
       if (order.pickup_status === 'pending_review') {

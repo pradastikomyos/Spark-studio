@@ -5,7 +5,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
 import { buildInstructionSteps, getCountdownParts, getProductOrderPaymentInfo, getRemainingMs } from '../product-orders/payment';
 import { fetchProductOrderDetail } from '../product-orders/orderDetailData';
-import { shouldAutoSyncProductOrder, shouldRedirectPendingToSuccess } from '../product-orders/status';
+import { isCashierOrder, shouldAutoSyncProductOrder, shouldRedirectPendingToSuccess } from '../product-orders/status';
 import {
   getProductOrderAccessToken,
   syncProductOrderStatus,
@@ -201,12 +201,15 @@ export function useProductOrderPendingController({
   const statusView = useMemo(() => {
     const paymentStatus = String(order?.payment_status || '').toLowerCase();
     const orderStatus = String(order?.status || '').toLowerCase();
+    const isCashier = order ? isCashierOrder(order) : false;
 
     if (orderStatus === 'expired') {
       return {
         kind: 'expired' as const,
-        title: 'Payment Expired',
-        description: 'This order has expired. Please create a new order to try again.',
+        title: isCashier ? 'Cashier Reservation Expired' : 'Payment Expired',
+        description: isCashier
+          ? 'The cashier reservation expired before payment. Please place a new order if you still want the items.'
+          : 'This order has expired. Please create a new order to try again.',
         icon: 'timer_off',
         iconBg: 'bg-red-50',
         iconText: 'text-red-600',
@@ -260,17 +263,18 @@ export function useProductOrderPendingController({
 
     return {
       kind: 'pending' as const,
-      title: 'Awaiting Payment',
-      description:
-        'Please complete your payment to secure your order items. You can come back later and finish payment anytime before it expires.',
+      title: isCashier ? 'Awaiting Cashier Payment' : 'Awaiting Payment',
+      description: isCashier
+        ? 'Show the QR code at the cashier to complete payment. The reservation expires if it is not paid in time.'
+        : 'Please complete your payment to secure your order items. You can come back later and finish payment anytime before it expires.',
       icon: 'schedule',
       iconBg: 'bg-orange-50',
       iconText: 'text-orange-500',
       accentText: 'text-primary',
-      allowPayNow: true,
-      allowInstructions: true,
+      allowPayNow: !isCashier,
+      allowInstructions: !isCashier,
     };
-  }, [order?.payment_status, order?.status]);
+  }, [order?.payment_status, order?.status, order?.channel]);
 
   const copyToClipboard = useCallback(
     async (value: string) => {
