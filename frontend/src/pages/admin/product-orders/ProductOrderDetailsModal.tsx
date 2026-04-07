@@ -64,7 +64,7 @@ export function ProductOrderDetailsModal({
             disabled={submitting}
             className="mt-6 w-full rounded-lg bg-[#ff4b86] px-6 py-3 text-sm font-bold text-white hover:bg-[#ff6a9a] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {submitting ? 'Memproses...' : 'Verifikasi Barang'}
+            {submitting ? 'Memproses...' : 'Konfirmasi Pembayaran & Serah Barang'}
           </button>
         </div>
       </div>

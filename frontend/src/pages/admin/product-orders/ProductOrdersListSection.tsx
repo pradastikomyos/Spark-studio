@@ -10,7 +10,8 @@ import type { ProductOrdersTab } from './productOrdersTypes';
 
 type ProductOrdersListSectionProps = {
   activeTab: ProductOrdersTab;
-  pendingCount: number;
+  pendingPickupCount: number;
+  pendingPaymentCount: number;
   todayCount: number;
   completedCount: number;
   isLoading: boolean;
@@ -24,7 +25,8 @@ type ProductOrdersListSectionProps = {
 
 export function ProductOrdersListSection({
   activeTab,
-  pendingCount,
+  pendingPickupCount,
+  pendingPaymentCount,
   todayCount,
   completedCount,
   isLoading,
@@ -41,17 +43,25 @@ export function ProductOrdersListSection({
   return (
     <section className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
       <div className="p-6">
-        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-4">
+        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-2">
           <h3 className="text-xl font-bold text-neutral-900">Daftar Pesanan</h3>
           <div className="flex items-center gap-3">
             <div className="flex gap-1 bg-gray-100 p-1 rounded-lg">
               <button
-                onClick={() => onChangeTab('pending')}
+                onClick={() => onChangeTab('pending_payment')}
                 className={`px-3 py-1.5 text-xs font-bold rounded transition-colors ${
-                  activeTab === 'pending' ? 'bg-primary text-gray-900' : 'text-gray-600 hover:bg-white'
+                  activeTab === 'pending_payment' ? 'bg-primary text-gray-900' : 'text-gray-600 hover:bg-white'
                 }`}
               >
-                Pending ({pendingCount})
+                Pending Payment ({pendingPaymentCount})
+              </button>
+              <button
+                onClick={() => onChangeTab('pending_pickup')}
+                className={`px-3 py-1.5 text-xs font-bold rounded transition-colors ${
+                  activeTab === 'pending_pickup' ? 'bg-primary text-gray-900' : 'text-gray-600 hover:bg-white'
+                }`}
+              >
+                Pending Pickup ({pendingPickupCount})
               </button>
               <button
                 onClick={() => onChangeTab('today')}
@@ -79,6 +89,9 @@ export function ProductOrdersListSection({
             </button>
           </div>
         </div>
+        <p className="mb-4 text-xs text-gray-500">
+          Pending payment menampilkan reservasi kasir yang belum dibayar. Pending pickup hanya untuk pesanan paid yang belum diambil.
+        </p>
         {ordersError && <div className="mb-4 text-sm text-red-600">{ordersError}</div>}
 
         {isLoading ? (

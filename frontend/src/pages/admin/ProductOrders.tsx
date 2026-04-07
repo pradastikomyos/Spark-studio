@@ -19,11 +19,13 @@ export default function ProductOrders() {
 
   const { data, error, isLoading, isFetching, refetch } = useProductOrders();
   const orders = data?.orders ?? [];
-  const pendingCount = data?.pendingCount ?? 0;
+  const pendingPickupCount = data?.pendingPickupCount ?? 0;
+  const pendingPaymentCount = data?.pendingPaymentCount ?? 0;
   const ordersError = error instanceof Error ? error.message : error ? 'Gagal memuat daftar pesanan' : null;
   const controller = useProductOrdersController({
     orders,
-    pendingCount,
+    pendingPickupCount,
+    pendingPaymentCount,
     ordersError,
     session,
     showToast,
@@ -38,6 +40,7 @@ export default function ProductOrders() {
     actionError,
     inputRef,
     pendingOrders,
+    pendingPaymentOrders,
     todaysOrders,
     completedOrders,
     displayOrders,
@@ -100,7 +103,8 @@ export default function ProductOrders() {
 
       <ProductOrdersListSection
         activeTab={activeTab}
-        pendingCount={pendingOrders.length}
+        pendingPickupCount={pendingOrders.length}
+        pendingPaymentCount={pendingPaymentOrders.length}
         todayCount={todaysOrders.length}
         completedCount={completedOrders.length}
         isLoading={isLoading}

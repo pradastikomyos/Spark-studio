@@ -7,7 +7,7 @@ const navigateMock = vi.fn();
 let locationSearch = '';
 
 const controllerState = {
-  activeTab: 'pending' as const,
+  activeTab: 'pending_pickup' as const,
   scannerOpen: true,
   lookupCode: 'PRX-123',
   lookupError: null,
@@ -16,6 +16,7 @@ const controllerState = {
   actionError: null,
   inputRef: { current: null },
   pendingOrders: [{ id: 1 }],
+  pendingPaymentOrders: [{ id: 4 }],
   todaysOrders: [{ id: 2 }],
   completedOrders: [{ id: 3 }],
   displayOrders: [{ id: 1 }],
@@ -64,7 +65,8 @@ vi.mock('../../hooks/useProductOrders', () => ({
   useProductOrders: () => ({
     data: {
       orders: [],
-      pendingCount: 4,
+      pendingPickupCount: 4,
+      pendingPaymentCount: 2,
     },
     error: null,
     isLoading: false,
@@ -82,7 +84,7 @@ vi.mock('./product-orders/ProductOrdersLookupPanel', () => ({
 }));
 
 vi.mock('./product-orders/ProductOrdersListSection', () => ({
-  ProductOrdersListSection: ({ pendingCount }: { pendingCount: number }) => <div>orders:{pendingCount}</div>,
+  ProductOrdersListSection: ({ pendingPickupCount }: { pendingPickupCount: number }) => <div>orders:{pendingPickupCount}</div>,
 }));
 
 vi.mock('./product-orders/ProductOrderDetailsModal', () => ({

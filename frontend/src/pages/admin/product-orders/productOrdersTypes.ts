@@ -1,7 +1,7 @@
 import type { Session } from '@supabase/supabase-js';
 import type { OrderSummaryRow } from '../../../hooks/useProductOrders';
 
-export type ProductOrdersTab = 'pending' | 'today' | 'completed';
+export type ProductOrdersTab = 'pending_payment' | 'pending_pickup' | 'today' | 'completed';
 
 export type OrderItemRow = {
   id: number;
@@ -24,7 +24,8 @@ export type ProductOrderDetails = {
 
 export type UseProductOrdersControllerParams = {
   orders: OrderSummaryRow[];
-  pendingCount: number;
+  pendingPickupCount: number;
+  pendingPaymentCount: number;
   ordersError: string | null;
   session: Session | null;
   showToast: (type: 'success' | 'error' | 'warning' | 'info', message: string) => void;

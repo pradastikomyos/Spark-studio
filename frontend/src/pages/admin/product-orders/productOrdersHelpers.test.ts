@@ -29,9 +29,9 @@ function createOrder(overrides: Partial<OrderSummaryRow>): OrderSummaryRow {
 describe('productOrdersHelpers', () => {
   it('sorts pending orders by paid or created time descending', () => {
     const orders = [
-      createOrder({ id: 1, paid_at: '2026-03-07T08:00:00.000Z' }),
-      createOrder({ id: 3, pickup_status: 'pending_review', paid_at: '2026-03-07T09:00:00.000Z' }),
-      createOrder({ id: 2, paid_at: '2026-03-07T10:00:00.000Z' }),
+      createOrder({ id: 1, paid_at: '2026-03-07T08:00:00.000Z', payment_status: 'paid' }),
+      createOrder({ id: 3, pickup_status: 'pending_review', paid_at: '2026-03-07T09:00:00.000Z', payment_status: 'paid' }),
+      createOrder({ id: 2, paid_at: '2026-03-07T10:00:00.000Z', payment_status: 'paid' }),
     ];
 
     expect(getPendingOrders(orders).map((order) => order.id)).toEqual([2, 3, 1]);
@@ -53,10 +53,13 @@ describe('productOrdersHelpers', () => {
 
   it('returns display orders for the active tab and empty-state copy', () => {
     const pending = [createOrder({ id: 1 })];
+    const pendingPayment = [createOrder({ id: 4 })];
     const today = [createOrder({ id: 2 })];
     const completed = [createOrder({ id: 3, pickup_status: 'completed' })];
 
-    expect(getDisplayOrders('today', pending, today, completed)).toEqual(today);
+    expect(getDisplayOrders('pending_payment', pending, pendingPayment, today, completed)).toEqual(pendingPayment);
+    expect(getDisplayOrders('pending_pickup', pending, pendingPayment, today, completed)).toEqual(pending);
+    expect(getDisplayOrders('today', pending, pendingPayment, today, completed)).toEqual(today);
     expect(getCompletedOrders(completed).map((order) => order.id)).toEqual([3]);
     expect(getEmptyStateCopy('completed').message).toContain('selesai');
     expect(getPickupStatusLabel('pending_pickup')).toBe('Pending');

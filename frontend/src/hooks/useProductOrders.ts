@@ -25,6 +25,9 @@ export type OrderItemSummary = {
 export type OrderSummaryRow = {
   id: number;
   order_number: string;
+  channel?: string | null;
+  payment_status?: string | null;
+  status?: string | null;
   total: number;
   pickup_code: string | null;
   pickup_status: string | null;
@@ -43,19 +46,28 @@ export function useProductOrders() {
     queryFn: async ({ signal }) => {
       const { signal: timeoutSignal, cleanup, didTimeout } = createQuerySignal(signal);
       try {
-        const [ordersResult, pendingResult] = await Promise.all([
+        const [ordersResult, pendingPickupResult, pendingPaymentResult] = await Promise.all([
           supabase
             .from('order_products')
-            .select('id, order_number, total, pickup_code, pickup_status, paid_at, updated_at, created_at, profiles(name, email), order_product_items(id, quantity, price, subtotal, product_variants(name, products(name, categories(name))))')
+            .select('id, order_number, channel, payment_status, status, total, pickup_code, pickup_status, paid_at, updated_at, created_at, profiles(name, email), order_product_items(id, quantity, price, subtotal, product_variants(name, products(name, categories(name))))')
             .abortSignal(timeoutSignal)
-            .eq('payment_status', 'paid')
-            .order('paid_at', { ascending: false })
+            .or('payment_status.eq.paid,and(payment_status.in.(unpaid,pending),status.eq.awaiting_payment,channel.eq.cashier)')
+            .order('paid_at', { ascending: false, nullsFirst: false })
+            .order('created_at', { ascending: false })
             .limit(100),
           supabase
             .from('order_products')
             .select('id', { count: 'exact', head: true })
             .abortSignal(timeoutSignal)
             .eq('payment_status', 'paid')
+            .in('pickup_status', ['pending_pickup', 'pending_review']),
+          supabase
+            .from('order_products')
+            .select('id', { count: 'exact', head: true })
+            .abortSignal(timeoutSignal)
+            .eq('channel', 'cashier')
+            .eq('status', 'awaiting_payment')
+            .in('payment_status', ['unpaid', 'pending'])
             .in('pickup_status', ['pending_pickup', 'pending_review']),
         ]);
 
@@ -68,7 +80,8 @@ export function useProductOrders() {
 
         return {
           orders: (ordersResult.data || []) as OrderSummaryRow[],
-          pendingCount: pendingResult.count ?? 0,
+          pendingPickupCount: pendingPickupResult.count ?? 0,
+          pendingPaymentCount: pendingPaymentResult.count ?? 0,
         };
       } catch (error) {
         if (didTimeout()) {

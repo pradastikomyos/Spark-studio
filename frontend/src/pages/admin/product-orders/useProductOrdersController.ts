@@ -7,6 +7,7 @@ import {
   getCompletedOrders,
   getDisplayOrders,
   getPendingOrders,
+  getPendingPaymentOrders,
   getTodaysOrders,
 } from './productOrdersHelpers';
 import { completeProductPickup, loadProductOrderDetailsByPickupCode } from './productOrdersData';
@@ -17,13 +18,14 @@ const PRODUCT_ORDER_DETAIL_STALE_TIME_MS = 30 * 1000;
 
 export function useProductOrdersController({
   orders,
-  pendingCount,
+  pendingPickupCount,
+  pendingPaymentCount,
   ordersError,
   session,
   showToast,
 }: UseProductOrdersControllerParams) {
   const queryClient = useQueryClient();
-  const [activeTab, setActiveTab] = useState<ProductOrdersTab>('pending');
+  const [activeTab, setActiveTab] = useState<ProductOrdersTab>('pending_pickup');
   const [scannerOpen, setScannerOpen] = useState(false);
   const [lookupCode, setLookupCode] = useState('');
   const [lookupError, setLookupError] = useState<string | null>(null);
@@ -158,14 +160,18 @@ export function useProductOrdersController({
   }, [completePickupMutation, detailsQuery.data?.order.pickup_code]);
 
   const safeOrders = orders.length > 0 ? orders : EMPTY_ORDERS;
+  const pendingPaymentOrders = useMemo(() => getPendingPaymentOrders(safeOrders), [safeOrders]);
   const pendingOrders = useMemo(() => getPendingOrders(safeOrders), [safeOrders]);
   const todaysOrders = useMemo(() => getTodaysOrders(safeOrders), [safeOrders]);
   const completedOrders = useMemo(() => getCompletedOrders(safeOrders), [safeOrders]);
   const displayOrders = useMemo(
-    () => getDisplayOrders(activeTab, pendingOrders, todaysOrders, completedOrders),
-    [activeTab, completedOrders, pendingOrders, todaysOrders]
+    () => getDisplayOrders(activeTab, pendingOrders, pendingPaymentOrders, todaysOrders, completedOrders),
+    [activeTab, completedOrders, pendingOrders, pendingPaymentOrders, todaysOrders]
   );
-  const menuSections = useMemo(() => buildProductOrdersMenuSections(pendingCount), [pendingCount]);
+  const menuSections = useMemo(
+    () => buildProductOrdersMenuSections(pendingPickupCount + pendingPaymentCount),
+    [pendingPickupCount, pendingPaymentCount]
+  );
 
   return {
     activeTab,
@@ -177,6 +183,7 @@ export function useProductOrdersController({
     actionError,
     inputRef,
     pendingOrders,
+    pendingPaymentOrders,
     todaysOrders,
     completedOrders,
     displayOrders,

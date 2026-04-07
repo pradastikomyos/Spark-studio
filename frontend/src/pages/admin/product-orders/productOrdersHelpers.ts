@@ -3,13 +3,15 @@ import type { OrderSummaryRow } from '../../../hooks/useProductOrders';
 import type { ProductOrdersTab } from './productOrdersTypes';
 
 const EMPTY_STATE_COPY: Record<ProductOrdersTab, { icon: string; message: string }> = {
-  pending: { icon: 'inventory_2', message: 'Tidak ada pesanan menunggu pickup.' },
+  pending_payment: { icon: 'hourglass_empty', message: 'Belum ada pesanan menunggu pembayaran.' },
+  pending_pickup: { icon: 'inventory_2', message: 'Tidak ada pesanan menunggu pickup.' },
   today: { icon: 'today', message: 'Belum ada pesanan paid hari ini.' },
   completed: { icon: 'check_circle', message: 'Belum ada pesanan selesai.' },
 };
 
 export function getPendingOrders(orders: OrderSummaryRow[]) {
   return orders
+    .filter((order) => order.payment_status === 'paid')
     .filter((order) => order.pickup_status === 'pending_pickup' || order.pickup_status === 'pending_review')
     .sort((left, right) => {
       const leftTime = left.paid_at || left.created_at || '';
@@ -18,9 +20,23 @@ export function getPendingOrders(orders: OrderSummaryRow[]) {
     });
 }
 
+export function getPendingPaymentOrders(orders: OrderSummaryRow[]) {
+  return orders
+    .filter((order) => order.channel === 'cashier')
+    .filter((order) => order.status === 'awaiting_payment')
+    .filter((order) => order.payment_status === 'unpaid' || order.payment_status === 'pending')
+    .filter((order) => order.pickup_status === 'pending_pickup' || order.pickup_status === 'pending_review')
+    .sort((left, right) => {
+      const leftTime = left.created_at || left.paid_at || '';
+      const rightTime = right.created_at || right.paid_at || '';
+      return rightTime.localeCompare(leftTime);
+    });
+}
+
 export function getTodaysOrders(orders: OrderSummaryRow[]) {
   const todayKey = new Date().toISOString().slice(0, 10);
   return orders
+    .filter((order) => order.payment_status === 'paid')
     .filter((order) => {
       const dateStr = order.paid_at || order.created_at;
       return dateStr ? String(dateStr).slice(0, 10) === todayKey : false;
@@ -34,6 +50,7 @@ export function getTodaysOrders(orders: OrderSummaryRow[]) {
 
 export function getCompletedOrders(orders: OrderSummaryRow[]) {
   return orders
+    .filter((order) => order.payment_status === 'paid')
     .filter((order) => order.pickup_status === 'completed')
     .sort((left, right) => (right.updated_at ?? '').localeCompare(left.updated_at ?? ''));
 }
@@ -41,10 +58,12 @@ export function getCompletedOrders(orders: OrderSummaryRow[]) {
 export function getDisplayOrders(
   tab: ProductOrdersTab,
   pendingOrders: OrderSummaryRow[],
+  pendingPaymentOrders: OrderSummaryRow[],
   todaysOrders: OrderSummaryRow[],
   completedOrders: OrderSummaryRow[]
 ) {
-  if (tab === 'pending') return pendingOrders;
+  if (tab === 'pending_payment') return pendingPaymentOrders;
+  if (tab === 'pending_pickup') return pendingOrders;
   if (tab === 'today') return todaysOrders;
   return completedOrders;
 }
