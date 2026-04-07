@@ -1,5 +1,6 @@
 import { supabase } from '../lib/supabase'
 import { preserveBookingState, type BookingState } from './bookingStateManager'
+import { reportClientError } from '../lib/errorTracking'
 
 export interface SessionErrorHandlerOptions {
   onSessionExpired?: (returnPath: string, state?: unknown) => void
@@ -154,5 +155,12 @@ export function createErrorLog(
  */
 export function logError(log: SessionErrorLog): void {
   console.error('Session Error Log:', log)
-  // TODO: Send to error tracking service (e.g., Sentry) in production
+  reportClientError(log.errorMessage, {
+    location: log.location,
+    errorType: log.errorType,
+    returnPath: log.context.returnPath,
+    hasBookingState: log.context.hasBookingState,
+    userId: log.userId,
+    stackTrace: log.stackTrace,
+  })
 }
