@@ -15,6 +15,7 @@ export type InventoryProduct = {
 };
 
 export type StockFilter = '' | 'in' | 'low' | 'out';
+export type ActiveFilter = '' | 'active' | 'inactive';
 
 export type DeletingProduct = {
   id: number;

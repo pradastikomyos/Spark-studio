@@ -1,6 +1,7 @@
-import type { StockFilter } from './storeInventoryTypes';
+import type { ActiveFilter, StockFilter } from './storeInventoryTypes';
 
 const STOCK_FILTER_VALUES: ReadonlySet<StockFilter> = new Set(['in', 'low', 'out']);
+const ACTIVE_FILTER_VALUES: ReadonlySet<ActiveFilter> = new Set(['active', 'inactive']);
 
 export const parseQueryInt = (value: string | null, fallback: number) => {
   if (!value) return fallback;
@@ -16,11 +17,15 @@ export const parseSearchParams = (search: string) => {
   const stockRaw = params.get('stock')?.trim() ?? '';
   const stockFilter: StockFilter = STOCK_FILTER_VALUES.has(stockRaw as StockFilter) ? (stockRaw as StockFilter) : '';
 
+  const activeRaw = params.get('active')?.trim() ?? '';
+  const activeFilter: ActiveFilter = ACTIVE_FILTER_VALUES.has(activeRaw as ActiveFilter) ? (activeRaw as ActiveFilter) : '';
+
   return {
     page,
     searchQuery,
     categoryFilter,
     stockFilter,
+    activeFilter,
   };
 };
 
@@ -28,12 +33,14 @@ export const buildSearchParams = (params: {
   searchQuery: string;
   categoryFilter: string;
   stockFilter: StockFilter;
+  activeFilter: ActiveFilter;
   page: number;
 }) => {
   const next = new URLSearchParams();
   if (params.searchQuery) next.set('q', params.searchQuery);
   if (params.categoryFilter) next.set('category', params.categoryFilter);
   if (params.stockFilter) next.set('stock', params.stockFilter);
+  if (params.activeFilter) next.set('active', params.activeFilter);
   if (params.page > 1) next.set('page', String(params.page));
   const built = next.toString();
   return built ? `?${built}` : '';

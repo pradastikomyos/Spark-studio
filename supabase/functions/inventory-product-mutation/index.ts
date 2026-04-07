@@ -44,7 +44,13 @@ type CleanupRequest = {
   fileIds?: string[]
 }
 
-type RequestBody = SaveRequest | DeleteRequest | CleanupRequest
+type ToggleActiveRequest = {
+  action: 'toggle_active'
+  productId?: number | string | null
+  isActive?: boolean
+}
+
+type RequestBody = SaveRequest | DeleteRequest | CleanupRequest | ToggleActiveRequest
 
 type CleanupResult = {
   cleanedCount: number
@@ -186,6 +192,36 @@ serve(async (req) => {
     requestAction = body.action
     if (body.action === 'save' || body.action === 'delete') {
       requestProductId = toValidNumber(body.productId)
+    }
+
+    if (body.action === 'toggle_active') {
+      const productId = toValidNumber(body.productId)
+      if (!productId || productId <= 0) {
+        return json(req, { error: 'Invalid productId' }, { status: 400 })
+      }
+      const isActive = typeof body.isActive === 'boolean' ? body.isActive : true
+
+      const { error } = await context.supabaseService
+        .from('products')
+        .update({ is_active: isActive })
+        .eq('id', productId)
+        .is('deleted_at', null)
+
+      if (error) {
+        const serializedError = serializeError(error, 'Failed to toggle product active state')
+        return json(
+          req,
+          {
+            error: serializedError.message,
+            details: serializedError.details,
+            hint: serializedError.hint,
+            code: serializedError.code,
+          },
+          { status: 500 }
+        )
+      }
+
+      return json(req, { ok: true, productId, isActive })
     }
 
     if (body.action === 'cleanup') {

@@ -44,6 +44,7 @@ export type UseInventoryParams = {
   searchQuery: string;
   categoryFilter: string;
   stockFilter: '' | 'in' | 'low' | 'out';
+  activeFilter: '' | 'active' | 'inactive';
 };
 
 export type InventorySource = 'rpc' | 'rpc-fallback';

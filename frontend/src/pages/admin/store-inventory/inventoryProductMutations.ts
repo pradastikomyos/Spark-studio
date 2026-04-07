@@ -342,6 +342,28 @@ export async function deleteInventoryProductMutation(params: {
   };
 }
 
+export async function toggleProductActiveMutation(params: {
+  productId: number;
+  isActive: boolean;
+  auth: InventoryMutationAuth;
+}): Promise<{ ok: true; productId: number; isActive: boolean }> {
+  const { productId, isActive, auth } = params;
+  const accessToken = await resolveInventoryAccessToken(auth);
+  if (!accessToken) throw new Error(SESSION_EXPIRED_MESSAGE);
+
+  const response = await invokeInventoryMutationWithRetry<{ ok: true; productId: number; isActive: boolean }>(auth, {
+    action: 'toggle_active',
+    productId,
+    isActive,
+  });
+
+  return {
+    ok: true,
+    productId: response.productId,
+    isActive: response.isActive,
+  };
+}
+
 export async function saveInventoryProductMutation(params: {
   draft: ProductDraft;
   newImages: File[];

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type SetStateAction } from 'react';
 import type { NavigateFunction } from 'react-router-dom';
 import { buildSearchParams, parseSearchParams } from './storeInventoryUrlState';
-import type { StockFilter } from './storeInventoryTypes';
+import type { ActiveFilter, StockFilter } from './storeInventoryTypes';
 
 type UseStoreInventoryFiltersParams = {
   pathname: string;
@@ -25,12 +25,14 @@ export function useStoreInventoryFilters(params: UseStoreInventoryFiltersParams)
             searchQuery?: string;
             categoryFilter?: string;
             stockFilter?: StockFilter;
+            activeFilter?: ActiveFilter;
             page?: number;
           }
         | ((current: ReturnType<typeof parseSearchParams>) => {
             searchQuery: string;
             categoryFilter: string;
             stockFilter: StockFilter;
+            activeFilter: ActiveFilter;
             page: number;
           })
     ) => {
@@ -39,6 +41,7 @@ export function useStoreInventoryFilters(params: UseStoreInventoryFiltersParams)
         searchQuery: nextState.searchQuery,
         categoryFilter: nextState.categoryFilter,
         stockFilter: nextState.stockFilter,
+        activeFilter: nextState.activeFilter,
         page: Math.max(1, Math.floor(nextState.page)),
       });
 
@@ -86,6 +89,17 @@ export function useStoreInventoryFilters(params: UseStoreInventoryFiltersParams)
     [navigateWithFilters]
   );
 
+  const setActiveFilter = useCallback(
+    (value: ActiveFilter) => {
+      navigateWithFilters((current) => ({
+        ...current,
+        activeFilter: value,
+        page: 1,
+      }));
+    },
+    [navigateWithFilters]
+  );
+
   const setCurrentPage = useCallback(
     (value: SetStateAction<number>) => {
       navigateWithFilters((current) => {
@@ -104,10 +118,12 @@ export function useStoreInventoryFilters(params: UseStoreInventoryFiltersParams)
     searchQuery: parsedParams.searchQuery,
     categoryFilter: parsedParams.categoryFilter,
     stockFilter: parsedParams.stockFilter,
+    activeFilter: parsedParams.activeFilter,
     currentPage: parsedParams.page,
     setSearchInput,
     setCategoryFilter,
     setStockFilter,
+    setActiveFilter,
     setCurrentPage,
     commitSearchInput: () => {
       navigateWithFilters((current) => ({

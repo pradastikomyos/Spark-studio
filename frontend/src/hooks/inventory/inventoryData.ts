@@ -92,7 +92,7 @@ async function fetchInventoryPageDirect(
   signal: AbortSignal,
   page: number,
   pageSize: number,
-  filters: { searchQuery: string; categoryFilter: string }
+  filters: { searchQuery: string; categoryFilter: string; activeFilter: string }
 ): Promise<InventoryProductFetchResult> {
   const safePage = Math.max(1, page);
   const safePageSize = Math.max(1, pageSize);
@@ -104,9 +104,18 @@ async function fetchInventoryPageDirect(
     .select(getInventorySelect(filters.categoryFilter), { count: 'exact' })
     .abortSignal(signal)
     .is('deleted_at', null)
+    .order('is_active', { ascending: false }) // active first
     .order('name', { ascending: true })
     .order('id', { ascending: true })
     .range(from, to);
+
+  if (filters.activeFilter === 'active') {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    query = (query as any).eq('is_active', true);
+  } else if (filters.activeFilter === 'inactive') {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    query = (query as any).eq('is_active', false);
+  }
 
   query = applyInventoryFilters(query, filters);
   const { data, error, count } = await query;
@@ -125,7 +134,7 @@ async function fetchInventoryPage(
   signal: AbortSignal,
   page: number,
   pageSize: number,
-  filters: { searchQuery: string; categoryFilter: string }
+  filters: { searchQuery: string; categoryFilter: string; activeFilter: string }
 ): Promise<InventoryProductFetchResult> {
   const normalizedSearch = normalizeSearchTerm(filters.searchQuery);
   if (!normalizedSearch) {
@@ -133,13 +142,15 @@ async function fetchInventoryPage(
   }
 
   try {
-    return await fetchInventoryPageByRpc(signal, page, pageSize, filters, '');
+    // RPC doesn't support activeFilter natively; fall back to direct for now
+    const result = await fetchInventoryPageDirect(signal, page, pageSize, filters);
+    return result;
   } catch (error) {
     if (error instanceof Error && error.name === 'AbortError') {
       throw error;
     }
 
-    console.warn('Inventory search RPC failed, falling back to product-only search:', error);
+    console.warn('Inventory search failed, falling back to product-only search:', error);
     return {
       ...(await fetchInventoryPageDirect(signal, page, pageSize, filters)),
       source: 'rpc-fallback',
@@ -151,7 +162,7 @@ async function fetchInventoryStockFilteredPage(
   signal: AbortSignal,
   page: number,
   pageSize: number,
-  filters: { searchQuery: string; categoryFilter: string },
+  filters: { searchQuery: string; categoryFilter: string; activeFilter: string },
   stockFilter: UseInventoryParams['stockFilter']
 ): Promise<InventoryProductFetchResult> {
   try {
@@ -183,6 +194,7 @@ export async function fetchInventoryQueryData(
     const filters = {
       searchQuery: params.searchQuery,
       categoryFilter: params.categoryFilter,
+      activeFilter: params.activeFilter,
     };
 
     const categoriesPromise = supabase
@@ -247,5 +259,6 @@ export const getInventoryQueryKey = (params: UseInventoryParams) =>
     params.pageSize,
     params.searchQuery,
     params.categoryFilter,
-    params.stockFilter
+    params.stockFilter,
+    params.activeFilter
   );

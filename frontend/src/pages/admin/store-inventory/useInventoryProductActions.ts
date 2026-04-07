@@ -10,6 +10,7 @@ import {
   formatInventoryProductMutationError,
   loadInventoryProductImages,
   saveInventoryProductMutation,
+  toggleProductActiveMutation,
 } from './inventoryProductMutations';
 
 const ADMIN_PRODUCT_DRAFT_KEY = 'admin-product-form:draft:v1';
@@ -197,6 +198,30 @@ export function useInventoryProductActions(params: UseInventoryProductActionsPar
     }
   };
 
+  const handleToggleActive = async (productId: number, currentlyActive: boolean) => {
+    setSaving(true);
+    setSaveError(null);
+    const nextActive = !currentlyActive;
+    const label = nextActive ? 'diaktifkan' : 'dinonaktifkan';
+
+    try {
+      await toggleProductActiveMutation({
+        productId,
+        isActive: nextActive,
+        auth: { session, getValidAccessToken, refreshSession },
+      });
+      clearInventoryFallbackCache();
+      await refetch();
+      showToast('success', `Produk berhasil ${label}.`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : `Gagal ${label} produk`;
+      setSaveError(message);
+      showToast('error', message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const closeProductForm = () => {
     if (saving) return;
     invalidateImageLoad();
@@ -218,6 +243,7 @@ export function useInventoryProductActions(params: UseInventoryProductActionsPar
     handleOpenCreate,
     handleOpenEdit,
     handleDelete,
+    handleToggleActive,
     handleSaveProduct,
     closeProductForm,
   };

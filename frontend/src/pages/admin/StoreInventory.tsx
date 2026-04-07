@@ -44,6 +44,7 @@ const StoreInventory = () => {
     searchQuery: filters.searchQuery,
     categoryFilter: filters.categoryFilter,
     stockFilter: filters.stockFilter,
+    activeFilter: filters.activeFilter,
   });
   const resolvedTotalProducts = data?.totalCount ?? 0;
   const totalPages = Math.max(1, Math.ceil(resolvedTotalProducts / INVENTORY_PRODUCTS_PER_PAGE));
@@ -176,9 +177,11 @@ const StoreInventory = () => {
           isFetching={isFetching}
           categoryFilter={filters.categoryFilter}
           stockFilter={filters.stockFilter}
+          activeFilter={filters.activeFilter}
           categoryOptions={categoryOptions}
           onCategoryFilterChange={filters.setCategoryFilter}
           onStockFilterChange={filters.setStockFilter}
+          onActiveFilterChange={filters.setActiveFilter}
         />
 
         {isLoading ? (
@@ -198,8 +201,10 @@ const StoreInventory = () => {
             <InventoryGrid
               products={inventoryProducts}
               thumbFallbackIds={thumbFallbackIds}
+              saving={productActions.saving}
               onEdit={productActions.handleOpenEdit}
               onDelete={productActions.setDeletingProduct}
+              onToggleActive={productActions.handleToggleActive}
               onTrackImageResult={trackImageResult}
               onThumbFallback={markThumbFallback}
             />
