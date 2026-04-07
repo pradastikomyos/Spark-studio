@@ -17,17 +17,17 @@ describe('storeInventoryUrlState', () => {
       searchQuery: 'spark',
       categoryFilter: 'beauty',
       stockFilter: 'low',
-      activeFilter: 'active',
+      activeFilter: '',
       page: 2,
     });
 
-    expect(built).toBe('?q=spark&category=beauty&stock=low&active=active&page=2');
+    expect(built).toBe('?q=spark&category=beauty&stock=low&page=2');
     expect(parseSearchParams(built)).toEqual({
       page: 2,
       searchQuery: 'spark',
       categoryFilter: 'beauty',
       stockFilter: 'low',
-      activeFilter: 'active',
+      activeFilter: '',
     });
   });
 });
