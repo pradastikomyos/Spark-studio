@@ -8,6 +8,7 @@ describe('storeInventoryUrlState', () => {
       searchQuery: '',
       categoryFilter: '',
       stockFilter: '',
+      activeFilter: '',
     });
   });
 
@@ -16,6 +17,7 @@ describe('storeInventoryUrlState', () => {
       searchQuery: 'spark',
       categoryFilter: 'beauty',
       stockFilter: 'low',
+      activeFilter: '',
       page: 2,
     });
 
@@ -25,6 +27,7 @@ describe('storeInventoryUrlState', () => {
       searchQuery: 'spark',
       categoryFilter: 'beauty',
       stockFilter: 'low',
+      activeFilter: '',
     });
   });
 });
