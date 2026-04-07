@@ -85,6 +85,7 @@ describe('fetchInventoryQueryData', () => {
         searchQuery: 'glow',
         categoryFilter: '',
         stockFilter: 'low',
+        activeFilter: '',
       } satisfies UseInventoryParams,
       new AbortController().signal
     );
@@ -133,6 +134,7 @@ describe('fetchInventoryQueryData', () => {
         searchQuery: '',
         categoryFilter: '',
         stockFilter: '',
+        activeFilter: '',
       } satisfies UseInventoryParams,
       new AbortController().signal
     );
@@ -201,6 +203,7 @@ describe('fetchInventoryQueryData', () => {
         searchQuery: 'ICJ1839',
         categoryFilter: '',
         stockFilter: '',
+        activeFilter: '',
       } satisfies UseInventoryParams,
       new AbortController().signal
     );
