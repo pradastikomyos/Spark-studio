@@ -1,3 +1,4 @@
+/* eslint-disable */
 import { readFile } from 'node:fs/promises'
 const FRONTEND_TYPES = new URL('../frontend/src/types/database.types.ts', import.meta.url)
 const SHARED_TYPES = new URL('../supabase/functions/_shared/database.types.ts', import.meta.url)

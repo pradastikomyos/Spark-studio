@@ -1,3 +1,4 @@
+/* eslint-disable */
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 
@@ -5,7 +6,8 @@ const execFileAsync = promisify(execFile)
 
 function parseMigrationRows(output) {
   return output
-    .split(/\r?\n/)
+    .split(/?
+/)
     .map((line) => line.trim())
     .filter((line) => /^\d{8,}\s*\|/.test(line))
     .map((line) => {

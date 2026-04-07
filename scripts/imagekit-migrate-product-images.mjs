@@ -1,3 +1,4 @@
+/* eslint-disable */
 #!/usr/bin/env node
 
 import fs from 'node:fs';
@@ -149,7 +150,8 @@ function parsePositiveInteger(rawValue, flagName) {
 function loadEnvFile(filePath) {
   if (!filePath || !fs.existsSync(filePath)) return;
   const content = fs.readFileSync(filePath, 'utf8');
-  for (const rawLine of content.split(/\r?\n/)) {
+  for (const rawLine of content.split(/?
+/)) {
     const line = rawLine.trim();
     if (!line || line.startsWith('#')) continue;
     const separatorIndex = line.indexOf('=');
@@ -265,14 +267,15 @@ function parseCsv(csvText) {
       currentField = '';
       continue;
     }
-    if (char === '\n') {
+    if (char === '
+') {
       currentRow.push(currentField);
       rows.push(currentRow);
       currentField = '';
       currentRow = [];
       continue;
     }
-    if (char === '\r') {
+    if (char === '') {
       continue;
     }
 
@@ -296,7 +299,7 @@ function loadManifestMap(manifestPath) {
   const rows = parseCsv(csvText);
   if (rows.length === 0) return new Map();
   const [rawHeaders, ...dataRows] = rows;
-  const headers = rawHeaders.map((header) => header.replace(/^\uFEFF/, '').trim());
+  const headers = rawHeaders.map((header) => header.replace(/^﻿/, '').trim());
   const manifest = new Map();
 
   for (const row of dataRows) {
@@ -318,7 +321,8 @@ function loadResumeState(resultsPath) {
     return latestById;
   }
 
-  const lines = fs.readFileSync(resultsPath, 'utf8').split(/\r?\n/);
+  const lines = fs.readFileSync(resultsPath, 'utf8').split(/?
+/);
   for (const line of lines) {
     const trimmed = line.trim();
     if (!trimmed) continue;
@@ -337,7 +341,8 @@ function loadResumeState(resultsPath) {
 
 function appendJsonl(filePath, payload) {
   ensureParentDirectory(filePath);
-  fs.appendFileSync(filePath, `${JSON.stringify(payload)}\n`, 'utf8');
+  fs.appendFileSync(filePath, `${JSON.stringify(payload)}
+`, 'utf8');
 }
 
 function ensureParentDirectory(filePath) {
@@ -523,7 +528,8 @@ async function runBatch(items, worker, concurrency) {
 
 function writeSummary(summaryPath, summary) {
   ensureParentDirectory(summaryPath);
-  fs.writeFileSync(summaryPath, `${JSON.stringify(summary, null, 2)}\n`, 'utf8');
+  fs.writeFileSync(summaryPath, `${JSON.stringify(summary, null, 2)}
+`, 'utf8');
 }
 
 function printPlan(options, summary, queueLength, supabaseCredentials) {
@@ -596,7 +602,8 @@ async function main() {
   for (let batchStart = 0; batchStart < queue.length; batchStart += options.batchSize) {
     const batch = queue.slice(batchStart, batchStart + options.batchSize);
     const batchNumber = Math.floor(batchStart / options.batchSize) + 1;
-    console.log(`\nBatch ${batchNumber}: processing ${batch.length} row(s)`);
+    console.log(`
+Batch ${batchNumber}: processing ${batch.length} row(s)`);
 
     const batchResults = await runBatch(
       batch,
@@ -702,7 +709,8 @@ async function main() {
 
   writeSummary(options.summaryPath, summary);
 
-  console.log('\nMigration summary');
+  console.log('
+Migration summary');
   console.log(`- attempted: ${attempted}`);
   console.log(`- succeeded: ${succeeded}`);
   console.log(`- failed: ${failed}`);

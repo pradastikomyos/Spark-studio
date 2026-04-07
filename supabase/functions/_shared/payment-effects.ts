@@ -42,20 +42,6 @@ type OrderProductItemsRow = {
   quantity: number
 }
 
-type PurchasedTicketsRow = {
-  id?: number
-  order_item_id: number
-  user_id: string | null
-  ticket_id: number
-  valid_date: string
-  time_slot: string | null
-  status: string
-  ticket_code?: string
-  queue_number?: number | null
-  queue_overflow?: boolean | null
-  created_at?: string | null
-  updated_at?: string | null
-}
 
 type WebhookLogsRow = {
   id?: number
@@ -71,15 +57,6 @@ export type TicketOrder = OrdersRow
 export type TicketOrderItem = Pick<OrderItemsRow, 'id' | 'ticket_id' | 'selected_date' | 'selected_time_slots' | 'quantity'> & {
   order_id?: number
 }
-export type ProductOrder = OrderProductsRow
-export type ProductOrderItem = OrderProductItemsRow
-
-type PaymentEffectScope = 'ticket_order' | 'product_order'
-
-async function claimPaymentEffectRun(params: {
-  supabase: ServiceClient
-  scope: PaymentEffectScope
-  orderRef: string
   effectType: string
   effectKey?: string
 }) {

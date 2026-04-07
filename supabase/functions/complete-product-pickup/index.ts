@@ -61,7 +61,7 @@ async function loadOrderByPickupCode(
   return (data as OrderPickupRow | null) ?? null
 }
 
-serve(async (req) => {
+serve(async (req: Request) => {
   const corsResponse = handleCors(req)
   if (corsResponse) return corsResponse
 
@@ -78,8 +78,8 @@ serve(async (req) => {
       return jsonError(req, 400, 'Missing pickup code')
     }
 
-    const pickedUpBy = admin.user.id
-    let order = await loadOrderByPickupCode(admin.supabaseService, pickupCode)
+    const pickedUpBy = admin.user.id;
+    const order = await loadOrderByPickupCode(admin.supabaseService, pickupCode);
     if (!order) {
       return jsonError(req, 404, 'Order not found')
     }
