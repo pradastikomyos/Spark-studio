@@ -129,7 +129,7 @@ export default function ProductImageUpload(props: ProductImageUploadProps) {
               <button
                 type="button"
                 onClick={() => onRemoveExisting(img.url)}
-                className="absolute right-2 top-2 rounded-full bg-black/60 p-1.5 text-white opacity-0 transition-opacity hover:bg-black/80 group-hover:opacity-100"
+                className="absolute right-2 top-2 rounded-full bg-black/60 p-1.5 text-white transition-colors hover:bg-black/80"
               >
                 <span className="material-symbols-outlined text-sm">close</span>
               </button>
@@ -161,7 +161,7 @@ export default function ProductImageUpload(props: ProductImageUploadProps) {
             <button
               type="button"
               onClick={() => handleRemove(idx)}
-              className="absolute right-2 top-2 rounded-full bg-black/60 p-1.5 text-white opacity-0 transition-opacity hover:bg-black/80 group-hover:opacity-100"
+              className="absolute right-2 top-2 rounded-full bg-black/60 p-1.5 text-white transition-colors hover:bg-black/80"
             >
               <span className="material-symbols-outlined text-sm">close</span>
             </button>
