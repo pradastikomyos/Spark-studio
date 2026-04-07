@@ -67,3 +67,23 @@ export function jsonError(
   const body = typeof data === 'string' ? { error: data } : data
   return json(req, body, { status }, options)
 }
+
+function shouldExposeErrorDetails(): boolean {
+  const flag = (Deno.env.get('EXPOSE_ERROR_DETAILS') ?? '').toLowerCase()
+  if (flag === 'true') return true
+  const appEnv = (Deno.env.get('APP_ENV') ?? '').toLowerCase()
+  return appEnv === 'development' || appEnv === 'local'
+}
+
+export function jsonErrorWithDetails(
+  req: Request,
+  status: number,
+  data: { error: string; code?: string; details?: unknown },
+  options?: CorsOptions
+): Response {
+  if (status < 500 || shouldExposeErrorDetails()) {
+    return jsonError(req, status, data, options)
+  }
+  const { error, code } = data
+  return jsonError(req, status, { error, ...(code ? { code } : {}) }, options)
+}

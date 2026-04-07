@@ -1,5 +1,5 @@
 import { serve } from '../_shared/deps.ts'
-import { getCorsHeaders, handleCors } from '../_shared/http.ts'
+import { getCorsHeaders, handleCors, jsonErrorWithDetails } from '../_shared/http.ts'
 import { getMidtransEnv, getSupabaseEnv } from '../_shared/env.ts'
 import { createServiceClient } from '../_shared/supabase.ts'
 import { generateSignature } from '../_shared/midtrans.ts'
@@ -147,10 +147,17 @@ serve(async (req) => {
       
       if (updateError) {
         console.error(`[WEBHOOK] Failed to update print order ${orderId}:`, updateError)
-        return new Response(JSON.stringify({ error: 'Failed to update print order', details: updateError.message }), {
-          status: 500,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        })
+        console.error(`[WEBHOOK] Failed to update print order ${orderId}:`, updateError)
+        return jsonErrorWithDetails(
+          req,
+          500,
+          {
+            error: 'Failed to update print order',
+            code: 'PRINT_ORDER_UPDATE_FAILED',
+            details: updateError.message,
+          },
+          { allowAllOrigins: true }
+        )
       }
       
       console.log(`[WEBHOOK] Successfully updated print order ${orderId} to ${printStatus}`)
@@ -225,15 +232,15 @@ serve(async (req) => {
       })
 
       if (result.updateError || result.effectError) {
-        return new Response(
-          JSON.stringify({
-            error: 'Failed to process product payment webhook',
-            details: result.updateError ?? result.effectError,
-          }),
+        return jsonErrorWithDetails(
+          req,
+          500,
           {
-            status: 500,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          }
+            error: 'Failed to process product payment webhook',
+            code: 'PRODUCT_WEBHOOK_FAILED',
+            details: result.updateError ?? result.effectError,
+          },
+          { allowAllOrigins: true }
         )
       }
 
@@ -305,15 +312,15 @@ serve(async (req) => {
     })
 
     if (result.updateError || result.effectError) {
-      return new Response(
-        JSON.stringify({
-          error: 'Failed to process ticket payment webhook',
-          details: result.updateError ?? result.effectError,
-        }),
+      return jsonErrorWithDetails(
+        req,
+        500,
         {
-          status: 500,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        }
+          error: 'Failed to process ticket payment webhook',
+          code: 'TICKET_WEBHOOK_FAILED',
+          details: result.updateError ?? result.effectError,
+        },
+        { allowAllOrigins: true }
       )
     }
 

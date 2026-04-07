@@ -1,5 +1,5 @@
 import { serve } from '../_shared/deps.ts'
-import { handleCors, json, jsonError } from '../_shared/http.ts'
+import { handleCors, json, jsonError, jsonErrorWithDetails } from '../_shared/http.ts'
 import { createServiceClient } from '../_shared/supabase.ts'
 import { toNumber } from '../_shared/payment-effects.ts'
 import { requireAuthenticatedRequest } from '../_shared/auth.ts'
@@ -168,7 +168,8 @@ serve(async (req) => {
       })
 
       if (voucherError) {
-        return jsonError(req, 500, {
+        console.error('[CashierOrder] Voucher validation error:', voucherError.message)
+        return jsonErrorWithDetails(req, 500, {
           error: 'Failed to validate voucher',
           code: 'VOUCHER_VALIDATION_ERROR',
           details: voucherError.message,
@@ -250,7 +251,15 @@ serve(async (req) => {
           })
         }
         const status = reserveError ? 500 : 409
-        return jsonError(req, status, { error: `Out of stock for ${item.name}`, details: reserveError?.message })
+        if (reserveError) {
+          console.error('[CashierOrder] Failed to reserve stock:', reserveError.message)
+          return jsonErrorWithDetails(req, status, {
+            error: `Out of stock for ${item.name}`,
+            code: 'RESERVE_PRODUCT_STOCK_FAILED',
+            details: reserveError.message,
+          })
+        }
+        return jsonError(req, status, `Out of stock for ${item.name}`)
       }
 
       reservedAdjustments.push({ variantId: item.productVariantId, quantity: item.quantity })
@@ -275,7 +284,7 @@ serve(async (req) => {
         voucher_code: voucherCode,
         payment_expired_at: cashierQrExpiresAt,
         pickup_code: pickupCode,
-        pickup_status: 'pending',
+        pickup_status: 'pending_pickup',
         pickup_expires_at: cashierQrExpiresAt,
         created_at: now.toISOString(),
         updated_at: now.toISOString(),
@@ -296,7 +305,8 @@ serve(async (req) => {
         })
       }
 
-      return jsonError(req, 500, { error: 'Failed to create order', details: orderError?.message })
+      console.error('[CashierOrder] Failed to create order:', orderError?.message)
+      return jsonError(req, 500, { error: 'Failed to create order' })
     }
 
     const orderId = (order as unknown as { id: number }).id
@@ -328,7 +338,8 @@ serve(async (req) => {
         })
       }
 
-      return jsonError(req, 500, { error: 'Failed to create order items', details: itemsError.message })
+      console.error('[CashierOrder] Failed to create order items:', itemsError.message)
+      return jsonError(req, 500, { error: 'Failed to create order items' })
     }
 
     if (voucherId) {
@@ -352,6 +363,11 @@ serve(async (req) => {
     return json(req, { order_number: orderNumber, discount_amount: discountAmount }, { status: 200 })
   } catch (e) {
     const errorMessage = e instanceof Error ? e.message : String(e)
-    return jsonError(req, 500, { error: 'Internal server error', details: errorMessage })
+    console.error('[CashierOrder] Unhandled error:', errorMessage)
+    return jsonErrorWithDetails(req, 500, {
+      error: 'Internal server error',
+      code: 'UNHANDLED_EXCEPTION',
+      details: errorMessage,
+    })
   }
 })

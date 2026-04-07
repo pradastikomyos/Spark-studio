@@ -1,5 +1,5 @@
 import { serve } from '../_shared/deps.ts'
-import { handleCors, json, jsonError } from '../_shared/http.ts'
+import { handleCors, json, jsonError, jsonErrorWithDetails } from '../_shared/http.ts'
 import { getMidtransEnv } from '../_shared/env.ts'
 import { createServiceClient } from '../_shared/supabase.ts'
 import { getMidtransBasicAuthHeader, getStatusBaseUrl } from '../_shared/midtrans.ts'
@@ -55,7 +55,12 @@ serve(async (req) => {
 
     const statusData = await statusResponse.json().catch(() => null)
     if (!statusResponse.ok) {
-      return jsonError(req, 502, { error: 'Failed to fetch Midtrans status', details: statusData })
+      console.error('[sync-midtrans-status] Midtrans status error:', statusData)
+      return jsonErrorWithDetails(req, 502, {
+        error: 'Failed to fetch Midtrans status',
+        code: 'MIDTRANS_STATUS_FETCH_FAILED',
+        details: statusData,
+      })
     }
 
     const newStatus = mapMidtransStatus(statusData?.transaction_status, statusData?.fraud_status)
@@ -90,8 +95,13 @@ serve(async (req) => {
     })
 
     if (result.updateError || result.effectError) {
-      return jsonError(req, 500, {
+      console.error('[sync-midtrans-status] Failed to apply transition:', {
+        updateError: result.updateError,
+        effectError: result.effectError,
+      })
+      return jsonErrorWithDetails(req, 500, {
         error: 'Failed to sync ticket payment status',
+        code: 'TICKET_STATUS_SYNC_FAILED',
         details: result.updateError ?? result.effectError,
       })
     }

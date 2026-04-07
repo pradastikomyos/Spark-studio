@@ -1,6 +1,6 @@
 import { serve } from '../_shared/deps.ts'
 import { getMidtransBasicAuthHeader, getSnapUrl } from '../_shared/midtrans.ts'
-import { handleCors, json, jsonError } from '../_shared/http.ts'
+import { handleCors, json, jsonError, jsonErrorWithDetails } from '../_shared/http.ts'
 import { getMidtransEnv, getPublicAppUrl } from '../_shared/env.ts'
 import { createServiceClient } from '../_shared/supabase.ts'
 import { toNumber } from '../_shared/payment-effects.ts'
@@ -136,8 +136,9 @@ serve(async (req) => {
       // NEW: Check if session has ended (not if it's about to start)
       if (now > sessionEndTimeWIB) {
         console.error(`Session has ended: ${item.date} ${normalizedTimeSlot} WIB (ended at ${sessionEndTimeWIB.toISOString()})`)
-        return jsonError(req, 400, {
+        return jsonErrorWithDetails(req, 400, {
           error: 'Session has ended',
+          code: 'SESSION_ENDED',
           details: `The selected session (${normalizedTimeSlot} on ${item.date}) has already ended. Please select a different time slot.`,
         })
       }
@@ -327,8 +328,9 @@ serve(async (req) => {
         await releaseReservedTicketHolds({ supabase, holds: reservedHolds })
 
         console.error('Ticket capacity reservation error:', reserveError)
-        return jsonError(req, 500, {
+        return jsonErrorWithDetails(req, 500, {
           error: 'Failed to reserve ticket capacity',
+          code: 'RESERVE_TICKET_CAPACITY_FAILED',
           details: reserveError.message,
         })
       }
@@ -436,7 +438,11 @@ serve(async (req) => {
     if (!midtransResponse.ok) {
       console.error('Midtrans error:', midtransData)
       await rollbackCreatedTicketOrder({ supabase, orderId: order.id, holds: reservedHolds })
-      return jsonError(req, 500, { error: 'Failed to create payment token', details: midtransData })
+      return jsonErrorWithDetails(req, 500, {
+        error: 'Failed to create payment token',
+        code: 'MIDTRANS_TOKEN_FAILED',
+        details: midtransData,
+      })
     }
 
     // Update order with payment data

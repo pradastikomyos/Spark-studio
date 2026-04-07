@@ -12,6 +12,16 @@ Source of truth for schema, RPC, and RLS is `supabase/migrations/`.
 - If a migration is superseded or duplicated, keep history intact and add an explicit comment explaining the relationship instead of renaming old files.
 - If migration history is repaired remotely, rerun `supabase migration list` until Local and Remote match for the affected timestamps.
 
+## Schema Governance Checklist
+
+Use this checklist when adding or changing domain enums (status, channel, type fields):
+
+1. Update the schema constraint or enum type in a migration (do not rely on app-only validation).
+2. Add a default and NOT NULL if the column is required for all new rows.
+3. Backfill existing rows before tightening constraints.
+4. Update any RPCs/cron jobs that compare hard-coded values (search for `channel` or status strings).
+5. Regenerate types if column constraints or allowed values change.
+
 ## Normal Flow
 
 1. Make the schema, RPC, or RLS change in a safe environment.

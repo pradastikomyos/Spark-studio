@@ -1,5 +1,5 @@
 import { serve } from '../_shared/deps.ts'
-import { handleCors, json, jsonError } from '../_shared/http.ts'
+import { handleCors, json, jsonError, jsonErrorWithDetails } from '../_shared/http.ts'
 import { createServiceClient } from '../_shared/supabase.ts'
 import { requireAuthenticatedRequest } from '../_shared/auth.ts'
 
@@ -50,7 +50,11 @@ serve(async (req) => {
         ...trace,
         error: error.message,
       })
-      return jsonError(req, 500, { error: 'Failed to cancel order', details: error.message })
+      return jsonErrorWithDetails(req, 500, {
+        error: 'Failed to cancel order',
+        code: 'CANCEL_ORDER_FAILED',
+        details: error.message,
+      })
     }
 
     const result =
@@ -95,6 +99,12 @@ serve(async (req) => {
 
     return jsonError(req, 409, result.message || 'Failed to cancel order')
   } catch (e) {
-    return jsonError(req, 500, { error: 'Internal server error', details: e instanceof Error ? e.message : String(e) })
+    const errorMessage = e instanceof Error ? e.message : String(e)
+    console.error('[cancel-product-order] Unhandled error:', errorMessage)
+    return jsonErrorWithDetails(req, 500, {
+      error: 'Internal server error',
+      code: 'UNHANDLED_EXCEPTION',
+      details: errorMessage,
+    })
   }
 })

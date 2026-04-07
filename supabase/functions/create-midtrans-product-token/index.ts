@@ -1,6 +1,6 @@
 import { serve } from '../_shared/deps.ts'
 import { getMidtransBasicAuthHeader, getSnapUrl } from '../_shared/midtrans.ts'
-import { handleCors, json, jsonError } from '../_shared/http.ts'
+import { handleCors, json, jsonError, jsonErrorWithDetails } from '../_shared/http.ts'
 import { getMidtransEnv, getPublicAppUrl } from '../_shared/env.ts'
 import { createServiceClient } from '../_shared/supabase.ts'
 import { toNumber } from '../_shared/payment-effects.ts'
@@ -195,7 +195,8 @@ serve(async (req) => {
       })
 
       if (voucherError) {
-        return jsonError(req, 500, {
+        console.error('[create-midtrans-product-token] Voucher validation error:', voucherError.message)
+        return jsonErrorWithDetails(req, 500, {
           error: 'Failed to validate voucher',
           code: 'VOUCHER_VALIDATION_ERROR',
           details: voucherError.message,
@@ -320,7 +321,12 @@ serve(async (req) => {
         reservedAdjustments,
       })
 
-      return jsonError(req, 500, { error: 'Failed to create order', details: orderError?.message })
+      console.error('[create-midtrans-product-token] Failed to create order:', orderError?.message)
+      return jsonErrorWithDetails(req, 500, {
+        error: 'Failed to create order',
+        code: 'ORDER_CREATE_FAILED',
+        details: orderError?.message,
+      })
     }
 
     const orderId = (order as unknown as { id: number }).id
@@ -346,7 +352,12 @@ serve(async (req) => {
         reservedAdjustments,
       })
 
-      return jsonError(req, 500, { error: 'Failed to create order items', details: itemsError.message })
+      console.error('[create-midtrans-product-token] Failed to create order items:', itemsError.message)
+      return jsonErrorWithDetails(req, 500, {
+        error: 'Failed to create order items',
+        code: 'ORDER_ITEMS_CREATE_FAILED',
+        details: itemsError.message,
+      })
     }
 
     const midtransUrl = getSnapUrl(midtransIsProduction)
@@ -397,7 +408,12 @@ serve(async (req) => {
         reservedAdjustments,
       })
 
-      return jsonError(req, 500, { error: 'Failed to create payment token', details: midtransData })
+      console.error('[create-midtrans-product-token] Midtrans error:', midtransData)
+      return jsonErrorWithDetails(req, 500, {
+        error: 'Failed to create payment token',
+        code: 'MIDTRANS_TOKEN_FAILED',
+        details: midtransData,
+      })
     }
 
     await supabase
