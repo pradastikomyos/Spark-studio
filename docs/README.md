@@ -16,6 +16,7 @@ This folder is intentionally compact. Long-lived docs only.
 
 - DB migrations: `docs/runbooks/db-migrations.md`
 - Midtrans payments: `docs/runbooks/midtrans-payments.md`
+- Payment deadlock review: `docs/runbooks/payment-deadlock-review.md`
 - Skeleton loading and recovery: `docs/runbooks/skeleton-loading.md`
 - ImageKit migration: `docs/runbooks/imagekit-migration.md`
 - Admin product entry: `docs/runbooks/admin-product-entry.md`
