@@ -12,7 +12,8 @@ import {
 type BookingPageFormState = Omit<BookingPageSettings, 'id'>;
 
 function createDefaultFormState(): BookingPageFormState {
-  const { id: _, ...rest } = DEFAULT_BOOKING_PAGE_SETTINGS;
+  const { id: _id, ...rest } = DEFAULT_BOOKING_PAGE_SETTINGS;
+  void _id;
   return {
     ...rest,
     important_info_items: [...rest.important_info_items],
@@ -48,7 +49,8 @@ export default function BookingPageManager() {
 
   useEffect(() => {
     if (settings) {
-      const { id: _, ...rest } = settings;
+      const { id: _id, ...rest } = settings;
+      void _id;
       setForm({
         ...rest,
         important_info_items: [...rest.important_info_items],

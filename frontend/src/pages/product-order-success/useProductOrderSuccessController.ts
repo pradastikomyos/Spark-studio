@@ -143,9 +143,8 @@ export function useProductOrderSuccessController({
             retryWithFreshToken,
           });
           if (data?.order) {
-            setOrder((prev) => ({ ...(prev || ({} as ProductOrderDetail)), ...(data.order as ProductOrderDetail) }));
-            const syncedOrder = data.order as { payment_status?: string; pickup_code?: string | null };
-            if (syncedOrder.payment_status === 'paid' || syncedOrder.pickup_code) {
+            setOrder((prev) => ({ ...(prev ?? data.order), ...(data.order as ProductOrderDetail) }));
+            if (data.order.payment_status === 'paid' || data.order.pickup_code) {
               if (isAutoSync) {
                 incrementMetric(METRIC_KEYS.autoSyncSuccess);
               }
@@ -158,9 +157,8 @@ export function useProductOrderSuccessController({
             if (retriedToken) {
               const retriedData = await syncProductOrderStatus(orderNumber, retriedToken);
               if (retriedData?.order) {
-                setOrder((prev) => ({ ...(prev || ({} as ProductOrderDetail)), ...(retriedData.order as ProductOrderDetail) }));
-                const retriedOrder = retriedData.order as { payment_status?: string; pickup_code?: string | null };
-                if (retriedOrder.payment_status === 'paid' || retriedOrder.pickup_code) {
+                setOrder((prev) => ({ ...(prev ?? retriedData.order), ...(retriedData.order as ProductOrderDetail) }));
+                if (retriedData.order.payment_status === 'paid' || retriedData.order.pickup_code) {
                   await fetchOrder();
                 }
               }
