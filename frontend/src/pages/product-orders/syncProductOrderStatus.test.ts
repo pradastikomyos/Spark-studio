@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { supabase } from '../../lib/supabase';
+import { invokeSupabaseFunction } from '../../lib/supabaseFunctionInvoke';
 import { getProductOrderAccessToken, syncProductOrderStatus } from './syncProductOrderStatus';
 
 vi.mock('../../lib/supabase', () => ({
@@ -9,6 +10,10 @@ vi.mock('../../lib/supabase', () => ({
       getSession: vi.fn(),
     },
   },
+}));
+
+vi.mock('../../lib/supabaseFunctionInvoke', () => ({
+  invokeSupabaseFunction: vi.fn(),
 }));
 
 describe('syncProductOrderStatus', () => {
@@ -39,22 +44,10 @@ describe('syncProductOrderStatus', () => {
   });
 
   it('retries unauthorized sync requests with a refreshed token', async () => {
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValueOnce(
-        new Response(JSON.stringify({ error: 'Unauthorized' }), {
-          status: 401,
-          headers: { 'Content-Type': 'application/json' },
-        })
-      )
-      .mockResolvedValueOnce(
-        new Response(JSON.stringify({ order: { payment_status: 'paid' } }), {
-          status: 200,
-          headers: { 'Content-Type': 'application/json' },
-        })
-      );
-
-    vi.stubGlobal('fetch', fetchMock);
+    const unauthorizedError = Object.assign(new Error('Unauthorized'), { status: 401 });
+    vi.mocked(invokeSupabaseFunction)
+      .mockRejectedValueOnce(unauthorizedError)
+      .mockResolvedValueOnce({ order: { payment_status: 'paid' } } as never);
 
     const retryWithFreshToken = vi.fn().mockResolvedValue('token-2');
 
@@ -62,15 +55,17 @@ describe('syncProductOrderStatus', () => {
       retryWithFreshToken,
     });
 
-    expect(fetchMock.mock.calls[0]?.[1]).toMatchObject({
+    expect(vi.mocked(invokeSupabaseFunction).mock.calls[0]?.[0]).toMatchObject({
+      functionName: 'sync-midtrans-product-status',
+      body: { order_number: 'ORDER-1' },
       headers: { Authorization: 'Bearer token-1' },
     });
-    expect(fetchMock.mock.calls[1]?.[1]).toMatchObject({
+    expect(vi.mocked(invokeSupabaseFunction).mock.calls[1]?.[0]).toMatchObject({
+      functionName: 'sync-midtrans-product-status',
+      body: { order_number: 'ORDER-1' },
       headers: { Authorization: 'Bearer token-2' },
     });
     expect(retryWithFreshToken).toHaveBeenCalledTimes(1);
     expect(result).toEqual({ order: { payment_status: 'paid' } });
-
-    vi.unstubAllGlobals();
   });
 });

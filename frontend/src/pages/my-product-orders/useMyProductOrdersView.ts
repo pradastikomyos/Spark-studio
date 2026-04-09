@@ -1,6 +1,9 @@
 import { useMutation } from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { TFunction } from 'i18next';
+import { getSupabaseFunctionStatus } from '../../lib/supabaseFunctionError';
+import { invokeSupabaseFunction } from '../../lib/supabaseFunctionInvoke';
+import { withTimeout } from '../../utils/queryHelpers';
 import { useMyOrders } from '../../hooks/useMyOrders';
 import { classifyProductOrder, isCashierOrder, isPickupReady, shouldAutoSyncProductOrder } from '../product-orders/status';
 import { syncProductOrderStatus } from '../product-orders/syncProductOrderStatus';
@@ -137,9 +140,23 @@ export function useMyProductOrdersView({
     [getValidAccessToken, refreshSession, sessionToken, showToast, t]
   );
 
+
   const handleCancelOrder = useCallback(
     async (order: ProductOrderListItem) => {
-      if (!sessionToken) {
+      const invokeCancelProductOrder = (accessToken: string) =>
+        withTimeout(
+          invokeSupabaseFunction({
+            functionName: 'cancel-product-order',
+            body: { order_number: order.order_number },
+            headers: { Authorization: `Bearer ${accessToken}` },
+            fallbackMessage: 'Failed to cancel order',
+          }),
+          15000,
+          'Request timeout. Please try again.'
+        );
+
+      let accessToken = (await getValidAccessToken()) ?? sessionToken ?? null;
+      if (!accessToken) {
         showToast('error', t('myOrders.errors.notAuthenticated'));
         return;
       }
@@ -158,20 +175,19 @@ export function useMyProductOrdersView({
 
       setSyncingOrderId(order.id);
       try {
-        const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/cancel-product-order`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${sessionToken}`,
-          },
-          body: JSON.stringify({ order_number: order.order_number }),
-        });
-
-        const data = await response.json().catch(() => null);
-        if (!response.ok) {
-          const message = typeof data?.error === 'string' && data.error.length > 0 ? data.error : 'Failed to cancel order';
-          showToast('error', message);
-          return;
+        try {
+          await invokeCancelProductOrder(accessToken);
+        } catch (cancelError) {
+          if (getSupabaseFunctionStatus(cancelError) === 401) {
+            await refreshSession();
+            accessToken = await getValidAccessToken();
+            if (!accessToken) {
+              throw cancelError;
+            }
+            await invokeCancelProductOrder(accessToken);
+          } else {
+            throw cancelError;
+          }
         }
 
         showToast('success', t('myOrders.toast.cancelSuccess', 'Order cancelled.'));
@@ -181,7 +197,7 @@ export function useMyProductOrdersView({
         setSyncingOrderId(null);
       }
     },
-    [sessionToken, showToast, t]
+    [getValidAccessToken, refreshSession, sessionToken, showToast, t]
   );
 
   const toggleExpand = useCallback((orderId: number) => {

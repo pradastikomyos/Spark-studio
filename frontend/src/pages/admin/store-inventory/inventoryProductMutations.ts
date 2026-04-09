@@ -62,6 +62,11 @@ type InventoryMutationErrorMetadata = Error & {
   hint?: string | null;
 };
 
+type InventoryCleanupOutcome = {
+  cleanedCount: number;
+  cleanupWarnings: string[];
+};
+
 const SESSION_EXPIRED_MESSAGE = 'Sesi login kadaluarsa. Silakan login ulang.';
 
 const toValidVariantId = (value: unknown): number | null => {
@@ -160,6 +165,54 @@ async function cleanupImageKitFiles(
     cleanedCount: response.cleanedCount ?? 0,
     cleanupWarnings: response.cleanupWarnings ?? [],
   };
+}
+
+async function cleanupUploadedImagesSafely(
+  auth: InventoryMutationAuth,
+  images: ProductImageRecordInput[]
+): Promise<InventoryCleanupOutcome> {
+  const cleanup = await cleanupImageKitFiles(auth, images).catch((cleanupError) => ({
+    ok: true as const,
+    cleanedCount: 0,
+    cleanupWarnings: [extractInventoryMutationErrorMessage(cleanupError, 'Failed to clean up uploaded images')],
+  }));
+
+  return {
+    cleanedCount: cleanup.cleanedCount,
+    cleanupWarnings: cleanup.cleanupWarnings ?? [],
+  };
+}
+
+async function rollbackCreatedProductSafely(
+  accessToken: string,
+  productId: number
+): Promise<Error | null> {
+  const rollbackResult = await invokeInventoryMutation<InventoryDeleteMutationResponse>(accessToken, {
+    action: 'delete',
+    productId,
+  }).catch((rollbackFailure) => rollbackFailure);
+
+  return rollbackResult instanceof Error ? rollbackResult : null;
+}
+
+function buildInventoryMutationFailureMessage(params: {
+  error: unknown;
+  fallbackMessage: string;
+  cleanup?: InventoryCleanupOutcome;
+  rollbackError?: Error | null;
+}): string {
+  const baseMessage = extractInventoryMutationErrorMessage(params.error, params.fallbackMessage);
+  const cleanupSuffix =
+    params.cleanup && params.cleanup.cleanedCount > 0
+      ? `; rolled back ${params.cleanup.cleanedCount} uploaded image(s)`
+      : '';
+  const warningSuffix = params.cleanup
+    ? formatInventoryCleanupWarningSuffix(params.cleanup.cleanupWarnings ?? [])
+    : '';
+  const rollbackSuffix = params.rollbackError
+    ? `; failed to rollback created product: ${params.rollbackError.message}`
+    : '';
+  return `${baseMessage}${cleanupSuffix}${warningSuffix}${rollbackSuffix}`;
 }
 
 async function saveInventoryProductOnServer(params: {
@@ -348,9 +401,6 @@ export async function toggleProductActiveMutation(params: {
   auth: InventoryMutationAuth;
 }): Promise<{ ok: true; productId: number; isActive: boolean }> {
   const { productId, isActive, auth } = params;
-  const accessToken = await resolveInventoryAccessToken(auth);
-  if (!accessToken) throw new Error(SESSION_EXPIRED_MESSAGE);
-
   const response = await invokeInventoryMutationWithRetry<{ ok: true; productId: number; isActive: boolean }>(auth, {
     action: 'toggle_active',
     productId,
@@ -398,16 +448,13 @@ export async function saveInventoryProductMutation(params: {
         syncVariants: true,
       });
     } catch (error) {
-      const cleanup = await cleanupImageKitFiles(auth, uploadedImages).catch((cleanupError) => ({
-        ok: true as const,
-        cleanedCount: 0,
-        cleanupWarnings: [extractInventoryMutationErrorMessage(cleanupError, 'Failed to clean up uploaded images')],
-      }));
-
-      const cleanupSuffix = cleanup.cleanedCount > 0 ? `; rolled back ${cleanup.cleanedCount} uploaded image(s)` : '';
-      const warningSuffix = formatInventoryCleanupWarningSuffix(cleanup.cleanupWarnings ?? []);
-      const message = extractInventoryMutationErrorMessage(error, 'Failed to save product');
-      throw withInventoryMutationErrorMetadata(`${message}${cleanupSuffix}${warningSuffix}`, error);
+      const cleanup = await cleanupUploadedImagesSafely(auth, uploadedImages);
+      const message = buildInventoryMutationFailureMessage({
+        error,
+        fallbackMessage: 'Failed to save product',
+        cleanup,
+      });
+      throw withInventoryMutationErrorMetadata(message, error);
     }
   }
 
@@ -438,13 +485,14 @@ export async function saveInventoryProductMutation(params: {
       },
     });
   } catch (error) {
-    const rollbackError = await invokeInventoryMutation<InventoryDeleteMutationResponse>(accessToken, {
-      action: 'delete',
-      productId: createResponse.productId,
-    }).catch((rollbackFailure) => rollbackFailure);
-    if (rollbackError instanceof Error) {
+    const rollbackError = await rollbackCreatedProductSafely(accessToken, createResponse.productId);
+    if (rollbackError) {
       throw new Error(
-        `${extractInventoryMutationErrorMessage(error, 'Failed to upload product image')}; failed to rollback created product: ${rollbackError.message}`
+        buildInventoryMutationFailureMessage({
+          error,
+          fallbackMessage: 'Failed to upload product image',
+          rollbackError,
+        })
       );
     }
     throw error;
@@ -464,26 +512,14 @@ export async function saveInventoryProductMutation(params: {
       cleanupWarnings: [...(createResponse.cleanupWarnings ?? []), ...(attachResponse.cleanupWarnings ?? [])],
     };
   } catch (error) {
-    const cleanup = await cleanupImageKitFiles(auth, uploadedImages).catch((cleanupError) => ({
-      ok: true as const,
-      cleanedCount: 0,
-      cleanupWarnings: [extractInventoryMutationErrorMessage(cleanupError, 'Failed to clean up uploaded images')],
-    }));
-
-    const rollbackError = await invokeInventoryMutation<InventoryDeleteMutationResponse>(accessToken, {
-      action: 'delete',
-      productId: createResponse.productId,
-    }).catch((rollbackFailure) => rollbackFailure);
-
-    const cleanupSuffix = cleanup.cleanedCount > 0 ? `; rolled back ${cleanup.cleanedCount} uploaded image(s)` : '';
-    const warningSuffix = formatInventoryCleanupWarningSuffix(cleanup.cleanupWarnings ?? []);
-    const message = extractInventoryMutationErrorMessage(error, 'Failed to save product');
-    if (rollbackError instanceof Error) {
-      throw withInventoryMutationErrorMetadata(
-        `${message}${cleanupSuffix}${warningSuffix}; failed to rollback created product: ${rollbackError.message}`,
-        error
-      );
-    }
-    throw withInventoryMutationErrorMetadata(`${message}${cleanupSuffix}${warningSuffix}`, error);
+    const cleanup = await cleanupUploadedImagesSafely(auth, uploadedImages);
+    const rollbackError = await rollbackCreatedProductSafely(accessToken, createResponse.productId);
+    const message = buildInventoryMutationFailureMessage({
+      error,
+      fallbackMessage: 'Failed to save product',
+      cleanup,
+      rollbackError,
+    });
+    throw withInventoryMutationErrorMetadata(message, error);
   }
 }

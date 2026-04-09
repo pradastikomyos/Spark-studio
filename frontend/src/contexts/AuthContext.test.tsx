@@ -214,6 +214,43 @@ describe('AuthContext', () => {
             expect(mockRoleAbortSignal).not.toHaveBeenCalled()
         })
 
+        it('should sign out and reset auth state when SIGNED_IN validation is invalid and non-network', async () => {
+            const initialSession = {
+                access_token: 'token-1',
+                user: { id: 'user-1' }
+            }
+            const signedInSession = {
+                access_token: 'token-2',
+                user: { id: 'user-2' }
+            }
+
+            vi.mocked(supabase.auth.getSession).mockResolvedValue({ data: { session: initialSession }, error: null } as any)
+            vi.mocked(validateSessionWithRetry)
+                .mockResolvedValueOnce({
+                    valid: true,
+                    user: { id: 'user-1' },
+                    session: initialSession
+                } as any)
+                .mockResolvedValueOnce({
+                    valid: false,
+                    error: { type: 'expired', message: 'Expired', retryable: false }
+                } as any)
+
+            const { result } = renderHook(() => useAuth(), { wrapper: AuthProvider })
+            await waitFor(() => expect(result.current.initialized).toBe(true))
+
+            vi.mocked(supabase.auth.signOut).mockClear()
+
+            await act(async () => {
+                authStateChangeHandler?.('SIGNED_IN', signedInSession)
+            })
+
+            await waitFor(() => expect(supabase.auth.signOut).toHaveBeenCalled())
+            await waitFor(() => expect(result.current.sessionStatus).toBe('expired'))
+            expect(result.current.user).toBeNull()
+            expect(result.current.adminStatus).toBe('denied')
+        })
+
         it('should update state and return true on success', async () => {
             const localSession = {
                 access_token: 'token-1',

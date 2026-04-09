@@ -1,5 +1,5 @@
-/* eslint-disable */
 #!/usr/bin/env node
+/* eslint-disable */
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -55,8 +55,7 @@ function parseArgs(argv) {
 function loadEnvFile(filePath) {
   if (!filePath || !fs.existsSync(filePath)) return;
   const content = fs.readFileSync(filePath, 'utf8');
-  for (const rawLine of content.split(/?
-/)) {
+  for (const rawLine of content.split(/\r?\n/)) {
     const line = rawLine.trim();
     if (!line || line.startsWith('#')) continue;
     const separatorIndex = line.indexOf('=');
@@ -240,8 +239,7 @@ async function main() {
   }
 
   ensureParentDirectory(args.outputPath);
-  fs.writeFileSync(args.outputPath, `${JSON.stringify(summary, null, 2)}
-`, 'utf8');
+  fs.writeFileSync(args.outputPath, `${JSON.stringify(summary, null, 2)}\n`, 'utf8');
 
   console.log('ImageKit migration status');
   console.log(`- supabase_project_ref: ${supabaseCredentials.projectRef}`);

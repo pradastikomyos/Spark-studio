@@ -355,6 +355,18 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
     let authEventId = 0;
 
+    const invalidateAuthStateAfterFailedValidation = async () => {
+      try {
+        await supabase.auth.signOut();
+      } catch (signOutError) {
+        console.error('[AuthContext] Failed to sign out after invalid auth validation:', signOutError);
+      } finally {
+        if (isMounted) {
+          resetAuthState();
+        }
+      }
+    };
+
     const runPostAuthValidation = async (event: string, nextSession: Session | null, eventId: number) => {
       if (!nextSession?.user?.id) return;
 
@@ -379,8 +391,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           return;
         }
 
-        if (event === 'TOKEN_REFRESHED') {
-          await supabase.auth.signOut();
+        if (event === 'TOKEN_REFRESHED' || event === 'SIGNED_IN') {
+          await invalidateAuthStateAfterFailedValidation();
         }
       } catch (error) {
         console.error(`[AuthContext] ${event} validation error:`, error);

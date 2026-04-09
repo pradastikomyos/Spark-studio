@@ -6,8 +6,7 @@ const execFileAsync = promisify(execFile)
 
 function parseMigrationRows(output) {
   return output
-    .split(/?
-/)
+    .split(/\r?\n/)
     .map((line) => line.trim())
     .filter((line) => /^\d{8,}\s*\|/.test(line))
     .map((line) => {

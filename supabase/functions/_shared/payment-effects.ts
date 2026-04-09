@@ -42,21 +42,19 @@ type OrderProductItemsRow = {
   quantity: number
 }
 
-
-type WebhookLogsRow = {
-  id?: number
-  order_number: string | null
-  event_type: string
-  payload: Json | null
-  processed_at: string
-  success: boolean
-  error_message?: string | null
-}
-
 export type TicketOrder = OrdersRow
 export type TicketOrderItem = Pick<OrderItemsRow, 'id' | 'ticket_id' | 'selected_date' | 'selected_time_slots' | 'quantity'> & {
   order_id?: number
 }
+export type ProductOrder = OrderProductsRow
+export type ProductOrderItem = OrderProductItemsRow
+
+export type PaymentEffectScope = 'ticket_order' | 'product_order'
+
+async function claimPaymentEffectRun(params: {
+  supabase: ServiceClient
+  scope: PaymentEffectScope
+  orderRef: string
   effectType: string
   effectKey?: string
 }) {

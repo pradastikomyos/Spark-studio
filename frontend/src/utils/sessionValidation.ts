@@ -26,9 +26,8 @@ export async function validateSessionWithRetry(
 ): Promise<ValidationResult> {
   try {
     const session = await readCurrentSessionSnapshot(requestTimeoutMs, 'Auth getSession timeout')
-    const sessionError = null
 
-    if (sessionError || !session) {
+    if (!session) {
       return {
         valid: false,
         error: {
