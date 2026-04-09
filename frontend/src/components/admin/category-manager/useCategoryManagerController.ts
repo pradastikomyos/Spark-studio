@@ -103,16 +103,36 @@ export function useCategoryManagerController({ isOpen, onUpdate }: Pick<Category
 
   const handleDelete = useCallback(
     async (id: number) => {
-      if (!confirm('Delete this category? Products using it will need reassignment.')) return;
-
       try {
         setLoading(true);
         setError(null);
+
+        // Check if there are products using this category
+        const { count, error: countError } = await supabase
+          .from('products')
+          .select('*', { count: 'exact', head: true })
+          .eq('category_id', id)
+          .is('deleted_at', null);
+
+        if (countError) throw countError;
+
+        const hasProducts = (count ?? 0) > 0;
+        const confirmMessage = hasProducts
+          ? `AWAS: Ada ${count} produk di kategori ini. Menghapus kategori ini akan ikut MENGHAPUS SEMUA produk tersebut secara PERMANEN. Sebaiknya pindahkan produk ke kategori lain dulu.\n\nTetap hapus?`
+          : 'Hapus kategori ini?';
+
+        if (!confirm(confirmMessage)) {
+          setLoading(false);
+          return;
+        }
+
         const { error: deleteError } = await supabase.from('categories').delete().eq('id', id);
         if (deleteError) throw deleteError;
+
         await fetchCategories();
         onUpdate();
       } catch (caughtError) {
+        console.error('Error deleting category:', caughtError);
         setError(caughtError instanceof Error ? caughtError.message : 'Failed to delete category');
       } finally {
         setLoading(false);
