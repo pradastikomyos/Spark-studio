@@ -2,11 +2,16 @@ import { getValidatedAccessToken, readCurrentAccessToken } from '../../auth/sess
 import { getSupabaseFunctionStatus } from '../../lib/supabaseFunctionError';
 import { invokeSupabaseFunction } from '../../lib/supabaseFunctionInvoke';
 import { withTimeout } from '../../utils/queryHelpers';
+import type { ProductOrderDetail } from './types';
 
 type SessionLike = { access_token?: string | null; expires_at?: number | null } | null;
 
 type SyncProductOrderStatusOptions = {
   retryWithFreshToken?: () => Promise<string | null>;
+};
+
+export type SyncProductOrderStatusResponse = {
+  order?: ProductOrderDetail | null;
 };
 
 export async function readCurrentProductOrderAccessToken() {
@@ -25,9 +30,12 @@ export async function getProductOrderAccessToken(params: {
   });
 }
 
-async function requestProductOrderSync(orderNumber: string, accessToken: string) {
+async function requestProductOrderSync(
+  orderNumber: string,
+  accessToken: string
+): Promise<SyncProductOrderStatusResponse> {
   return withTimeout(
-    invokeSupabaseFunction({
+    invokeSupabaseFunction<SyncProductOrderStatusResponse>({
       functionName: 'sync-midtrans-product-status',
       body: { order_number: orderNumber },
       headers: { Authorization: `Bearer ${accessToken}` },
@@ -42,7 +50,7 @@ export async function syncProductOrderStatus(
   orderNumber: string,
   accessToken: string,
   options: SyncProductOrderStatusOptions = {}
-) {
+): Promise<SyncProductOrderStatusResponse> {
   try {
     return await requestProductOrderSync(orderNumber, accessToken);
   } catch (error) {
