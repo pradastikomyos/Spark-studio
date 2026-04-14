@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { ChevronLeft, ChevronRight, Search, X } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useCart } from '../contexts/cartStore';
+import { useAuth } from '../contexts/AuthContext';
+
 import { formatCurrency } from '../utils/formatters';
 import { useProductSummaries, type Product } from '../hooks/useProducts';
 import { useCategories } from '../hooks/useCategories';
@@ -163,6 +165,8 @@ function ShopResults({ filteredProducts, loading, resetSignal, onPrefetchProduct
 const Shop = () => {
   const queryClient = useQueryClient();
   const { addItem } = useCart();
+  const { user } = useAuth();
+  const navigate = useNavigate();
   const { showToast } = useToast();
   const {
     activeCategory,
@@ -219,7 +223,13 @@ const Shop = () => {
   }, [activeSubcategory, childCategoriesByParentSlug]);
 
   const handleAddToCart = (product: Product) => {
+    if (!user) {
+      showToast('error', 'Please login to add items to cart');
+      navigate('/login', { state: { from: window.location.pathname } });
+      return;
+    }
     if (!product.defaultVariantId || !product.defaultVariantName) return;
+
     try {
       addItem(
         {

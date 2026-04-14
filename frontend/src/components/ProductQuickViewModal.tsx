@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { LazyMotion, m, AnimatePresence } from 'framer-motion';
 import { X, ShoppingBag, ExternalLink } from 'lucide-react';
 import { useCart } from '../contexts/cartStore';
+import { useAuth } from '../contexts/AuthContext';
 import { useToast } from './Toast';
 import { ProductImageCarousel } from './ProductImageCarousel';
 import { fetchProductDetail, type ProductDetail } from '../hooks/useProduct';
@@ -19,6 +20,8 @@ type ProductQuickViewModalProps = {
 
 export default function ProductQuickViewModal({ open, productId, initialVariantId, onClose }: ProductQuickViewModalProps) {
   const { addItem } = useCart();
+  const { user } = useAuth();
+  const navigate = useNavigate();
   const { showToast } = useToast();
   const queryClient = useQueryClient();
   const [selectedVariantId, setSelectedVariantId] = useState<number | null>(null);
@@ -73,6 +76,12 @@ export default function ProductQuickViewModal({ open, productId, initialVariantI
   }, [product, selectedVariantId]);
 
   const handleAddToCart = () => {
+    if (!user) {
+      showToast('error', 'Please login to add items to cart');
+      onClose();
+      navigate('/login', { state: { from: window.location.pathname } });
+      return;
+    }
     if (!product || !selectedVariant) return;
     if (selectedVariant.available <= 0) return;
 

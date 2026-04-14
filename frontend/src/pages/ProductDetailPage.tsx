@@ -1,9 +1,10 @@
 import { useMemo, useState, useEffect } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useParams, useNavigate } from 'react-router-dom';
 import { formatCurrency } from '../utils/formatters';
 import { useCart } from '../contexts/cartStore';
 import { useProduct, type ProductDetail } from '../hooks/useProduct';
 import { useToast } from '../components/Toast';
+import { useAuth } from '../contexts/AuthContext';
 import { PageTransition } from '../components/PageTransition';
 import { LazyMotion, m } from 'framer-motion';
 import { ProductImageCarousel } from '../components/ProductImageCarousel';
@@ -15,6 +16,8 @@ export default function ProductDetailPage() {
   const { productId } = useParams();
   const { addItem } = useCart();
   const { showToast } = useToast();
+  const { user } = useAuth();
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { data: product, error, isLoading } = useProduct(productId);
   const [selectedVariantId, setSelectedVariantId] = useState<number | null>(null);
@@ -38,6 +41,11 @@ export default function ProductDetailPage() {
   }, [product, selectedVariantId]);
 
   const handleAddToCart = () => {
+    if (!user) {
+      showToast('error', 'Please login to add items to cart');
+      navigate('/login', { state: { from: window.location.pathname } });
+      return;
+    }
     if (!product || !selectedVariant) return;
     if (selectedVariant.available <= 0) return;
 
